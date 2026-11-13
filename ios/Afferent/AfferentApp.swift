@@ -4,7 +4,23 @@ import AVFoundation
 @main
 struct AfferentApp: App {
     var body: some Scene {
-        WindowGroup { PulseView() }
+        WindowGroup { RootView() }
+    }
+}
+
+struct RootView: View {
+    @StateObject private var finger = FingerSensor()
+    @State private var lastCameraBpm: Int?
+    var body: some View {
+        TabView {
+            PulseView(finger: finger, lastBpm: $lastCameraBpm)
+                .tabItem { Label("Pulse", systemImage: "heart.fill") }
+            ExpressionView(finger: finger, lastCameraBpm: lastCameraBpm)
+                .tabItem { Label("Expressions", systemImage: "face.smiling") }
+            CheckInView()
+                .tabItem { Label("Check-in", systemImage: "list.bullet.clipboard") }
+        }
+        .tint(.black)
     }
 }
 
@@ -26,7 +42,8 @@ struct CameraPreview: UIViewRepresentable {
 
 struct PulseView: View {
     @StateObject private var cam = PulseCamera()
-    @StateObject private var finger = FingerSensor()
+    @ObservedObject var finger: FingerSensor
+    @Binding var lastBpm: Int?
     @State private var tick = Date()
     @State private var savedBrightness: CGFloat = 0.5
 
@@ -62,6 +79,7 @@ struct PulseView: View {
             }
         }
         .preferredColorScheme(.light)
+        .onChange(of: cam.reading?.bpm) { _, v in if let v, cam.reading?.trust.label == .reliable { lastBpm = v } }
         .onAppear {
             savedBrightness = UIScreen.main.brightness
             UIScreen.main.brightness = 1.0
