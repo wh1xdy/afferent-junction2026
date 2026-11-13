@@ -6,6 +6,7 @@
 //                    notify("beat", millis, ibiMs, peakSlope, locked) on every detected beat
 //  Linux -> sketch:  call("buzz", freqHz, ms)
 //                    call("heartbeat_sound", on)                 beep on every heartbeat (default on)
+//                    call("pulse_period", ms, quality100)        Linux autocorrelation of the last 6 s, every 1 s
 //                    call("led", r, g, b, ms)                    show a colour on the KY-016 for ms
 //                                                                (ms <= 0: hold until the next call; 0,0,0 = back to auto)
 // KY-016 RGB LED (common cathode): - GND, R D9, G D10, B D11.
@@ -30,11 +31,12 @@ unsigned long lastClimate = 0, lastStatus = 0;
 //   d       = rise over the last 2 samples (~45 ms); 0 while the ADC is railed
 //   peak    = tracked upstroke slope, decays slowly (~3 s half-life)
 //   beat    = d > SLOPE_FRAC * peak, re-armed once d falls back below 10 %,
-//             at least REFRACTORY_MS after the last one (fixed: an adaptive window
-//             locked onto every other beat)
-//   locked  = the last 3 inter-beat intervals are 333-1500 ms and within 35 % of
-//             each other; only then does it beep, so noise without a finger stays silent
-// Tuned offline on recorded data: 0 false beeps without a finger.
+//             at least max(300 ms, period / 2) after the last one; period comes from
+//             Linux (autocorrelation), so the dicrotic second bump ~0.3 s after each
+//             beat is skipped without the detector locking onto its own mistakes
+//   locked  = Linux reports a period with autocorrelation quality >= 0.20; only then
+//             does it beep/flash, so noise without a finger stays silent
+// Tuned offline on recorded data (taped fingertip, 85 BPM on a watch -> 88 BPM).
 const float SLOPE_FRAC = 0.3f;
 const float MIN_PEAK = 400.0f;       // 14-bit counts per 2 samples; no-finger noise peaks ~300
 const unsigned long REFRACTORY_MS = 300;
@@ -43,7 +45,9 @@ bool heartbeatSound = true;
 int hist[3] = {0, 0, 0};
 int histN = 0;
 float peak = 0;
-unsigned long ibis[3] = {0, 0, 0};
+unsigned long periodMs = 0;               // from Linux; 0 = unknown
+int periodQ = 0;                          // autocorrelation quality * 100
+unsigned long periodAt = 0;
 bool armedForBeat = true;
 unsigned long lastBeat = 0;
 
@@ -84,6 +88,13 @@ bool buzz(int freq, int ms) {
   return true;
 }
 
+bool setPulsePeriod(int ms, int q100) {
+  periodMs = ms > 0 ? (unsigned long)ms : 0;
+  periodQ = q100;
+  periodAt = millis();
+  return true;
+}
+
 bool setHeartbeatSound(bool on) {
   heartbeatSound = on;
   return heartbeatSound;
@@ -96,14 +107,13 @@ void detectBeat(int raw, unsigned long now) {
 
   peak *= 0.995f;
   if (d < 0.1f * peak) armedForBeat = true;
-  if (armedForBeat && peak > MIN_PEAK && d > SLOPE_FRAC * peak && now - lastBeat > REFRACTORY_MS) {
+  bool periodOk = periodMs >= 333 && periodMs <= 1800 && periodQ >= 20 && now - periodAt < 3000;
+  unsigned long refractory = periodOk ? max(REFRACTORY_MS, periodMs / 2) : REFRACTORY_MS;
+  if (armedForBeat && peak > MIN_PEAK && d > SLOPE_FRAC * peak && now - lastBeat > refractory) {
     unsigned long ibi = lastBeat ? now - lastBeat : 0;
-    ibis[0] = ibis[1]; ibis[1] = ibis[2]; ibis[2] = ibi;
     lastBeat = now;
     armedForBeat = false;
-    unsigned long lo = min(ibis[0], min(ibis[1], ibis[2]));
-    unsigned long hi = max(ibis[0], max(ibis[1], ibis[2]));
-    bool locked = lo >= 333 && hi <= 1500 && hi * 100 < lo * 135;
+    bool locked = periodOk;
     lastAnyBeat = now;
     if (locked) beatGlow = 1.0f;
     if (locked && heartbeatSound && buzzerOk) buzzer.tone(880, 40);
@@ -124,6 +134,7 @@ void setup() {
   Bridge.provide_safe("buzz", buzz);
   Bridge.provide_safe("heartbeat_sound", setHeartbeatSound);
   Bridge.provide_safe("led", setLed);
+  Bridge.provide_safe("pulse_period", setPulsePeriod);
   pinMode(PIN_R, OUTPUT); pinMode(PIN_G, OUTPUT); pinMode(PIN_B, OUTPUT);
   writeLed(0, 40, 0);                     // green blink at startup
   delay(150);

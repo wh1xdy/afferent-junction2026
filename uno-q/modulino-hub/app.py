@@ -113,6 +113,41 @@ def on_beat(t_ms, ibi_ms, peak, locked):
                   "peak_slope": int(peak), "locked_count": len(beats)})
 
 
+period_state = {"period_ms": None, "quality": None}
+
+
+def pulse_period(window_ms=6000):
+    """Autocorrelation of the last 6 s of A1: dominant period 0.33-1.6 s and its strength."""
+    pts = list(ppg)
+    if len(pts) < 150:
+        return None, 0.0
+    t_end = pts[-1][0]
+    v = [p[1] for p in pts if p[0] >= t_end - window_ms]
+    n = len(v)
+    fs = (n - 1) / (window_ms / 1000)
+    m = sum(v) / n
+    x = [a - m for a in v]
+    e = sum(a * a for a in x) or 1.0
+    best_lag, best_r = 0, 0.0
+    for lag in range(int(0.33 * fs), int(1.6 * fs)):
+        r = sum(x[i] * x[i + lag] for i in range(n - lag)) / e
+        if r > best_r:
+            best_lag, best_r = lag, r
+    return (round(best_lag / fs * 1000) if best_lag else None), best_r
+
+
+def period_loop(stopped):
+    while not stopped.wait(1.0):
+        try:
+            ms, q = pulse_period()
+            with lock:
+                period_state.update(period_ms=ms, quality=round(q, 2))
+            if state.get("bridge") == "connected":
+                bridge.call("pulse_period", int(ms or 0), int(q * 100), timeout=2)
+        except Exception as e:
+            print(f"period update failed: {e}", flush=True)
+
+
 def on_modulinos(knob_ok, thermo_ok, buzzer_ok):
     _set("modulinos", {"knob": bool(knob_ok), "thermo": bool(thermo_ok), "buzzer": bool(buzzer_ok)})
 
@@ -153,6 +188,7 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 out = dict(state)
             out["pulse"] = pulse_summary()
+            out["pulse"]["period"] = dict(period_state)
             self._json(200, out)
         elif path == "/ppg":
             self._json(200, {"samples": list(ppg)})
@@ -194,6 +230,7 @@ def main():
         signal.signal(sig, lambda *_: stopped.set())
 
     threading.Thread(target=bridge_loop, args=(stopped,), daemon=True).start()
+    threading.Thread(target=period_loop, args=(stopped,), daemon=True).start()
 
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
