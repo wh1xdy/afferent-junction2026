@@ -66,6 +66,10 @@
             <div class="font-mono text-white"><span id="cam-bpm" class="text-3xl font-bold">—</span> <span class="text-xs text-white/60">BPM</span></div>
             <div id="cam-note" class="text-[10px] text-white/50">looking for a face…</div>
           </div>
+          <div class="text-[10px] font-mono text-white/70 leading-5">
+            <div>cam 1 <span id="cam1-bpm" class="text-white">—</span> <span id="cam1-snr" class="text-white/40"></span></div>
+            <div>cam 2 <span id="cam2-bpm" class="text-white">—</span> <span id="cam2-snr" class="text-white/40"></span></div>
+          </div>
           <div>
             <div class="text-[10px] uppercase tracking-widest text-white/60">Finger sensor</div>
             <div class="font-mono text-red-300"><span id="finger-bpm" class="text-3xl font-bold">—</span> <span class="text-xs text-white/60">BPM</span></div>
@@ -293,22 +297,30 @@
       loadCameras();
       connect();
 
-      // Camera pulse (rPPG on the Jetson) next to the finger sensor on the UNO Q.
+      // Camera pulse (rPPG on the Jetson, two cameras fused) next to the finger sensor on the UNO Q.
       async function pollPulse() {
         try {
           const d = await (await fetch("/rppg")).json();
           const c = d.camera || {};
+          const fused = (c.fused || {}).bpm;
+          const good = c.snr !== null && c.snr !== undefined && c.snr > 0;
           const camEl = document.getElementById("cam-bpm");
-          const note = document.getElementById("cam-note");
-          const good = c.bpm && c.snr !== null && c.snr > -3;
-          camEl.textContent = c.bpm ?? "—";
+          camEl.textContent = fused ?? c.bpm ?? "—";
           camEl.style.opacity = good ? 1 : 0.4;
-          note.textContent = !c.face ? "looking for a face…"
-            : !c.bpm ? `measuring… ${c.window_s ?? 0}/6 s, keep still`
-            : `signal ${c.snr} dB · ${c.fps ?? "?"} fps${good ? "" : " · weak"}`;
+          for (const k of ["cam1", "cam2"]) {
+            const s = c[k] || {};
+            document.getElementById(k + "-bpm").textContent =
+              s.connected === false ? "offline" : !s.face ? "no face" : (s.bpm ?? "…");
+            document.getElementById(k + "-snr").textContent = s.snr != null ? `${s.snr} dB` : "";
+          }
+          const anyFace = (c.cam1 || {}).face || (c.cam2 || {}).face;
+          document.getElementById("cam-note").textContent = !anyFace ? "looking for a face…"
+            : !fused ? `measuring… keep still`
+            : `fused from ${(c.fused.sources || []).join(" + ")}${good ? "" : " · weak signal"}`;
           document.getElementById("finger-bpm").textContent = d.finger_bpm ?? "—";
-          const diff = document.getElementById("diff-note");
-          diff.textContent = c.bpm && d.finger_bpm ? `difference ${Math.abs(c.bpm - d.finger_bpm)} BPM` : " ";
+          const shown = fused ?? c.bpm;
+          document.getElementById("diff-note").textContent =
+            shown && d.finger_bpm ? `difference ${Math.abs(shown - d.finger_bpm)} BPM` : "\u00a0";
         } catch (e) {}
         setTimeout(pollPulse, 1000);
       }
