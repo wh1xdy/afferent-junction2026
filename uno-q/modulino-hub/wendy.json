@@ -1,0 +1,26 @@
+{
+  "appId": "modulino-hub",
+  "version": "0.1.0",
+  "platform": "linux",
+  "isolation": "isolated",
+  "mcu": {
+    "sketch": "sketch"
+  },
+  "entitlements": [
+    {
+      "type": "arduino-bridge"
+    },
+    {
+      "type": "network",
+      "mode": "mesh",
+      "serviceCIDR": "10.99.0.0/16",
+      "ports": [
+        {
+          "host": 18080,
+          "container": 8080,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  ]
+}
