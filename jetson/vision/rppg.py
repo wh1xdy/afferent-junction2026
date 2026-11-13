@@ -77,6 +77,75 @@ def _pose_model():
     return YOLO(str(p) if p.exists() else "yolov8n-pose.pt")
 
 
+def pos_spectrum(ts, rgb):
+    """POS on unevenly sampled RGB means -> (band freqs, band power, f0 Hz, SNR dB)."""
+    grid = np.arange(ts[0], ts[-1], 1.0 / SAMPLE_HZ)            # uniform resampling
+    c = np.stack([np.interp(grid, ts, rgb[:, k]) for k in range(3)], axis=1)
+    n, L = len(c), int(1.6 * SAMPLE_HZ)
+    h = np.zeros(n)
+    P = np.array([[0, 1, -1], [-2, 1, 1]])
+    for i in range(n - L + 1):                                   # per 1.6 s window
+        cn = c[i:i + L] / (c[i:i + L].mean(axis=0) + 1e-9)       # temporal normalisation
+        s = P @ cn.T                                             # plane orthogonal to skin tone
+        hh = s[0] + (s[0].std() / (s[1].std() + 1e-9)) * s[1]
+        h[i:i + L] += hh - hh.mean()
+    k = int(SAMPLE_HZ)                                           # detrend: 1 s moving average
+    h = h - np.convolve(h, np.ones(k) / k, mode="same")
+    h = (h - h.mean()) * np.hanning(n)
+    nfft = 1 << int(np.ceil(np.log2(n * 8)))
+    spec = np.abs(np.fft.rfft(h, nfft)) ** 2
+    freqs = np.fft.rfftfreq(nfft, 1.0 / SAMPLE_HZ)
+    band = (freqs >= BAND[0]) & (freqs <= BAND[1])
+    fb, sb = freqs[band], spec[band]
+    f0 = fb[int(np.argmax(sb))]
+    sig = (np.abs(fb - f0) <= 0.1) | (np.abs(fb - 2 * f0) <= 0.1)
+    snr = 10 * np.log10(sb[sig].sum() / (sb[~sig].sum() + 1e-12))
+    return fb, sb, float(f0), float(snr)
+
+
+def trust_score(snr, region_bpms, bpm, history, motion, luma, clipped):
+    """0-100 reliability of one camera's reading, plus the reasons it isn't higher.
+
+    Works with a single camera (the phone game): instead of two cameras agreeing, the
+    forehead and both cheeks are three independent measurements of the same pulse.
+      signal     SNR -2 dB -> 0 ... +6 dB -> 1
+      regions    share of face regions within 6 BPM of the reading
+      stability  spread of the last readings (0 BPM -> 1, 8+ BPM -> 0)
+      stillness  eye-midpoint movement over the window, relative to eye distance
+      exposure   face not too dark / clipped (multiplies the rest)
+    """
+    reasons = []
+    sig = min(max((snr + 2) / 8, 0), 1)
+    if sig < 0.5:
+        reasons.append("weak pulse signal")
+    valid = [x for x in region_bpms if x is not None]
+    agree = sum(1 for x in valid if abs(x - bpm) <= 6)
+    reg = agree / len(valid) if valid else 0.0
+    if reg < 0.67:
+        reasons.append(f"face regions disagree ({agree}/{len(valid)})")
+    if len(history) >= 3:
+        spread = float(np.std(history[-5:]))
+        stab = min(max(1 - spread / 8, 0), 1)
+        if stab < 0.5:
+            reasons.append(f"reading jumping (±{spread:.0f} BPM)")
+    else:
+        stab = 0.3
+        reasons.append("still settling")
+    still = min(max(1 - motion / 0.15, 0), 1)
+    if still < 0.5:
+        reasons.append("head moving")
+    expo = 1.0
+    if clipped > 0.05 or luma > 215:
+        expo, _ = 0.5, reasons.append("face overexposed")
+    elif luma < 50:
+        expo, _ = 0.5, reasons.append("face too dark")
+    score = round(100 * expo * (0.30 * sig + 0.30 * reg + 0.20 * stab + 0.20 * still))
+    label = "reliable" if score >= 70 else "uncertain" if score >= 40 else "unreliable"
+    return {"score": score, "label": label, "reasons": reasons,
+            "parts": {"signal": round(sig, 2), "regions": round(reg, 2), "stability": round(stab, 2),
+                      "stillness": round(still, 2), "exposure": expo}}
+
+
 class Source:
     """One camera: face tracking, skin sampling, POS estimate."""
 
@@ -95,6 +164,7 @@ class Source:
         self._spectrum = None        # (freqs, power) in band, for fusion
         self._result = {"bpm": None, "snr": None, "face": False, "window_s": 0.0}
         self._connected = not own_capture
+        self._history = deque(maxlen=8)
         self._gain = None
         self._gain_max = 255
         self._gain_t = 0.0
@@ -218,12 +288,21 @@ class Source:
         lo, hi = np.percentile(y, [15, 95])
         skin = (y >= lo) & (y <= hi) & (pix.max(axis=1) < 250)
         n_skin = int(skin.sum())
-        if n_skin > 50:
-            pix = pix[skin]
-        b, g, r = pix.mean(axis=0)
         luma = float(ycc[:, 0].mean())
         clipped = float((pix.max(axis=1) >= 250).mean())
-        self._samples.append((t, r, g, b))
+        allpix = pix[skin] if n_skin > 50 else pix
+        b, g, r = allpix.mean(axis=0)
+        # the same filter per region: forehead / cheek / cheek are three independent
+        # measurements of one pulse, which is what the trust score checks
+        regions = []
+        for roi in rois:
+            rp = roi.reshape(-1, 3)
+            ry = cv2.cvtColor(rp.reshape(-1, 1, 3), cv2.COLOR_BGR2YCrCb).reshape(-1, 3)[:, 0]
+            m = (ry >= lo) & (ry <= hi) & (rp.max(axis=1) < 250)
+            rb, rg, rr = (rp[m] if m.sum() > 30 else rp).mean(axis=0)
+            regions += [rr, rg, rb]
+        regions += [np.nan] * (9 - len(regions))
+        self._samples.append((t, r, g, b, cx, cy, d, *regions))
         self._diag = {"skin_px": n_skin, "roi_px": int(len(skin)), "brightness": round(luma),
                       "clipped": round(clipped, 3), "eye_dist_px": round(d), "frame": f"{W}x{H}",
                       "gain": self._gain}
@@ -252,6 +331,7 @@ class Source:
             logger.info("%s: face luma %.0f clipped %.1f%% -> gain %d", self.name, luma, clipped * 100, new)
             self._gain = new
             self._samples.clear()
+            self._history.clear()
         self._gain_t = t
 
     def _locate_face(self, frame, t):
@@ -301,33 +381,25 @@ class Source:
         span = pts[-1][0] - pts[0][0]
         if span < MIN_WINDOW_S:
             return {"bpm": None, "snr": None, "window_s": round(span, 1)}, None
-        arr = np.array(pts)
-        ts, rgb = arr[:, 0], arr[:, 1:4]
-        grid = np.arange(ts[0], ts[-1], 1.0 / SAMPLE_HZ)       # uniform resampling
-        c = np.stack([np.interp(grid, ts, rgb[:, k]) for k in range(3)], axis=1)
-
-        # POS: per 1.6 s window, temporally normalise, project onto the plane orthogonal to skin tone
-        n, L = len(c), int(1.6 * SAMPLE_HZ)
-        h = np.zeros(n)
-        P = np.array([[0, 1, -1], [-2, 1, 1]])
-        for i in range(n - L + 1):
-            cn = c[i:i + L] / (c[i:i + L].mean(axis=0) + 1e-9)
-            s = P @ cn.T
-            hh = s[0] + (s[0].std() / (s[1].std() + 1e-9)) * s[1]
-            h[i:i + L] += hh - hh.mean()
-        k = int(SAMPLE_HZ)                                      # detrend: 1 s moving average
-        h = h - np.convolve(h, np.ones(k) / k, mode="same")
-        h = (h - h.mean()) * np.hanning(n)
-        nfft = 1 << int(np.ceil(np.log2(n * 8)))
-        spec = np.abs(np.fft.rfft(h, nfft)) ** 2
-        freqs = np.fft.rfftfreq(nfft, 1.0 / SAMPLE_HZ)
-        band = (freqs >= BAND[0]) & (freqs <= BAND[1])
-        fb, sb = freqs[band], spec[band]
-        f0 = fb[int(np.argmax(sb))]
-        sig = (np.abs(fb - f0) <= 0.1) | (np.abs(fb - 2 * f0) <= 0.1)
-        snr = 10 * np.log10(sb[sig].sum() / (sb[~sig].sum() + 1e-12))
-        res = {"bpm": round(f0 * 60), "snr": round(float(snr), 1), "window_s": round(span, 1),
-               "fps": round(len(pts) / span, 1)}
+        arr = np.array(pts, dtype=float)
+        ts = arr[:, 0]
+        fb, sb, f0, snr = pos_spectrum(ts, arr[:, 1:4])
+        bpm = round(f0 * 60)
+        region_bpms = []
+        for k in range(3):
+            rgb = arr[:, 7 + 3 * k:10 + 3 * k]
+            if np.isnan(rgb).any():
+                region_bpms.append(None)
+                continue
+            region_bpms.append(round(pos_spectrum(ts, rgb)[2] * 60))
+        cxs, cys, ds = arr[:, 4], arr[:, 5], arr[:, 6]
+        motion = float(np.sqrt(cxs.var() + cys.var()) / max(ds.mean(), 1.0))
+        self._history.append(bpm)
+        trust = trust_score(snr, region_bpms, bpm, list(self._history), motion,
+                            self._diag.get("brightness", 128), self._diag.get("clipped", 0.0))
+        res = {"bpm": bpm, "snr": round(snr, 1), "window_s": round(span, 1),
+               "fps": round(len(pts) / span, 1), "regions_bpm": region_bpms,
+               "motion": round(motion, 3), "trust": trust}
         return res, (fb, sb / (sb.sum() + 1e-12))
 
     # ── outputs ───────────────────────────────────────────────────────
@@ -387,6 +459,16 @@ class RPPG:
         if weights:
             fused = {"bpm": round(float(FUSE_GRID[int(np.argmax(acc))]) * 60),
                      "sources": [n for n, _ in weights]}
+        trusts = [(out[n].get("trust") or {}) for n, _ in weights]
+        if trusts:
+            best_t = max(trusts, key=lambda x: x.get("score", 0))
+            fused["trust"] = dict(best_t)
+            bpms = [out[n]["bpm"] for n, _ in weights if out[n].get("bpm")]
+            if len(bpms) >= 2 and max(bpms) - min(bpms) <= 4:
+                ft = fused["trust"]
+                ft["score"] = min(100, ft.get("score", 0) + 15)
+                ft["label"] = "reliable" if ft["score"] >= 70 else "uncertain" if ft["score"] >= 40 else "unreliable"
+                ft["reasons"] = list(ft.get("reasons", [])) + ["two cameras agree"]
         out["fused"] = fused
         # backwards compatible top level (= best single camera)
         best = max((r for k, r in out.items() if k != "fused" and r.get("snr") is not None),

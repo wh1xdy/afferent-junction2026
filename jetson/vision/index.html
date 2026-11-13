@@ -65,6 +65,10 @@
             <div class="text-[10px] uppercase tracking-widest text-white/60">Camera pulse</div>
             <div class="font-mono text-white"><span id="cam-bpm" class="text-3xl font-bold">—</span> <span class="text-xs text-white/60">BPM</span></div>
             <div id="cam-note" class="text-[10px] text-white/50">looking for a face…</div>
+            <div class="mt-1 flex items-center gap-2">
+              <span id="trust-badge" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-white/10 text-white/60">—</span>
+              <span id="trust-reason" class="text-[10px] text-white/50"></span>
+            </div>
           </div>
           <div class="text-[10px] font-mono text-white/70 leading-5">
             <div>cam 1 <span id="cam1-bpm" class="text-white">—</span> <span id="cam1-snr" class="text-white/40"></span></div>
@@ -317,6 +321,19 @@
           document.getElementById("cam-note").textContent = !anyFace ? "looking for a face…"
             : !fused ? `measuring… keep still`
             : `fused from ${(c.fused.sources || []).join(" + ")}${good ? "" : " · weak signal"}`;
+          const tr = (c.fused || {}).trust || (c.cam1 || {}).trust || (c.cam2 || {}).trust;
+          const badge = document.getElementById("trust-badge");
+          if (tr) {
+            const tone = { reliable: "bg-emerald-500/80 text-white", uncertain: "bg-amber-500/80 text-black",
+                           unreliable: "bg-red-600/80 text-white" }[tr.label] || "bg-white/10 text-white/60";
+            badge.className = "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded " + tone;
+            badge.textContent = `${tr.label} ${tr.score}`;
+            document.getElementById("trust-reason").textContent = (tr.reasons || [])[0] || "";
+          } else {
+            badge.className = "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-white/10 text-white/60";
+            badge.textContent = "—";
+            document.getElementById("trust-reason").textContent = "";
+          }
           document.getElementById("finger-bpm").textContent = d.finger_bpm ?? "—";
           const shown = fused ?? c.bpm;
           document.getElementById("diff-note").textContent =
