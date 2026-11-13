@@ -27,11 +27,20 @@ Tape it to a fingertip: firm enough not to move, not so tight it blocks blood fl
 
 ## Camera pulse (rPPG)
 
-The Jetson also estimates heart rate from the C920, contact-free: YOLOv8n-pose finds the
-eyes, the forehead + cheeks are averaged (skin pixels only) at 20 Hz, and the POS method
-(Wang et al. 2017) on the last 10 s gives the dominant frequency in 42–180 BPM.
-The web UI shows it next to the finger sensor. First test: camera 90–91 vs finger 89–92 BPM.
-Needs a still face, steady light and ~10 s; `snr` below about −3 dB means "don't trust it".
+The Jetson also estimates heart rate contact-free from **two cameras**: the C920 (`cam1`, also
+used for YOLO) and the Arduino USB Camera (`cam2`, `/dev/video2`, 1280x720). Per camera:
+YOLOv8n-pose finds the eyes, forehead + cheeks are averaged (skin pixels only) at 20 Hz, and
+POS (Wang et al. 2017) on the last 10 s gives the dominant frequency in 45–180 BPM. The two
+spectra are fused, weighted by each camera's SNR. Auto exposure / white balance / focus are
+locked (50 Hz mains), and gain follows the *face* brightness (no clipping).
+
+Requirements, honestly: a still face, 0.5–1 m away, lit by **white** light. Coloured (purple)
+stage lighting has almost no green, where the pulse signal lives — use the Arduino camera's
+ring light. `snr` below 0 dB means "don't trust it". Keep the heartbeat LED off
+(`POST /led/beat?on=0`, the default): a light flashing at heart rate on the face fakes the result.
+
+Diagnostics: `GET /rppg` (per-camera skin pixels, brightness, clipping, gain) and
+`GET /rppg/frame?cam=cam1|cam2` (latest frame with the measured skin regions drawn).
 
 ## Open the UI (no display needed)
 

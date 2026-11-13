@@ -892,6 +892,16 @@ async def rppg_status():
     return JSONResponse(content={"camera": rppg.status(), "finger_bpm": finger})
 
 
+@app.get("/rppg/frame")
+async def rppg_frame(cam: str = "cam1"):
+    """Latest frame from an rPPG camera with the skin ROIs drawn (diagnostics)."""
+    from fastapi.responses import Response
+    jpg = await asyncio.to_thread(rppg.frame_jpeg, cam)
+    if jpg is None:
+        return JSONResponse(status_code=404, content={"error": f"no frame from {cam}"})
+    return Response(content=jpg, media_type="image/jpeg")
+
+
 @app.post("/hub/buzz")
 async def hub_buzz(freq: int = 880, ms: int = 200):
     return JSONResponse(content=await asyncio.to_thread(hub.buzz, freq, ms))
