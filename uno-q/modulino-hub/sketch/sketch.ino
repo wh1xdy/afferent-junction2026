@@ -6,6 +6,10 @@
 //                    notify("beat", millis, ibiMs, peakSlope, locked) on every detected beat
 //  Linux -> sketch:  call("buzz", freqHz, ms)
 //                    call("heartbeat_sound", on)                 beep on every heartbeat (default on)
+//                    call("led", r, g, b, ms)                    show a colour on the KY-016 for ms
+//                                                                (ms <= 0: hold until the next call; 0,0,0 = back to auto)
+// KY-016 RGB LED (common cathode): - GND, R D9, G D10, B D11.
+//   auto mode: red flash on every heartbeat, dim blue while searching for a rhythm, off without a finger
 
 #include <Arduino_RouterBridge.h>
 #include <Arduino_Modulino.h>
@@ -43,6 +47,36 @@ unsigned long ibis[3] = {0, 0, 0};
 bool armedForBeat = true;
 unsigned long lastBeat = 0;
 
+// ── KY-016 RGB LED ──────────────────────────────────────────────────────────
+const int PIN_R = 9, PIN_G = 10, PIN_B = 11;
+float beatGlow = 0;                       // 1.0 on a beat, fades to 0
+bool ledOverride = false;
+int ovR = 0, ovG = 0, ovB = 0;
+unsigned long ovUntil = 0;                // 0 = hold
+unsigned long lastAnyBeat = 0;            // any detected beat, locked or not
+
+void writeLed(int r, int g, int b) {
+  analogWrite(PIN_R, constrain(r, 0, 255));
+  analogWrite(PIN_G, constrain(g, 0, 255));
+  analogWrite(PIN_B, constrain(b, 0, 255));
+}
+
+bool setLed(int r, int g, int b, int ms) {
+  if (r == 0 && g == 0 && b == 0) { ledOverride = false; return true; }
+  ledOverride = true;
+  ovR = r; ovG = g; ovB = b;
+  ovUntil = ms > 0 ? millis() + (unsigned long)ms : 0;
+  return true;
+}
+
+void updateLed(unsigned long now) {
+  if (ledOverride && ovUntil && now > ovUntil) ledOverride = false;
+  if (ledOverride) { writeLed(ovR, ovG, ovB); return; }
+  beatGlow *= 0.80f;                      // ~250 ms fade at ~45 Hz
+  bool searching = lastAnyBeat && now - lastAnyBeat < 3000 && beatGlow < 0.05f;
+  writeLed((int)(255 * beatGlow), 0, searching ? 12 : 0);
+}
+
 bool buzz(int freq, int ms) {
   if (!buzzerOk) return false;
   if (freq <= 0 || ms <= 0) buzzer.noTone();
@@ -70,6 +104,8 @@ void detectBeat(int raw, unsigned long now) {
     unsigned long lo = min(ibis[0], min(ibis[1], ibis[2]));
     unsigned long hi = max(ibis[0], max(ibis[1], ibis[2]));
     bool locked = lo >= 333 && hi <= 1500 && hi * 100 < lo * 135;
+    lastAnyBeat = now;
+    if (locked) beatGlow = 1.0f;
     if (locked && heartbeatSound && buzzerOk) buzzer.tone(880, 40);
     Bridge.notify("beat", (uint32_t)now, (uint32_t)ibi, (int)peak, locked);
   }
@@ -87,6 +123,11 @@ void setup() {
   // provide_safe: runs on the loop thread, so the I2C calls never race loop()
   Bridge.provide_safe("buzz", buzz);
   Bridge.provide_safe("heartbeat_sound", setHeartbeatSound);
+  Bridge.provide_safe("led", setLed);
+  pinMode(PIN_R, OUTPUT); pinMode(PIN_G, OUTPUT); pinMode(PIN_B, OUTPUT);
+  writeLed(0, 40, 0);                     // green blink at startup
+  delay(150);
+  writeLed(0, 0, 0);
   if (buzzerOk) buzzer.tone(1760, 80);  // startup beep
 }
 
@@ -111,6 +152,7 @@ void loop() {
 
   int raw = analogRead(A1);
   detectBeat(raw, now);
+  updateLed(now);
   Bridge.notify("ppg", (uint32_t)now, raw);
 
   if (now - lastStatus >= 5000) {
