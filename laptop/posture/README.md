@@ -102,24 +102,30 @@ docker compose run --rm posture pytest -q
 
 Synthetic-data tests only — no models or camera required.
 
-## GPU variant (untested here)
+## GPU variant
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml build
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
-Requires the NVIDIA container toolkit on the host:
+The NVIDIA container toolkit is installed on this host (RTX 3070 laptop), but
+only the **CDI device passthrough** is configured: `docker info` reports CDI
+`nvidia.com/gpu=all` while Runtimes stays runc-only. Plain compose `gpus: all`
+therefore **does not work** here — the daemon cannot select a device driver
+("could not select device driver"). The override passes the CDI device
+instead:
 
-```sh
-sudo apt install nvidia-container-toolkit
-sudo nvidia-ctk runtime configure --runtime=docker
-sudo systemctl restart docker
+```yaml
+devices:
+  - "nvidia.com/gpu=all"
 ```
 
-This machine has an RTX 3070 laptop GPU but **no container toolkit** (runc only),
-so the GPU path is provided best-effort and was verified only to the extent that
-the Dockerfile builds the `gpu` target — runtime behaviour is untested.
+verified with `nvidia-smi` inside a test container. On a host where the
+NVIDIA container runtime *is* registered (`sudo nvidia-ctk runtime configure
+--runtime=docker` + restart), `gpus: all` would also work; the CDI device line
+works in both cases. With `DEVICE=cuda`, `POSE_MODE` defaults to `balanced` and
+`DET_EVERY` to 1 (`afferent/config.py`).
 
 ## API summary
 

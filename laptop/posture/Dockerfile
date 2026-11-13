@@ -2,7 +2,8 @@
 #
 # afferent posture POC — CPU by default. Build the GPU variant with:
 #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml build
-# (requires the NVIDIA container toolkit on the host; untested here).
+# Requires the NVIDIA container toolkit on the host (CDI device
+# nvidia.com/gpu=all; plain `--gpus` needs the nvidia runtime registered).
 
 FROM python:3.11-slim-bookworm
 
@@ -33,7 +34,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # main install we swap it for onnxruntime-gpu plus the CUDA/cuDNN pip wheels
 # its extras declare, then link every nvidia .so into /usr/local/lib so the
 # loader finds them without a toolkit install inside the image.
-# UNTESTED on this machine (no nvidia-container-toolkit installed).
 RUN if [ "$ORT" = "gpu" ]; then \
       pip uninstall -y onnxruntime && \
       pip install --no-cache-dir "onnxruntime-gpu[cuda,cudnn]==1.31.0" && \
@@ -48,7 +48,11 @@ COPY pytest.ini ./
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     MODELS_DIR=/models \
-    DB_PATH=/data/afferent.db
+    DB_PATH=/data/afferent.db \
+    # GPU variant: link_nvidia_libs.py symlinks the pip-shipped CUDA/cuDNN
+    # .so files into /usr/local/lib/nvidia; that dir is not in ld.so.conf,
+    # so expose it to the loader (harmless no-op in the CPU image).
+    LD_LIBRARY_PATH=/usr/local/lib/nvidia
 
 EXPOSE 8000
 

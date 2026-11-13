@@ -1,8 +1,15 @@
-# GPU override — build + run onnxruntime-gpu. Requires the NVIDIA container
-# toolkit on the host (`sudo apt install nvidia-container-toolkit` then
-# `sudo nvidia-ctk runtime configure --runtime=docker` + restart docker).
-# This variant is provided best-effort and is NOT tested in the dev
-# environment (laptop has an RTX 3070 but no container toolkit installed).
+# GPU override — build + run onnxruntime-gpu. The NVIDIA container toolkit
+# is installed on this host, but only its CDI device passthrough is configured:
+# `docker info` lists CDI `nvidia.com/gpu=all` while Runtimes stays runc-only.
+#
+# IMPORTANT: plain compose `gpus: all` does NOT work here — the NVIDIA Docker
+# runtime was never registered, so the daemon cannot select a device driver
+# ("could not select device driver"). Pass the CDI device instead:
+#
+#   devices:
+#     - "nvidia.com/gpu=all"
+#
+# Verified: a test container ran `nvidia-smi` successfully with this device.
 services:
   posture:
     build:
@@ -12,4 +19,5 @@ services:
     environment:
       DEVICE: cuda
       ORT: gpu
-    gpus: all
+    devices:
+      - "nvidia.com/gpu=all"
