@@ -211,7 +211,12 @@ class Source:
             return
         pix = np.concatenate([r.reshape(-1, 3) for r in rois], axis=0)
         ycc = cv2.cvtColor(pix.reshape(-1, 1, 3), cv2.COLOR_BGR2YCrCb).reshape(-1, 3)
-        skin = (ycc[:, 1] > 133) & (ycc[:, 1] < 173) & (ycc[:, 2] > 77) & (ycc[:, 2] < 127)
+        # Skin filter that works under any light colour (a fixed YCrCb skin box rejected
+        # ~100 % of the face under purple stage light): drop the darkest 15 % (hair, brows,
+        # shadows) and brightest 5 % (specular highlights, clipped pixels) by luma.
+        y = ycc[:, 0].astype(np.float32)
+        lo, hi = np.percentile(y, [15, 95])
+        skin = (y >= lo) & (y <= hi) & (pix.max(axis=1) < 250)
         n_skin = int(skin.sum())
         if n_skin > 50:
             pix = pix[skin]
@@ -225,7 +230,7 @@ class Source:
         self._face_gain(luma, clipped, t)
 
     def _face_gain(self, luma, clipped, t):
-        """Keep the *face* well exposed (luma ~90-170, nothing clipped). A clipped face has no
+        """Keep the *face* well exposed (luma ~65-190, nothing clipped). A clipped face has no
         pulse signal; a dark one is all sensor noise. Any change restarts the 10 s window, so
         the step itself can't show up as a heartbeat."""
         if t - self._gain_t < 2.0:
@@ -238,9 +243,10 @@ class Source:
                 return
         step = max(1, self._gain_max // 16)
         new = self._gain
-        if luma > 170 or clipped > 0.02:
+        # wide dead band: every change restarts the window, so only act when clearly off
+        if luma > 190 or clipped > 0.03:
             new = max(0, self._gain - step)
-        elif luma < 90:
+        elif luma < 65:
             new = min(self._gain_max, self._gain + step)
         if new != self._gain and v4l2_set(self.device, "gain", new):
             logger.info("%s: face luma %.0f clipped %.1f%% -> gain %d", self.name, luma, clipped * 100, new)
@@ -366,9 +372,13 @@ class RPPG:
 
     def status(self) -> dict:
         out, acc, weights = {}, np.zeros_like(FUSE_GRID), []
-        for name, src in self.sources.items():
-            res, spec = src.status()
+        stats = {name: src.status() for name, src in self.sources.items()}
+        # if any camera has a real signal (SNR >= 0 dB), ignore the ones that are just noise
+        any_good = any(sp is not None and r.get("snr") is not None and r["snr"] >= 0 for r, sp in stats.values())
+        for name, (res, spec) in stats.items():
             out[name] = res
+            if any_good and (res.get("snr") is None or res["snr"] < 0):
+                continue
             if spec is not None and res.get("snr") is not None:
                 w = 10 ** (res["snr"] / 10)            # SNR in linear power units
                 acc += w * np.interp(FUSE_GRID, spec[0], spec[1])
