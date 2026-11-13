@@ -81,6 +81,7 @@ class PresenceTracker:
         self.last_tick: float | None = None
         self.started: float | None = None
         self.outings: list[Outing] = []
+        self.outages: list[Outing] = []   # windows where the probes could not look
         self.monitored: list[tuple[float, float]] = []  # (day_midnight, healthy seconds)
 
     # ── input ────────────────────────────────────────────────────────────
@@ -109,6 +110,12 @@ class PresenceTracker:
 
         if healthy and not gap:
             self._add_monitored(now, dt)
+        if not healthy and not (self.outages and self.outages[-1].end is None):
+            self.outages.append(Outing(start=now - (0.0 if gap else dt)))
+            events.append("network_lost")
+        elif healthy and self.outages and self.outages[-1].end is None:
+            self.outages[-1].end = now
+            events.append("network_restored")
 
         if seen:
             for k in seen:
@@ -194,6 +201,8 @@ class PresenceTracker:
         else:
             since_out = now - (self.started or now)
         monitored_today = next((s for d, s in self.monitored if d == day0), 0.0)
+        blind_today = sum(max(0.0, min(o.end or now, now) - max(o.start, day0))
+                          for o in self.outages if (o.end or now) > day0)
         elapsed_today = max(1.0, now - max(day0, self.started or now))
         return {
             "away_today_min": round(away_today / 60, 1),
@@ -201,6 +210,7 @@ class PresenceTracker:
             "days_since_last_outing": round(since_out / DAY, 2),
             "isolation_alert": since_out >= self.cfg.isolation_days * DAY,
             "coverage_today": round(min(1.0, monitored_today / elapsed_today), 3),
+            "network_outage_min_today": round(blind_today / 60, 1),
         }
 
     def status(self, now: float) -> dict:
@@ -214,6 +224,7 @@ class PresenceTracker:
             "away_threshold_min": round(self._threshold(now) / 60, 1),
             **self.metrics(now),
             "recent_outings": [asdict(o) for o in self.outings[-10:]],
+            "recent_network_outages": [asdict(o) for o in self.outages[-10:]],
         }
 
     def to_dict(self) -> dict:
@@ -223,6 +234,7 @@ class PresenceTracker:
             "last_activity": self.last_activity, "absence_s": self.absence_s,
             "last_tick": self.last_tick, "started": self.started,
             "outings": [asdict(o) for o in self.outings[-500:]],
+            "outages": [asdict(o) for o in self.outages[-500:]],
             "monitored": self.monitored,
         }
 
@@ -233,6 +245,7 @@ class PresenceTracker:
                 setattr(self, k, d[k])
         self.last_seen_by = dict(d.get("last_seen_by", {}))
         self.outings = [Outing(**o) for o in d.get("outings", [])]
+        self.outages = [Outing(**o) for o in d.get("outages", [])]
         self.monitored = [tuple(m) for m in d.get("monitored", [])]
 
 
@@ -245,6 +258,58 @@ class Advert:
     rssi: int
     ts: float
     name: str | None = None
+    company: int | None = None   # Bluetooth SIG company id from manufacturer data
+    kind: str | None = None      # "phone" / "other" / None (unknown) — see classify()
+
+
+# Bluetooth SIG company ids of phone makers (manufacturer-specific data).
+PHONE_MAKERS = {
+    117: "Samsung", 224: "Google", 911: "Xiaomi", 637: "Huawei",
+    0x0A93: "OnePlus?", 0x079A: "Oppo?",
+}
+OTHER_MAKERS = {6: "Microsoft", 301: "Sony", 87: "Garmin", 0x0157: "Huami", 0x0499: "Ruuvi"}
+# Apple "Continuity" message types (first byte of Apple manufacturer data).
+APPLE_PHONE_TYPES = {0x10, 0x0C, 0x0F, 0x05}        # Nearby Info, Handoff, Nearby Action, AirDrop
+APPLE_OTHER_TYPES = {0x07, 0x12, 0x09, 0x02, 0x0B}  # AirPods, Find My/AirTag, AirPlay, iBeacon, Watch
+# Service UUIDs (16-bit) typical of Android phones (Google Nearby / Fast Pair / exposure).
+ANDROID_PHONE_UUIDS = {"0000fef3", "0000fe9f", "0000fe2c"}
+
+
+def maker_name(company: int | None) -> str | None:
+    if company is None:
+        return None
+    if company == 76:
+        return "Apple"
+    return PHONE_MAKERS.get(company) or OTHER_MAKERS.get(company) or f"id {company}"
+
+
+def classify(manufacturer_data: dict | None, service_uuids=()) -> tuple[int | None, str | None]:
+    """Best-effort: is this advert from a phone? Returns (company, "phone"|"other"|None).
+
+    Phones are what guests reliably carry; earbuds, laptops, watches, trackers and
+    beacons would otherwise inflate the guest count. Heuristic, not a guarantee:
+    Apple watches/iPads share message types with iPhones, and some Android phones
+    advertise nothing identifying (-> None, counted only when phones_only is off).
+    """
+    company = None
+    if manufacturer_data:
+        company = next(iter(manufacturer_data))
+        data = manufacturer_data[company] or b""
+        if company == 76:
+            t = data[0] if data else None
+            if t in APPLE_PHONE_TYPES:
+                return company, "phone"
+            if t in APPLE_OTHER_TYPES:
+                return company, "other"
+            return company, None
+        if company in PHONE_MAKERS:
+            return company, "phone"
+        if company in OTHER_MAKERS:
+            return company, "other"
+    uu = {str(u).lower()[:8] for u in (service_uuids or ())}
+    if uu & ANDROID_PHONE_UUIDS:
+        return company, "phone"
+    return company, ("other" if company is not None else None)
 
 
 @dataclass
@@ -258,6 +323,7 @@ class GuestConfig:
     margin: int = 1              # extra devices over baseline needed
     rssi_alpha: float = 0.3      # EWMA smoothing for RSSI
     forget_s: float = 900.0
+    phones_only: bool = False    # count only adverts classify() calls "phone"
 
 
 @dataclass
@@ -275,7 +341,7 @@ class GuestTracker:
         self.ignore = {a.lower() for a in ignore}      # patient's own devices
         self.household: set[str] = set()               # static devices learned in calibration
         self.baseline = 0.0                            # typical unknown devices when alone
-        self._dev: dict[str, tuple[float, float]] = {}  # addr -> (last_ts, rssi_ewma)
+        self._dev: dict[str, list] = {}  # addr -> [first_ts, last_ts, rssi_ewma, kind, company]
         self._cal: dict | None = None
         self._cand_start: float | None = None
         self._last_excess: float | None = None
@@ -298,14 +364,37 @@ class GuestTracker:
         a = self.cfg.rssi_alpha
         for ad in adverts:
             k = ad.addr.lower()
-            prev = self._dev.get(k)
-            rssi = ad.rssi if prev is None else (1 - a) * prev[1] + a * ad.rssi
-            self._dev[k] = (ad.ts, rssi)
+            d = self._dev.get(k)
+            if d is None:
+                self._dev[k] = [ad.ts, ad.ts, float(ad.rssi), ad.kind, ad.company]
+            else:
+                d[1], d[2] = ad.ts, (1 - a) * d[2] + a * ad.rssi
+                d[3] = ad.kind or d[3]
+                d[4] = ad.company if ad.company is not None else d[4]
+
+    def _near(self, now: float, d: list) -> bool:
+        if now - d[1] > self.cfg.window_s or d[2] < self.cfg.rssi_min:
+            return False
+        return not self.cfg.phones_only or d[3] == "phone"
 
     def nearby_unknown(self, now: float) -> list[str]:
-        return [k for k, (ts, rssi) in self._dev.items()
-                if now - ts <= self.cfg.window_s and rssi >= self.cfg.rssi_min
-                and k not in self.ignore and k not in self.household]
+        return [k for k, d in self._dev.items()
+                if self._near(now, d) and k not in self.ignore and k not in self.household]
+
+    def nearby_devices(self, now: float, limit: int = 15) -> list[dict]:
+        """Strongest devices in range — what the counter is looking at (for debugging/demo)."""
+        rows = []
+        for k, d in self._dev.items():
+            if now - d[1] > self.cfg.window_s:
+                continue
+            rows.append({
+                "addr": k, "rssi": round(d[2]), "maker": maker_name(d[4]), "kind": d[3] or "unknown",
+                "present_min": round((d[1] - d[0]) / 60, 1),
+                "counted": self._near(now, d) and k not in self.ignore and k not in self.household,
+                "note": "patient" if k in self.ignore else "household" if k in self.household else None,
+            })
+        rows.sort(key=lambda r: -r["rssi"])
+        return rows[:limit]
 
     # ── calibration: patient alone at home, normal day ───────────────────
     def start_calibration(self, now: float, duration_s: float):
@@ -316,9 +405,8 @@ class GuestTracker:
 
     def _calibrate_tick(self, now: float):
         c = self._cal
-        c["snapshots"].append((now, {k for k, (ts, rssi) in self._dev.items()
-                               if now - ts <= self.cfg.window_s and rssi >= self.cfg.rssi_min
-                               and k not in self.ignore}))
+        c["snapshots"].append((now, {k for k, d in self._dev.items()
+                                     if self._near(now, d) and k not in self.ignore}))
         if now < c["until"]:
             return
         snaps = c["snapshots"]
@@ -340,7 +428,7 @@ class GuestTracker:
         events: list[str] = []
         if self.started is None:
             self.started = now
-        for k in [k for k, (ts, _) in self._dev.items() if now - ts > self.cfg.forget_s]:
+        for k in [k for k, d in self._dev.items() if now - d[1] > self.cfg.forget_s]:
             del self._dev[k]
 
         if self._cal is not None:
@@ -406,6 +494,8 @@ class GuestTracker:
             **self.metrics(now),
             "nearby_unknown_devices": len(self.nearby_unknown(now)),
             "baseline": self.baseline,
+            "rssi_min": self.cfg.rssi_min,
+            "phones_only": self.cfg.phones_only,
             "household_devices": len(self.household),
             "calibrating": self.calibrating(),
             "recent_visits": [asdict(v) for v in self.visits[-10:]],

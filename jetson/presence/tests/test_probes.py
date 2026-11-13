@@ -27,7 +27,8 @@ class Parse(unittest.TestCase):
         self.assertEqual(n["192.168.1.1"]["state"], "REACHABLE")
         self.assertEqual(n["192.168.1.23"]["mac"], "aa:bb:cc:dd:ee:ff")
         self.assertNotIn(n["192.168.1.23"]["state"], LIVE_STATES)  # stale = not proof
-        self.assertIn(n["192.168.1.40"]["state"], LIVE_STATES)
+        self.assertNotIn(n["192.168.1.40"]["state"], LIVE_STATES)  # DELAY = still checking
+        self.assertIn(n["192.168.1.1"]["state"], LIVE_STATES)
         self.assertIsNone(n["192.168.1.77"]["mac"])
 
     def test_default_route(self):

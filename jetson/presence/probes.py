@@ -7,8 +7,8 @@ Wi-Fi probe
     1. send one tiny UDP datagram to every address on the local /24 (or the
        phone's last known IP first). The kernel has to ARP for each target, so
        sleeping phones that ignore ping still answer at L2.
-    2. read `ip neigh`: only REACHABLE / DELAY / PROBE entries count — STALE
-       entries are what the cache *remembers*, not what is there now.
+    2. read `ip neigh`: only REACHABLE entries count — STALE / DELAY / PROBE are
+       what the cache *remembers* or is still checking, not what is there now.
     3. health = the default gateway answered too. If even the router does not
        answer we report None ("could not look"), never False ("not home").
   Needs host networking (wendy.json network mode "host"), no root / raw sockets.
@@ -29,11 +29,13 @@ import subprocess
 import threading
 import time
 
-from core import Advert
+from core import Advert, classify
 
 log = logging.getLogger("probes")
 
-LIVE_STATES = {"REACHABLE", "DELAY", "PROBE", "PERMANENT"}
+# Only a confirmed answer counts. DELAY / PROBE mean "the kernel is still asking":
+# counting them kept a phone "home" for up to a minute after its Wi-Fi went off.
+LIVE_STATES = {"REACHABLE", "PERMANENT"}
 _NEIGH_RE = re.compile(r"^(?P<ip>\d+\.\d+\.\d+\.\d+)\s+dev\s+(?P<dev>\S+)"
                        r"(?:\s+lladdr\s+(?P<mac>[0-9a-fA-F:]{17}))?.*?\s(?P<state>[A-Z]+)\s*$")
 
@@ -159,7 +161,9 @@ class BleProbe:
         from bleak import BleakScanner
 
         def cb(device, adv):
-            ad = Advert(addr=device.address, rssi=adv.rssi, ts=time.time(), name=adv.local_name)
+            company, kind = classify(adv.manufacturer_data, adv.service_uuids)
+            ad = Advert(addr=device.address, rssi=adv.rssi, ts=time.time(), name=adv.local_name,
+                        company=company, kind=kind)
             with self._lock:
                 self._buf.append(ad)
                 if len(self._buf) > 20000:
@@ -195,11 +199,16 @@ class SimWorld:
         self.patient_ble: bool | None = None
         self.guests = 0
         self.neighbours = 0
+        self.gadgets = 0
         self._rot = 0
 
     def adverts(self, now: float) -> list[Advert]:
         self._rot += 1
         rot = self._rot // 30  # addresses change every ~30 ticks, like MAC rotation
-        ads = [Advert(f"02:00:00:00:{i:02x}:{rot % 256:02x}", -60, now) for i in range(self.guests)]
-        ads += [Advert(f"02:00:00:01:{i:02x}:{rot % 256:02x}", -88, now) for i in range(self.neighbours)]
+        ads = [Advert(f"02:00:00:00:{i:02x}:{rot % 256:02x}", -50, now, company=76, kind="phone")
+               for i in range(self.guests)]
+        ads += [Advert(f"02:00:00:01:{i:02x}:{rot % 256:02x}", -88, now, company=117, kind="phone")
+                for i in range(self.neighbours)]
+        ads += [Advert(f"02:00:00:02:{i:02x}:00", -50, now, company=301, kind="other")
+                for i in range(self.gadgets)]   # earbuds/laptops next to the Jetson
         return ads
