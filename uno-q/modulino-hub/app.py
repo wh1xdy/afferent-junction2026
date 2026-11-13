@@ -3,7 +3,8 @@
 Tar emot Knob/Thermo-värden från sketchen via Arduino Bridge och publicerar dem
 som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
 
-  GET  /state                      -> {"knob": {...}, "climate": {...}, "modulinos": {...}}
+  GET  /state                      -> knob, climate, modulinos, beat (finger 1), fingers[0..1], pulses[0..1]
+  GET  /ppg?ch=0|1                 -> raw 30 s of finger 1 (A1) / finger 2 (A2)
   POST /buzz?freq=880&ms=200       -> plays a tone on the Buzzer
   POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat
   POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
@@ -29,7 +30,9 @@ from ble import HeartRateBroadcaster
 
 PORT = 8080
 lock = threading.Lock()
-state = {"knob": None, "climate": None, "beat": None, "modulinos": None, "bridge": "connecting"}
+state = {"knob": None, "climate": None, "beat": None, "fingers": [None, None],
+         "modulinos": None, "bridge": "connecting"}
+CHANNELS = 2   # finger 1 = A1, finger 2 = A2
 
 
 def _set(key, value):
@@ -46,21 +49,23 @@ def on_climate(celsius, humidity):
     _set("climate", {"celsius": round(float(celsius), 2), "humidity": round(float(humidity), 1)})
 
 
-ppg = collections.deque(maxlen=1500)  # ~30 s at 50 Hz
+ppgs = [collections.deque(maxlen=1500) for _ in range(CHANNELS)]  # ~30 s at 45 Hz each
+ppg = ppgs[0]
 
 
-def on_ppg(t_ms, value):
-    ppg.append((int(t_ms), int(value)))
+def on_ppg(t_ms, *values):
+    for c, v in enumerate(values[:CHANNELS]):
+        ppgs[c].append((int(t_ms), int(v)))
 
 
-def pulse_summary(window_ms=10000):
+def pulse_summary(window_ms=10000, ch=0):
     """Beat detection on the last 10 s of A1 samples.
 
     1 s moving-average detrend -> 5-sample smoothing -> peaks above 0.5*std with a
     0.33 s refractory period -> BPM from the median inter-beat interval.
     quality = autocorrelation at that interval (0..1); below ~0.2 treat as no signal.
     """
-    pts = list(ppg)
+    pts = list(ppgs[ch])
     if len(pts) < 100:
         return {"samples": len(pts), "bpm": None}
     t_end = pts[-1][0]
@@ -103,29 +108,34 @@ def pulse_summary(window_ms=10000):
             "last_beat_age_s": round((t_end - t[beats[-1]]) / 1000, 2) if beats else None}
 
 
-beats = collections.deque(maxlen=20)  # (t_ms, ibi_ms) from the sketch's live detector
+beats = [collections.deque(maxlen=20) for _ in range(CHANNELS)]  # (t_ms, ibi_ms), locked beats
 
 
 ble = HeartRateBroadcaster()
 
 
-def on_beat(t_ms, ibi_ms, peak, locked):
+def on_beat(c, t_ms, ibi_ms, peak, locked):
+    c = int(c)
     if locked:
-        beats.append((int(t_ms), int(ibi_ms)))
-    ibis = [b for _, b in beats][-8:]
+        beats[c].append((int(t_ms), int(ibi_ms)))
+    ibis = [b for _, b in beats[c]][-8:]
     bpm = round(60000 / sorted(ibis)[len(ibis) // 2]) if len(ibis) >= 3 else None
-    _set("beat", {"bpm_live": bpm, "locked": bool(locked), "ibi_ms": int(ibi_ms),
-                  "peak_slope": int(peak), "locked_count": len(beats)})
+    info = {"bpm_live": bpm, "locked": bool(locked), "ibi_ms": int(ibi_ms),
+            "peak_slope": int(peak), "locked_count": len(beats[c]), "t": time.time()}
+    with lock:
+        state["fingers"][c] = info
+        if c == 0:
+            state["beat"] = info          # backwards compatible (Jetson reads beat.bpm_live)
     if locked and bpm:
-        ble.update(bpm)
+        ble.update(c, bpm)
 
 
-period_state = {"period_ms": None, "quality": None}
+period_state = [{"period_ms": None, "quality": None} for _ in range(CHANNELS)]
 
 
-def pulse_period(window_ms=6000):
-    """Autocorrelation of the last 6 s of A1: dominant period 0.33-1.6 s and its strength."""
-    pts = list(ppg)
+def pulse_period(ch=0, window_ms=6000):
+    """Autocorrelation of the last 6 s of one finger: dominant period 0.33-1.6 s and its strength."""
+    pts = list(ppgs[ch])
     if len(pts) < 150:
         return None, 0.0
     t_end = pts[-1][0]
@@ -145,14 +155,15 @@ def pulse_period(window_ms=6000):
 
 def period_loop(stopped):
     while not stopped.wait(1.0):
-        try:
-            ms, q = pulse_period()
-            with lock:
-                period_state.update(period_ms=ms, quality=round(q, 2))
-            if state.get("bridge") == "connected":
-                bridge.call("pulse_period", int(ms or 0), int(q * 100), timeout=2)
-        except Exception as e:
-            print(f"period update failed: {e}", flush=True)
+        for c in range(CHANNELS):
+            try:
+                ms, q = pulse_period(c)
+                with lock:
+                    period_state[c].update(period_ms=ms, quality=round(q, 2))
+                if state.get("bridge") == "connected":
+                    bridge.call("pulse_period", c, int(ms or 0), int(q * 100), timeout=2)
+            except Exception as e:
+                print(f"period update failed (ch {c}): {e}", flush=True)
 
 
 def on_modulinos(knob_ok, thermo_ok, buzzer_ok):
@@ -194,12 +205,18 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/state"):
             with lock:
                 out = dict(state)
-            out["pulse"] = pulse_summary()
-            out["pulse"]["period"] = dict(period_state)
+            out["pulse"] = pulse_summary(ch=0)
+            out["pulse"]["period"] = dict(period_state[0])
+            out["pulses"] = []
+            for c in range(CHANNELS):
+                ps = pulse_summary(ch=c)
+                ps["period"] = dict(period_state[c])
+                out["pulses"].append(ps)
             out["ble"] = ble.status
             self._json(200, out)
         elif path == "/ppg":
-            self._json(200, {"samples": list(ppg)})
+            c = int(parse_qs(urlparse(self.path).query).get("ch", ["0"])[0])
+            self._json(200, {"samples": list(ppgs[c % CHANNELS])})
         else:
             self._json(404, {"error": "not found"})
 

@@ -54,8 +54,11 @@ open http://localhost:3005
 
 ## Finger pulse over Bluetooth
 
+Two PulseSensors: finger 1 on **A1**, finger 2 on **A2** (each `+` 3.3V, `-` GND), each with its
+own beat detector (beep 880 Hz / 660 Hz, LED red / blue when `led_beat` is on).
 The UNO Q advertises **"Afferent Finger"** with the standard BLE Heart Rate Service (0x180D,
-measurement 0x2A37, body location = finger) and notifies on every locked beat. The iPhone app
+measurement 0x2A37 = finger 1, body location = finger) plus a custom service `AFF0`/`AFF1`
+carrying `[bpm finger 1, bpm finger 2]`, notified on every locked beat. The iPhone app
 (`ios/`) connects automatically and shows `Finger 83 · Δ 1` under the camera reading.
 Any heart-rate app that talks to chest straps can read it too.
 

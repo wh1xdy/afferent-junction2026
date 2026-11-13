@@ -106,25 +106,35 @@ struct PulseView: View {
         }
     }
 
-    /// Finger PulseSensor on the UNO Q over Bluetooth, as a live reference for the camera.
+    /// Finger PulseSensors on the UNO Q over Bluetooth, as a live reference for the camera.
     private var fingerBlock: some View {
         let _ = tick                      // re-evaluate staleness every second
-        let f = finger.freshBpm
+        let f1 = finger.freshBpm, f2 = finger.freshBpm2
         let cam = self.cam.reading?.bpm
-        return HStack(spacing: 10) {
+        return VStack(spacing: 8) {
+            if f1 == nil && f2 == nil {
+                fingerRow(label: fingerStatus, bpm: nil, cam: nil)
+            }
+            if let f1 { fingerRow(label: "Finger 1", bpm: f1, cam: cam) }
+            if let f2 { fingerRow(label: "Finger 2", bpm: f2, cam: cam) }
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { tick = $0 }
+    }
+
+    private func fingerRow(label: String, bpm: Int?, cam: Int?) -> some View {
+        HStack(spacing: 10) {
             Image(systemName: "hand.point.up.left.fill").foregroundStyle(.red.opacity(0.8))
-            Text(f.map { "Finger \($0)" } ?? fingerStatus)
+            Text(bpm.map { "\(label) \($0)" } ?? label)
                 .font(.subheadline.weight(.semibold)).monospacedDigit()
-            if let f, let cam {
-                Text("Δ \(abs(cam - f))")
+            if let bpm, let cam {
+                Text("Δ \(abs(cam - bpm))")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(abs(cam - f) <= 5 ? .green : .orange)
+                    .foregroundStyle(abs(cam - bpm) <= 5 ? .green : .orange)
             }
         }
         .foregroundStyle(.black.opacity(0.75))
         .padding(.horizontal, 14).padding(.vertical, 8)
         .background(Color.black.opacity(0.05), in: Capsule())
-        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { tick = $0 }
     }
 
     private var fingerStatus: String {
