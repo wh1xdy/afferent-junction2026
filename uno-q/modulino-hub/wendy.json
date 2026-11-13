@@ -21,6 +21,10 @@
           "protocol": "tcp"
         }
       ]
+    },
+    {
+      "type": "bluetooth",
+      "mode": "bluez"
     }
   ]
 }

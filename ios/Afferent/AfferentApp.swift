@@ -26,6 +26,8 @@ struct CameraPreview: UIViewRepresentable {
 
 struct PulseView: View {
     @StateObject private var cam = PulseCamera()
+    @StateObject private var finger = FingerSensor()
+    @State private var tick = Date()
     @State private var savedBrightness: CGFloat = 0.5
 
     var body: some View {
@@ -47,6 +49,7 @@ struct PulseView: View {
 
                 bpmBlock
                 trustBlock
+                fingerBlock
                 Spacer()
                 Text(hint)
                     .font(.footnote).multilineTextAlignment(.center)
@@ -100,6 +103,37 @@ struct PulseView: View {
         } else {
             ProgressView(value: min(cam.windowSeconds / PulseMath.minWindowS, 1))
                 .frame(width: 160).tint(.black.opacity(0.6))
+        }
+    }
+
+    /// Finger PulseSensor on the UNO Q over Bluetooth, as a live reference for the camera.
+    private var fingerBlock: some View {
+        let _ = tick                      // re-evaluate staleness every second
+        let f = finger.freshBpm
+        let cam = self.cam.reading?.bpm
+        return HStack(spacing: 10) {
+            Image(systemName: "hand.point.up.left.fill").foregroundStyle(.red.opacity(0.8))
+            Text(f.map { "Finger \($0)" } ?? fingerStatus)
+                .font(.subheadline.weight(.semibold)).monospacedDigit()
+            if let f, let cam {
+                Text("Δ \(abs(cam - f))")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(abs(cam - f) <= 5 ? .green : .orange)
+            }
+        }
+        .foregroundStyle(.black.opacity(0.75))
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .background(Color.black.opacity(0.05), in: Capsule())
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { tick = $0 }
+    }
+
+    private var fingerStatus: String {
+        switch finger.state {
+        case .off: return "Bluetooth off"
+        case .unauthorized: return "Bluetooth not allowed"
+        case .scanning: return "Looking for finger sensor…"
+        case .connecting: return "Connecting…"
+        case .connected: return "Finger sensor: no pulse yet"
         }
     }
 

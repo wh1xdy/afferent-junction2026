@@ -52,6 +52,13 @@ wendy net forward 3005:3005 --device <jetson>   # keep running
 open http://localhost:3005
 ```
 
+## Finger pulse over Bluetooth
+
+The UNO Q advertises **"Afferent Finger"** with the standard BLE Heart Rate Service (0x180D,
+measurement 0x2A37, body location = finger) and notifies on every locked beat. The iPhone app
+(`ios/`) connects automatically and shows `Finger 83 · Δ 1` under the camera reading.
+Any heart-rate app that talks to chest straps can read it too.
+
 ## Controls
 
 - **Turn the knob**: YOLO confidence threshold (0.40 at position 0, ±0.01 per click).
