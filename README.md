@@ -5,13 +5,25 @@ Two WendyOS boards working together over Wendy Net:
 | Board | App | Role |
 |---|---|---|
 | NVIDIA Jetson Orin Nano | [`jetson/vision`](jetson/vision) | Logitech C920 + YOLOv8n on the GPU. Finds `modulino-hub` on the mesh, beeps when a person enters the frame. |
-| Arduino UNO Q | [`uno-q/modulino-hub`](uno-q/modulino-hub) | STM32 sketch reads Modulino **Knob** + **Thermo** and drives **Buzzer**; the Linux side bridges them to an HTTP service on the mesh. |
+| Arduino UNO Q | [`uno-q/modulino-hub`](uno-q/modulino-hub) | STM32 sketch reads Modulino **Knob** + **Thermo**, a **PulseSensor** on A1, drives **Buzzer** and a **KY-016 RGB LED**; the Linux side bridges them to an HTTP service on the mesh. |
 
 ```
  C920 ─► Jetson: YOLO ──"person"──► Wendy Net (BLE / USB via Mac) ──► UNO Q Linux ──Bridge──► STM32 ──Qwiic──► Buzzer
                    ▲                                                       │
                    └──── knob position → confidence, knob press → arm ─────┘  (+ Thermo °C / %RH)
 ```
+
+## Heartbeat
+
+PulseSensor on A1 (`+` 3.3V, `-` GND — never 5V, the output would exceed the ADC input).
+Tape it to a fingertip: firm enough not to move, not so tight it blocks blood flow.
+
+- The STM32 samples A1 at ~45 Hz (14-bit) and detects each beat from the steep upstroke.
+- Linux computes the pulse period by autocorrelation every second and sends it back;
+  the sketch ignores the dicrotic second bump (half a period) and only beeps/flashes once
+  the period is reliable, so it stays silent without a finger.
+- Every beat: 880 Hz beep + red flash on the KY-016 (`R` D9, `G` D10, `B` D11, `-` GND).
+  Dim blue = searching for a rhythm. Verified against a smartwatch (75–85 vs 72–76 BPM).
 
 ## Controls
 
@@ -37,7 +49,9 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 
 ## HTTP
 
-- UNO Q `modulino-hub` (mesh, port 18080): `GET /state`, `POST /buzz?freq=880&ms=200`
+- UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
+  `GET /ppg` (raw 30 s), `POST /buzz?freq=880&ms=200`, `POST /heartbeat?on=0|1`,
+  `POST /led?r=0&g=255&b=0&ms=500`
 - Jetson `afferent-vision` (mesh, port 3005): web UI `/`, `GET /hub`, `POST /hub/buzz`
 
 ## Notes
