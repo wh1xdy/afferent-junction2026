@@ -5,6 +5,7 @@ Two WendyOS boards working together over Wendy Net:
 | Board | App | Role |
 |---|---|---|
 | NVIDIA Jetson Orin Nano | [`jetson/vision`](jetson/vision) | Logitech C920 + YOLOv8n on the GPU. Finds `modulino-hub` on the mesh, beeps when a person enters the frame. |
+| NVIDIA Jetson Orin Nano | [`jetson/presence`](jetson/presence) | Wi-Fi (ARP) + BLE: is the patient home, outings, isolation alert, guest visits. |
 | Arduino UNO Q | [`uno-q/modulino-hub`](uno-q/modulino-hub) | STM32 sketch reads Modulino **Knob** + **Thermo** and drives **Buzzer**; the Linux side bridges them to an HTTP service on the mesh. |
 
 ```

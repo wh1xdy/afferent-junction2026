@@ -1,0 +1,41 @@
+{
+  "appId": "afferent-presence",
+  "version": "0.1.0",
+  "platform": "linux",
+  "env": {
+    "PHONE_MACS": "${PHONE_MACS}",
+    "PATIENT_BLE_ADDRS": "${PATIENT_BLE_ADDRS}",
+    "HUB_URL": "${HUB_URL}",
+    "SIM": "${SIM}",
+    "SCAN_INTERVAL_S": "30",
+    "AWAY_AFTER_MIN": "10",
+    "NIGHT_AWAY_AFTER_MIN": "45",
+    "ISOLATION_DAYS": "2",
+    "GUEST_RSSI_MIN": "-75",
+    "GUEST_DWELL_MIN": "10"
+  },
+  "entitlements": [
+    {
+      "type": "network",
+      "mode": "host"
+    },
+    {
+      "type": "http",
+      "port": 8090
+    },
+    {
+      "type": "bluetooth"
+    },
+    {
+      "type": "persist",
+      "name": "afferent-presence",
+      "path": "/data"
+    }
+  ],
+  "readiness": {
+    "tcpSocket": {
+      "port": 8090
+    },
+    "timeoutSeconds": 30
+  }
+}

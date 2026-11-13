@@ -7,3 +7,4 @@ venv/
 *.pt
 *.onnx
 *.engine
+jetson/presence/data/
