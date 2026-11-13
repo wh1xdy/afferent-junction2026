@@ -12,3 +12,11 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 jetson/presence/data/
+
+# laptop/posture POC runtime data (models, db, dev recordings)
+laptop/posture/models/*
+laptop/posture/data/*
+laptop/posture/recordings/*
+!laptop/posture/models/.gitkeep
+!laptop/posture/data/.gitkeep
+!laptop/posture/recordings/.gitkeep

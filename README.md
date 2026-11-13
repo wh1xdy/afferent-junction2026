@@ -85,6 +85,12 @@ cd jetson/vision && wendy run --device <jetson> --detach --yes
 Both apps use `"mode": "mesh"` networking, so their ports are reachable only inside
 Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a laptop).
 
+## Laptop POC
+
+[`laptop/posture`](laptop/posture) — Dockerised webcam pipeline for posture, gait
+and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
+README for setup; the project plan is in [`docs/plan_ameliore_posture_depression.md`](docs/plan_ameliore_posture_depression.md).
+
 ## HTTP
 
 - UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
