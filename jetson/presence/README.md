@@ -26,10 +26,37 @@ explicitly if you want knob activity / buzzer alerts from the UNO Q.
 
 Locally (no device): `SIM=1 DATA_DIR=./data python app.py`, then `curl localhost:8090/summary`.
 
+### Profiles (switch live, no redeploy)
+
+| Profile | Away after | BLE range (RSSI floor) | Guest dwell | Counts | Use |
+|---|---|---|---|---|---|
+| `home` (default) | 10 min (45 at night) | −65 dBm ≈ one room | 10 min | phones only | real flat |
+| `demo` | 2 min | −55 dBm ≈ at the table (1–2 m) | 2 min | phones only | stage / hackathon hall |
+| `classic` | 10 min | −75 dBm ≈ whole flat+ | 10 min | every BLE device | original v0.1 tuning |
+
+```sh
+PROFILE=demo PHONE_MACS=... wendy run --device <jetson> --detach --yes   # start in demo
+curl -X POST 'http://<jetson>:8090/profile?name=demo'                     # or switch live
+curl -X POST 'http://<jetson>:8090/calibrate'                              # relearn background after a switch
+```
+
+Why a tighter BLE range: RSSI falls with distance, so the floor decides how far the
+"flat" reaches. −75 dBm picks up neighbours and, in a hall, hundreds of devices
+(measured at Junction: 438 devices in 15 s, 34 above −75). −55 keeps roughly
+what is within arm's reach of the Jetson, so one guest sitting down is a clear +1.
+RSSI is noisy (bodies, walls, phone in a pocket), so treat these as rough distances
+and check `nearby_devices` in `/guests` to see what is being counted.
+
+Phones-only counting uses the maker data in each BLE advert (Apple Continuity
+message type, Samsung/Google/Xiaomi/Huawei company IDs, Google Nearby service
+UUIDs) to drop earbuds, laptops, watches, AirTags and beacons. It is a heuristic:
+some Android phones advertise nothing identifying and are then not counted.
+
 ### Configuration (env, see `wendy.json`)
 
 | Var | Default | Meaning |
 |---|---|---|
+| `PROFILE` | home | `home` / `demo` / `classic` (values below override it) |
 | `PHONE_MACS` | – | Wi-Fi MAC(s) of the patient's phone, comma separated |
 | `PATIENT_BLE_ADDRS` | – | fixed BLE address of a patient-owned watch/band/tag (2nd token) |
 | `AWAY_AFTER_MIN` / `NIGHT_AWAY_AFTER_MIN` | 10 / 45 | silence needed before AWAY (day / 00–06) |
@@ -62,7 +89,9 @@ Wi-Fi → network → Privacy → *Use randomized MAC* is per-network and stable
 |---|---|---|
 | Phone Wi-Fi power-save / Android doze | false "left home" every few minutes | ARP sweep (sleeping phones still answer L2), 2 rounds per scan, AWAY only after 10 min of continuous silence (`away_after_s`) |
 | Deeper sleep at night | false outings at night | separate 45 min night threshold |
-| Stale ARP cache | phone looks home after leaving | only `REACHABLE/DELAY/PROBE` neighbour entries count, never `STALE` |
+| Stale ARP cache | phone looks home after leaving | only `REACHABLE` neighbour entries count — not `STALE`, `DELAY` or `PROBE` (found on the Jetson: those kept a phone "home" ~1 min too long) |
+| Hotspot / router drops out | blind time hidden | `network_lost` / `network_restored` events, `recent_network_outages` and `network_outage_min_today` in `/presence` |
+| Earbuds, laptops, watches, AirTags | inflate guest count | phones-only counting (BLE maker data) |
 | Dead battery / phone off / left in a drawer while patient is home | false "away" | knob turn / heart check-in (`POST /activity`, UNO Q poll) holds HOME 30 min; optional BLE wearable as a second token |
 | Router reboot, Wi-Fi down, Bluetooth stack crash | false "away" | probe returns *could not look* (gateway not answering) → absence is not counted; after 10 min state is UNKNOWN; `coverage_today` reports blind time |
 | Jetson reboot / app restart | gap counted as absence | state saved atomically to `/data`; tick gaps > 3 min are not counted |
@@ -86,7 +115,7 @@ BLE addresses could be resolved exactly with the IRK from a pairing — not done
 ## Testing
 
 ```sh
-python -m unittest discover -s tests -v      # 23 scenario tests, every edge case above
+python -m unittest discover -s tests -v      # 37 scenario tests, every edge case above
 ```
 
 See **Reliability test plan** below for real-world testing.

@@ -7,12 +7,9 @@
     "PATIENT_BLE_ADDRS": "${PATIENT_BLE_ADDRS}",
     "HUB_URL": "${HUB_URL}",
     "SIM": "${SIM}",
+    "PROFILE": "${PROFILE}",
     "SCAN_INTERVAL_S": "30",
-    "AWAY_AFTER_MIN": "10",
-    "NIGHT_AWAY_AFTER_MIN": "45",
-    "ISOLATION_DAYS": "2",
-    "GUEST_RSSI_MIN": "-75",
-    "GUEST_DWELL_MIN": "10"
+    "ISOLATION_DAYS": "2"
   },
   "entitlements": [
     {

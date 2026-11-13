@@ -4,13 +4,14 @@
   GET  /guests              BLE guest visits + social metrics
   GET  /summary             both, plus probe health
   POST /activity            in-home interaction (knob, heart check-in) -> proves "home"
-  POST /calibrate?minutes=60   learn household BLE devices + background level (patient alone)
-  POST /sim                 SIM=1 only: {"phone_wifi": true|false|null, "patient_ble": .., "guests": 2, "neighbours": 5}
+  POST /calibrate[?minutes=N]  learn household BLE devices + background level (patient alone)
+  GET  /profile / POST /profile?name=home|demo|classic   tuning bundle, switchable live
+  POST /sim                 SIM=1 only: {"phone_wifi": true|false|null, "patient_ble": .., "guests": 2, "neighbours": 5, "gadgets": 3}
   POST /truth?state=home|away   ground-truth marker for reliability testing (logged only)
 
-Config (env): PHONE_MACS, PATIENT_BLE_ADDRS, SCAN_INTERVAL_S, AWAY_AFTER_MIN,
-NIGHT_AWAY_AFTER_MIN, ISOLATION_DAYS, GUEST_RSSI_MIN, GUEST_DWELL_MIN, HUB_URL,
-DATA_DIR, SIM, PORT.
+Config (env): PROFILE (home|demo|classic), PHONE_MACS, PATIENT_BLE_ADDRS, SCAN_INTERVAL_S,
+AWAY_AFTER_MIN, NIGHT_AWAY_AFTER_MIN, ISOLATION_DAYS, GUEST_RSSI_MIN, GUEST_DWELL_MIN,
+GUEST_PHONES_ONLY, HUB_URL, DATA_DIR, SIM, PORT. Explicit env values override the profile.
 """
 from __future__ import annotations
 
@@ -48,13 +49,49 @@ SIM = os.environ.get("SIM", "") in ("1", "true", "yes")
 DATA = Path(os.environ.get("DATA_DIR", "/data"))
 HUB_URL = os.environ.get("HUB_URL", "").rstrip("/")
 
-pcfg = PresenceConfig(
-    away_after_s=env_f("AWAY_AFTER_MIN", 10) * 60,
-    night_away_after_s=env_f("NIGHT_AWAY_AFTER_MIN", 45) * 60,
-    isolation_days=env_f("ISOLATION_DAYS", 2),
-    max_tick_gap_s=max(180.0, INTERVAL * 6),
-)
-gcfg = GuestConfig(rssi_min=int(env_f("GUEST_RSSI_MIN", -75)), dwell_s=env_f("GUEST_DWELL_MIN", 10) * 60)
+# Profiles bundle the tuning. Switch at runtime with POST /profile?name=demo (no redeploy).
+#   home     real flat: 10 min away limit, room-sized BLE range (-65 dBm), phones only
+#   demo     stage / hackathon: 2 min away limit, "at the table" BLE range (-55 dBm)
+#   classic  the original v0.1 tuning, kept for comparison
+PROFILES = {
+    "home":    dict(away_min=10, night_away_min=45, rssi=-65, dwell_min=10, end_min=10,
+                    window_min=5, phones_only=True, calibrate_min=60),
+    "demo":    dict(away_min=2, night_away_min=2, rssi=-55, dwell_min=2, end_min=2,
+                    window_min=1, phones_only=True, calibrate_min=5),
+    "classic": dict(away_min=10, night_away_min=45, rssi=-75, dwell_min=10, end_min=10,
+                    window_min=5, phones_only=False, calibrate_min=60),
+}
+# Explicit env vars still win over the profile (only at startup).
+ENV_OVERRIDES = {"away_min": "AWAY_AFTER_MIN", "night_away_min": "NIGHT_AWAY_AFTER_MIN",
+                 "rssi": "GUEST_RSSI_MIN", "dwell_min": "GUEST_DWELL_MIN"}
+
+pcfg = PresenceConfig(isolation_days=env_f("ISOLATION_DAYS", 2), max_tick_gap_s=max(180.0, INTERVAL * 6))
+gcfg = GuestConfig()
+profile: dict = {"name": None}
+
+
+def apply_profile(name: str, use_env: bool = False) -> dict:
+    p = dict(PROFILES[name])
+    if use_env:
+        for key, var in ENV_OVERRIDES.items():
+            if os.environ.get(var, "").strip():
+                p[key] = env_f(var, p[key])
+        if os.environ.get("GUEST_PHONES_ONLY", "").strip():
+            p["phones_only"] = os.environ["GUEST_PHONES_ONLY"].lower() in ("1", "true", "yes")
+    pcfg.away_after_s = p["away_min"] * 60
+    pcfg.night_away_after_s = p["night_away_min"] * 60
+    gcfg.rssi_min = int(p["rssi"])
+    gcfg.dwell_s = p["dwell_min"] * 60
+    gcfg.end_after_s = p["end_min"] * 60
+    gcfg.window_s = p["window_min"] * 60
+    gcfg.phones_only = bool(p["phones_only"])
+    profile.clear()
+    profile.update(name=name, **p)
+    return profile
+
+
+_start_profile = os.environ.get("PROFILE", "").strip().lower() or "home"
+apply_profile(_start_profile if _start_profile in PROFILES else "home", use_env=True)
 
 patient_ble = env_list("PATIENT_BLE_ADDRS")
 presence = PresenceTracker(pcfg)
@@ -193,7 +230,9 @@ def loop():
 def summary():
     now = time.time()
     with lock:
-        return {"presence": presence.status(now), "guests": guests.status(now),
+        g = guests.status(now)
+        g["nearby_devices"] = guests.nearby_devices(now)
+        return {"presence": presence.status(now), "guests": g, "profile": dict(profile),
                 "health": dict(health), "sim": SIM, "truth": truth}
 
 
@@ -220,6 +259,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, s["guests"])
         elif p == "/health":
             self._send(200, s["health"])
+        elif p == "/profile":
+            self._send(200, {"active": s["profile"], "available": PROFILES})
         else:
             self._send(404, {"error": "not found"})
 
@@ -231,8 +272,20 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 presence.activity(now)
             self._send(200, {"ok": True})
+        elif u.path == "/profile":
+            name = q.get("name", "")
+            if name not in PROFILES:
+                self._send(400, {"error": f"unknown profile {name!r}", "available": list(PROFILES)})
+                return
+            with lock:
+                apply_profile(name)
+                # A baseline learned at another BLE range is meaningless now.
+                guests.baseline, guests.household = 0.0, set()
+            log.info("profile -> %s (guest baseline reset; run /calibrate)", name)
+            self._send(200, {"ok": True, "profile": dict(profile),
+                             "note": "guest baseline reset - POST /calibrate to relearn"})
         elif u.path == "/calibrate":
-            mins = float(q.get("minutes", 60))
+            mins = float(q.get("minutes", profile.get("calibrate_min", 60)))
             with lock:
                 guests.start_calibration(now, mins * 60)
             self._send(200, {"ok": True, "calibrating_until": now + mins * 60})
@@ -242,7 +295,7 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/sim" and SIM:
             n = int(self.headers.get("Content-Length") or 0)
             body = json.loads(self.rfile.read(n) or b"{}")
-            for k in ("phone_wifi", "patient_ble", "guests", "neighbours"):
+            for k in ("phone_wifi", "patient_ble", "guests", "neighbours", "gadgets"):
                 if k in body:
                     setattr(sim, k, body[k])
             self._send(200, {"ok": True, "sim": vars(sim)})
