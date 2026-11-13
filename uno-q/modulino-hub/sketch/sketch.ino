@@ -10,7 +10,10 @@
 //                    call("led", r, g, b, ms)                    show a colour on the KY-016 for ms
 //                                                                (ms <= 0: hold until the next call; 0,0,0 = back to auto)
 // KY-016 RGB LED (common cathode): - GND, R D9, G D10, B D11.
-//   auto mode: red flash on every heartbeat, dim blue while searching for a rhythm, off without a finger
+//   auto mode: off by default. call("led_beat", true) turns on a red flash on every heartbeat
+//   (dim blue while searching). Keep it off when the Jetson camera measures pulse from a face:
+//   a light flashing at heart rate on the face fakes the camera reading.
+//                    call("led_beat", on)
 
 #include <Arduino_RouterBridge.h>
 #include <Arduino_Modulino.h>
@@ -55,6 +58,7 @@ unsigned long lastBeat = 0;
 const int PIN_R = 9, PIN_G = 10, PIN_B = 11;
 float beatGlow = 0;                       // 1.0 on a beat, fades to 0
 bool ledOverride = false;
+bool ledBeat = false;
 int ovR = 0, ovG = 0, ovB = 0;
 unsigned long ovUntil = 0;                // 0 = hold
 unsigned long lastAnyBeat = 0;            // any detected beat, locked or not
@@ -63,6 +67,11 @@ void writeLed(int r, int g, int b) {
   analogWrite(PIN_R, constrain(r, 0, 255));
   analogWrite(PIN_G, constrain(g, 0, 255));
   analogWrite(PIN_B, constrain(b, 0, 255));
+}
+
+bool setLedBeat(bool on) {
+  ledBeat = on;
+  return ledBeat;
 }
 
 bool setLed(int r, int g, int b, int ms) {
@@ -77,6 +86,7 @@ void updateLed(unsigned long now) {
   if (ledOverride && ovUntil && now > ovUntil) ledOverride = false;
   if (ledOverride) { writeLed(ovR, ovG, ovB); return; }
   beatGlow *= 0.80f;                      // ~250 ms fade at ~45 Hz
+  if (!ledBeat) { writeLed(0, 0, 0); return; }
   bool searching = lastAnyBeat && now - lastAnyBeat < 3000 && beatGlow < 0.05f;
   writeLed((int)(255 * beatGlow), 0, searching ? 12 : 0);
 }
@@ -134,6 +144,7 @@ void setup() {
   Bridge.provide_safe("buzz", buzz);
   Bridge.provide_safe("heartbeat_sound", setHeartbeatSound);
   Bridge.provide_safe("led", setLed);
+  Bridge.provide_safe("led_beat", setLedBeat);
   Bridge.provide_safe("pulse_period", setPulsePeriod);
   pinMode(PIN_R, OUTPUT); pinMode(PIN_G, OUTPUT); pinMode(PIN_B, OUTPUT);
   writeLed(0, 40, 0);                     // green blink at startup

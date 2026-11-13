@@ -22,7 +22,7 @@ logger = logging.getLogger("rppg")
 SAMPLE_HZ = 20.0
 WINDOW_S = 10.0
 MIN_WINDOW_S = 6.0
-BAND = (0.7, 3.0)
+BAND = (0.75, 3.0)   # 45-180 BPM
 FACE_EVERY_S = 0.5
 
 
@@ -32,6 +32,27 @@ def _pose_model():
     from ultralytics import YOLO
     p = Path(__file__).parent / "yolov8n-pose.pt"
     return YOLO(str(p) if p.exists() else "yolov8n-pose.pt")
+
+
+CAMERA_LOCK = [
+    # rPPG needs a camera that doesn't re-tune itself: every auto-adjustment changes skin
+    # colour far more than a heartbeat. 50 Hz mains here; 30 ms exposure = 3 flicker cycles.
+    "power_line_frequency=1", "white_balance_automatic=0", "focus_automatic_continuous=0",
+    "exposure_dynamic_framerate=0", "auto_exposure=1",
+]
+CAMERA_LOCK_2 = ["exposure_time_absolute=300", "white_balance_temperature=4100"]
+
+
+def lock_camera(device="/dev/video0"):
+    import subprocess
+    for group in (CAMERA_LOCK, CAMERA_LOCK_2):  # manual exposure must be set before its value
+        args = ["v4l2-ctl", "-d", device]
+        for c in group:
+            args += ["-c", c]
+        r = subprocess.run(args, capture_output=True, text=True, timeout=5)
+        if r.returncode:
+            logger.warning("v4l2-ctl %s failed: %s", group, r.stderr.strip())
+    logger.info("camera controls locked for rPPG")
 
 
 class RPPG:
@@ -50,6 +71,13 @@ class RPPG:
             logger.info("rPPG face locator: YOLOv8n-pose")
         except Exception as e:
             logger.error("face locator unavailable: %s", e)
+        def _lock_later():
+            time.sleep(8)  # after the GStreamer pipeline has opened the camera
+            try:
+                lock_camera()
+            except Exception as e:
+                logger.warning("camera lock failed: %s", e)
+        threading.Thread(target=_lock_later, daemon=True).start()
         threading.Thread(target=self._sample_loop, daemon=True).start()
         threading.Thread(target=self._estimate_loop, daemon=True).start()
 
@@ -83,7 +111,7 @@ class RPPG:
 
     def _sample(self, jpeg: bytes):
         t = time.monotonic()
-        frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_REDUCED_COLOR_2)
+        frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)  # full res: more skin pixels, less noise
         if frame is None:
             return
         if t - self._face_t > FACE_EVERY_S or self._face is None:
@@ -99,7 +127,7 @@ class RPPG:
                     if c[1] < 0.5 or c[2] < 0.5:      # both eyes visible
                         continue
                     d = float(np.linalg.norm(pts[1] - pts[2]))
-                    if d < 12 or (best and d <= best[2]):
+                    if d < 20 or (best and d <= best[2]):
                         continue
                     mid = (pts[1] + pts[2]) / 2
                     best = (float(mid[0]), float(mid[1]), d)
@@ -182,6 +210,9 @@ class RPPG:
             hh = s[0] + (s[0].std() / (s[1].std() + 1e-9)) * s[1]
             h[i:i + L] += hh - hh.mean()
 
+        # detrend: subtract a 1 s moving average (head motion, breathing, slow light changes)
+        k = int(SAMPLE_HZ)
+        h = h - np.convolve(h, np.ones(k) / k, mode="same")
         h = h - h.mean()
         h *= np.hanning(n)
         nfft = 1 << int(np.ceil(np.log2(n * 8)))  # zero-pad for finer BPM resolution

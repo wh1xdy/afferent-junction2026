@@ -412,8 +412,8 @@ class YOLOCamera:
         if _HAS_CUDA:
             # Jetson has HW JPEG codecs, so decode+re-encode for quality control is cheap.
             pipelines = [
-                f"{src} ! image/jpeg ! jpegdec ! jpegenc quality=85 ! {appsink}",
-                f"{src} ! image/jpeg,width=640,height=480 ! jpegdec ! jpegenc quality=85 ! {appsink}",
+                f"{src} ! image/jpeg ! jpegdec ! jpegenc quality=95 ! {appsink}",
+                f"{src} ! image/jpeg,width=640,height=480 ! jpegdec ! jpegenc quality=95 ! {appsink}",
                 f"{src} ! video/x-raw ! videoconvert ! jpegenc quality=70 ! {appsink}",
                 f"{src} ! videoconvert ! jpegenc quality=70 ! {appsink}",
                 f"{src} ! image/jpeg ! {appsink}",

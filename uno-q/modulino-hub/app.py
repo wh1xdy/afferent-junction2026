@@ -7,6 +7,7 @@ som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
   POST /buzz?freq=880&ms=200       -> plays a tone on the Buzzer
   POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat
   POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
+  POST /led/beat?on=0|1            -> red flash on every heartbeat (default off: it fakes camera rPPG)
 """
 import collections
 import json
@@ -202,6 +203,12 @@ class Handler(BaseHTTPRequestHandler):
             on = q.get("on", ["1"])[0] not in ("0", "false", "off")
             try:
                 return self._json(200, {"heartbeat_sound": bool(bridge.call("heartbeat_sound", on, timeout=3))})
+            except Exception as e:
+                return self._json(503, {"error": str(e)})
+        if url.path == "/led/beat":
+            on = q.get("on", ["1"])[0] not in ("0", "false", "off")
+            try:
+                return self._json(200, {"led_beat": bool(bridge.call("led_beat", on, timeout=3))})
             except Exception as e:
                 return self._json(503, {"error": str(e)})
         if url.path == "/led":
