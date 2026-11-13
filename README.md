@@ -25,6 +25,21 @@ Tape it to a fingertip: firm enough not to move, not so tight it blocks blood fl
 - Every beat: 880 Hz beep + red flash on the KY-016 (`R` D9, `G` D10, `B` D11, `-` GND).
   Dim blue = searching for a rhythm. Verified against a smartwatch (75–85 vs 72–76 BPM).
 
+## Camera pulse (rPPG)
+
+The Jetson also estimates heart rate from the C920, contact-free: YOLOv8n-pose finds the
+eyes, the forehead + cheeks are averaged (skin pixels only) at 20 Hz, and the POS method
+(Wang et al. 2017) on the last 10 s gives the dominant frequency in 42–180 BPM.
+The web UI shows it next to the finger sensor. First test: camera 90–91 vs finger 89–92 BPM.
+Needs a still face, steady light and ~10 s; `snr` below about −3 dB means "don't trust it".
+
+## Open the UI (no display needed)
+
+```sh
+wendy net forward 3005:3005 --device <jetson>   # keep running
+open http://localhost:3005
+```
+
 ## Controls
 
 - **Turn the knob**: YOLO confidence threshold (0.40 at position 0, ±0.01 per click).
@@ -52,7 +67,7 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 - UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
   `GET /ppg` (raw 30 s), `POST /buzz?freq=880&ms=200`, `POST /heartbeat?on=0|1`,
   `POST /led?r=0&g=255&b=0&ms=500`
-- Jetson `afferent-vision` (mesh, port 3005): web UI `/`, `GET /hub`, `POST /hub/buzz`
+- Jetson `afferent-vision` (mesh, port 3005): web UI `/`, `GET /rppg` (camera + finger BPM), `GET /hub`, `POST /hub/buzz`
 
 ## Notes
 

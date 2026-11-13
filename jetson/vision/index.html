@@ -60,6 +60,19 @@
           <div><span class="font-bold text-white">Model:</span> YOLOv8n</div>
         </div>
 
+        <div id="pulse-panel" class="pointer-events-auto bg-black/50 backdrop-blur-md px-4 py-3 rounded-lg border border-white/10 flex gap-6 items-end">
+          <div>
+            <div class="text-[10px] uppercase tracking-widest text-white/60">Camera pulse</div>
+            <div class="font-mono text-white"><span id="cam-bpm" class="text-3xl font-bold">—</span> <span class="text-xs text-white/60">BPM</span></div>
+            <div id="cam-note" class="text-[10px] text-white/50">looking for a face…</div>
+          </div>
+          <div>
+            <div class="text-[10px] uppercase tracking-widest text-white/60">Finger sensor</div>
+            <div class="font-mono text-red-300"><span id="finger-bpm" class="text-3xl font-bold">—</span> <span class="text-xs text-white/60">BPM</span></div>
+            <div id="diff-note" class="text-[10px] text-white/50">&nbsp;</div>
+          </div>
+        </div>
+
         <div id="classes-panel" class="pointer-events-auto bg-black/40 backdrop-blur-md p-3 rounded-lg border border-white/10 text-[10px] uppercase tracking-widest text-white/70 min-w-[140px] hidden">
           <div class="font-bold text-white mb-1">Detected</div>
           <div id="classes-list"></div>
@@ -279,6 +292,27 @@
 
       loadCameras();
       connect();
+
+      // Camera pulse (rPPG on the Jetson) next to the finger sensor on the UNO Q.
+      async function pollPulse() {
+        try {
+          const d = await (await fetch("/rppg")).json();
+          const c = d.camera || {};
+          const camEl = document.getElementById("cam-bpm");
+          const note = document.getElementById("cam-note");
+          const good = c.bpm && c.snr !== null && c.snr > -3;
+          camEl.textContent = c.bpm ?? "—";
+          camEl.style.opacity = good ? 1 : 0.4;
+          note.textContent = !c.face ? "looking for a face…"
+            : !c.bpm ? `measuring… ${c.window_s ?? 0}/6 s, keep still`
+            : `signal ${c.snr} dB · ${c.fps ?? "?"} fps${good ? "" : " · weak"}`;
+          document.getElementById("finger-bpm").textContent = d.finger_bpm ?? "—";
+          const diff = document.getElementById("diff-note");
+          diff.textContent = c.bpm && d.finger_bpm ? `difference ${Math.abs(c.bpm - d.finger_bpm)} BPM` : " ";
+        } catch (e) {}
+        setTimeout(pollPulse, 1000);
+      }
+      pollPulse();
     </script>
   </body>
 </html>
