@@ -11,7 +11,7 @@ webcam → RTMPose+feet (rtmlib) → InsightFace identity lock → One-Euro smoo
 
 This is a *measurement* POC, not a diagnosis tool. Validating any link to
 depression requires ground truth, repeated measures, reliability testing and a
-cohort study — see `docs/plan_ameliore_posture_depression.md` at the repo root.
+cohort study — see `docs/plan_posture_depression.md` at the repo root.
 
 ## Layout
 

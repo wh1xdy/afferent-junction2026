@@ -1,6 +1,6 @@
 # Bibliography — Posture, movement and facial expression as indicators of depression
 
-Compiled 13 November 2026 from the references cited in `plan_ameliore_posture_depression.md`. Each entry includes a short summary of what the source contributes to the project.
+Compiled 13 November 2026 from the references cited in `plan_posture_depression.md`. Each entry includes a short summary of what the source contributes to the project.
 
 ## Depression and motor behaviour (posture, gait, balance)
 
