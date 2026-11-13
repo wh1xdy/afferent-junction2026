@@ -6,6 +6,7 @@ Env overrides: CAMERA_BACKEND=opencv|gstreamer, YOLO_MAX_FPS=<n>.
 from __future__ import annotations
 import asyncio
 from hub import Hub
+from rppg import RPPG
 import collections
 import glob
 import json
@@ -606,6 +607,8 @@ class YOLOCamera:
         if not has_clients:
             return
 
+        rppg.feed(raw_jpeg)
+
         def _do_push():
             for q in queues:
                 if q.full():
@@ -862,6 +865,7 @@ class YOLOCamera:
 
 
 camera = YOLOCamera()
+rppg = RPPG()
 hub = Hub(camera.set_confidence)
 hub.start()
 
@@ -878,6 +882,14 @@ async def _start_headless():
 @app.get("/hub")
 async def hub_status():
     return JSONResponse(content=hub.status())
+
+
+@app.get("/rppg")
+async def rppg_status():
+    """Camera pulse next to the finger sensor's pulse (from the UNO Q over the mesh)."""
+    st = hub.status().get("state") or {}
+    finger = (st.get("beat") or {}).get("bpm_live")
+    return JSONResponse(content={"camera": rppg.status(), "finger_bpm": finger})
 
 
 @app.post("/hub/buzz")
