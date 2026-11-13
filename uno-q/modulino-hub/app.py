@@ -6,6 +6,7 @@ som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
   GET  /state                      -> {"knob": {...}, "climate": {...}, "modulinos": {...}}
   POST /buzz?freq=880&ms=200       -> plays a tone on the Buzzer
   POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat
+  POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
 """
 import collections
 import json
@@ -165,6 +166,12 @@ class Handler(BaseHTTPRequestHandler):
             on = q.get("on", ["1"])[0] not in ("0", "false", "off")
             try:
                 return self._json(200, {"heartbeat_sound": bool(bridge.call("heartbeat_sound", on, timeout=3))})
+            except Exception as e:
+                return self._json(503, {"error": str(e)})
+        if url.path == "/led":
+            try:
+                r, g, b, ms = (int(q.get(k, [d])[0]) for k, d in (("r", "0"), ("g", "0"), ("b", "0"), ("ms", "500")))
+                return self._json(200, {"ok": bool(bridge.call("led", r, g, b, ms, timeout=3)), "rgb": [r, g, b], "ms": ms})
             except Exception as e:
                 return self._json(503, {"error": str(e)})
         if url.path != "/buzz":
