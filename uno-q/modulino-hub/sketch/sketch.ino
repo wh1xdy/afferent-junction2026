@@ -1,17 +1,18 @@
-// modulino-hub: reads Knob + Thermo + a PulseSensor, drives Buzzer, talks to Linux via Bridge.
+// modulino-hub: reads Knob + Thermo + two PulseSensors (A1, A2), drives Buzzer + KY-016,
+// talks to Linux via Bridge.
 //  sketch -> Linux:  notify("knob", position, pressed)          on change
 //                    notify("climate", celsius, humidity)        every 2 s
 //                    notify("modulinos", knobOk, thermoOk, buzzerOk) every 5 s
-//                    notify("ppg", millis, value)                every loop (~45 Hz, A1, 14-bit)
-//                    notify("beat", millis, ibiMs, peakSlope, locked) on every detected beat
+//                    notify("ppg", millis, a1, a2)               every loop (~45 Hz, 14-bit)
+//                    notify("beat", ch, millis, ibiMs, peakSlope, locked) on every detected beat (ch 0 = A1, 1 = A2)
 //  Linux -> sketch:  call("buzz", freqHz, ms)
 //                    call("heartbeat_sound", on)                 beep on every heartbeat (default on)
-//                    call("pulse_period", ms, quality100)        Linux autocorrelation of the last 6 s, every 1 s
+//                    call("pulse_period", ch, ms, quality100)    Linux autocorrelation of the last 6 s, every 1 s
 //                    call("led", r, g, b, ms)                    show a colour on the KY-016 for ms
 //                                                                (ms <= 0: hold until the next call; 0,0,0 = back to auto)
 // KY-016 RGB LED (common cathode): - GND, R D9, G D10, B D11.
-//   auto mode: off by default. call("led_beat", true) turns on a red flash on every heartbeat
-//   (dim blue while searching). Keep it off when the Jetson camera measures pulse from a face:
+//   auto mode: off by default. call("led_beat", true) flashes on every heartbeat:
+//   red = finger 1 (A1), blue = finger 2 (A2). Keep it off when the Jetson camera measures pulse from a face:
 //   a light flashing at heart rate on the face fakes the camera reading.
 //                    call("led_beat", on)
 
@@ -28,7 +29,7 @@ int16_t lastPos = 0;
 bool lastPressed = false;
 unsigned long lastClimate = 0, lastStatus = 0;
 
-// ── Heartbeat detection (PulseSensor on A1: + 3.3V, - GND) ─────────────────
+// ── Heartbeat detection (PulseSensors on A1 and A2: + 3.3V, - GND) ─────────
 // Slope-based: a beat is the steep upstroke at the start of each pulse, so small
 // and large beats are caught alike (peak height varies 2x between beats).
 //   d       = rise over the last 2 samples (~45 ms); 0 while the ADC is railed
@@ -45,18 +46,27 @@ const float MIN_PEAK = 400.0f;       // 14-bit counts per 2 samples; no-finger n
 const unsigned long REFRACTORY_MS = 300;
 const int RAIL_LO = 200, RAIL_HI = 13500;   // sensor amplifier saturated: ignore
 bool heartbeatSound = true;
-int hist[3] = {0, 0, 0};
-int histN = 0;
-float peak = 0;
-unsigned long periodMs = 0;               // from Linux; 0 = unknown
-int periodQ = 0;                          // autocorrelation quality * 100
-unsigned long periodAt = 0;
-bool armedForBeat = true;
-unsigned long lastBeat = 0;
+
+struct Channel {
+  int pin;
+  int tone;                               // beep pitch tells the two fingers apart
+  int hist[3];
+  int histN;
+  float peak;
+  unsigned long periodMs;                 // from Linux; 0 = unknown
+  int periodQ;                            // autocorrelation quality * 100
+  unsigned long periodAt;
+  bool armed;
+  unsigned long lastBeat;
+  float glow;                             // LED: 1.0 on a locked beat, fades
+};
+Channel ch[2] = {
+  {A1, 880, {0, 0, 0}, 0, 0, 0, 0, 0, true, 0, 0},
+  {A2, 660, {0, 0, 0}, 0, 0, 0, 0, 0, true, 0, 0},
+};
 
 // ── KY-016 RGB LED ──────────────────────────────────────────────────────────
 const int PIN_R = 9, PIN_G = 10, PIN_B = 11;
-float beatGlow = 0;                       // 1.0 on a beat, fades to 0
 bool ledOverride = false;
 bool ledBeat = false;
 int ovR = 0, ovG = 0, ovB = 0;
@@ -85,10 +95,10 @@ bool setLed(int r, int g, int b, int ms) {
 void updateLed(unsigned long now) {
   if (ledOverride && ovUntil && now > ovUntil) ledOverride = false;
   if (ledOverride) { writeLed(ovR, ovG, ovB); return; }
-  beatGlow *= 0.80f;                      // ~250 ms fade at ~45 Hz
+  ch[0].glow *= 0.80f;                    // ~250 ms fade at ~45 Hz
+  ch[1].glow *= 0.80f;
   if (!ledBeat) { writeLed(0, 0, 0); return; }
-  bool searching = lastAnyBeat && now - lastAnyBeat < 3000 && beatGlow < 0.05f;
-  writeLed((int)(255 * beatGlow), 0, searching ? 12 : 0);
+  writeLed((int)(255 * ch[0].glow), 0, (int)(255 * ch[1].glow));
 }
 
 bool buzz(int freq, int ms) {
@@ -98,10 +108,11 @@ bool buzz(int freq, int ms) {
   return true;
 }
 
-bool setPulsePeriod(int ms, int q100) {
-  periodMs = ms > 0 ? (unsigned long)ms : 0;
-  periodQ = q100;
-  periodAt = millis();
+bool setPulsePeriod(int c, int ms, int q100) {
+  if (c < 0 || c > 1) return false;
+  ch[c].periodMs = ms > 0 ? (unsigned long)ms : 0;
+  ch[c].periodQ = q100;
+  ch[c].periodAt = millis();
   return true;
 }
 
@@ -110,26 +121,27 @@ bool setHeartbeatSound(bool on) {
   return heartbeatSound;
 }
 
-void detectBeat(int raw, unsigned long now) {
-  hist[0] = hist[1]; hist[1] = hist[2]; hist[2] = raw;
-  if (histN < 3) { histN++; return; }
-  float d = (raw > RAIL_LO && raw < RAIL_HI) ? (float)(hist[2] - hist[0]) : 0.0f;
+void detectBeat(int idx, int raw, unsigned long now) {
+  Channel &c = ch[idx];
+  c.hist[0] = c.hist[1]; c.hist[1] = c.hist[2]; c.hist[2] = raw;
+  if (c.histN < 3) { c.histN++; return; }
+  float d = (raw > RAIL_LO && raw < RAIL_HI) ? (float)(c.hist[2] - c.hist[0]) : 0.0f;
 
-  peak *= 0.995f;
-  if (d < 0.1f * peak) armedForBeat = true;
-  bool periodOk = periodMs >= 333 && periodMs <= 1800 && periodQ >= 20 && now - periodAt < 3000;
-  unsigned long refractory = periodOk ? max(REFRACTORY_MS, periodMs / 2) : REFRACTORY_MS;
-  if (armedForBeat && peak > MIN_PEAK && d > SLOPE_FRAC * peak && now - lastBeat > refractory) {
-    unsigned long ibi = lastBeat ? now - lastBeat : 0;
-    lastBeat = now;
-    armedForBeat = false;
+  c.peak *= 0.995f;
+  if (d < 0.1f * c.peak) c.armed = true;
+  bool periodOk = c.periodMs >= 333 && c.periodMs <= 1800 && c.periodQ >= 20 && now - c.periodAt < 3000;
+  unsigned long refractory = periodOk ? max(REFRACTORY_MS, c.periodMs / 2) : REFRACTORY_MS;
+  if (c.armed && c.peak > MIN_PEAK && d > SLOPE_FRAC * c.peak && now - c.lastBeat > refractory) {
+    unsigned long ibi = c.lastBeat ? now - c.lastBeat : 0;
+    c.lastBeat = now;
+    c.armed = false;
     bool locked = periodOk;
     lastAnyBeat = now;
-    if (locked) beatGlow = 1.0f;
-    if (locked && heartbeatSound && buzzerOk) buzzer.tone(880, 40);
-    Bridge.notify("beat", (uint32_t)now, (uint32_t)ibi, (int)peak, locked);
+    if (locked) c.glow = 1.0f;
+    if (locked && heartbeatSound && buzzerOk) buzzer.tone(c.tone, 40);
+    Bridge.notify("beat", idx, (uint32_t)now, (uint32_t)ibi, (int)c.peak, locked);
   }
-  if (d > peak) peak = (peak == 0) ? d : peak + (d - peak) * 0.3f;
+  if (d > c.peak) c.peak = (c.peak == 0) ? d : c.peak + (d - c.peak) * 0.3f;
 }
 
 void setup() {
@@ -172,10 +184,12 @@ void loop() {
     Bridge.notify("climate", thermo.getTemperature(), thermo.getHumidity());
   }
 
-  int raw = analogRead(A1);
-  detectBeat(raw, now);
+  int raw1 = analogRead(ch[0].pin);
+  int raw2 = analogRead(ch[1].pin);
+  detectBeat(0, raw1, now);
+  detectBeat(1, raw2, now);
   updateLed(now);
-  Bridge.notify("ppg", (uint32_t)now, raw);
+  Bridge.notify("ppg", (uint32_t)now, raw1, raw2);
 
   if (now - lastStatus >= 5000) {
     lastStatus = now;

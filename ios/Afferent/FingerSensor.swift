@@ -9,11 +9,15 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
 
     @Published var state: State = .off
     @Published var bpm: Int?
+    @Published var bpm2: Int?
     @Published var name: String?
     @Published var lastUpdate: Date?
+    @Published var lastUpdate2: Date?
 
     private static let heartRateService = CBUUID(string: "180D")
     private static let measurement = CBUUID(string: "2A37")
+    private static let afferentService = CBUUID(string: "AFF0")   // both fingers: [bpm1, bpm2]
+    private static let bothFingers = CBUUID(string: "AFF1")
 
     private var central: CBCentralManager!
     private var peripheral: CBPeripheral?
@@ -27,6 +31,11 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
     var freshBpm: Int? {
         guard let bpm, let t = lastUpdate, Date().timeIntervalSince(t) < 5 else { return nil }
         return bpm
+    }
+
+    var freshBpm2: Int? {
+        guard let bpm2, let t = lastUpdate2, Date().timeIntervalSince(t) < 5 else { return nil }
+        return bpm2
     }
 
     func centralManagerDidUpdateState(_ c: CBCentralManager) {
@@ -57,7 +66,7 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
 
     func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) {
         state = .connected
-        p.discoverServices([Self.heartRateService])
+        p.discoverServices([Self.heartRateService, Self.afferentService])
     }
 
     func centralManager(_ c: CBCentralManager, didFailToConnect p: CBPeripheral, error: Error?) { reset() }
@@ -66,23 +75,33 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
     private func reset() {
         peripheral = nil
         bpm = nil
+        bpm2 = nil
         scan()
     }
 
     func peripheral(_ p: CBPeripheral, didDiscoverServices error: Error?) {
-        for s in p.services ?? [] where s.uuid == Self.heartRateService {
-            p.discoverCharacteristics([Self.measurement], for: s)
+        for s in p.services ?? [] {
+            if s.uuid == Self.heartRateService { p.discoverCharacteristics([Self.measurement], for: s) }
+            if s.uuid == Self.afferentService { p.discoverCharacteristics([Self.bothFingers], for: s) }
         }
     }
 
     func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
-        for ch in s.characteristics ?? [] where ch.uuid == Self.measurement {
+        for ch in s.characteristics ?? [] where ch.uuid == Self.measurement || ch.uuid == Self.bothFingers {
             p.setNotifyValue(true, for: ch)
             p.readValue(for: ch)
         }
     }
 
     func peripheral(_ p: CBPeripheral, didUpdateValueFor ch: CBCharacteristic, error: Error?) {
+        if ch.uuid == Self.bothFingers {
+            // [finger 1, finger 2], 0 = no reading; only finger 2 is taken from here,
+            // finger 1 comes from the standard Heart Rate Measurement
+            guard let d = ch.value, d.count >= 2 else { return }
+            let b = [UInt8](d)
+            if b[1] > 0 { bpm2 = Int(b[1]); lastUpdate2 = Date() }
+            return
+        }
         guard let v = Self.parse(ch.value) else { return }
         bpm = v
         lastUpdate = Date()
