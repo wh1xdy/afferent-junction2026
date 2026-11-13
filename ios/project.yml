@@ -8,7 +8,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: ""          # set your Apple ID team in Xcode > Signing & Capabilities
+    DEVELOPMENT_TEAM: "PN3CH4MMD9"   # Personal Team; teammates: change to yours in Xcode > Signing & Capabilities
 targets:
   Afferent:
     type: application
