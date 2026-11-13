@@ -82,6 +82,23 @@ docker compose logs -f posture
 | Floor plane (4 clicks) | Dashboard "Calibrate floor" (or `POST /api/calibration/floor`) |
 | Guided session (normal / simulated slow walk) | Dashboard "Start session" (+ `simulated` checkbox) |
 | Dev-only raw recording | `POST /api/record/start` → writes `/recordings/*.mp4` (future fine-tuning data; off by default via `RECORDING_ENABLED=0`) |
+| Switch site (room) | Dashboard site input, or `POST /api/site/<id>` |
+
+## Multi-room (sites)
+
+The same camera can be moved between rooms. Each room is a **site** with its
+own floor homography, upright references and aggregates — nothing is shared
+or mixed across sites.
+
+- Set `SITE=<room>` in `.env` for the initial site (default: `default`).
+- Switch at runtime via the dashboard site input or `POST /api/site/<id>`;
+  the choice is persisted (`active_site` config key) so a restart keeps it.
+- `minute`, `visage_minute`, `episode`, `session` and `jour` rows carry a
+  `site` column and are only read back for the active site. Calibration keys
+  are stored internally as `site:<id>:<key>`; a pre-site unscoped
+  `floor_homography` is migrated into `site:default:*` on first boot.
+- After moving the camera, calibrate floor + upright again — each site keeps
+  its own values.
 
 ## Offline video
 
@@ -132,6 +149,7 @@ works in both cases. With `DEVICE=cuda`, `POSE_MODE` defaults to `balanced` and
 `GET /` dashboard · `GET /stream.mjpg` annotated preview · `GET /api/status` ·
 `POST /api/enroll/start|stop` · `DELETE /api/gallery` ·
 `POST /api/calibration/floor|upright` · `POST /api/session/start|stop` ·
+`POST /api/site/{id}` ·
 `GET /api/minutes?since=` · `GET /api/sessions` · `GET /api/days` ·
 `POST /api/record/start|stop` · `POST /api/days/refresh`
 

@@ -14,3 +14,6 @@ cache/
 *.zip
 __pycache__/
 .pytest_cache/
+
+# Local Verda runner config (may contain paths/options; never committed)
+verda/config.env

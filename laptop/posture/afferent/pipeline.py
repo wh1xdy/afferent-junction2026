@@ -106,10 +106,8 @@ class FrameProcessor:
         self.visage_agg = VisageAggregator(
             storage, cfg.min_valid_frames,
             cfg.extractor_version, cfg.model_version)
-        self.floor = FloorMap.from_json(storage.get_config("floor_homography"))
-        self.ref_shoulder_hip_px = storage.get_config("ref_shoulder_hip_px")
-        self.ref_trunk_len_px = storage.get_config("ref_trunk_len_px")
         self.session: "GuidedSession | None" = None  # set by caller
+        self._load_site_calibration()
 
         self._step_detector = StepDetector()
         self._gait_buf: list[gait_mod.GaitSample] = []
@@ -120,6 +118,31 @@ class FrameProcessor:
         self._persons_seen = 0
         self._frames_with_target = 0
         self.last_result: dict[str, Any] = {}
+
+    # -- site (room) ------------------------------------------------------------
+    def _load_site_calibration(self) -> None:
+        """(Re)load the active site's floor homography + upright refs."""
+        self.floor = FloorMap.from_json(
+            self.storage.get_config("floor_homography"))
+        self.ref_shoulder_hip_px = self.storage.get_config(
+            "ref_shoulder_hip_px")
+        self.ref_trunk_len_px = self.storage.get_config("ref_trunk_len_px")
+
+    def set_site(self, site: str) -> None:
+        """Switch the active site (room). Pending minute buffers are flushed
+        under the OLD site first so aggregates never mix across sites, then
+        the new site's scoped calibration is loaded — symmetric with
+        __init__; set_floor()/calibrate_upright() keep working and now write
+        under the new site. Persists via storage `active_site`."""
+        site = (site or "").strip()
+        if not site:
+            raise ValueError("empty site id")
+        if site == self.storage.site:
+            return
+        self.flush()
+        self.storage.set_site(site)
+        self.cfg.site = site
+        self._load_site_calibration()
 
     # -- model attach (called once models are ensured) -------------------------
     def attach_models(self) -> None:
@@ -367,6 +390,7 @@ class FrameProcessor:
 
     def stats(self) -> dict[str, Any]:
         return {
+            "site": self.storage.site,
             "processed_frames": self._processed,
             "persons_frames": self._persons_seen,
             "target_frames": self._frames_with_target,

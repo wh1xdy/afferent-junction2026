@@ -62,6 +62,7 @@ class Config:
 
     # Aggregation
     db_path: str = "/data/afferent.db"
+    site: str = "default"           # room/site id: per-site calibration + rows
     min_valid_frames: int = 30      # per minute row
     recordings_dir: str = "/recordings"
     recording_enabled: bool = False
@@ -112,6 +113,7 @@ class Config:
             enroll_dedupe_cosine=_env_float("ENROLL_DEDUPE_COSINE", 0.985),
             gallery_adapt=_env_bool("GALLERY_ADAPT", True),
             db_path=_env("DB_PATH", "/data/afferent.db"),
+            site=_env("SITE", "default"),
             min_valid_frames=_env_int("MIN_VALID_FRAMES", 30),
             recordings_dir=_env("RECORDINGS_DIR", "/recordings"),
             recording_enabled=_env_bool("RECORDING_ENABLED", False),

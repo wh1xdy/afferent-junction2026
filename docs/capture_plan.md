@@ -25,6 +25,11 @@ lighting, camera distance, "simulated" flag.
 
 Total A: 4 captures, ~2 min. Redo if the camera moves.
 
+No measuring tape for A2? Fallback: lay a known A4 sheet (21.0 × 29.7 cm) in
+the 4 marker positions, pace the line heel-to-toe (EU shoe size), or use a
+phone AR measure app. Whatever the method, the goal stays <5 % error on a
+known length.
+
 ## B. Instrument reliability (test, phase 1/3)
 
 All on the standard walking line: camera at 1.2 m, line parallel at 3 m,
@@ -38,8 +43,9 @@ markers A–B 3 m apart. One "session" = standing → 6 crossings → return.
 | B4 | Deliberately slow and slumped walk, labelled `simulated:true` | 3 captures | Sensitivity: the 3 captures must stand out from the 15 B2+B3 captures |
 | B5 | Repeated chair rise, sit→stand→sit | 10 captures | Rise duration, stopwatch-verified on video |
 | B6 | Three people in the field at once (walking + sitting) | 3 captures | Identity error rate (target lock) |
+| B7 | Target crossing another person (walk past/behind) | 3 captures | Person-bbox track swap detection (lock must not jump) |
 
-Total B: 51 captures/crossings. B1–B6 = frozen test sets for the evaluator.
+Total B: 54 captures/crossings. B1–B7 = frozen test sets for the evaluator.
 
 ## C. Robustness (test, small numbers)
 
@@ -51,8 +57,19 @@ Total B: 51 captures/crossings. B1–B6 = frozen test sets for the evaluator.
 | C4 | Walking at 2 m, then 4 m from the camera | 4 | Useful distance limit |
 | C5 | Camera moved ~20 cm then recalibrated | 2 | Baseline-break detection |
 | C6 | Passive daily life (work, sofa, kitchen) 2×2 h | 4 | Coverage, spontaneous episodes, lock false negatives |
+| C7 | Same camera in second room, full A-block re-done there | 3 captures | Per-site calibration + baseline separation |
 
-Total C: 16 captures.
+Total C: 19 captures.
+
+## Two-room deployment
+
+The same camera moves between rooms. Each room is a `site` with its own
+A-block (calibration, enrolment is shared) and its own baseline: floor
+homography, reference posture and aggregates are stored per site, never
+merged across rooms. Switching sites: `SITE` env at startup, or
+`POST /api/site/{id}` at runtime (flushes pending buffers under the old site
+first). About 20 % of the D corpus is captured in room 2 so the fine-tuned
+model is not single-room biased.
 
 ## D. Training corpus (annotation → fine-tuning)
 
@@ -68,7 +85,8 @@ varied captures. Extraction at ~2 im/s via `make extract`.
 | D5 | `seated` varied postures (upright, slumped, side-leaning) | 1 × 60 s | same | ~120 |
 | D6 | `posture` standing + back + three-quarter | 1 × 60 s | same | ~120 |
 
-Total D: 36 captures ≈ 900 candidate images (culled after pre-annotation).
+Total D: 36 captures ≈ 900 candidate images (culled after pre-annotation),
+of which ~20 % in room 2 (see "Two-room deployment").
 Target diversity: age, sex, body shape, glasses, beard — at least 3
 volunteers other than P01, written consent before capture.
 
@@ -86,12 +104,12 @@ Total E: 9 captures (E1/E2 overlap B2/B4, redo only if the instrument changes).
 
 | Block | Captures | Nature |
 | ----- | -------- | ------ |
-| A Setup | 4 | adjustment |
-| B Reliability | 51 | frozen test |
-| C Robustness | 16 | test |
-| D Training | 36 (~900 im) | annotation |
+| A Setup | 4 (×2 rooms) | adjustment |
+| B Reliability | 54 | frozen test |
+| C Robustness | 19 | test |
+| D Training | 36 (~900 im, ~20 % room 2) | annotation |
 | E Demo | 9 | product |
-| **Total** | **~116 captures** | ~1 effective day of shooting |
+| **Total** | **~122 captures** | ~1 effective day of shooting |
 
 Recommended order: A → B1–B4 (same day, locks the instrument) →
 E → B3 (10 days) → C → D (volunteers, at the end of the POC).

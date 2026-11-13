@@ -19,7 +19,8 @@ ONNX        ?= work_dirs/export/rtmpose-m_halpe26_ft.onnx
 AMP         ?=
 EXTRA       ?=
 
-.PHONY: help extract prelabel split train test export evaluate install-model tests check-env
+.PHONY: help extract prelabel split train test export evaluate install-model tests check-env \
+	verda-up verda-sync verda-train verda-pull verda-down
 
 help:
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/'
@@ -62,3 +63,19 @@ tests: ## unit tests (numpy + pytest + pyyaml only)
 
 check-env: ## print the training stack versions
 	$(PY) -c "import torch,mmcv,mmengine,mmdet,mmpose;print(torch.__version__,torch.cuda.is_available(),mmcv.__version__,mmengine.__version__,mmdet.__version__,mmpose.__version__)"
+
+# --- remote training on Verda (see README "Remote training on Verda") -------
+verda-up: ## create the Verda GPU instance (env/config in verda/config.env)
+	bash verda/up.sh
+
+verda-sync: ## push training dir + rtmlib models + dataset to the instance
+	bash verda/sync.sh
+
+verda-train: ## docker build + make $(MAKE_TARGETS) on the instance
+	bash verda/train.sh
+
+verda-pull: ## pull work_dirs/ back from the instance
+	bash verda/pull.sh
+
+verda-down: ## pull results then delete the instance (billing stops)
+	bash verda/down.sh
