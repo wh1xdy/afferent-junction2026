@@ -89,7 +89,7 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 
 [`laptop/posture`](laptop/posture) — Dockerised webcam pipeline for posture, gait
 and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
-README for setup; the project plan is in [`docs/plan_ameliore_posture_depression.md`](docs/plan_ameliore_posture_depression.md).
+README for setup; the project plan is in [`docs/plan_posture_depression.md`](docs/plan_posture_depression.md).
 
 ## HTTP
 
@@ -123,3 +123,7 @@ cd uno-q/modulino-hub && wendy run --device "$UNOQ" --detach --yes
 ```
 
 When plugged in over USB-C, `wendy discover` finds the boards directly (faster deploys).
+
+## Contributing
+
+All repo content — code, comments, docs, commit messages — is in English.
