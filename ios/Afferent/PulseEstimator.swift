@@ -110,7 +110,7 @@ enum PulseMath {
         let valid = regionsBpm.compactMap { $0 }
         let agree = valid.filter { abs($0 - bpm) <= 6 }.count
         let reg = valid.isEmpty ? 0 : Double(agree) / Double(valid.count)
-        if reg < 0.67 { reasons.append("face regions disagree (\(agree)/\(valid.count))") }
+        if agree * 3 < 2 * valid.count { reasons.append("face regions disagree (\(agree)/\(valid.count))") }
         var stab = 0.3
         if history.count >= 3 {
             let spread = std(history.suffix(5).map(Double.init))

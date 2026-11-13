@@ -121,7 +121,7 @@ def trust_score(snr, region_bpms, bpm, history, motion, luma, clipped):
     valid = [x for x in region_bpms if x is not None]
     agree = sum(1 for x in valid if abs(x - bpm) <= 6)
     reg = agree / len(valid) if valid else 0.0
-    if reg < 0.67:
+    if agree * 3 < 2 * len(valid):          # fewer than 2 of 3 regions agree
         reasons.append(f"face regions disagree ({agree}/{len(valid)})")
     if len(history) >= 3:
         spread = float(np.std(history[-5:]))
