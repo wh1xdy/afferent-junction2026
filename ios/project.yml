@@ -1,0 +1,49 @@
+name: Afferent
+options:
+  bundleIdPrefix: com.wh1xdy
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""          # set your Apple ID team in Xcode > Signing & Capabilities
+targets:
+  Afferent:
+    type: application
+    platform: iOS
+    sources: [Afferent]
+    info:
+      path: Afferent/Info.plist
+      properties:
+        CFBundleDisplayName: Afferent
+        NSCameraUsageDescription: Afferent measures your pulse from tiny colour changes in your face. Video never leaves the phone.
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIStatusBarStyle: UIStatusBarStyleDarkContent
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.wh1xdy.afferent
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+  AfferentTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [AfferentTests]
+    dependencies:
+      - target: Afferent
+    settings:
+      base:
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Afferent.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Afferent"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Afferent:
+    build:
+      targets:
+        Afferent: all
+        AfferentTests: [test]
+    test:
+      targets: [AfferentTests]

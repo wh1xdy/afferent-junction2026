@@ -7,3 +7,7 @@ venv/
 *.pt
 *.onnx
 *.engine
+ios/build/
+xcuserdata/
+*.xcuserstate
+DerivedData/
