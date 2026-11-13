@@ -30,7 +30,8 @@ _STATE: dict = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg = Config.from_env()
-    storage = Storage(cfg.db_path)
+    storage = Storage(cfg.db_path, site=cfg.site)
+    cfg.site = storage.site  # a persisted active_site wins over SITE env
     pipeline = Pipeline(cfg, storage)
     pipeline.start()
     _STATE["pipeline"] = pipeline
@@ -84,6 +85,23 @@ def _blank_jpeg() -> bytes:
 def status():
     p = _pipeline()
     return JSONResponse(p.status())
+
+
+# -- site (room) -------------------------------------------------------------------
+@app.post("/api/site/{site_id}")
+def site_switch(site_id: str):
+    """Switch the active site (room). Pending minute buffers are flushed
+    under the old site first; the new site's own floor homography and
+    upright references take over immediately. Persists across restarts."""
+    p = _pipeline()
+    try:
+        p.proc.set_site(site_id)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "site": p.storage.site,
+            "floor_calibrated": p.proc.floor.calibrated,
+            "ref_trunk_len_px": p.proc.ref_trunk_len_px,
+            "ref_shoulder_hip_px": p.proc.ref_shoulder_hip_px}
 
 
 # -- identity ---------------------------------------------------------------------

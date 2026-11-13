@@ -84,10 +84,52 @@ is untested there. Two options:
 - run on remote GPUs:
   - **Modal:** `modal.Image.from_dockerfile("laptop/training/Dockerfile")` (default
     `TORCH_VARIANT=cu121`), then mount a Volume holding `data/`.
-  - **Verda / any VM with Docker and the toolkit:** `docker compose --profile gpu`.
+  - **Verda:** scripted end-to-end in `verda/` — see the next section.
 
   In both cases, ship only `data/annotations` and `data/frames` of
   consenting participants, over an encrypted transport. Delete them afterwards.
+
+## Remote training on Verda
+
+`verda/` contains the full up → sync → train → pull → down loop against a
+[Verda](https://verda.com) PAYG GPU instance, driven by the
+[verda CLI](https://github.com/verda-cloud/verda-cli):
+
+```bash
+# once: install the CLI, then authenticate. Credentials are stored in
+# ~/.verda/credentials — never committed, never copied to the instance.
+verda auth login
+verda instance-types --gpu            # pick a type (default 1V100.6V)
+
+cp verda/config.env.example verda/config.env   # optional overrides (gitignored)
+
+make verda-up        # create the instance (ubuntu-24.04 cuda docker image, --wait)
+make verda-sync      # rsync training/ + rtmlib ONNX + dataset -> ~/afferent/
+make verda-train     # docker build + `make train test` on the instance (AMP=1 in config)
+make verda-pull      # rsync work_dirs/ back (checkpoints, ONNX, eval reports)
+make verda-down      # pulls again (unless SKIP_PULL=1), confirms, deletes the VM
+```
+
+`sync.sh` needs direct ssh for rsync: it resolves the IP from
+`verda vm describe -o json` and connects as `ubuntu@<ip>` with the key
+registered at creation (`SSH_KEY`/`SSH_DEST` overrides, see
+`verda/config.env.example`). `train.sh` forwards `MAKE_TARGETS`
+(default `train test`; add `export evaluate` once `data/annotations/test.json`
+exists) and `AMP`.
+
+**Cost:** PAYG instances are billed per started 10 min while they exist —
+`down.sh` deletes the instance *and* its OS volume, which is the only way
+billing actually stops. Spot instances are cheaper but evictable (lost
+work_dirs if evicted mid-run); they stay opt-in via `SPOT=1`, default is
+on-demand. Check current rates with `verda instance-types --gpu` /
+`verda cost estimate`.
+
+**Privacy:** the instance receives the same payload `make train` uses —
+annotated frames of **consenting** participants only (`data/frames`,
+`data/annotations`, pseudonymous `Pxx` ids), pushed over ssh/rsync. Nothing
+else is uploaded. `down.sh` destroys the instance's OS volume, including the
+dataset copy; still, prefer pulling results and deleting promptly rather than
+leaving a warm VM running.
 
 Every script also runs on the host with `pip install -r requirements-tools.txt`,
 except `train.py` and `export_onnx.py`, which need the training image.

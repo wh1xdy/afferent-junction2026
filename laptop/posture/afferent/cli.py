@@ -27,7 +27,8 @@ def process_video(path: str, db_path: str, enroll_seconds: float = 20.0,
     cfg.db_path = db_path
     if pose_mode:
         cfg.pose_mode = pose_mode
-    storage = Storage(db_path)
+    storage = Storage(db_path, site=cfg.site)
+    cfg.site = storage.site
 
     proc = FrameProcessor(cfg, storage)
     proc.session = GuidedSession(proc)

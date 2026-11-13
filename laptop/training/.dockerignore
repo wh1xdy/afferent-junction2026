@@ -11,3 +11,4 @@ cache/
 **/*.zip
 **/__pycache__
 .pytest_cache
+verda/config.env

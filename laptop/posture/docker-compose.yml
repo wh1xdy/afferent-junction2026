@@ -38,6 +38,8 @@ services:
       DET_EVERY: ${DET_EVERY:-}
       FACE_EVERY: ${FACE_EVERY:-}
       FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.45}
+      # room/site id: per-site calibration + baselines (POST /api/site/{id})
+      SITE: ${SITE:-default}
       LOST_AFTER_S: ${LOST_AFTER_S:-3}
       RECORDING_ENABLED: ${RECORDING_ENABLED:-0}
       EMOTION_ENABLED: ${EMOTION_ENABLED:-1}
