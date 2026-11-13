@@ -19,6 +19,7 @@ targets:
       properties:
         CFBundleDisplayName: Afferent
         NSCameraUsageDescription: Afferent measures your pulse from tiny colour changes in your face. Video never leaves the phone.
+        NSBluetoothAlwaysUsageDescription: Afferent reads the finger pulse sensor over Bluetooth to compare it with the camera.
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]

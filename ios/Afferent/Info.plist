@@ -20,6 +20,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Afferent reads the finger pulse sensor over Bluetooth to compare it with the camera.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Afferent measures your pulse from tiny colour changes in your face. Video never leaves the phone.</string>
 	<key>UILaunchScreen</key>

@@ -25,6 +25,7 @@ from arduino.router_bridge import Bridge
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from network import interface_ipv4
+from ble import HeartRateBroadcaster
 
 PORT = 8080
 lock = threading.Lock()
@@ -105,6 +106,9 @@ def pulse_summary(window_ms=10000):
 beats = collections.deque(maxlen=20)  # (t_ms, ibi_ms) from the sketch's live detector
 
 
+ble = HeartRateBroadcaster()
+
+
 def on_beat(t_ms, ibi_ms, peak, locked):
     if locked:
         beats.append((int(t_ms), int(ibi_ms)))
@@ -112,6 +116,8 @@ def on_beat(t_ms, ibi_ms, peak, locked):
     bpm = round(60000 / sorted(ibis)[len(ibis) // 2]) if len(ibis) >= 3 else None
     _set("beat", {"bpm_live": bpm, "locked": bool(locked), "ibi_ms": int(ibi_ms),
                   "peak_slope": int(peak), "locked_count": len(beats)})
+    if locked and bpm:
+        ble.update(bpm)
 
 
 period_state = {"period_ms": None, "quality": None}
@@ -190,6 +196,7 @@ class Handler(BaseHTTPRequestHandler):
                 out = dict(state)
             out["pulse"] = pulse_summary()
             out["pulse"]["period"] = dict(period_state)
+            out["ble"] = ble.status
             self._json(200, out)
         elif path == "/ppg":
             self._json(200, {"samples": list(ppg)})

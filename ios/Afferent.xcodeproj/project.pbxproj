@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		11CE29F00EFE939C15F64FB1 /* PulseCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9E2E77FC28E5D8F5F3477FF /* PulseCamera.swift */; };
 		2AD5B0A63C4CAFC48D74A4BD /* PulseEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7805E098592E5DB41BD6B930 /* PulseEstimator.swift */; };
+		6A1A82778FE7AF0AE728D53D /* FingerSensor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 018029A8E2EB68A3630D101F /* FingerSensor.swift */; };
 		6FBE0BE5CBC89BBA8595ECCF /* PulseEstimatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7289C707C437112C7FE2BA94 /* PulseEstimatorTests.swift */; };
 		D4449BF0B807A553E23CF3E7 /* AfferentApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF9E382FB315FEB2565461A4 /* AfferentApp.swift */; };
 /* End PBXBuildFile section */
@@ -24,12 +25,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		018029A8E2EB68A3630D101F /* FingerSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FingerSensor.swift; sourceTree = "<group>"; };
 		41DBD0F4C5B96D50F01301E4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7289C707C437112C7FE2BA94 /* PulseEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseEstimatorTests.swift; sourceTree = "<group>"; };
 		7805E098592E5DB41BD6B930 /* PulseEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseEstimator.swift; sourceTree = "<group>"; };
 		7C8BFF4EBCB2ACC18665D53B /* AfferentTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AfferentTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D9E2E77FC28E5D8F5F3477FF /* PulseCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseCamera.swift; sourceTree = "<group>"; };
-		DE88C87E9D98F36334FA28EA /* Afferent.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Afferent.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DE88C87E9D98F36334FA28EA /* Afferent.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Afferent.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF9E382FB315FEB2565461A4 /* AfferentApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -64,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				EF9E382FB315FEB2565461A4 /* AfferentApp.swift */,
+				018029A8E2EB68A3630D101F /* FingerSensor.swift */,
 				41DBD0F4C5B96D50F01301E4 /* Info.plist */,
 				D9E2E77FC28E5D8F5F3477FF /* PulseCamera.swift */,
 				7805E098592E5DB41BD6B930 /* PulseEstimator.swift */,
@@ -119,10 +122,11 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					4AF8178E1B2B7F9CE8E99199 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = PN3CH4MMD9;
 						ProvisioningStyle = Automatic;
 					};
 					AD2A7F7B8CD900BCF1042B0C = {
+						DevelopmentTeam = PN3CH4MMD9;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -161,6 +165,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D4449BF0B807A553E23CF3E7 /* AfferentApp.swift in Sources */,
+				6A1A82778FE7AF0AE728D53D /* FingerSensor.swift in Sources */,
 				11CE29F00EFE939C15F64FB1 /* PulseCamera.swift in Sources */,
 				2AD5B0A63C4CAFC48D74A4BD /* PulseEstimator.swift in Sources */,
 			);
@@ -213,7 +218,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = PN3CH4MMD9;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -288,7 +293,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = PN3CH4MMD9;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -322,7 +327,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = PN3CH4MMD9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Afferent/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -340,7 +344,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = PN3CH4MMD9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Afferent/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -1,2 +1,3 @@
 arduino-router-bridge==0.5.2
 zeroconf==0.154.0
+bless==0.3.0
