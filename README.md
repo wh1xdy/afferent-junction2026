@@ -46,3 +46,22 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 - The sketch profile in `sketch.yaml` must list every library dependency explicitly.
 - Hackathon Wi-Fi isolates clients, so the boards talk over BLE (or USB through the laptop).
 - `jetson/vision` is based on Wendy's `camera-feed-yolo` template (JetPack 7 CUDA fix included).
+
+## Team access
+
+Both boards are enrolled in our Wendy Cloud org, so any org member can reach them from
+anywhere — no USB cable or shared Wi-Fi needed:
+
+```sh
+curl -fsSL https://install.wendy.dev/cli.sh | bash   # install the CLI
+wendy auth login                                     # sign in with your invited account
+wendy cloud discover                                 # lists `jetson` and `uno-q` with cloud:// selectors
+
+JETSON='cloud://api.wendy.dev:443/tenant/e064d3cd-1e43-45af-adf2-37b0afe5e3da/asset/149628ce-6c13-44b8-9b2a-ec527e20caf7'
+UNOQ='cloud://api.wendy.dev:443/tenant/e064d3cd-1e43-45af-adf2-37b0afe5e3da/asset/a933500b-ab5a-4086-a2cc-a68ec015719a'
+
+wendy --device "$UNOQ" device apps list
+cd uno-q/modulino-hub && wendy run --device "$UNOQ" --detach --yes
+```
+
+When plugged in over USB-C, `wendy discover` finds the boards directly (faster deploys).
