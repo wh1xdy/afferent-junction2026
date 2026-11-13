@@ -34,6 +34,9 @@ POS (Wang et al. 2017) on the last 10 s gives the dominant frequency in 45–180
 spectra are fused, weighted by each camera's SNR. Auto exposure / white balance / focus are
 locked (50 Hz mains), and gain follows the *face* brightness (no clipping).
 
+Validated against the finger sensor (same person, ~35 s, 12 readings): fused camera
+76–83 BPM vs finger 76–84 BPM, mean absolute difference 1.8 BPM, max 4 BPM.
+
 Requirements, honestly: a still face, 0.5–1 m away, lit by **white** light. Coloured (purple)
 stage lighting has almost no green, where the pulse signal lives — use the Arduino camera's
 ring light. `snr` below 0 dB means "don't trust it". Keep the heartbeat LED off
