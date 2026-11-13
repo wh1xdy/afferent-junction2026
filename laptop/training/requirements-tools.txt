@@ -1,0 +1,9 @@
+# Lightweight host-side env for extract / prelabel / split / evaluate (no torch).
+# Works on Python 3.10-3.14. The training image already contains all of this.
+numpy
+opencv-python-headless
+onnxruntime
+rtmlib==0.0.16
+tqdm
+pyyaml
+pytest

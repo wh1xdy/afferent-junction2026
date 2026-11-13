@@ -1,0 +1,45 @@
+services:
+  posture:
+    build:
+      context: .
+      args:
+        ORT: ${ORT:-cpu}
+    image: afferent-posture:${ORT:-cpu}
+    container_name: afferent-posture
+    ports:
+      - "8000:8000"
+    devices:
+      # Camera device node passed into the container at the same path.
+      # Only ONE device is exposed, so inside the container it is index 0
+      # (CAMERA=0). Set VIDEO_DEVICE=/dev/video2 etc. to pick another camera.
+      - "${VIDEO_DEVICE:-/dev/video0}:${VIDEO_DEVICE:-/dev/video0}"
+    volumes:
+      - ./models:/models
+      - ./data:/data
+      - ./recordings:/recordings
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DB_PATH: /data/afferent.db
+      MODELS_DIR: /models
+      RECORDINGS_DIR: /recordings
+      CAMERA: ${CAMERA:-0}
+      WIDTH: ${WIDTH:-1920}
+      HEIGHT: ${HEIGHT:-1080}
+      FPS: ${FPS:-30}
+      CONTINUOUS_FPS: ${CONTINUOUS_FPS:-10}
+      BURST_FPS: ${BURST_FPS:-30}
+      DEVICE: ${DEVICE:-cpu}
+      # empty POSE_MODE -> lightweight on cpu, balanced on cuda (config.py)
+      POSE_MODE: ${POSE_MODE:-}
+      # custom fine-tuned pose ONNX from laptop/training (empty = stock)
+      POSE_MODEL_PATH: ${POSE_MODEL_PATH:-}
+      DET_EVERY: ${DET_EVERY:-}
+      FACE_EVERY: ${FACE_EVERY:-}
+      FACE_MATCH_THRESHOLD: ${FACE_MATCH_THRESHOLD:-0.45}
+      LOST_AFTER_S: ${LOST_AFTER_S:-3}
+      RECORDING_ENABLED: ${RECORDING_ENABLED:-0}
+      EMOTION_ENABLED: ${EMOTION_ENABLED:-1}
+      MIN_VALID_FRAMES: ${MIN_VALID_FRAMES:-30}
+    restart: unless-stopped

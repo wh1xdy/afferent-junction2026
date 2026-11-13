@@ -1,0 +1,16 @@
+# Never commit personal data or heavy artefacts.
+data/
+work_dirs/
+cache/
+*.pth
+*.onnx
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.jpg
+*.jpeg
+*.png
+*.zip
+__pycache__/
+.pytest_cache/

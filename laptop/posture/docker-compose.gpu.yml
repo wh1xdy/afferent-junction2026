@@ -1,0 +1,15 @@
+# GPU override — build + run onnxruntime-gpu. Requires the NVIDIA container
+# toolkit on the host (`sudo apt install nvidia-container-toolkit` then
+# `sudo nvidia-ctk runtime configure --runtime=docker` + restart docker).
+# This variant is provided best-effort and is NOT tested in the dev
+# environment (laptop has an RTX 3070 but no container toolkit installed).
+services:
+  posture:
+    build:
+      args:
+        ORT: gpu
+    image: afferent-posture:gpu
+    environment:
+      DEVICE: cuda
+      ORT: gpu
+    gpus: all
