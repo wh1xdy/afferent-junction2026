@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+opencv-python-headless
+ultralytics
+# ByteTrack dependency: ultralytics pip-installs lap on first model.track() call,
+# which fails in an offline container — bake it at build time.
+lap
+zeroconf==0.154.0
