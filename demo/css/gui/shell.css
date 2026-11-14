@@ -18,11 +18,11 @@
 .start .top-bar .icon-btn:not(.tonal) { color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 86%, transparent); }
 .start .top-bar .icon-btn:not(.tonal) .ms, .play-close .ms { filter: var(--af-icon-lift); }
 .start .top-bar { translate: 0 0; animation: barIn 900ms var(--af-ease-glide) 120ms both; transition: transform var(--af-dur-exit) var(--af-ease-out); }
-.start .dock { animation: dockIn 1100ms var(--af-ease-glide) 320ms both; transition: transform var(--af-dur-exit) var(--af-ease-out); }
+.start .dock { animation: dockIn 1400ms var(--af-ease-glide) 380ms both; transition: transform var(--af-dur-exit) var(--af-ease-out); }
 .start.off .top-bar { transform: translateY(-8px); }
 .start.off .dock { transform: translateY(14px); }
 @keyframes barIn { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
-@keyframes dockIn { from { opacity: 0; translate: 0 18px; } to { opacity: 1; translate: 0 0; } }
+@keyframes dockIn { from { opacity: 0; translate: 0 32px; } to { opacity: 1; translate: 0 0; } }
 .start .top-bar .icon-btn + .icon-btn { margin-left: -4px; }
 
 .privacy {
@@ -57,12 +57,32 @@
 :root[data-room="dark"] .kindle { --k: var(--md-sys-color-primary); }
 .kindle::after { inset: 4px; }
 .kindle-halo {
-  position: absolute; inset: -22px; border-radius: 50%; pointer-events: none; z-index: -2;
-  background: radial-gradient(circle, color-mix(in srgb, var(--af-honey) calc(10% + var(--p) * 34%), transparent) 0, transparent 68%);
-  opacity: calc(var(--af-glow-strength) * 0.9);
-  animation: kindleBreath var(--af-glow-loop) var(--af-ease-breath) infinite;
+  position: absolute; inset: -96px; border-radius: 50%; pointer-events: none; z-index: -2;
+  background: radial-gradient(circle, transparent 0 15%, color-mix(in srgb, var(--af-honey) calc(30% + var(--p) * 40%), transparent) 17%, color-mix(in srgb, var(--af-ember) calc(12% + var(--p) * 18%), transparent) 34%, transparent 70%);
+  opacity: calc(var(--af-glow-strength) * 0.95);
+  animation: kindleBreath 5200ms var(--af-ease-breath) infinite;
 }
-@keyframes kindleBreath { 0%, 100% { transform: scale(0.92); } 40% { transform: scale(1.06); } }
+@keyframes kindleBreath { 0%, 100% { transform: scale(0.9); opacity: calc(var(--af-glow-strength) * 0.7); } 45% { transform: scale(1.06); opacity: var(--af-glow-strength); } }
+.kindle { animation: kindlePulse 5200ms var(--af-ease-breath) infinite; }
+@keyframes kindlePulse {
+  0%, 100% { box-shadow: var(--af-glass-edge), var(--af-lift-2), 0 0 0 0 color-mix(in srgb, var(--af-honey) 0%, transparent); }
+  45% { box-shadow: var(--af-glass-edge), var(--af-lift-2), 0 0 28px 6px color-mix(in srgb, var(--af-honey) 34%, transparent); }
+}
+.kindle-ring .fill { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--af-honey) 80%, transparent)); }
+.kindle-core svg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--af-honey) 70%, transparent)); }
+.dock::before {
+  content: ""; position: absolute; left: 50%; bottom: calc(var(--safe-bottom) + 20px); width: 420px; height: 300px; translate: -50% 0; pointer-events: none; z-index: -1;
+  background: var(--af-warm-spill); opacity: calc(var(--af-glow-strength) * 0.55); mix-blend-mode: screen;
+}
+.start .start-scrim::before {
+  content: ""; position: absolute; inset: 0 -20%; pointer-events: none; mix-blend-mode: screen; filter: blur(6px);
+  background:
+    radial-gradient(50% 9% at 34% 25%, rgba(95, 227, 161, 0.20), transparent 70%),
+    radial-gradient(42% 7% at 66% 21%, rgba(79, 195, 217, 0.18), transparent 70%),
+    radial-gradient(70% 16% at 50% 30%, rgba(180, 166, 206, 0.12), transparent 72%);
+  animation: auroraDrift 22s var(--af-ease-breath) infinite alternate;
+}
+@keyframes auroraDrift { from { transform: translateX(-4%) skewY(-2deg); opacity: 0.75; } to { transform: translateX(4%) skewY(1deg); opacity: 1; } }
 .kindle-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .kindle-ring .track { fill: none; stroke: color-mix(in srgb, var(--k) 34%, transparent); stroke-width: 2.2; }
 .kindle-ring .fill { fill: none; stroke: var(--k); stroke-width: 4.2; stroke-linecap: round; }
@@ -82,7 +102,7 @@
 .play-sim { position: absolute; z-index: 3; top: calc(var(--safe-top) + 20px); left: 50%; transform: translateX(-50%); pointer-events: none; }
 .cue {
   position: absolute; left: 24px; right: 24px; top: 14%; z-index: 2; pointer-events: none; text-align: center;
-  font: 300 24px/32px var(--af-font-brand); letter-spacing: 0.01em; color: var(--af-birch); text-wrap: balance;
+  font: 300 27px/36px var(--af-font-brand); letter-spacing: 0.01em; color: var(--af-birch); text-wrap: balance;
   text-shadow: var(--af-text-lift);
   opacity: 0; transform: translateY(8px); filter: blur(3px);
   transition: opacity var(--af-dur-drift) var(--af-ease-glide), transform var(--af-dur-drift) var(--af-ease-glide), filter var(--af-dur-drift) var(--af-ease-glide);
@@ -235,16 +255,16 @@
 }
 .snackbar.on { opacity: 1; transform: none; }
 
-@keyframes rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translateY(40px) scale(0.985); } to { opacity: 1; transform: none; } }
 @keyframes sheetIn { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-:root[data-motion="reduced"] .kindle-halo, :root[data-motion="reduced"] .kindle-label.nudge, :root[data-motion="reduced"] .checkin-chip .dot, :root[data-motion="reduced"] .start .top-bar, :root[data-motion="reduced"] .start .dock { animation: none; }
+:root[data-motion="reduced"] .kindle, :root[data-motion="reduced"] .start .start-scrim::before, :root[data-motion="reduced"] .kindle-halo, :root[data-motion="reduced"] .kindle-label.nudge, :root[data-motion="reduced"] .checkin-chip .dot, :root[data-motion="reduced"] .start .top-bar, :root[data-motion="reduced"] .start .dock { animation: none; }
 :root[data-motion="reduced"] .talk, :root[data-motion="reduced"] .settings, :root[data-motion="reduced"] #info .sheet { animation: fadeIn 150ms linear; }
 :root[data-motion="reduced"] .end-sheet, :root[data-motion="reduced"] .mood-row, :root[data-motion="reduced"] .end-night, :root[data-motion="reduced"] .cue { transform: none !important; }
 :root[data-motion="reduced"] .cue { filter: none; }
 @media (prefers-reduced-motion: reduce) {
-  .kindle-halo, .kindle-label.nudge, .checkin-chip .dot, .start .top-bar, .start .dock { animation: none; }
+  .kindle, .start .start-scrim::before, .kindle-halo, .kindle-label.nudge, .checkin-chip .dot, .start .top-bar, .start .dock { animation: none; }
   .talk, .settings, #info .sheet { animation: fadeIn 150ms linear; }
   .end-sheet, .mood-row, .end-night, .cue { transform: none !important; }
   .cue { filter: none; }

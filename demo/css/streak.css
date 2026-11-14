@@ -1,19 +1,19 @@
 .morning-mark {
   position: absolute; left: 16px; right: 16px; top: calc(29.4% - 22px); z-index: 1;
   display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none !important;
-  animation: markIn 900ms var(--af-ease-in) 200ms both;
+  animation: markIn 1300ms var(--af-ease-glide) 220ms both;
 }
-@keyframes markIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes markIn { from { opacity: 0; transform: translateY(14px) scale(0.96); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 .morning-mark .chip {
-  pointer-events: auto; display: inline-flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px 0 18px;
-  border-radius: 22px; text-decoration: none; color: var(--af-birch);
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 12px; height: 54px; padding: 0 24px 0 20px;
+  border-radius: 27px; text-decoration: none; color: var(--af-birch);
   background: var(--af-glass);
   box-shadow: var(--af-glass-edge), var(--af-lift-2);
   -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
 }
 .morning-mark .chip:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
 .morning-mark .laminate { width: 30px; height: 25px; flex: none; }
-.morning-mark .n { font: 300 28px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; text-shadow: 0 0 18px color-mix(in srgb, var(--af-honey) 22%, transparent); }
+.morning-mark .n { font: 200 38px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; text-shadow: 0 0 18px color-mix(in srgb, var(--af-honey) 22%, transparent); }
 .morning-mark .u { font: 600 11px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: color-mix(in srgb, var(--af-birch) 78%, transparent); }
 .morning-mark .bye {
   margin: 0; font: 300 19px/26px var(--af-font-brand); color: var(--af-frost); letter-spacing: 0.01em;
@@ -21,9 +21,9 @@
 }
 
 .end-count { margin: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; color: var(--md-sys-color-on-surface); }
-.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 30px; overflow: hidden; font: 300 28px/30px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
+.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 40px; overflow: hidden; font: 200 40px/40px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
 .end-count .unit { font: 600 11px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: var(--md-sys-color-on-surface-variant); }
-.end-count .tick { display: block; position: relative; height: 30px; }
+.end-count .tick { display: block; position: relative; height: 40px; }
 .end-count .tick span { position: absolute; right: 0; top: 0; }
 .end-count .tick .old { opacity: 0; }
 .end-count .tick.roll .old { animation: tkOut 520ms var(--af-ease-std) 1650ms both; }

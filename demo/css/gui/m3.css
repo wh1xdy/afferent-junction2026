@@ -101,8 +101,8 @@
 .ms.fill { font-variation-settings: "FILL" 1, "wght" 300, "GRAD" -25, "opsz" 24; }
 [data-scheme="kevat"] .ms, :root[data-sky="kevat"] .ms { font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 24; }
 
-.t-display { font-family: var(--af-font-brand); font-weight: 300; font-size: 40px; line-height: 48px; letter-spacing: -0.2px; }
-.t-headline { font-family: var(--af-font-brand); font-weight: 400; font-size: 24px; line-height: 32px; }
+.t-display { font-family: var(--af-font-brand); font-weight: 300; font-size: 46px; line-height: 54px; letter-spacing: -0.6px; }
+.t-headline { font-family: var(--af-font-brand); font-weight: 400; font-size: 27px; line-height: 34px; letter-spacing: -0.2px; }
 .t-title { font-family: var(--af-font-ui); font-weight: 500; font-size: 16px; line-height: 24px; letter-spacing: 0.1px; font-variation-settings: "ROND" var(--af-rond); }
 .t-body { font-family: var(--af-font-ui); font-weight: 400; font-size: 17px; line-height: 26px; letter-spacing: 0.1px; font-variation-settings: "ROND" var(--af-rond); }
 .t-body-m { font-family: var(--af-font-ui); font-weight: 400; font-size: 15px; line-height: 22px; letter-spacing: 0.15px; font-variation-settings: "ROND" var(--af-rond); }

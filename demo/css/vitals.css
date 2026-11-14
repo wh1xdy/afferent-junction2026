@@ -9,7 +9,7 @@
 .sig-row .txt { overflow-wrap: anywhere; }
 .sig-val {
   flex: none; min-width: 44px; text-align: right; white-space: nowrap; color: var(--md-sys-color-on-surface);
-  font: 400 26px/32px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0;
+  font: 300 38px/40px var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
 }
 .sig-row .sig-sim {
   align-self: flex-start; margin-top: 2px; padding: 0 8px; border-radius: 10px;
