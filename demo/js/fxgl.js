@@ -1,6 +1,6 @@
 (() => {
   const q = new URLSearchParams(location.search);
-  const FX = A.FXGL = { on: false, bloom: true, k: 0, present() {} };
+  const FX = A.FXGL = { on: false, bloom: true, bloomA: 1, bloomOut: false, k: 0, present() {} };
   if (q.get('fx') === '0') return;
 
   const GRADES = {
@@ -136,7 +136,7 @@
     if (iv < 19) { slow = 0; return; }
     if (++slow < 2) return;
     slow = 0;
-    if (FX.bloom) FX.bloom = false;
+    if (FX.bloom) FX.bloomOut = true;
     else if (pc > 5) off();
   };
 
@@ -156,6 +156,7 @@
 
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, scene);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+      if (FX.bloomOut) { FX.bloomA *= Math.exp(-dt / 0.6); if (FX.bloomA < 0.01) FX.bloom = false; }
       const bl = FX.bloom && FX.k > 0.001 && cur.bloom > 0.01;
       if (bl) {
         pass(progs.pre, A1, [['t', scene]], u => { gl.uniform2f(u.px, 1 / fw, 1 / fh); gl.uniform1f(u.thr, 0.66); gl.uniform1f(u.knee, 0.16); });
@@ -167,7 +168,7 @@
       }
       pass(progs.comp, null, [['t', scene], ['ba', A1.t], ['bb', B1.t]], u => {
         gl.uniform1f(u.k, FX.k); gl.uniform1f(u.warmth, cur.warmth); gl.uniform1f(u.contrast, cur.contrast); gl.uniform1f(u.sat, cur.sat);
-        gl.uniform1f(u.bloom, bl ? cur.bloom * (s?.game || s?.panel ? 0.7 : 1) : 0); gl.uniform1f(u.vig, cur.vig); gl.uniform1f(u.aspect, fw / fh);
+        gl.uniform1f(u.bloom, bl ? cur.bloom * FX.bloomA * (s?.game || s?.panel ? 0.7 : 1) : 0); gl.uniform1f(u.vig, cur.vig); gl.uniform1f(u.aspect, fw / fh);
         gl.uniform3fv(u.lift, cur.lift); gl.uniform3fv(u.gain, cur.gain);
         const w = A.World?.wave?.();
         gl.uniform4f(u.wv, w ? w.x : 0, w ? w.y : 0, w ? w.r : 0, w ? w.k : 0);

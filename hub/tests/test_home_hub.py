@@ -25,6 +25,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from afferent_hub import home, modules
+from afferent_hub import home_guard
 from afferent_hub.main import create_app
 from afferent_hub.settings import Settings
 
@@ -72,6 +73,7 @@ def real_session(**over):
 def test_real_patient_is_empty_and_real_and_the_roster_is_labelled(tmp_path):
     env = {"AFFERENT_HOME_PATIENT_NAME": "Test Person", "AFFERENT_HOME_TMS_END": "2026-11-01"}
     with paired(home_app(settings(tmp_path), env)) as c:
+        assert c.app.state.hub.sensors is c.app.state.team.sensors
         lst = c.get("/api/patients").json()
         rows = {p["id"]: p for p in lst["patients"]}
         assert set(rows) == DEMO                            # the clinic list never holds the real patient
@@ -105,6 +107,10 @@ def test_real_session_stays_real_survives_a_restart_and_the_reset_is_refused(tmp
         assert c.post("/api/demo/reset/").status_code == 403
         r = c.post("/api/demo/profile", json={"patient_id": "anna", "profile": "bad_day"})
         assert r.status_code == 403 and r.json()["error"] == "profile_disabled"
+        assert "/api/demo/decline" not in home_guard.REFUSED
+        r = c.post("/api/demo/decline", json={})
+        assert r.status_code == 200 and r.json()["decline"]["forced"] is True
+        assert c.delete("/api/demo/decline").status_code == 200
     with paired(home_app(s)) as c:
         d = c.get("/api/patients/anna").json()
         assert [x["session_id"] for x in d["sessions"]] == [doc["session_id"]]

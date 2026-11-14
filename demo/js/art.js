@@ -1,5 +1,5 @@
 (() => {
-  const store = {};
+  const store = {}, meta = {};
   const MODES = ['colour', 'grey', 'shade'];
 
   const canvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return c; };
@@ -44,6 +44,7 @@
     async load(base = 'assets/') {
       let names = [];
       try { names = await (await fetch(base + 'manifest.json')).json(); } catch { return; }
+      names = names.map(e => { if (typeof e === 'string') return e; meta[e.name] = e; return e.name; });
       await Promise.all(names.map(n => new Promise(res => {
         const img = new Image();
         let tries = 0;
@@ -56,6 +57,8 @@
 
     has: n => !!store[n],
     aspect: n => store[n].w / store[n].h,
+    size: n => (store[n] ? { w: store[n].w, h: store[n].h } : null),
+    meta: n => meta[n] || {},
 
     bake(key, src, w, h, paint) {
       const s = store[src];
@@ -73,6 +76,17 @@
     },
     drop(prefix) { for (const k of Object.keys(store)) if (k.startsWith(prefix)) delete store[k]; },
     feather,
+
+    slice(ctx, n, u0, u1, x, y, w, h, sat = 1, light = 1, alpha = 1) {
+      const a = store[n];
+      if (!a || u1 <= u0) return false;
+      const sx = u0 * a.w, sw = (u1 - u0) * a.w, dx = x + u0 * w, dw = (u1 - u0) * w, g = ctx.globalAlpha;
+      if (sat < 0.99 && a.grey) { ctx.globalAlpha = g * alpha; ctx.drawImage(a.grey, sx, 0, sw, a.h, dx, y, dw, h); }
+      if (sat > 0.01 || !a.grey) { ctx.globalAlpha = g * alpha * (sat < 0.99 && a.grey ? sat : 1); ctx.drawImage(a.colour, sx, 0, sw, a.h, dx, y, dw, h); }
+      if (light < 0.99 && a.shade) { ctx.globalAlpha = g * alpha * (1 - light); ctx.drawImage(a.shade, sx, 0, sw, a.h, dx, y, dw, h); }
+      ctx.globalAlpha = g;
+      return true;
+    },
 
     draw(ctx, n, x, y, w, h, sat = 1, light = 1, alpha = 1) {
       const a = store[n];

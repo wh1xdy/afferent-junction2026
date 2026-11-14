@@ -10,7 +10,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from . import export, modules, qr, room, views, wellbeing
+from . import decline, export, modules, qr, room, views, wellbeing
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
@@ -86,6 +86,9 @@ class Hub:
         self.transcripts = TranscriptLog(settings.transcripts_dir,
                                          file_max=int(settings.transcript_file_mb * 1024 * 1024),
                                          total_max=int(settings.transcript_total_mb * 1024 * 1024))
+        self.decline_override: dict[str, dict] = {}
+        self.decline_scenario: dict[str, str] = {}
+        self._decline_last: dict[str, str] = {}
         # Set by main.py to the team's SensorSource; stays None in tests and without the data manager.
         self.sensors = None
         self._room: dict[str, tuple[float, dict[str, dict]]] = {}
@@ -122,6 +125,8 @@ class Hub:
         await self.bedside.start()
         if self.settings.validation:
             self._tasks.append(asyncio.create_task(self._run_validation()))
+        if self.settings.decline_interval_s > 0:
+            self._tasks.append(asyncio.create_task(self._run_decline()))
 
     async def stop(self):
         for t in self._tasks + list(self._jobs):
@@ -137,6 +142,42 @@ class Hub:
         if p is None:
             raise HubError(404, "unknown_patient", f"No patient with id {pid!r}")
         return p
+
+    async def decline(self, pid: str) -> dict:
+        self.patient(pid)
+        scenario = self.decline_scenario.get(pid)
+        if scenario is not None:
+            report = await asyncio.to_thread(
+                decline.analyze, decline.synthetic_get(
+                    scenario, self.settings.decline_ref_days, self.settings.decline_recent_days,
+                ),
+                self.settings.decline_threshold, self.settings.decline_ref_days,
+                self.settings.decline_recent_days,
+            )
+            report["source"] = "synthetic"
+            report["scenario"] = scenario
+            report["forced"] = True
+        elif (pid == self.settings.bound_patient and self.sensors is not None
+                and self.sensors.enabled):
+            report = await asyncio.to_thread(
+                decline.analyze, self.sensors.get,
+                self.settings.decline_threshold, self.settings.decline_ref_days,
+                self.settings.decline_recent_days,
+            )
+            report["source"] = "data_manager"
+            report["scenario"] = None
+        else:
+            report = decline.empty_report(
+                self.settings.decline_threshold, self.settings.decline_ref_days,
+                self.settings.decline_recent_days,
+            )
+            report["source"] = "none"
+            report["scenario"] = None
+        if pid in self.decline_override:
+            report = decline.apply_override(report, self.decline_override[pid])
+        report["patient_id"] = pid
+        report["checked_iso"] = views.now_iso()
+        return report
 
     def privacy(self, pid: str) -> dict:
         privacy = self.store.privacy(pid) or copy.deepcopy(views.DEFAULT_PRIVACY)
@@ -470,13 +511,29 @@ class Hub:
         nd = views.now_day(p)
         phq = views.phq_block(p, self.store.checkins(pid), nd)
         analytics = self.analytics(pid)
+        decline_report = await self.decline(pid)
         level = wellbeing.indicator(analytics, phq)
+        if decline_report["level"] == "low":
+            level = "bad"
         facts = wellbeing.hub_facts(analytics, phq) if level != "ok" else []
         if level == "bad" and self.sensors is not None and self.sensors.enabled:
             facts += await asyncio.to_thread(wellbeing.sensor_facts, self.sensors.get)
+        decline_facts = decline.facts(decline_report)
+        facts = (decline_facts + facts)[:wellbeing.FACT_MAX]
+        low_indicators = [
+            {"key": indicator["key"], "score": indicator["score"],
+             "forced": indicator.get("forced", False)}
+            for indicator in decline_report["indicators"] if indicator["status"] == "low"
+        ]
         return {"type": "voice_context", "patient_id": pid, "date": views.day_date(p, nd).isoformat(),
                 "indicator": level, "facts": facts[:wellbeing.FACT_MAX],
-                "suggest_doctor": level == "bad"}
+                "suggest_doctor": level == "bad", "decline": low_indicators}
+
+    async def push_voice_context(self, pid: str) -> dict:
+        msg = await self.voice_context(pid)
+        await self.rooms.broadcast("app", msg, patient_id=pid)
+        self._decline_last[pid] = "low" if msg["decline"] else "ok"
+        return msg
 
     def flags(self, pid: str) -> list[dict]:
         keep = ("type", "t_iso", "source", "label", "checkin_id", "screen")
@@ -586,6 +643,24 @@ class Hub:
             log.exception("validation failed")
             self.validation_status = f"failed: {e}"
 
+    async def _run_decline(self):
+        pid = self.settings.bound_patient
+        while True:
+            try:
+                if self.sensors is not None and self.sensors.enabled:
+                    report = await self.decline(pid)
+                    level = report["level"]
+                    previous = self._decline_last.get(pid)
+                    self._decline_last[pid] = level
+                    if (previous is None and level == "low") or (
+                            previous is not None and previous != level):
+                        await self.push_voice_context(pid)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                log.exception("decline check failed")
+            await asyncio.sleep(self.settings.decline_interval_s)
+
     async def handle_app(self, client: Client, msg: dict):
         t = msg.get("type")
         pid = client.patient_id or msg.get("patient_id") or self.settings.bound_patient
@@ -597,6 +672,8 @@ class Hub:
                 last = self.bedside.room_message()
                 if last["temp_c"] is not None:
                     await self.rooms.send(client, last)
+            if (await self.decline(client.patient_id))["level"] == "low":
+                await self.push_voice_context(client.patient_id)
         elif t == "ping":
             await self.rooms.send(client, {"type": "pong"})
         elif t == "session_start":
