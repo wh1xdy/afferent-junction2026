@@ -332,9 +332,18 @@ class DataManagerClient:
             req.add_header("Authorization", f"Bearer {self.token}")
         t0 = time.time()
         with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
-            res = json.loads(r.read().decode())
+            raw = r.read()
         t1 = time.time()
-        st = res.get("server_time") if isinstance(res, dict) else None
+        try:
+            res = json.loads(raw.decode())
+        except ValueError:
+            res = None
+        if not isinstance(res, dict):
+            # not the data manager's answer (portal, proxy, stray advert): the batch was not
+            # confirmed. An OSError, so it is re-queued like any other connection problem; a
+            # ValueError here used to drop it as "unsendable", a list ended the sender thread.
+            raise OSError("the answer is not a data manager JSON object")
+        st = res.get("server_time")
         if isinstance(st, (int, float)):
             skew = round(st / 1000 - (t0 + t1) / 2, 1)
             if abs(skew) > CLOCK_SKEW_WARN_S and (self.clock_skew_s is None
@@ -372,12 +381,18 @@ class DataManagerClient:
             self._note_connection(False)
             self._requeue(q, batch, str(e))
             return False
-        self.sent[key] += res.get("accepted", 0)
+        # the batch was delivered (a JSON object came back); counts with the wrong type are not counted
+        acc = res.get("accepted", 0)
+        if isinstance(acc, int) and not isinstance(acc, bool) and acc > 0:
+            self.sent[key] += acc
         rej = res.get("rejected") or []
+        if not isinstance(rej, list):
+            rej = []
         if rej:
             self.sent["rejected"] += len(rej)
             self._last_reject = rej
-            log.warning("%d %s rejected, e.g. %s", len(rej), key, rej[0].get("reason"))
+            first = rej[0].get("reason") if isinstance(rej[0], dict) else rej[0]
+            log.warning("%d %s rejected, e.g. %s", len(rej), key, first)
         self.last_error = None
         return True
 
@@ -402,6 +417,12 @@ class DataManagerClient:
             if self._stop.is_set():
                 return
             ok = True
-            while ok and (self._samples or self._events):
-                ok = self._send_once()
+            try:
+                while ok and (self._samples or self._events):
+                    ok = self._send_once()
+            except Exception as e:
+                # nothing may end this thread: the queue would only grow until the app restarts
+                ok = False
+                self.last_error = f"sender: {e!r}"
+                log.exception("data manager: sending failed, trying again later")
             backoff = self.flush_every_s if ok else min(backoff * 2, 60.0)

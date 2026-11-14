@@ -1,0 +1,23 @@
+# Cloud deployment — same analyzer, hosted backend.
+# Serve the merged fine-tuned model with vLLM (or NIM / llama-server):
+#   vllm serve ./work_dirs/run1/merged --served-model-name afferent-analyzer \
+#        --max-model-len 8192 --enable-auto-tool-choice=false
+transcripts_dir: ./data/transcripts
+db_path: ./data/analyzer.db
+target_speaker: target
+
+model:
+  backend: openai
+  base_url: http://127.0.0.1:8000/v1
+  api_key: ""                              # set via env ANALYZER_API_KEY
+  name: afferent-analyzer
+  temperature: 0.2
+  max_tokens: 800
+
+schedule:
+  window: ""                               # API-triggered only, no nightly loop
+  vision_probe_urls: []
+
+data_manager:
+  url: "off"                               # cloud dev runs: no shared store by default
+  source: transcription-analyzer

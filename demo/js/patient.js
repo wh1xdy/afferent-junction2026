@@ -69,20 +69,7 @@
   const OFF_NOTE = 'Off. Nothing is collected.';
   const NEVER = 'Never camera images, sound or messages';
 
-  const hubBase = (() => {
-    const norm = s => {
-      if (!s) return null;
-      try {
-        const u = new URL(s);
-        const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
-        if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
-        return u.origin + key;
-      } catch { return null; }
-    };
-    let ls = null;
-    try { ls = localStorage.getItem('afferent.hub'); } catch {}
-    return norm(q.get('hub')) || norm(q.get('ws')) || norm(ls) || (/^https?:$/.test(location.protocol) ? location.origin : null);
-  })();
+  const hubBase = A.hubApiBase(q);
 
   let view = null, source = 'saved', privacy = { sharing: 'summary', sensors: {} }, socket = null;
   const pending = [];

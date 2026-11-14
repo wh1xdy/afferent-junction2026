@@ -2,26 +2,10 @@
   const $ = id => document.getElementById(id);
   const q = new URLSearchParams(location.search);
   const FJORD = '#0E1A2E';
-  const store = {
-    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
-  };
   const pid = q.get('patient') || 'anna';
-  // The paired hub as patient.js has it: the pairing token (/k/<token>) stays on for API calls, and only
-  // the bare address (hubBase) is shown or put in a link.
-  const norm = s => {
-    if (!s) return null;
-    try {
-      const u = new URL(s);
-      const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
-      if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
-      return u.origin + key;
-    } catch { return null; }
-  };
-  let saved = null;
-  try { saved = localStorage.getItem('afferent.hub'); } catch {}
-  const apiBase = norm(q.get('hub')) || norm(q.get('ws')) || norm(saved)
-    || (/^https?:$/.test(location.protocol) ? location.origin : null);
+  // The paired hub (A.hubApiBase, util.js): the pairing token (/k/<token>) stays on for API calls, and only the bare
+  // address (hubBase) is shown or put in a link.
+  const apiBase = A.hubApiBase(q);
   const hubBase = apiBase ? new URL(apiBase).origin : null;
   const record = body => (body && typeof body === 'object' && body.period) ? { body, saved_iso: body.cached_iso || null } : null;
 

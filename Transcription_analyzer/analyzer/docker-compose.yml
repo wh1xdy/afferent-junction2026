@@ -1,0 +1,25 @@
+# Local dev run — same image as `wendy run` (generic base, no GPU needed).
+# Mock backend: the batch pipeline, dashboard and DM push all work without a
+# model. For a real model either set ANALYZER_BASE_URL to a serving endpoint
+# (vLLM / llama-server / NIM) or install llama-cpp-python and use llamacpp.
+services:
+  analyzer:
+    build: .
+    ports:
+      - "3080:3080"
+    environment:
+      ANALYZER_CONFIG: /app/configs/cloud.yaml
+      ANALYZER_MODEL_BACKEND: ${ANALYZER_MODEL_BACKEND:-mock}
+      ANALYZER_BASE_URL: ${ANALYZER_BASE_URL:-http://127.0.0.1:8000/v1}
+      ANALYZER_MODEL_NAME: ${ANALYZER_MODEL_NAME:-afferent-analyzer}
+      ANALYZER_TRANSCRIPTS_DIR: /data/transcripts
+      ANALYZER_DB_PATH: /data/analyzer.db
+      DATA_MANAGER_URL: ${DATA_MANAGER_URL:-off}
+      DATA_MANAGER_TOKEN: ${DATA_MANAGER_TOKEN:-}
+    volumes:
+      - analyzer-data:/data
+      # the bundled synthetic corpus is scorable out of the box:
+      - ../data/transcripts:/data/transcripts/synthetic:ro
+
+volumes:
+  analyzer-data:

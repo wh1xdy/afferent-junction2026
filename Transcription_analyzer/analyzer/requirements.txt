@@ -1,0 +1,12 @@
+# afferent transcript analyzer — runtime deps.
+# llama-cpp-python is intentionally NOT here: on Jetson it comes from the
+# dustynv/llama_cpp base image (see Dockerfile); on a dev machine install
+# it separately if you want the llamacpp backend — the mock and openai
+# backends work without it.
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+pyyaml
+pytest
+zeroconf          # mDNS discovery of afferent-data-manager on Wendy Net

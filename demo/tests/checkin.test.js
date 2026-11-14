@@ -59,7 +59,7 @@ class El {
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
 }
 
-const page = ({ storage = new Map(), hub = null } = {}) => {
+const page = ({ storage = new Map(), hub = null, search = '' } = {}) => {
   const timers = [], winListeners = {}, emitted = [];
   const doc = { activeElement: null, documentElement: new El('html'), createElement: tag => new El(tag, doc) };
   doc.documentElement.ownerDocument = doc;
@@ -73,7 +73,7 @@ const page = ({ storage = new Map(), hub = null } = {}) => {
   doc.getElementById = id => doc.documentElement.all().find(e => e.id === id) || null;
   const ctx = {
     console, Math, Date, JSON, Set, Map, Object, Array, Number, String, URLSearchParams, document: doc, performance: { now: () => 0 },
-    crypto: { randomUUID: () => 'test-id' }, location: { search: '' },
+    crypto: { randomUUID: () => 'test-id' }, location: { search },
     localStorage: { getItem: k => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, String(v)), removeItem: k => storage.delete(k) },
     setTimeout: (f, ms) => { timers.push(f); return timers.length; }, clearTimeout: id => { if (id) timers[id - 1] = null; },
     requestAnimationFrame: f => { f(); return 0; },
@@ -218,6 +218,33 @@ const tests = {
     p.A.Checkin.open();
     const lines = p.sheet().querySelectorAll('p').map(e => e.textContent);
     assert.ok(lines.some(l => /stop at any time with the cross at the top, or by swiping down/.test(l)), lines.join(' | '));
+  },
+  'i: licensed C-SSRS: item 9 above zero and every screener answer no still ends on the helplines, not "Thank you"'() {
+    const p = page({ storage: seen(), search: '?cssrs=1' });
+    p.begin();
+    for (let i = 1; i <= 8; i++) p.answer(0);
+    p.answer(1);
+    assert.strictEqual(kind(p), 'ci-info ci-cssrs-intro');
+    p.sheet().querySelectorAll('.ci-btn').find(b => b.textContent === 'Continue').click();
+    p.answer(false); p.answer(false); p.answer(false); // c1, c2, c6
+    const d = p.docs().at(-1);
+    assert.deepStrictEqual([d.status, d.cssrs.asked, d.cssrs.tier, d.safety.tier], ['completed', true, 'none', 'none']);
+    assert.strictEqual(kind(p), 'ci-info ci-support');
+    assert.ok(p.sheet().querySelectorAll('.ci-contact').some(c => c.href === 'tel:112'), 'helplines shown');
+    assert.strictEqual(d.safety.screen, 'support');
+  },
+
+  'j: licensed C-SSRS: item 9 at 2 or 3 and stopped before the screener ends shows the crisis screen, as without the screener'() {
+    for (const v of [2, 3]) {
+      const p = page({ storage: seen(), search: '?cssrs=1' });
+      p.begin();
+      for (let i = 1; i <= 8; i++) p.answer(0);
+      p.opts().find(b => b.dataset.v === String(v)).click();
+      p.q('.ci-stop').click();
+      const d = p.docs().at(-1);
+      assert.deepStrictEqual([d.cssrs.asked, d.safety.tier, d.safety.screen], [true, 'incomplete', 'crisis'], `item 9 = ${v}`);
+      assert.strictEqual(kind(p), 'ci-info ci-crisis', `item 9 = ${v}`);
+    }
   },
 };
 

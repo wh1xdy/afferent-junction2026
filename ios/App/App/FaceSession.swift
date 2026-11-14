@@ -18,6 +18,16 @@ final class FaceSession: NSObject, ARSessionDelegate {
     /// The front camera is a TrueDepth camera. The face measures need it; eyes and pulse do not.
     static var trueDepth: Bool { AVCaptureDevice.default(.builtInTrueDepthCamera, for: .video, position: .front) != nil }
 
+    /// Camera permission for a user of the session that is not the camera plugin (eyes): calls `done` on
+    /// the main queue with true when allowed, asking first when not yet decided.
+    static func authorize(_ done: @escaping (Bool) -> Void) {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: DispatchQueue.main.async { done(true) }
+        case .notDetermined: AVCaptureDevice.requestAccess(for: .video) { ok in DispatchQueue.main.async { done(ok) } }
+        default: DispatchQueue.main.async { done(false) }
+        }
+    }
+
     typealias FrameSink = (ARFrame, ARFaceAnchor?) -> Void
     typealias AnchorSink = (ARSession, [ARAnchor]) -> Void
 

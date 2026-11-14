@@ -28,7 +28,7 @@
         const cells = K.shuffle([...Array(GRID[0] * GRID[1]).keys()]).slice(0, n);
         return { n, cells, target: Math.floor(R() * n), jit: cells.map(() => [(R() - 0.5) * 0.4, (R() - 0.5) * 0.3]), on: null, rt: null, wrong: 0, found: false };
       });
-      return base(ID, searches.length * (2.2 + ITI) + 4, {
+      return base(ID, searches.length * (LIMIT + ITI) + 4, {
         searches, i: -1, state: 'gap', stateAt: 0, b: null, bot: null, foundAt: -9, wrongAt: -9, wrongCell: -1, outro: 1.3,
         extra: { v: 1, n_searches: searches.length, set_sizes: SIZES },
 

@@ -1,8 +1,9 @@
 """Hands the UNO Q's readings to the data manager on the Jetson (afferent-data-manager).
 
 data_manager_client.py next to this file is an unchanged copy of
-jetson/data_manager/client/data_manager_client.py at commit c4301f8 (branch data_manager,
-git blob f79b7d4). It queues values and sends them from its own thread, so nothing here waits
+jetson/data_manager/client/data_manager_client.py (git blob 4e38c4e: c4301f8's f79b7d4 plus the
+bug burn-down fix that re-queues a batch the server's answer did not confirm). It queues values
+and sends them from its own thread, so nothing here waits
 for the network.
 
 The readings go from the UNO Q to the Jetson and stay in the patient's home.

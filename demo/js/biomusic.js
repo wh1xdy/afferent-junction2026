@@ -199,7 +199,8 @@
 
     const beat = (t, k, L) => {
       const b = k % 4, bar = Math.floor(k / 4);
-      if (b === 0) {
+      // A first beat that lands off the bar line (a stalled tick skipped the start) still sets the voice and chord.
+      if (b === 0 || !S.chord) {
         if (S.want !== S.name) setVoice(t, S.want);
         const v = S.v;
         if (bar - S.chordBar >= v.bars) {

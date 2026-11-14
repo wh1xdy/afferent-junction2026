@@ -10,6 +10,7 @@ _push (the hand-over to the BLE thread) is replaced by a recorder.
 import copy
 import importlib.util
 import json
+import math
 import os
 import sys
 import time
@@ -320,6 +321,31 @@ class AppWiring(unittest.TestCase):
         self.assertIsNone(snap["hrv"]["rmssd_ms"])
         self.assertEqual(snap["hrv"]["baseline_rmssd_ms"], 42.0)
         self.assertEqual(snap["presence"]["mode"], "idle")
+
+    def _finger(self, t0, t1):
+        """a finger on clip 1 (1.2 Hz, 3000 counts peak to peak), clip 2 empty, ~45 Hz"""
+        for t in range(t0, t1, 22):
+            app.on_ppg(t, 6000 + int(1500 * math.sin(2 * math.pi * 1.2 * t / 1000)), 6000)
+
+    def test_stm32_clock_going_back_does_not_stall_finger_detection(self):
+        # millis() on the STM32 wraps after 49.7 days (and starts at 0 again when the MCU resets)
+        # while Linux keeps running. A probe started just before must not wait for the old clock.
+        app.state["bridge"] = "connected"
+        wrap = 2 ** 32
+        self._finger(wrap - 3000, wrap - 1)                     # sensors on, probe started...
+        app.presence.update(auto=True, mode="probing", since=time.time(), t_on=wrap - 3000)
+        self._finger(0, 1500)                                   # ...and the clock wrapped
+        self.assertTrue(all(t < 1500 for t, _ in app.ppgs[0]), "no buffer mixes the two clocks")
+        app.presence_loop(FakeStop(1))
+        self._finger(1500, 9000)
+        app.presence_loop(FakeStop(1))
+        self.assertEqual(app.presence["mode"], "active", "the finger is found on the new clock")
+
+    def test_beats_from_before_a_clock_reset_are_dropped(self):
+        app.on_beat(0, 2 ** 32 - 900, 800, 400, True)
+        app.on_beat(0, 2 ** 32 - 100, 800, 400, True)
+        app.on_beat(0, 700, 800, 400, True)                     # millis() wrapped
+        self.assertEqual(list(app.beats[0]), [(700, 800)])
 
     def test_period_loop_while_idle_drops_late_results_and_reports_idle(self):
         # the finger left while update_breathing / update_hrv were running: their late result

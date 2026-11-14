@@ -53,8 +53,9 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     private var linkState = "off"
     private var linkName: String?
     /// Peripherals this session will not connect to again: the right name but no AFF0 service
-    /// (not our board: e.g. another team's WendyOS UNO Q), or service discovery failed three
-    /// times in a row. Cleared by stop().
+    /// (not our board: e.g. another team's WendyOS UNO Q), or setting the link up (service or
+    /// characteristic discovery, switching notifications on) failed three times in a row.
+    /// Cleared by stop().
     private var ignored = Set<UUID>()
     private var discoveryFailures: [UUID: Int] = [:]
     private var connectAttempt = 0
@@ -224,7 +225,6 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
             return
         }
         connectAttempt += 1                          // connected: the timeout no longer applies
-        discoveryFailures[p.identifier] = nil
         set(state: "connected", name: AfferentFingerParser.deviceName)
         for s in services {
             if s.uuid == Self.heartRateService { p.discoverCharacteristics([Self.measurement], for: s) }
@@ -240,6 +240,23 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
         }
         for ch in s.characteristics ?? [] where ch.uuid == Self.measurement || ch.uuid == Self.fingerValues {
             p.setNotifyValue(true, for: ch)          // notifications only, see the rules above
+        }
+    }
+
+    /// The answer to setNotifyValue. Refused: "connected" without notifications would never
+    /// recover (no reading, no disconnect), so start over, as the Android twin does. Once every
+    /// characteristic notifies, the link is set up and earlier failures no longer count.
+    public func peripheral(_ p: CBPeripheral, didUpdateNotificationStateFor ch: CBCharacteristic, error: Error?) {
+        guard p === peripheral, ch.uuid == Self.measurement || ch.uuid == Self.fingerValues else { return }
+        if error != nil {
+            drop(p, ignore: false)
+            return
+        }
+        let services = p.services ?? []
+        let notifying = services.flatMap { $0.characteristics ?? [] }.filter { $0.isNotifying }
+        if AfferentFingerParser.linkReady(services: services.map { $0.uuid.uuidString },
+                                          notifying: notifying.map { $0.uuid.uuidString }) {
+            discoveryFailures[p.identifier] = nil
         }
     }
 

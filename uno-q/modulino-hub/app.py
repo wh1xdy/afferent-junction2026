@@ -64,11 +64,22 @@ ppg = ppgs[0]
 last_ppg = 0.0                # time.time() of the newest sample from the STM32
 
 
+def clock_went_back(buf, t_ms):
+    """True when a sample is older than the newest one in buf: millis() on the STM32 wrapped
+    (every 49.7 days) or the MCU restarted while Linux kept running. The old samples are on
+    another clock: every window below (t >= newest - window) would take all of them."""
+    return bool(buf) and t_ms < buf[-1][0]
+
+
 def on_ppg(t_ms, *values):
     global last_ppg
     last_ppg = time.time()
+    t_ms = int(t_ms)
+    if clock_went_back(ppgs[0], t_ms):
+        for p in ppgs:
+            p.clear()
     for c, v in enumerate(values[:CHANNELS]):
-        ppgs[c].append((int(t_ms), int(v)))
+        ppgs[c].append((t_ms, int(v)))
 
 
 def stream_live(now):
@@ -232,6 +243,8 @@ dm = data_manager_push.Push()     # started in main(); until then nothing is han
 
 def on_beat(c, t_ms, ibi_ms, peak, locked):
     c = int(c)
+    if clock_went_back(beats[c], int(t_ms)):
+        beats[c].clear()                      # beats of the old STM32 clock (clock_went_back)
     if locked:
         beats[c].append((int(t_ms), int(ibi_ms)))
     ibis = [b for _, b in beats[c]][-8:]
@@ -826,7 +839,13 @@ def presence_loop(stopped):
             presence.update(mode="probing", since=time.time(), t_on=_last_t())
         elif presence["mode"] == "probing":
             t_on = presence.get("t_on") or 0
-            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS + PROBE_CONFIRM_MS:
+            last = _last_t()
+            if last is not None and last < t_on:
+                # the STM32 clock went back (clock_went_back): probe again on the new clock,
+                # otherwise this waits for a time the new clock reaches only after 49.7 days
+                presence["t_on"] = last
+                continue
+            if (last or 0) < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS + PROBE_CONFIRM_MS:
                 continue
             found, swings = probe_finger(t_on)
             presence["last_probe_range"] = max(look for look, _ in swings)

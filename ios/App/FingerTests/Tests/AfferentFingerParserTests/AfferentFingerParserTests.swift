@@ -228,6 +228,19 @@ final class AfferentFingerParserTests: XCTestCase {
         return String(decoding: d, as: UTF8.self)
     }
 
+    func testLinkReadyOnlyWhenEveryCharacteristicNotifies() {
+        // Both services: one characteristic on while the other is refused is not set up, so the
+        // refusals keep counting toward the limit of three
+        XCTAssertFalse(AfferentFingerParser.linkReady(services: ["180D", "AFF0"], notifying: ["2A37"]))
+        XCTAssertFalse(AfferentFingerParser.linkReady(services: ["180D", "AFF0"], notifying: ["AFF1"]))
+        XCTAssertFalse(AfferentFingerParser.linkReady(services: ["180D", "AFF0"], notifying: []))
+        XCTAssertTrue(AfferentFingerParser.linkReady(services: ["180D", "AFF0"], notifying: ["2A37", "AFF1"]))
+        // A board without the Heart Rate service needs only AFF1
+        XCTAssertTrue(AfferentFingerParser.linkReady(services: ["AFF0"], notifying: ["aff1"]))
+        // Never without our own service
+        XCTAssertFalse(AfferentFingerParser.linkReady(services: ["180D"], notifying: ["2A37"]))
+    }
+
     func testHrmEvent() throws {
         let e = AfferentFingerParser.hrmEvent(bpm: 72, tMs: 1_000)
         XCTAssertEqual(try json(e), #"{"bpm":72,"kind":"hrm","t_ms":1000}"#)

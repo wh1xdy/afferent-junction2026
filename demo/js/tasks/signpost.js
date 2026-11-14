@@ -47,7 +47,7 @@
       // side x direction, 3 of each: half congruent (side == direction).
       const trials = K.shuffle(Array.from({ length: n }, (_, i) => ({ side: i % 2 ? 1 : -1, dir: Math.floor(i / 2) % 2 ? 1 : -1 })))
         .map(t => ({ ...t, cong: t.side === t.dir, on: null, resp: null, rt: null, ok: null }));
-      return base(ID, n * (FIX + 1.1 + ITI) + 3, {
+      return base(ID, n * (FIX + LIMIT + ITI) + 3, {
         trials, i: -1, state: 'gap', stateAt: 0, b: null, bot: null, ptr: null, tilt: 0, flashAt: -9, flashOk: true, outro: 1.3,
         extra: { v: 1, n_trials: n },
 

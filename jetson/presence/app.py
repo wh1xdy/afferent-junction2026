@@ -108,7 +108,9 @@ guests = GuestTracker(gcfg, ignore=patient_ble)
 sim = SimWorld()
 wifi = None if SIM else WifiProbe(env_list("PHONE_MACS"))
 ble = None if SIM else BleProbe(patient_ble)
-dm = DataManagerClient(source="afferent-presence", url=DATA_MANAGER_URL)
+# SIM=1: the phone and the guests are simulated. Their intervals are not the patient's, so
+# nothing is mirrored (the data manager next to this app holds the real patient's history).
+dm = DataManagerClient(source="afferent-presence", url="off" if SIM else DATA_MANAGER_URL)
 dsync = PresenceSync(dm)
 lock = threading.Lock()
 health: dict = {}
@@ -124,23 +126,27 @@ def save():
     try:
         DATA.mkdir(parents=True, exist_ok=True)
         tmp = state_file().with_suffix(".tmp")
-        tmp.write_text(json.dumps({"presence": presence.to_dict(), "guests": guests.to_dict()}))
+        tmp.write_text(json.dumps({"presence": presence.to_dict(), "guests": guests.to_dict(),
+                                   "sync": dsync.to_dict()}))
         tmp.replace(state_file())  # atomic: a power cut never leaves half a file
     except Exception as e:
         log.warning("save failed: %s", e)
 
 
-def load():
+def load() -> dict:
+    """Restores the trackers; returns the saved PresenceSync part for dsync.restore()."""
     try:
         d = json.loads(state_file().read_text())
         presence.load(d.get("presence", {}))
         guests.load(d.get("guests", {}))
         log.info("restored state: %s since %s, %d outings, %d visits",
                  presence.state, presence.since, len(presence.outings), len(guests.visits))
+        return d.get("sync") if isinstance(d.get("sync"), dict) else {}
     except FileNotFoundError:
         pass
     except Exception as e:
         log.warning("state file unreadable, starting fresh: %s", e)
+    return {}
 
 
 def log_tick(row: dict):
@@ -330,8 +336,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    load()
-    dsync.restore(presence)
+    dsync.restore(presence, load())
     if ble:
         ble.start()
     threading.Thread(target=loop, daemon=True).start()

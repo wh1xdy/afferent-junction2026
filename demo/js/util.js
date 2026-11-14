@@ -46,3 +46,22 @@ A.bus = (() => {
     emit: (e, d) => (ls[e] || []).forEach(f => f(d)),
   };
 })();
+
+// The paired home hub's API base, for the patient page (patient.js) and the dashboard export (qrexport.js): ?hub= or
+// ?ws=, else the address saved in Settings, Home hub (main.js keeps it as a plain string under afferent.hub), else this
+// page's own origin when the hub serves it. The /k/<key> part stays on, since the hub turns /api away without it; a
+// ws:// address becomes its http:// twin. null when there is none.
+A.hubApiBase = (q = new URLSearchParams(location.search)) => {
+  const norm = s => {
+    if (!s) return null;
+    try {
+      const u = new URL(s);
+      const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
+      if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
+      return u.origin + key;
+    } catch { return null; }
+  };
+  let saved = null;
+  try { saved = localStorage.getItem('afferent.hub'); } catch {}
+  return norm(q.get('hub')) || norm(q.get('ws')) || norm(saved) || (/^https?:$/.test(location.protocol) ? location.origin : null);
+};

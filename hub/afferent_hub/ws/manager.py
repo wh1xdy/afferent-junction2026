@@ -18,6 +18,8 @@ class Client:
 class Rooms:
     def __init__(self):
         self.clients: dict[str, set[Client]] = {"app": set(), "clinic": set(), "bedside": set()}
+        # an app socket that has not named its patient yet is handled as this one (Hub.handle_app)
+        self.default_patient: str | None = None
 
     def add(self, client: Client):
         self.clients[client.room].add(client)
@@ -36,7 +38,8 @@ class Rooms:
             return False
 
     async def broadcast(self, room: str, msg: dict, patient_id: str | None = None) -> int:
-        targets = [c for c in list(self.clients[room]) if patient_id is None or c.patient_id in (patient_id, None)]
+        targets = [c for c in list(self.clients[room])
+                   if patient_id is None or (c.patient_id or self.default_patient) == patient_id]
         if not targets:
             return 0
         results = await asyncio.gather(*(self.send(c, msg) for c in targets))

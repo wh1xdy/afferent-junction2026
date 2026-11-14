@@ -1,6 +1,9 @@
 (() => {
   const q = new URLSearchParams(location.search);
   const OUTBOX = 'afferent.outbox';
+  // talk requests (type crisis), kept on the phone like sessions until the hub acks their talk_id: one made while the hub
+  // is out of reach, or sent on a link that drops before the hub has it, still reaches the clinic
+  const TALKS = 'afferent.outbox.talk';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
@@ -42,6 +45,7 @@
         this.connected = true; this.retry = 0;
         this.raw({ type: 'hello', device_id: A.config.deviceId, app_version: A.config.appVersion, patient_id: this.patientId, role: this.role, ...this.hello });
         for (const doc of this.outbox()) this.raw({ type: 'session_end', session: doc });
+        for (const msg of this.talks()) this.raw(msg);
         this.emit('connected', true);
       };
       ws.onmessage = m => {
@@ -50,6 +54,7 @@
         if (!d || typeof d.type !== 'string') return;
         if (d.type === 'config') { this.config = d; A.bus.emit('hubConfig', d); }
         if (d.type === 'ack' && d.session_id && (d.ok || d.duplicate)) this.dropOutbox(d.session_id);
+        if (d.type === 'ack' && d.talk_id && (d.ok || d.duplicate)) this.dropTalk(d.talk_id);
         this.emit(d.type, d);
       };
       ws.onclose = () => {
@@ -70,6 +75,7 @@
 
     send(msg) {
       if (msg.type === 'session_end' && this.url) this.pushOutbox(msg.session);
+      if (msg.type === 'crisis' && this.url) this.pushTalk(msg = { talk_id: A.uuid(), ...msg });
       return this.raw(msg);
     },
 
@@ -82,6 +88,17 @@
       box.push(doc);
       store.set(OUTBOX, JSON.stringify(box.slice(-20)));
     },
+    talks() {
+      let t;
+      try { t = JSON.parse(store.get(TALKS) || '[]'); } catch { return []; }
+      if (!Array.isArray(t)) return [];
+      t = t.filter(m => m && typeof m === 'object');
+      // queued by an earlier build, without a talk_id: it gets one (kept), so the hub's ack can clear it
+      if (t.some(m => !m.talk_id)) store.set(TALKS, JSON.stringify(t = t.map(m => (m.talk_id ? m : { talk_id: A.uuid(), ...m }))));
+      return t;
+    },
+    pushTalk(msg) { store.set(TALKS, JSON.stringify([...this.talks().filter(m => m.talk_id !== msg.talk_id), msg].slice(-20))); },
+    dropTalk(id) { store.set(TALKS, JSON.stringify(this.talks().filter(m => m.talk_id !== id))); },
     dropOutbox(id) { store.set(OUTBOX, JSON.stringify(this.outbox().filter(d => d.session_id !== id))); },
   };
 
