@@ -74,22 +74,30 @@ def collect(stopped):
             collector["error"] = str(e)
             continue
         collector.update(last_ok=time.time(), error=None)
-        now = time.time()
-        # only while a finger is actually being measured (sensors otherwise off / probing)
-        if (s.get("presence") or {}).get("mode") == "active":
-            f = s.get("finger") or {}
-            if f.get("bpm"):
-                store.add_reading("finger_bpm", f["bpm"], now)
-                collector["stored"] += 1
-            h = s.get("hrv") or {}
-            if h.get("rmssd_ms"):
-                store.add_reading("hrv_rmssd", h["rmssd_ms"], now)
-            b = s.get("breathing") or {}
-            if b.get("per_minute"):
-                store.add_reading("breathing", b["per_minute"], now)
-        c = s.get("climate") or {}
-        if c.get("celsius") is not None:
-            store.add_reading("room_celsius", c["celsius"], now)
+        store_state(s, time.time())
+
+
+def store_state(s, now, store=None):
+    """One /state document from the UNO Q -> readings in the store."""
+    store = store or globals()["store"]
+    f = s.get("finger") or {}
+    if f.get("two_hearts"):
+        # the two clips are on two different people (Heart Duel): not the patient's data
+        collector["skipped_two_people"] = collector.get("skipped_two_people", 0) + 1
+    # only while a finger is actually being measured (sensors otherwise off / probing)
+    elif (s.get("presence") or {}).get("mode") == "active":
+        if f.get("bpm"):
+            store.add_reading("finger_bpm", f["bpm"], now)
+            collector["stored"] += 1
+        h = s.get("hrv") or {}
+        if h.get("rmssd_ms"):
+            store.add_reading("hrv_rmssd", h["rmssd_ms"], now)
+        b = s.get("breathing") or {}
+        if b.get("per_minute"):
+            store.add_reading("breathing", b["per_minute"], now)
+    c = s.get("climate") or {}
+    if c.get("celsius") is not None:
+        store.add_reading("room_celsius", c["celsius"], now)
 
 
 def llm_status():

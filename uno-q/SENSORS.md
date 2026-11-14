@@ -111,3 +111,21 @@ The unit is quiet by default: it is a silent bedside unit for the morning sessio
 Logic is covered by offline tests: `cd uno-q/modulino-hub && python3 -m unittest discover tests`.
 They also cover the AFF1 v2 payload, the keepalive, the cleared bytes, the idle reset, `now` and
 the quiet defaults; none of that has been run on the board yet.
+
+## Two people on the two clips (Heart Duel)
+
+In the repository, not yet deployed to the board.
+
+The fusion assumes both clips sit on one person. When both fingers show a clear rhythm
+(quality >= 0.3) and the rhythms stay more than 12 % apart for 3 s (a ratio near 2 is treated
+as one heart with a double-counting sensor), `GET /state` reports `finger.two_hearts: true` and:
+
+- each beat detector keeps its own rhythm (never the combined one),
+- the Jetson hub stops storing pulse, HRV and breathing as the patient's data,
+- the fused pulse, HRV and breathing are still sent, but they belong to one of the two people.
+
+Independent of that, a finger's BPM leaves the Bluetooth packet (byte becomes 0) when its own
+detector has had no locked beat for 4 s, so a clip that came off no longer shows its last number
+while the other clip is still worn. Finger 1 still decides when the sensors switch on, so
+player 1 puts the clip on first. None of this has been run with two real people yet.
+

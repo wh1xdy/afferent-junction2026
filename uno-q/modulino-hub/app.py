@@ -113,6 +113,8 @@ def pulse_summary(window_ms=10000, ch=0):
 
 
 beats = [collections.deque(maxlen=90) for _ in range(CHANNELS)]  # (t_ms, ibi_ms), locked beats (~60 s)
+last_locked = [0.0] * CHANNELS    # time.time() of each finger's newest locked beat that gave a BPM
+sent_bpm = [0] * CHANNELS         # each finger's BPM as last handed to Bluetooth (0 = no reading)
 
 
 ble = HeartRateBroadcaster()
@@ -133,6 +135,8 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
     with lock:
         state["fingers"][c] = info
     if locked and bpm:
+        last_locked[c] = time.time()
+        sent_bpm[c] = bpm
         ble.update_finger(c, bpm)
 
 
@@ -181,7 +185,74 @@ def fused_period(curves, qualities):
     return lag, max(acc[lag] / wsum, 0.0)
 
 
-fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None]}
+# ── one person or two? ───────────────────────────────────────────────────────────
+# Everything above assumes both clips sit on one person. In the Heart Duel game each clip is on
+# a different person. Two clear rhythms that stay apart for a few seconds mean two hearts; a
+# ratio near 2 is one heart with a sensor counting double or half, and is left to the fusion.
+TWO_HEARTS_MIN_Q = 0.3        # both rhythms must be this clear
+TWO_HEARTS_APART = 0.12       # periods more than 12 % apart
+TWO_HEARTS_HARMONIC = 0.15    # ...unless the ratio is within 15 % of 2
+TWO_HEARTS_ON_S, TWO_HEARTS_OFF_S, TWO_HEARTS_UNKNOWN_S = 3, 3, 10   # seconds (one tick = 1 s)
+FINGER_STALE_S = 4.0          # a finger's BPM leaves the Bluetooth packet after this long without
+                              # a locked beat of its own (the other finger's beats do not count)
+two_hearts = {"on": False, "apart": 0, "same": 0, "unknown": 0}
+
+
+def periods_apart(per):
+    """True: both fingers have a clear rhythm and the rhythms differ. False: both clear and the
+    same heart (equal, or half/double). None: cannot tell (a finger has no clear rhythm)."""
+    p = [x.get("period_ms") for x in per]
+    q = [x.get("quality") or 0 for x in per]
+    if len(p) != 2 or not all(p) or min(q) < TWO_HEARTS_MIN_Q:
+        return None
+    ratio = max(p) / min(p)
+    if ratio <= 1 + TWO_HEARTS_APART:
+        return False
+    return abs(ratio - 2) > 2 * TWO_HEARTS_HARMONIC
+
+
+def update_two_hearts(apart):
+    """One call per second with periods_apart(); returns whether the clips are on two people.
+    Switches on after TWO_HEARTS_ON_S s apart, off after TWO_HEARTS_OFF_S s the same or
+    TWO_HEARTS_UNKNOWN_S s without a second clear rhythm."""
+    t = two_hearts
+    if apart is True:
+        t.update(apart=t["apart"] + 1, same=0, unknown=0)
+        if t["apart"] >= TWO_HEARTS_ON_S:
+            t["on"] = True
+    elif apart is False:
+        t.update(same=t["same"] + 1, apart=0, unknown=0)
+        if t["same"] >= TWO_HEARTS_OFF_S:
+            t["on"] = False
+    else:
+        t.update(unknown=t["unknown"] + 1, apart=0, same=0)
+        if t["unknown"] >= TWO_HEARTS_UNKNOWN_S:
+            t["on"] = False
+    return t["on"]
+
+
+def reset_two_hearts():
+    two_hearts.update(on=False, apart=0, same=0, unknown=0)
+
+
+def detector_period(own, fp, fq, two):
+    """Period and quality for one finger's beat detector on the STM32. One person: the combined
+    rhythm when it is at least as clear as the finger's own. Two people: always its own, the
+    other person's rhythm would set the wrong refractory time."""
+    oq = own.get("quality") or 0
+    if two or fq < oq:
+        return own.get("period_ms"), oq
+    return fp, fq
+
+
+def stale_fingers(now):
+    """Fingers whose BPM is still in the Bluetooth packet although their own detector has had
+    no locked beat for FINGER_STALE_S: one clip came off while the other is still worn."""
+    return [c for c in range(CHANNELS) if sent_bpm[c] and now - last_locked[c] > FINGER_STALE_S]
+
+
+fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None],
+         "two_hearts": False}
 
 
 def fuse():
@@ -246,14 +317,19 @@ def period_loop(stopped):
             except Exception as e:
                 print(f"period failed (ch {c}): {e}", flush=True)
         fp, fq = fused_period(curves, quals) if curves else (None, 0.0)
+        if sensing():
+            two = update_two_hearts(periods_apart([dict(period_state[c]) for c in range(CHANNELS)]))
+        else:
+            reset_two_hearts()
+            two = False
         with lock:
-            fused.update(period_ms=fp, quality=round(fq, 2))
+            fused.update(period_ms=fp, quality=round(fq, 2), two_hearts=two)
         if state.get("bridge") == "connected":
             for c in range(CHANNELS):
                 try:
-                    # each detector gets the fused period when it's stronger than its own
-                    own = period_state[c]
-                    ms, q = (fp, fq) if fq >= (own.get("quality") or 0) else (own.get("period_ms"), own.get("quality") or 0)
+                    # each detector gets the fused period when it's stronger than its own,
+                    # unless the two clips are on two people
+                    ms, q = detector_period(period_state[c], fp, fq, two)
                     if not sensing():
                         ms, q = 0, 0.0                 # sensors off or settling: never lock/beep
                     bridge.call("pulse_period", c, int(ms or 0), int(q * 100), timeout=2)
@@ -269,6 +345,9 @@ def period_loop(stopped):
         ble.update_breathing(br or 0)
         ble.update_hrv(rm or 0)
         bpm = fuse() if sensing() else None
+        for c in stale_fingers(time.time()):
+            sent_bpm[c] = 0
+            ble.update_finger(c, 0)            # that clip came off; 0 = no reading
         if not sensing():
             with lock:
                 fused.update(bpm=None, sources=[], fingers=[None, None])
@@ -327,6 +406,7 @@ def _forget_beats():
         for c in range(CHANNELS):
             beats[c].clear()
             state["fingers"][c] = None
+            sent_bpm[c] = 0
     ble.clear_readings()      # AFF1 kept the last per-finger numbers after the finger left
 
 
