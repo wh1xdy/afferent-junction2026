@@ -1,4 +1,4 @@
-from statistics import mean, median
+from statistics import mean
 
 
 def _r(value, digits):
@@ -95,20 +95,12 @@ def _best_calm(bandit):
 
 def _pre_post(analytics):
     s = analytics.get("pre_post_summary") or {}
-    out = {
+    return {
         "pre_post_n": s.get("n"),
         "pre_post_pulse_delta_median": _r(s.get("pulse_delta_median"), 1),
         "pre_post_mood_delta_median": _r(s.get("mood_delta_median"), 1),
         "pre_post_settled_share": _r(s.get("settled_share"), 2),
     }
-    if out["pre_post_n"] is None and analytics.get("pre_post"):
-        rows = analytics["pre_post"]
-        pulses = [r["pulse"]["delta"] for r in rows if (r.get("pulse") or {}).get("delta") is not None]
-        moods = [r["mood"]["delta"] for r in rows if (r.get("mood") or {}).get("delta") is not None]
-        out["pre_post_n"] = len(rows)
-        out["pre_post_pulse_delta_median"] = _r(median(pulses), 1) if pulses else None
-        out["pre_post_mood_delta_median"] = _r(median(moods), 1) if moods else None
-    return out
 
 
 def summary_numbers(analytics: dict, patient: dict) -> dict:

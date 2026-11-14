@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import json
 import uuid
 from pathlib import Path
@@ -237,7 +236,7 @@ def test_checkin_flags_ack_and_firewall(client, monkeypatch):
     seen = []
     from afferent_hub import modules
     real = modules.fn["weekly_summary"]
-    monkeypatch.setitem(modules.fn, "weekly_summary", lambda a, p: seen.append((a, p)) or real(a, p))
+    monkeypatch.setitem(modules.fn, "weekly_summary", lambda a, p, r: seen.append((a, p)) or real(a, p, r))
     client.get("/api/patients/anna/summary?refresh=1")
     text = json.dumps(seen)
     assert seen and not any(k in text for k in ('"phq9_9"', '"cssrs"', '"safety"'))

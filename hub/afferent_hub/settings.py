@@ -15,8 +15,6 @@ class Settings:
     seed: int = 7
     validation: bool = True
     validation_seeds: int = 50
-    ollama_url: str = "http://127.0.0.1:11434"
-    gemma_model: str | None = None
     bound_patient: str = "anna"
     team_fhir: bool = True
     team_fhir_vitals: bool = False
@@ -37,8 +35,6 @@ class Settings:
             seed=int(e.get("AFFERENT_SEED") or 7),
             validation=e.get("AFFERENT_VALIDATION", "1") != "0",
             validation_seeds=int(e.get("AFFERENT_VALIDATION_SEEDS") or 50),
-            ollama_url=e.get("AFFERENT_OLLAMA_URL") or cls.ollama_url,
-            gemma_model=e.get("AFFERENT_GEMMA_MODEL") or None,
             bound_patient=e.get("AFFERENT_BEDSIDE_PATIENT") or "anna",
             team_fhir=e.get("AFFERENT_TEAM_FHIR", "1") != "0",
             team_fhir_vitals=e.get("AFFERENT_TEAM_FHIR_VITALS", "0") == "1",

@@ -7,7 +7,6 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import httpx
 from jsonschema import Draft202012Validator
 
 from . import export, modules, qr, views
@@ -16,6 +15,7 @@ from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
 from .db import Store
 from .settings import ROOT, Settings
+from .summary import ollama
 from .ws.manager import Client, Rooms
 
 log = logging.getLogger("afferent.hub")
@@ -24,7 +24,6 @@ VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
-DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
 
 
 class HubError(Exception):
@@ -64,10 +63,8 @@ class Hub:
         self.checkin_v = _validator("checkin.v1.schema.json")
         self.live: dict[str, str] = {}
         self.locks: dict[str, asyncio.Lock] = {}
-        self.summaries: dict[tuple, dict] = {}
         self.validation: dict | None = None
         self.validation_status = "idle"
-        self._gemma: tuple[float, dict] | None = None
         self._tasks: list[asyncio.Task] = []
         self.bedside = Bedside(make_source(settings), self._to_bound_app, self._to_devices)
         self.bedside.patient_id = settings.bound_patient
@@ -117,7 +114,6 @@ class Hub:
             privacy = p.pop("privacy", None) or copy.deepcopy(views.DEFAULT_PRIVACY)
             self.store.bulk(p, item.get("sessions") or [], item.get("daily") or [], privacy)
             ids.append(p["id"])
-        self.summaries.clear()
         self.live.clear()
         self.recompute_all()
         return ids
@@ -443,55 +439,20 @@ class Hub:
 
     async def summary(self, pid: str, refresh: bool = False) -> dict:
         p = self.patient(pid)
-        analytics = self.analytics(pid)
-        patient = {**p, "now_day": views.now_day(p)}
-        analytics, patient = views.strip_safety(analytics), views.strip_safety(patient)
+        analytics = views.strip_safety(self.analytics(pid))
+        patient = views.strip_safety({"patient": {**p, "now_day": views.now_day(p)}, "daily": self.daily(pid)})
         try:
-            numbers = modules.fn["summary_numbers"](analytics, patient)
-        except Exception:
-            log.exception("summary_numbers failed")
-            numbers = {}
-        key = (pid, hashlib.sha1(json.dumps(numbers, sort_keys=True, default=str).encode()).hexdigest())
-        if not refresh and key in self.summaries:
-            return self.summaries[key]
-        try:
-            out = await asyncio.to_thread(modules.fn["weekly_summary"], analytics, patient)
+            return await asyncio.to_thread(modules.fn["weekly_summary"], analytics, patient, refresh)
         except Exception as e:
             log.exception("weekly_summary failed")
             raise HubError(400, "summary_failed", str(e))
-        nd = analytics.get("now_day", patient["now_day"])
-        result = {
-            "patient_id": pid, "week_start_day": max(0, nd - 6), "week_end_day": nd, "generated_iso": views.now_iso(),
-            "text": out.get("text"), "source": out.get("source", "template"), "model": out.get("model"),
-            "numbers": numbers, "simulated": bool(p.get("simulated", True)), "disclaimer": DISCLAIMER,
-        }
-        self.summaries[key] = result
-        return result
-
-    async def gemma(self) -> dict:
-        if self._gemma and time.monotonic() - self._gemma[0] < 30:
-            return self._gemma[1]
-        status = {"available": False, "model": None}
-        try:
-            async with httpx.AsyncClient(timeout=0.8) as c:
-                r = await c.get(f"{self.settings.ollama_url}/api/tags")
-                names = [m.get("name", "") for m in r.json().get("models", [])]
-            pick = self.settings.gemma_model
-            if not pick:
-                for prefix in ("gemma3n", "gemma3", "gemma"):
-                    pick = next((n for n in names if n.startswith(prefix)), None)
-                    if pick:
-                        break
-            status = {"available": bool(pick and (pick in names or self.settings.gemma_model)), "model": pick}
-        except Exception:
-            pass
-        self._gemma = (time.monotonic(), status)
-        return status
 
     async def health(self) -> dict:
         snap = self.bedside.snapshot()
+        model = await asyncio.to_thread(ollama.discover)
         return {"ok": True, "version": VERSION, "now_iso": views.now_iso(), "patients": len(self.store.patients()),
-                "bedside": {"source": snap["source"], "connected": snap["connected"]}, "gemma": await self.gemma()}
+                "bedside": {"source": snap["source"], "connected": snap["connected"]},
+                "gemma": {"available": bool(model), "model": model}}
 
     def _validation_key(self) -> str:
         h = hashlib.sha1(str(self.settings.validation_seeds).encode())
