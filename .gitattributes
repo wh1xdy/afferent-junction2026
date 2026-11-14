@@ -1,0 +1,5 @@
+# Keep LF in the working tree on every platform: several node tests read the app's source and
+# match it with "\n", and fail on a Windows checkout with core.autocrlf=true (CRLF).
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
