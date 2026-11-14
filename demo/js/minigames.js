@@ -47,9 +47,15 @@
   };
   A.recentGames = recent;
 
+  // The puzzle-like games, for an energised player (engine.js): self-paced solving, planning or holding something in
+  // mind, rather than reacting fast. All are flow games. Flow Free paths, mental rotation, ordering stars, Trail Making,
+  // Corsi span, change detection and the reindeer shell game.
+  A.PUZZLES = ['threads', 'runes', 'stars', 'buoys', 'steps', 'glance', 'reindeer'];
+
   // Uniform random draw among the games that suit the mode and fit the time left,
   // skipping this session's games and, while enough remain, the ones seen recently.
-  A.pickGame = (mode, last, played) => {
+  // prefer: ids to draw from first, while one of them is still eligible (the breathing game when stressed, puzzles when energised).
+  A.pickGame = (mode, last, played, prefer) => {
     const left = playLeft() + 3;
     const all = Object.keys(GAMES).filter(id => GAMES[id].modes.includes(mode));
     const fits = all.filter(id => (GAMES[id].minS ?? 0) <= left);
@@ -58,6 +64,8 @@
     if (!pool.length) pool = base.filter(id => id !== last);
     if (!pool.length) pool = base;
     if (!pool.length) return { id: 'breath', p: 1 };
+    const liked = prefer?.length ? pool.filter(id => prefer.includes(id)) : [];
+    if (liked.length) pool = liked;
     const seen = new Set(recent.read()), fresh = pool.filter(id => !seen.has(id));
     if (fresh.length >= 2) pool = fresh;
     const id = pool[Math.floor(R() * pool.length)];
