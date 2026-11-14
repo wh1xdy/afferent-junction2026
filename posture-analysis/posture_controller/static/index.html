@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jetson posture — laptop controller</title>
+<style>
+  :root { color-scheme: dark; }
+  body { font-family: system-ui, sans-serif; background: #0f1115; color: #e8e8ea;
+         margin: 0; padding: 20px; display: flex; flex-wrap: wrap; gap: 16px; }
+  .card { background: #1a1d24; border: 1px solid #2a2f3a; border-radius: 10px;
+          padding: 16px; min-width: 300px; flex: 1; }
+  h1 { font-size: 1.1rem; margin: 0 0 4px; }
+  h2 { font-size: .95rem; margin: 0 0 10px; color: #9aa3b2; }
+  .muted { color: #9aa3b2; font-size: .8rem; }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 8px;
+           padding: 8px 14px; cursor: pointer; font-size: .9rem; }
+  button:disabled { background: #374151; cursor: default; }
+  button.danger { background: #b91c1c; }
+  button.ghost { background: #374151; }
+  #snap { max-width: 100%; border-radius: 8px; display: block; margin-top: 10px;
+          min-height: 180px; background: #000; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rec.on { background: #b91c1c; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; }
+  td, th { padding: 6px 8px; text-align: left; border-bottom: 1px solid #2a2f3a; }
+  video { width: 100%; max-height: 260px; border-radius: 8px; background: #000; }
+  .log { font-family: ui-monospace, monospace; font-size: .75rem; color: #9aa3b2;
+         white-space: pre-wrap; max-height: 140px; overflow: auto; }
+  #statusDot { display:inline-block; width:9px; height:9px; border-radius:50%;
+               background:#6b7280; margin-right:6px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1><span id="statusDot"></span>Jetson posture controller</h1>
+  <div class="muted" id="statusLine">loading…</div>
+  <img id="snap" src="" alt="no frame yet">
+  <div class="row" style="margin-top:8px">
+    <button class="ghost" id="snapBtn">Refresh frame</button>
+    <span class="muted">on-demand only — no continuous stream over the tunnel</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Recording on the Jetson</h2>
+  <div class="row">
+    <button id="recBtn" class="rec">Start recording</button>
+    <span class="muted" id="recState"></span>
+  </div>
+  <div class="muted" style="margin-top:10px">
+    Videos are written to the persistent <code>/recordings</code> volume on the
+    Jetson, annotated with skeleton + angles + identity. Downloads are cached
+    on this laptop for instant replay.
+  </div>
+</div>
+
+<div class="card">
+  <h2>Enroll face from a video</h2>
+  <div class="row">
+    <input type="file" id="vfile" accept="video/mp4,video/quicktime">
+    <input type="number" id="nframes" value="10" min="2" max="40" style="width:56px"
+           title="frames to sample">
+    <button id="enrollBtn">Enroll</button>
+  </div>
+  <div class="log" id="enrollLog"></div>
+</div>
+
+<div class="card" style="flex-basis:100%">
+  <h2>Recordings (downloaded on this laptop)</h2>
+  <div id="recList" class="muted">—</div>
+</div>
+
+<div class="card">
+  <h2>Older files still on the Jetson</h2>
+  <div class="row"><button class="ghost" id="reloadBtn">List Jetson files</button></div>
+  <div id="jetsonList" class="muted" style="margin-top:10px">—</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let recording = false;
+
+async function status() {
+  try {
+    const d = await (await fetch("/api/status")).json();
+    $("statusDot").style.background = "#22c55e";
+    $("statusLine").textContent =
+      `identity: ${d.identity ?? "?"}  ·  score: ${d.match_score?.toFixed(2) ?? "—"}  ·  ` +
+      `gallery: ${d.gallery_size ?? 0}  ·  fps: ${d.pose_fps?.toFixed(1) ?? "?"}  ·  ` +
+      `frames: ${d.capture_frames}`;
+    recording = !!d.recording;
+    $("recState").textContent = d.recording ? `recording → ${d.recording.file}` : "";
+  } catch (e) {
+    $("statusDot").style.background = "#ef4444";
+    $("statusLine").textContent = "jetson unreachable (is `wendy net forward` up?)";
+  }
+  $("recBtn").textContent = recording ? "Stop recording" : "Start recording";
+  $("recBtn").classList.toggle("on", recording);
+}
+
+async function refreshSnap() {
+  $("snap").src = "/snapshot.jpg?t=" + Date.now();
+}
+
+$("snapBtn").onclick = refreshSnap;
+
+$("recBtn").onclick = async () => {
+  // optimistic UI: show the intent instantly, tunnel latency shows in recState
+  const was = recording;
+  recording = !was;
+  $("recBtn").textContent = was ? "Stop recording" : "Start recording";
+  $("recBtn").classList.toggle("on", recording);
+  $("recBtn").disabled = true;
+  $("recState").textContent = was ? "stopping… (sent to Jetson)" : "starting… (sent to Jetson)";
+  try {
+    const r = await fetch("/api/record/" + (was ? "stop" : "start"), {method: "POST"});
+    if (!r.ok) $("recState").textContent = "command failed — retry";
+  } catch (e) {
+    $("recState").textContent = "tunnel error — check forward";
+    recording = was;
+    $("recBtn").textContent = recording ? "Stop recording" : "Start recording";
+    $("recBtn").classList.toggle("on", recording);
+  }
+  $("recBtn").disabled = false;
+  setTimeout(status, 2500);        // confirm real state from the Jetson
+  setTimeout(loadLocal, 4000);
+};
+
+// ---- local recordings (downloaded automatically after stop) -------------
+async function loadLocal() {
+  try {
+    const d = await (await fetch("/api/local_recordings")).json();
+    const items = d.recordings || [];
+    if (!items.length) { $("recList").textContent = "no recordings yet"; return; }
+    $("recList").innerHTML = "";
+    for (const it of items) {
+      const div = document.createElement("div");
+      div.style.marginBottom = "14px";
+      let head = `<div class="row"><b>${it.name}</b>` +
+        (it.size ? `<span class="muted">${(it.size/1048576).toFixed(1)} MB</span>` : "") +
+        `<span class="muted">${it.state}</span>`;
+      if (it.state === "ready")
+        head += `<a href="${it.url}" download class="muted">download</a>`;
+      head += `</div>`;
+      div.innerHTML = head +
+        (it.state === "ready"
+          ? `<video controls preload="metadata" src="${it.url}"></video>`
+          : `<div class="muted">${it.state === "error" ? "error: "+it.detail : "pulling from Jetson…"}</div>`);
+      $("recList").appendChild(div);
+    }
+  } catch (e) { $("recList").textContent = "failed to load"; }
+}
+
+// keep polling while a download is in flight
+setInterval(async () => {
+  try {
+    const d = await (await fetch("/api/local_recordings")).json();
+    if ((d.recordings||[]).some(r => r.state !== "ready" && r.state !== "error"))
+      loadLocal();
+  } catch (e) {}
+}, 4000);
+
+// ---- Jetson-side list (on demand) ---------------------------------------
+$("reloadBtn").onclick = async () => {
+  $("jetsonList").textContent = "loading…";
+  try {
+    const d = await (await fetch("/api/recordings")).json();
+    const items = d.recordings || [];
+    if (!items.length) { $("jetsonList").textContent = "empty"; return; }
+    $("jetsonList").innerHTML = "";
+    for (const it of items) {
+      const name = it.name;
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.marginTop = "6px";
+      row.innerHTML = `<b>${name}</b><span class="muted">${((it.size||0)/1048576).toFixed(1)} MB</span>` +
+        `<button class="ghost" data-dl="${name}">pull to laptop</button>` +
+        `<button class="danger" data-del="${name}">delete</button>`;
+      $("jetsonList").appendChild(row);
+    }
+    document.querySelectorAll("[data-dl]").forEach(b => b.onclick = async () => {
+      b.textContent = "pulling…"; b.disabled = true;
+      await fetch("/api/recordings/" + encodeURIComponent(b.dataset.dl));
+      loadLocal(); b.textContent = "pulled";
+    });
+    document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+      if (!confirm("delete " + b.dataset.del + " ?")) return;
+      await fetch("/api/recordings/" + encodeURIComponent(b.dataset.del),
+                  {method: "DELETE"});
+      $("reloadBtn").onclick();
+    });
+  } catch (e) { $("jetsonList").textContent = "failed to load"; }
+};
+
+$("enrollBtn").onclick = async () => {
+  const f = $("vfile").files[0];
+  if (!f) return;
+  $("enrollBtn").disabled = true;
+  $("enrollLog").textContent = "uploading + enrolling…";
+  const fd = new FormData();
+  fd.append("video", f);
+  fd.append("frames", $("nframes").value || 10);
+  try {
+    const d = await (await fetch("/api/enroll_video", {method:"POST", body:fd})).json();
+    $("enrollLog").textContent =
+      `enrolled ${d.enrolled_frames}/${d.tried} frames → gallery_size=${d.gallery_size}\n` +
+      (d.results||[]).map(r => `frame ${r.frame_idx}: ${r.enrolled ? "ok" : "skip"} ` +
+          `(sim ${r.best_similarity?.toFixed(2) ?? "—"})`).join("\n");
+  } catch (e) { $("enrollLog").textContent = "error: " + e; }
+  $("enrollBtn").disabled = false;
+  status();
+};
+
+status(); loadLocal();
+setInterval(status, 20000);
+</script>
+</body>
+</html>
