@@ -225,7 +225,7 @@
   A.bus.on('talk', () => crisis('talk_button'));
 
   const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartLevel: A.config.heartLevel, sound: ui.sound });
-  const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Answers about your safety are still shared.' };
+  const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Your clinic sees nothing unless you show them.' };
   const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
   const toggles = () => {
     document.querySelectorAll('[data-sensor]').forEach(el => { el.checked = !!A.config.sensors[el.dataset.sensor]; });

@@ -59,7 +59,7 @@
       { icon: 'favorite', label: 'Heart Duel', sup: 'Two people, one clip each. A game outside your sessions, nothing is saved', attrs: 'data-duel', chevron: true },
     ] },
     { page: 'mornings', id: 'morningsGroup', title: 'Mornings', rows: [] },
-    { page: 'mornings', title: 'Check-in', hint: 'Nine short questions every 14 days, in the daytime. Your clinic will see your answers.', rows: [
+    { page: 'mornings', title: 'Check-in', hint: 'Nine short questions every 14 days, in the daytime. Your answers stay with you; your clinic sees them only when you show them.', rows: [
       { icon: 'checklist', label: 'Check-in', sup: 'Every 14 days', sw: 'id="checkinSw"' },
     ] },
     { page: 'clinic', title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [

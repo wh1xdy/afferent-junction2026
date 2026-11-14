@@ -3,6 +3,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from .. import views
 from ..service import HubError
 from .manager import Client
 
@@ -49,7 +50,8 @@ async def ws_clinic(ws: WebSocket):
     client = Client(ws, "clinic")
     hub.rooms.add(client)
     lst = hub.patients_list()
-    await hub.rooms.send(client, {"type": "hello", "now_day": lst["now_day"], "patients": lst["patients"]})
+    await hub.rooms.send(client, {"type": "hello", "now_day": lst["now_day"],
+                                  "patients": [views.clinic_row(r) for r in lst["patients"]]})
 
     async def handle(c, msg):
         if msg.get("type") == "ping":

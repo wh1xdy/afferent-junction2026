@@ -63,8 +63,8 @@
   };
   const MODE_TONE = { calm: 'tertiary', wake: 'primary', fatigue: 'secondary', rest: 'primary', flow: 'primary' };
   const SHARING_NOTE = {
-    nothing_tonight: ['Today stays on this phone.', 'Your clinic only gets a note that today was not shared.', 'Sharing returns tomorrow.'],
-    paused: ['Nothing leaves this phone for 7 days.', 'Your clinic only gets a note that sharing is paused.', 'Safety answers from the check-in are still shared.'],
+    nothing_tonight: ['Today is marked as not shared.', 'Your clinic sees nothing unless you show them your code.', 'Sharing returns tomorrow.'],
+    paused: ['Sharing is paused for 7 days.', 'Your clinic sees nothing unless you show them your code.', 'Your answers stay with you and your home hub.'],
   };
   const OFF_NOTE = 'Off. Nothing is collected.';
   const NEVER = 'Never camera images, sound or messages';
@@ -347,7 +347,7 @@
       (view?.clinic_sees || []).filter(s => !/^Never/i.test(s)).forEach(s => ul.append(item(s, 'yes')));
     } else {
       const note = [...SHARING_NOTE[privacy.sharing]];
-      if (privacy.sharing === 'paused') note[0] = `Nothing leaves this phone until ${longDate(pausedUntil())}.`;
+      if (privacy.sharing === 'paused') note[0] = `Sharing is paused until ${longDate(pausedUntil())}.`;
       note.forEach((s, i) => ul.append(item(s, i ? 'soft' : 'yes')));
     }
     ul.append(item((view?.clinic_sees || []).find(s => /^Never/i.test(s)) || NEVER, 'never'));
