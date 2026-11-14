@@ -99,6 +99,28 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 - Hackathon Wi-Fi isolates clients, so the boards talk over BLE (or USB through the laptop).
 - `jetson/vision` is based on Wendy's `camera-feed-yolo` template (JetPack 7 CUDA fix included).
 
+## iPhone app (`ios/`)
+
+On-device, nothing leaves the phone. Three tabs:
+
+- **Pulse** — camera pulse (POS + trust score) with the screen as a variable light (starts from the
+  room's darkness, then a slow ≤2 %/s loop keeps the face lit), plus the finger reading from the UNO Q
+  over Bluetooth (fused value, per-sensor detail, Δ to the camera).
+- **Expressions** — 60 s ARKit/TrueDepth session: 52 blendshapes at 60 Hz → smile, sadness,
+  frown/anger, disgust, surprise, contempt as FACS-style composites; micro-expressions (40–500 ms)
+  against the person's own baseline; one facial action = one event (overlap resolution); no onsets
+  while looking > 25° away. Eyes: blinks, gaze shifts, looking away (per-person gaze calibration
+  corrects ARKit's under-estimated eye rotation). Camera pulse pinned to the 3D face mesh, breathing
+  rate (heart-rate rhythm from the finger sensors, else TrueDepth head motion — the clearer one is
+  shown), distance coaching, activation score. Debug mode: face mesh, eye arrows, pulse regions,
+  raw blendshapes. Sessions export as JSON → `ios/tools/analyze_session.py`.
+- **Check-in** — PHQ-9 with crisis resources (112, Mieli 09 2525 0111, Självmordslinjen 90101, 1177).
+  Screening support, not a diagnosis.
+
+Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first build read 0 for every
+left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
+6/min was recovered by both breathing sources.
+
 ## Team access
 
 Both boards are enrolled in our Wendy Cloud org, so any org member can reach them from

@@ -45,7 +45,6 @@ struct PulseView: View {
     @ObservedObject var finger: FingerSensor
     @Binding var lastBpm: Int?
     @State private var tick = Date()
-    @State private var savedBrightness: CGFloat = 0.5
 
     var body: some View {
         ZStack {
@@ -81,13 +80,12 @@ struct PulseView: View {
         .preferredColorScheme(.light)
         .onChange(of: cam.reading?.bpm) { _, v in if let v, cam.reading?.trust.label == .reliable { lastBpm = v } }
         .onAppear {
-            savedBrightness = UIScreen.main.brightness
-            UIScreen.main.brightness = 1.0
+            ScreenLight.shared.begin()        // variable screen light, see ScreenLight
             UIApplication.shared.isIdleTimerDisabled = true
             cam.start()
         }
         .onDisappear {
-            UIScreen.main.brightness = savedBrightness
+            ScreenLight.shared.end()
             UIApplication.shared.isIdleTimerDisabled = false
             cam.stop()
         }
@@ -124,17 +122,18 @@ struct PulseView: View {
         }
     }
 
-    /// Finger PulseSensors on the UNO Q over Bluetooth, as a live reference for the camera.
+    /// One finger reading (both sensors fused on the UNO Q) over Bluetooth, as a live
+    /// reference for the camera; the individual sensors are shown small underneath.
     private var fingerBlock: some View {
         let _ = tick                      // re-evaluate staleness every second
-        let f1 = finger.freshBpm, f2 = finger.freshBpm2
-        let cam = self.cam.reading?.bpm
-        return VStack(spacing: 8) {
-            if f1 == nil && f2 == nil {
-                fingerRow(label: fingerStatus, bpm: nil, cam: nil)
+        let f = finger.freshBpm
+        let parts = finger.freshSensors
+        return VStack(spacing: 4) {
+            fingerRow(label: f == nil ? fingerStatus : "Finger", bpm: f, cam: cam.reading?.bpm)
+            if f != nil, parts.contains(where: { $0 != nil }) {
+                Text("sensors " + parts.map { $0.map(String.init) ?? "–" }.joined(separator: " · "))
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.black.opacity(0.35))
             }
-            if let f1 { fingerRow(label: "Finger 1", bpm: f1, cam: cam) }
-            if let f2 { fingerRow(label: "Finger 2", bpm: f2, cam: cam) }
         }
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { tick = $0 }
     }
