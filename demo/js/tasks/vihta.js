@@ -38,7 +38,8 @@
         down(u, v, t) {
           if (this.done) return;
           this.lastIn = this.t;
-          if (this.t0 === null) this.t0 = t;
+          // The run is timed from the first tap, so a late first tap moves the task's end with it.
+          if (this.t0 === null) { this.t0 = t; this.max = Math.max(this.max, this.t + RUN + 1); }
           if (t - this.t0 > RUN) return;
           this.taps.push(t);
           this.swing = J.at; this.steam = Math.min(1, this.steam + 0.035);
