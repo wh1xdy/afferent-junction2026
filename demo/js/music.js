@@ -97,6 +97,7 @@
       const t = key && this.tracks[key];
       if (!t || !this.ctx) return null;
       if (this.buf[key]) return this.buf[key];
+      if (t.failed) return null;
       t.p ||= (async () => {
         for (const ext of formats()) {
           const file = t.files?.[ext];
@@ -111,6 +112,7 @@
             return buf;
           } catch {}
         }
+        t.failed = true;
         if (!this.missing.includes(key)) this.missing.push(key);
         return null;
       })();
@@ -210,7 +212,8 @@
       hold(b.curve.gain, t); b.curve.gain.setValueAtTime(0, t);
       b.curve.gain.linearRampToValueAtTime(DB(night ? -21 : -18), t + 2);
       this.levels();
-      this.swap('kaamos', 'measure', { level: 0 });
+      const s = this.s;
+      Promise.resolve(this.load()).then(safe(() => { if (this.s === s && !this.bed) this.swap('kaamos', 'measure'); }));
     },
 
     curve(db, sec) { if (this.ctx) glide(this.bus.curve.gain, db === -Infinity ? 0 : DB(db), Math.max(1.5, sec), this.ctx.currentTime); },
@@ -306,7 +309,7 @@
         v.srcs.push(src); v.fades.push(fade);
         return { lvl, lp };
       };
-      const p = mk(pad, opt.level ?? this.levelFor(key, 'pad'), false);
+      const p = mk(pad, opt.level ?? (key === 'kaamos' && s.phase === 'fadein' ? 0 : this.levelFor(key, 'pad')), false);
       v.pad = p.lvl; v.lp = p.lp;
       if (mot) { v.motion = mk(mot, this.levelFor(key, 'motion'), true).lvl; v.motionK = motK; }
       if (old && !old.procedural) this.fadeBed(old, when, xf);
