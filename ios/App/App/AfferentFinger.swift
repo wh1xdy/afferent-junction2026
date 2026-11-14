@@ -244,13 +244,18 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     }
 
     /// The answer to setNotifyValue. Refused: "connected" without notifications would never
-    /// recover (no reading, no disconnect), so start over, as the Android twin does. Switched on:
-    /// the link is set up, and earlier failures no longer count.
+    /// recover (no reading, no disconnect), so start over, as the Android twin does. Once every
+    /// characteristic notifies, the link is set up and earlier failures no longer count.
     public func peripheral(_ p: CBPeripheral, didUpdateNotificationStateFor ch: CBCharacteristic, error: Error?) {
         guard p === peripheral, ch.uuid == Self.measurement || ch.uuid == Self.fingerValues else { return }
         if error != nil {
             drop(p, ignore: false)
-        } else if ch.isNotifying {
+            return
+        }
+        let services = p.services ?? []
+        let notifying = services.flatMap { $0.characteristics ?? [] }.filter { $0.isNotifying }
+        if AfferentFingerParser.linkReady(services: services.map { $0.uuid.uuidString },
+                                          notifying: notifying.map { $0.uuid.uuidString }) {
             discoveryFailures[p.identifier] = nil
         }
     }

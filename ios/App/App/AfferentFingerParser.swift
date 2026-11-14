@@ -119,6 +119,18 @@ enum AfferentFingerParser {
         return uuids.contains { $0.uppercased() == wendyNetService }
     }
 
+    /// Whether the link is set up: every characteristic it subscribes to notifies. That is AFF1
+    /// under AFF0 and, when the board has the Heart Rate service, 2A37 under 180D. Only then do
+    /// earlier setup failures stop counting; one characteristic switching on while the other
+    /// is refused must not, or the three-failure limit is never reached. services = the
+    /// peripheral's discovered services, notifying = its characteristics that notify now
+    /// (CBUUID.uuidString).
+    static func linkReady(services: [String], notifying: [String]) -> Bool {
+        let have = Set(services.map { $0.uppercased() }), on = Set(notifying.map { $0.uppercased() })
+        guard have.contains("AFF0") else { return false }
+        return on.contains("AFF1") && (!have.contains("180D") || on.contains("2A37"))
+    }
+
     // The "reading" events of the AfferentFinger plugin, as the web layer receives them.
     // A missing value is JSON null (NSNull), never 0 and never a made-up default.
 
