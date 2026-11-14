@@ -1,5 +1,5 @@
 ((root) => {
-  const DEPTH = { horizon: 0.15, mid: 0.55, low: 0.6 }, MID_H = 0.13;
+  const DEPTH = { horizon: 0.15, mid: 0.45, low: 0.45 }, MID_H = 0.13;
 
   const layout = (W, H, cy = 0, low = 0) => {
     const u = H / 844, gy = H * 0.82 + cy, hy = H * 0.6 + DEPTH.horizon * cy, my = H * 0.82 + DEPTH.mid * cy + DEPTH.low * Math.max(0, low);
