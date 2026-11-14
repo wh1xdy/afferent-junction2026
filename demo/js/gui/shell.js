@@ -47,6 +47,7 @@
       { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
+      { icon: 'volume_up', label: 'Room sound level', sup: 'Measures how loud the room is, never records', sw: 'id="roomSoundSw"' },
     ] },
     { page: 'sensors', title: 'While you play', rows: [
       { icon: 'vital_signs', label: 'Live vitals', sup: 'Your pulse and breathing in a corner, and why the games change', sw: 'id="vitalsSw"' },

@@ -75,7 +75,7 @@ const shown = el => !!el && !el.classList.contains('hidden');
 // Every control Settings had before it was split into pages, by how main.js, clipcheck.js, duel.js, onboard.js and
 // presence.js find it.
 const CONTROLS = ['id="soundSw"', 'id="hapticSw"', 'id="beatSeg"', 'id="quietSw"', 'id="motionSw"',
-  'data-sensor="phone_camera"', 'data-sensor="pulse_stone"', 'id="fingerState"', 'id="breathSw"', 'data-sensor="bedside_light"', 'data-sensor="bedside_camera"', 'data-sensor="phone_motion"',
+  'data-sensor="phone_camera"', 'data-sensor="pulse_stone"', 'id="fingerState"', 'id="breathSw"', 'data-sensor="bedside_light"', 'data-sensor="bedside_camera"', 'data-sensor="phone_motion"', 'id="roomSoundSw"',
   'id="vitalsSw"', 'id="clipCheckRow"', 'id="clipState"', 'id="clipAskSw"', 'data-duel', 'id="morningsGroup"', 'id="checkinSw"',
   'id="qrBtn"', 'id="exportBtn"', 'id="sharingState"', 'id="hubForm"', 'id="hubAddr"', 'id="hubState"',
   'data-open="info"', 'data-open="signals"', 'data-anchor', 'id="weekBtn"', 'id="devGroup"', 'id="simSw"', 'id="sigSw"',

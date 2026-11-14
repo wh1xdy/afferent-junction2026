@@ -110,7 +110,7 @@
     const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now);
     const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
-    const face = faceRows(S.faceLive(now)), room = A.Room ? A.Room.rows(now).map(r => row(r.icon, r.label, r.value, r.lines)) : [];
+    const face = faceRows(S.faceLive(now)), room = [...(A.Room ? A.Room.rows(now) : []), ...(A.RoomSound ? A.RoomSound.rows(now) : [])].map(r => row(r.icon, r.label, r.value, r.lines));
     return { rows, note, room: room.length ? { title: 'Your room', rows: room } : null, face: face.length ? { title: 'Face', rows: face } : null, earlier: earlier() };
   };
 

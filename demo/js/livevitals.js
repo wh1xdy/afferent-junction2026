@@ -19,6 +19,7 @@
     eyes_tired: 'eyes heavy', no_pulse: 'no pulse reading', pulse_low: 'pulse low', pulse_steady: 'pulse near rest',
     pulse_up: 'pulse up', no_hrv: 'no HRV to compare', rmssd_down: 'HRV down', breathing_fast: 'breathing fast',
     rmssd_steady: 'steady HRV', breathing_calm: 'calm breathing', hrv_partial: 'HRV or breathing missing', hrv_between: 'HRV in between',
+    room_loud: 'loud room',
   };
   // What the game does for a state in a mode (engine.js assess and prefer).
   const action = (state, mode) => ({
@@ -41,7 +42,8 @@
   const value = (x, unit) => x == null ? { value: null, text: NONE } : { value: Math.round(x), text: `${int(x)} ${unit}` };
   const num = x => Number.isFinite(x) ? x : null;
   // Rows from other parts of the app, shown only when that part is there and has something to say.
-  // Music that follows the heart (A.MusicBio), and the room climate from the bedside unit (A.Sensors.room).
+  // Music that follows the heart (A.MusicBio), the room climate from the bedside unit (A.Sensors.room) and the room's
+  // sound level (A.RoomSound).
   const music = () => {
     const m = A.MusicBio, bpm = num(m?.bpm), target = num(m?.target);
     return m?.following && bpm != null && target != null ? `Music: following your heart ${int(bpm)} → ${int(target)} bpm` : null;
@@ -51,6 +53,10 @@
     try { r = typeof S.room === 'function' ? S.room(now) : null; } catch { r = null; }
     const c = num(r?.celsius), h = num(r?.humidity);
     return c == null ? null : `Room ${c.toFixed(1)} °C${h == null ? '' : ` · ${Math.round(h)} %`}`;
+  };
+  // How loud the room is, from the phone's microphone when that is switched on (A.RoomSound, sound.js).
+  const sound = now => {
+    try { return A.RoomSound?.line(now) || null; } catch { return null; }
   };
 
   // What the panel shows, or null when it is hidden (no session in play, or switched off).
@@ -68,6 +74,7 @@
       calm: Number.isFinite(level) ? clamp(level, 0, 1) : null,
       music: music(),
       room: room(now),
+      sound: sound(now),
     };
   };
 
@@ -118,7 +125,7 @@
     const calm = q('.lv-calm');
     calm?.classList.toggle('on', m.calm != null);
     if (m.calm != null) { const fill = q('.lv-fill'); if (fill) fill.style.transform = `scaleX(${m.calm.toFixed(2)})`; }
-    for (const k of ['music', 'room']) {
+    for (const k of ['music', 'room', 'sound']) {
       const el = q(`.lv-${k}`);
       el?.classList.toggle('on', !!m[k]);
       if (m[k]) put(el, m[k]);

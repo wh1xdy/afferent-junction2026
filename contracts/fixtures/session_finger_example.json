@@ -197,5 +197,5 @@
       "rmssd_ms": [null, null, null, null, null, null, null, null, null, null, null, null, null, 38, 39, 40, 41, 42, 42, 43, 44, 44]
     }
   },
-  "context": { "room_temp_c": 20.5, "home": true, "visitors_present": 0, "bedside_light_level": 8 }
+  "context": { "room_temp_c": 20.5, "room_sound": { "median_db": 36, "share_loud": 0.04, "windows": 3 }, "home": true, "visitors_present": 0, "bedside_light_level": 8 }
 }
