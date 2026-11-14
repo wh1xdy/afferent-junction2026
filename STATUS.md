@@ -10,6 +10,7 @@ As of Saturday 14 November, evening. Everything below is on `main` unless it say
 - Greetings and the check-in question follow the real time of day (morning, afternoon, evening, night) (#60).
 - Instructions stay until the first touch, and the dots between games say "Tap the light to go on" (#60).
 - Tap hints are a soft touch dot on the thing to touch (#43, #67). There's no headphones splash anymore (#50).
+- Cold start: a soft loading screen, the launch navy with an ember breathing where the fire will be. It shows only while the art, the fonts and the first world frame load, with no minimum time, then crossfades into the world; it never stays past 8 s (`demo/js/loader.js`). Please don't add a wait in front of the app.
 
 **Responds to the body (finger clips or camera pulse)**
 - The fire beats in a lub-dub to the real pulse. The connect moment (stronger first beats, a warm ring) plays when a pulse appears, also mid-session. With no reading the fire only breathes (#51).
