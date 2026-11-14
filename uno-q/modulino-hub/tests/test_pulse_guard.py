@@ -28,7 +28,8 @@ from test_ble_payload import FakeStop, recorder  # noqa: E402  (the real ble.py,
 from test_data_manager_push import FakeClient, PULSE  # noqa: E402
 import data_manager_push as dmp  # noqa: E402
 
-HOLD = app.GUARD_HOLD_S
+HOLD = app.GUARD_HOLD_S              # settling, a resting pulse
+JUMP = app.GUARD_JUMP_HOLD_S         # a jump to double / half
 
 
 def hms(s):
@@ -123,6 +124,24 @@ class Rules(unittest.TestCase):
         self.assertEqual(out[:int(HOLD)], [None] * int(HOLD))
         self.assertEqual(out[int(HOLD):], [82] * (8 - int(HOLD)))
 
+    def test_a_fast_settling_value_waits_longer(self):
+        # every double count seen was 150-175 BPM and lasted up to 7 s: outside a resting pulse
+        # the first value of a wearing waits GUARD_ODD_HOLD_S, a resting one GUARD_HOLD_S
+        out = self.feed([164] * 12)
+        odd = int(app.GUARD_ODD_HOLD_S)
+        self.assertEqual(out[:odd], [None] * odd)
+        self.assertEqual(out[odd:], [164] * (12 - odd))
+        self.g.reset()
+        self.assertEqual(self.feed([41] * 8, t0=100), [None] * 8, "a halved count too")
+        self.g.reset()
+        self.assertEqual(self.feed([118] * 6, t0=200)[int(HOLD)], 118, "an excited player is a resting pulse")
+
+    def test_the_164_incident_would_have_gone_out_with_the_short_hold_alone(self):
+        # why GUARD_ODD_HOLD_S: the four 164s span exactly GUARD_HOLD_S
+        g = app.PulseGuard()
+        g.hold_for = lambda bpm: HOLD
+        self.assertIn(164, [v for _, v in replay(INCIDENT_164, g)])
+
     def test_settling_from_a_doubled_pulse_to_the_real_one(self):
         out = self.feed([111, 140, 165, 165, 166, 167, 160] + [84, 82, 82, 82, 82, 82, 82, 82])
         self.assertFalse(any(v and v > 100 for v in out), out)
@@ -146,8 +165,8 @@ class Rules(unittest.TestCase):
         # never block a real change: the held value goes out once it has stayed steady
         t = self.settled(70)
         out = self.feed([140] * 9, t0=t)
-        self.assertEqual(out[:int(HOLD)], [None] * int(HOLD))
-        self.assertEqual(out[int(HOLD):], [140] * (9 - int(HOLD)))
+        self.assertEqual(out[:int(JUMP)], [None] * int(JUMP))
+        self.assertEqual(out[int(JUMP):], [140] * (9 - int(JUMP)))
         self.assertEqual(self.feed([138, 141], t0=t + 9), [138, 141], "and is the reference from then on")
 
     def test_other_changes_go_out_at_once(self):
@@ -417,7 +436,7 @@ class WholeHub(unittest.TestCase):
         self.assertTrue(any(h > 150 for h in sent), sent)
         k82 = next(k for k, (_, h, _) in enumerate(rows) if h == 82)
         k81 = next(k for k, (r, _, _) in enumerate(rows) if r and r < 90)
-        self.assertGreaterEqual(k82 - k81, HOLD)
+        self.assertGreaterEqual(k82 - k81, JUMP)
 
     def test_state_says_what_is_held(self):
         self.run_finger(finger_ppg(82, 8, settle_s=8), 8)
@@ -432,7 +451,7 @@ class WholeHub(unittest.TestCase):
         rows = self.run_finger(finger_ppg(75, 20), 20)
         sent = [(k, h) for k, (_, h, _) in enumerate(rows) if h]
         first = sent[0][0]
-        self.assertLessEqual(first, 4 + int(HOLD) + 1, "rhythm after ~4 s, then the hold")
+        self.assertLessEqual(first, 3 + int(HOLD) + 1, "rhythm after ~3 s, then the hold")
         self.assertTrue(all(abs(h - 75) <= 2 for _, h in sent), sent)
         self.assertEqual([k for k, _ in sent], list(range(first, 20)), "every second from then on")
         self.assertEqual(len(self.client.of(PULSE)), len(sent))

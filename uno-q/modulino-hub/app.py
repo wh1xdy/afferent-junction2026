@@ -78,6 +78,7 @@ def on_ppg(t_ms, *values):
     if clock_went_back(ppgs[0], t_ms):
         for p in ppgs:
             p.clear()
+        signal_from[:] = [0] * CHANNELS
     for c, v in enumerate(values[:CHANNELS]):
         ppgs[c].append((t_ms, int(v)))
 
@@ -152,14 +153,18 @@ sent_bpm = [0] * CHANNELS         # each finger's BPM as last handed to Bluetoot
 # period as its refractory time and counts every beat twice. Quality cannot tell (a doubled
 # rhythm is a clean rhythm), so the number itself is held back:
 #   - right after a finger is detected (or GUARD_FORGET_S without a trusted value) nothing is
-#     known yet: a value goes out once it has stayed steady for GUARD_HOLD_S;
-#   - a jump to about double or half of the last trusted value is held the same way.
-# Every other value goes out at once, and a held value that stays steady goes out after
-# GUARD_HOLD_S, so a real change is delayed by a few seconds at most, never blocked.
+#     known yet: a resting pulse goes out once it has stayed steady for GUARD_HOLD_S, anything
+#     faster or slower (where every double count seen fell) after GUARD_ODD_HOLD_S;
+#   - a jump to about double or half of the last trusted value is held GUARD_JUMP_HOLD_S.
+# Every other value goes out at once, and a held value that stays steady goes out after its
+# hold, so a real change is delayed by a few seconds at most, never blocked.
 # The same rule holds back the fused pulse (2A37, /state finger.bpm, the data manager) and each
 # finger's own number (AFF1 bytes 0-1, /state finger.fingers).
-GUARD_HOLD_S = 6.0            # seconds a held value must stay steady before it goes out
-                              # (the 164s lasted 4 s; a finger's median of 8 beats lags ~2 s)
+GUARD_HOLD_S = 4.0            # seconds a settling value must stay steady before it goes out...
+GUARD_RESTING = (45, 120)     # ...when it is a resting pulse. Outside this range a settling value
+GUARD_ODD_HOLD_S = 10.0       # waits this long: every double count seen was 150-175 BPM and lasted
+                              # 4 s (19:08:25-29) to 7 s (tests: a doubled wave for 8 s after contact)
+GUARD_JUMP_HOLD_S = 6.0       # a jump to about double / half of the trusted value waits this long
 GUARD_STEADY = 0.12           # steady = the held values of those seconds are within 12 % (max/min)
 GUARD_HARMONIC = 0.15         # about double / half = a ratio within 15 % of 2 (as TWO_HEARTS_HARMONIC)
 GUARD_FORGET_S = 10.0         # a trusted value older than this is no reference: settling again
@@ -183,6 +188,14 @@ class PulseGuard:
     def __init__(self, hold_s=GUARD_HOLD_S):
         self.hold_s = hold_s
         self.reset()
+
+    def hold_for(self, bpm):
+        """how long this held value must stay steady: a jump to double / half GUARD_JUMP_HOLD_S;
+        settling GUARD_HOLD_S for a resting pulse, GUARD_ODD_HOLD_S for anything else"""
+        if self.reason in ("double", "half"):
+            return max(self.hold_s, GUARD_JUMP_HOLD_S)
+        lo, hi = GUARD_RESTING
+        return self.hold_s if lo <= bpm <= hi else max(self.hold_s, GUARD_ODD_HOLD_S)
 
     def reset(self):
         """A finger was put on or taken off: nothing is known about this wearing yet."""
@@ -211,7 +224,7 @@ class PulseGuard:
         self.run.append((now, bpm))
         while len(self.run) > 1 and max(b for _, b in self.run) > (1 + GUARD_STEADY) * min(b for _, b in self.run):
             self.run.pop(0)                          # keep the newest values that agree
-        if len(self.run) >= GUARD_MIN_VALUES and self.run[-1][0] - self.run[0][0] >= self.hold_s:
+        if len(self.run) >= GUARD_MIN_VALUES and self.run[-1][0] - self.run[0][0] >= self.hold_for(bpm):
             self.trusted, self.trusted_t = bpm, now
             self.run, self.reason, self.held_bpm = [], None, None
             return bpm
@@ -275,22 +288,77 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
 
 
 period_state = [{"period_ms": None, "quality": None, "signal": None} for _ in range(CHANNELS)]
+signal_from = [0] * CHANNELS  # STM32 t_ms of this wearing's first settled sample: older ones (the
+                              # LEDs off, the power-on transient) are not this finger's signal
+AC_MIN_SAMPLES = 120          # a rhythm needs at least this many samples (~2.7 s at 45 Hz)...
+AC_MIN_MS = 2800              # ...over at least this long (lags up to 1.6 s)
+AC_SHORT_MS = 3500            # the shorter window tried when the 6 s one has no rhythm (rhythm())
+
+
+def _window(ch, window_ms):
+    """The last window_ms of one finger, from this wearing only (signal_from): the samples
+    autocorr() and clip_signal() look at."""
+    pts = list(ppgs[ch])
+    if not pts:
+        return []
+    start = max(pts[-1][0] - window_ms, signal_from[ch])
+    return [p for p in pts if p[0] >= start]
+
+
+def railed(v):
+    """True for a sample at a rail: the amplifier is saturated, the value says nothing."""
+    return v < CLIP_RAIL_LO or v > CLIP_RAIL_HI
 
 
 def autocorr(ch=0, window_ms=6000):
-    """Normalised autocorrelation of the last 6 s of one finger -> (lags_ms, r) or None."""
-    pts = list(ppgs[ch])
-    if len(pts) < 150:
+    """Normalised autocorrelation of the last 6 s of one finger -> (lags_ms, r) or None.
+    Samples at a rail are missing, not values: a finger pressed hard into a sensitive clip
+    flattens the top of every beat at the rail, and what is left below it still carries the
+    rhythm. They are left out of the mean, the energy and every product (x = 0), so a clip
+    without railed samples gives exactly the curve it gave before."""
+    w = _window(ch, window_ms)
+    if len(w) < AC_MIN_SAMPLES or w[-1][0] - w[0][0] < AC_MIN_MS:
         return None
-    t_end = pts[-1][0]
-    v = [p[1] for p in pts if p[0] >= t_end - window_ms]
+    v = [p[1] for p in w]
+    ok = [not railed(a) for a in v]
+    nv = sum(ok)
+    if nv < AC_MIN_SAMPLES * (1 - CLIP_MAX_RAILED):
+        return None                               # (almost) all at a rail: nothing to see
     n = len(v)
-    fs = (n - 1) / (window_ms / 1000)
-    m = sum(v) / n
-    x = [a - m for a in v]
+    fs = (n - 1) / ((w[-1][0] - w[0][0]) / 1000)  # the real span (a short or new buffer included)
+    m = sum(a for a, k in zip(v, ok) if k) / nv
+    x = [a - m if k else 0.0 for a, k in zip(v, ok)]
     e = sum(a * a for a in x) or 1.0
     lags = range(int(0.33 * fs), int(1.6 * fs))
     return [lag / fs * 1000 for lag in lags], [sum(x[i] * x[i + lag] for i in range(n - lag)) / e for lag in lags]
+
+
+def railed_share(ch=0, window_ms=6000):
+    """Share of the samples autocorr() looks at that sit at a rail (0 with no samples)."""
+    w = _window(ch, window_ms)
+    return sum(1 for _, v in w if railed(v)) / len(w) if w else 0.0
+
+
+def rhythm(ch=0):
+    """(period_ms, quality, signal, curve) of one finger, as period_loop stores it.
+    Clipping is a quality reduction, not a fail: the rhythm found in the unclipped samples
+    counts as much as the share of the signal it was found in (quality x (1 - railed)).
+    A finger just put into a clip that was empty (a step) or still settling (a drift) keeps the
+    6 s curve highest at the edge of the range until it has left the window; then the last
+    AC_SHORT_MS alone is tried, under the same edge rule (rhythm_peak)."""
+    best = None
+    for window in (6000, AC_SHORT_MS):
+        ac = autocorr(ch, window)
+        if not ac:
+            break
+        ms, q, sig = rhythm_peak(*ac)
+        best = (ms, q, max(sig, best[2] if best else 0.0), ac, window)
+        if ms:
+            break
+    if best is None:
+        return None, 0.0, 0.0, None
+    ms, q, sig, ac, window = best
+    return ms, q * (1 - railed_share(ch, window)), sig, ac
 
 
 def rhythm_peak(lags, r):
@@ -307,12 +375,9 @@ def rhythm_peak(lags, r):
     return round(lags[k]), signal, signal
 
 
-def pulse_period(ch=0, window_ms=6000):
+def pulse_period(ch=0):
     """Dominant period 0.33-1.6 s of one finger and its strength."""
-    ac = autocorr(ch, window_ms)
-    if not ac:
-        return None, 0.0
-    ms, q, _ = rhythm_peak(*ac)
+    ms, q, _, _ = rhythm(ch)
     return ms, q
 
 
@@ -354,12 +419,17 @@ def fused_period(curves, qualities):
 # finger.untrusted (AFF1 flag bits 1-2, its BPM byte 0). Both clean: both trusted, as before (the
 # same rhythm is fused, two different rhythms are two people). Neither clean: both used, as
 # before (two weak curves of one heart still add up).
-CLIP_CLEAN_Q = 0.5            # rhythm quality of a clean clip. A finger on its own: 0.6-0.9 (data
-                              # manager, 2026-11-14; clip 2 alone 0.63); the false rhythm: ~0.4
+CLIP_CLEAN_Q = 0.5            # rhythm quality of a clean clip, after the clipping reduction (rhythm()).
+                              # A finger on its own: 0.6-0.9 (data manager, 2026-11-14; clip 2 alone
+                              # 0.63); the false rhythm: ~0.4. These rules were swept against 96 false
+                              # rhythms (110-150 BPM in noise, next to a finger): 0.4 or 0.45, 5 of 8
+                              # beats, a 25 % tolerance or a 2 s hold each let some of the ones caught
+                              # now through, so they stay; the forgiving part is the clipping below
 CLIP_MIN_AMP = 200            # p5-p95 of the detrended signal (raw counts): a pulse, not the
                               # noise of an empty clip (measured: empty ~50-150, finger 1500-3000)
-CLIP_RAIL_LO, CLIP_RAIL_HI = 200, 13500   # beyond these the amplifier is saturated
-CLIP_MAX_RAILED = 0.05        # more than 5 % of the samples at a rail = saturated
+CLIP_RAIL_LO, CLIP_RAIL_HI = 200, 13500   # beyond these the amplifier is saturated (the top: ~13690)
+CLIP_MAX_RAILED = 0.4         # more than 40 % of the samples at a rail = saturated. Below that the
+                              # railed samples are missing (autocorr) and cost quality, not the clip
 CLIP_DC_LO, CLIP_DC_HI = 1000, 14500      # mean outside this = off scale (amp stuck, sensor off)
 CLIP_BEATS_N = 8              # the last this many locked intervals of the clip's own detector...
 CLIP_BEATS_S = 8.0            # ...from the last this many seconds
@@ -374,21 +444,20 @@ def clip_signal(ch=0, window_ms=6000):
     """Amplitude, saturation and DC level of one finger over the same 6 s as autocorr().
     amplitude = p5-p95 of the signal minus its 1 s moving mean; railed = share of samples at a
     rail; dc = mean. None when there are too few samples."""
-    pts = list(ppgs[ch])
-    if len(pts) < 150:
+    w = _window(ch, window_ms)
+    if len(w) < AC_MIN_SAMPLES:
         return None
-    t_end = pts[-1][0]
-    v = [p[1] for p in pts if p[0] >= t_end - window_ms]
+    v = [p[1] for p in w]
     n = len(v)
-    half = max(1, int((n - 1) / (window_ms / 1000)) // 2)
+    half = max(1, int((n - 1) / max((w[-1][0] - w[0][0]) / 1000, 1e-3)) // 2)
     cs = [0]
     for x in v:
         cs.append(cs[-1] + x)
     hp = sorted(v[i] - (cs[min(n, i + half + 1)] - cs[max(0, i - half)]) / (min(n, i + half + 1) - max(0, i - half))
                 for i in range(n))
-    railed = sum(1 for x in v if x < CLIP_RAIL_LO or x > CLIP_RAIL_HI) / n
+    share = sum(1 for x in v if railed(x)) / n
     return {"amplitude": round(hp[int(0.95 * (n - 1))] - hp[int(0.05 * (n - 1))]),
-            "railed": round(railed, 2), "dc": round(sum(v) / n)}
+            "railed": round(share, 2), "dc": round(sum(v) / n)}
 
 
 def clip_beats(ch, period_ms):
@@ -623,12 +692,9 @@ def period_loop(stopped):
         curves, quals = [None] * CHANNELS, [0.0] * CHANNELS
         for c in range(CHANNELS):
             try:
-                ac = autocorr(c)
+                ms, q, sig, ac = rhythm(c)
                 if ac:
-                    ms, q, sig = rhythm_peak(*ac)
                     curves[c], quals[c] = ac, q
-                else:
-                    ms, q, sig = None, 0.0, 0.0
                 with lock:
                     period_state[c].update(period_ms=ms, quality=round(q, 2), signal=round(sig, 2))
             except Exception as e:
@@ -730,7 +796,9 @@ def push_readings(bpm, br, rm, two):
 # switch the sensors on: a finger in clip 2 alone is found too.
 PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # amp settles ~1.25 s, then look 1 s
 PROBE_CONFIRM_MS = 1300       # then confirm 1.3 s: one upstroke down to 46 BPM (flash = 3.55 s)
-WARMUP_S = 4.0               # after switching on: no readings until the pulse has re-locked
+WARMUP_S = 1.5               # after a finger is found: no readings until the detectors have a period.
+                             # Was 4 s: the power-on transient had to leave the 6 s rhythm window
+                             # first; the window now starts after it (signal_from)
 PRESENCE_RANGE = 800          # max 250 ms range in the look window above this = finger
                               # (measured: no finger 90-445, finger ~1600-3000)
 CONFIRM_RANGE = 700           # ...and in the confirm window (any 250 ms span) above this (clip 1 empty, light into
@@ -852,6 +920,9 @@ def presence_loop(stopped):
             presence["last_probe_swings"] = swings
             if found:
                 _forget_beats()
+                # this wearing's signal starts once the amplifiers have settled: the LEDs-off
+                # level and the power-on transient before it are no rhythm (autocorr, clip_signal)
+                signal_from[:] = [t_on + PROBE_SETTLE_MS] * CHANNELS
                 presence.update(mode="active", since=time.time())
                 weak_since = time.time()       # give the pulse a few seconds to lock
                 print(f"presence: finger detected (swing per clip {swings}) -> sensors on", flush=True)
