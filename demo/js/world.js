@@ -392,11 +392,11 @@
   }
 
   function aurora(ctx) {
-    const a = clamp(0.2 * (1 - st.heavy) + 1.1 * n0(S.aurora, 0) + 0.55 * st.ds.green, 0, 1) * (I.night ? 1 - 0.4 * st.ds.dawn : Math.pow(1 - Math.max(st.ds.dawn, st.sun), 2)) * (1 - n0(S.daylight, 0)) * (1 - 0.9 * st.heavy);
+    const body = n0(S.bodyGlow, 0), a = clamp(0.2 * (1 - st.heavy) + 1.1 * n0(S.aurora, 0) + 0.55 * st.ds.green + 0.7 * body, 0, 1) * (I.night ? 1 - 0.4 * st.ds.dawn : Math.pow(1 - Math.max(st.ds.dawn, st.sun), 2)) * (1 - n0(S.daylight, 0)) * (1 - 0.9 * st.heavy);
     if (a < 0.02) return;
     const q = 2, s = Math.min(2, Math.abs(ctx.getTransform().d) || 1), w = Math.ceil(W / q) + 2, h = Math.ceil(H * 0.42 * s);
     if (!auroraC || auroraC.width !== w || auroraC.height !== h) [auroraC, auroraX] = mk(w, h);
-    const x = auroraX, t = n0(S.t, 0) * (rm ? 0.4 : 1), o = off(LAYER.aurora), sg = Math.max(0.22, st.ds.green);
+    const x = auroraX, t = n0(S.t, 0) * (rm ? 0.4 : 1), o = off(LAYER.aurora), sg = Math.max(0.22, st.ds.green, 0.85 * body);
     x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; x.clearRect(0, 0, w, h);
     x.globalCompositeOperation = 'lighter';
     for (let k = 0; k < 2; k++) {
@@ -1120,7 +1120,8 @@
 
   function lantern(ctx) {
     const F = st.fig, k = F.k, t = n0(S.t, 0), x = st.lx, y = st.ly;
-    const f = st.flare, fl = (0.88 + 0.12 * noise(t * (rm ? 2 : 7)) + 0.05 * noise(t * 19)) * n0(S.flame, 1) * (1 + 1.4 * f), br = n0(S.lanternBright, 1);
+    const calm = 0.75 * n0(S.settle, 0), f = st.flare, br = n0(S.lanternBright, 1);
+    const fl = (0.88 + 0.085 * calm + (1 - calm) * (0.12 * noise(t * (rm ? 2 : 7)) + 0.05 * noise(t * 19))) * n0(S.flame, 1) * (1 + 1.4 * f);
     const [hx, hy2] = st.hand, [px, py] = st.tip;
     if (F.pole > 0.02) { ctx.strokeStyle = col(P.wood, 'yellow', F.pole); ctx.lineWidth = 1.6 * k; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx, hy2); ctx.lineTo(px, py); ctx.stroke(); }
     if (F.sp) {
@@ -1398,6 +1399,7 @@
     },
     flareLighthouse(a = 1) { if (st) { st.hk.flare = Math.max(st.hk.flare, clamp(a, 0, 1)); st.hk.lamp = Math.max(st.hk.lamp, 0.4 * clamp(a, 0, 1)); } },
     lanternPose(angle) { if (st) st.hk.pose = angle == null ? null : angle; },
+    heartRing(a = 1) { if (st) ring(clamp(a, 0, 1), 'heart'); },
   };
 
   A.World = {

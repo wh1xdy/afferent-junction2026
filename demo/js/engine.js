@@ -515,9 +515,11 @@
         if (this.auto) this.T.auto(dt);
         if (this.phase !== 'asleep') this.T.update(now, dt);
 
+        // The flame beats only at a pulse (heartbeat.js); this clock only paces the sparks of wake mode.
+        A.Heartbeat?.step(now, dt, this);
         this.beatPhase += dt;
         if (this.beatPhase >= 1) {
-          this.beatPhase -= 1; this.kick(0.03);
+          this.beatPhase -= 1;
           const n = Math.round(5 * V.sparkle);
           for (let i = 0; i < n; i++) V.sparks.push({ born: now, dx: R() * 2 - 1, dy: -R() });
           if (V.sparks.length > 40) V.sparks.splice(0, V.sparks.length - 40);
@@ -528,6 +530,7 @@
         V.flash = ema(V.flash, 0, dt, 0.25);
         V.lanternBright = (1 + 0.5 * this.flameKick) * V.lanternGain;
         V.lanternRadius = 70 * V.lanternGain;
+        A.Heartbeat?.paint(V, V.flame);
         V.orb.alpha = ema(V.orb.alpha, this.game?.id === 'breath' ? 1 : 0, dt, 0.5);
         if (this.orb) { V.orb.b = this.orb.b; V.orb.hold = this.orb.hold; V.orb.sync = this.orb.sync; }
         V.stove = this.game?.id === 'breath' ? 0.3 + 0.4 * V.orb.b : ema(V.stove, MODES[this.mode]?.biome === 'sauna' ? 0.4 : 0, dt, 1);

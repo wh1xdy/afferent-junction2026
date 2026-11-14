@@ -46,6 +46,7 @@
       { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
       { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
+      { icon: 'favorite', label: 'Heartbeat touch', sup: 'A soft beat at your own pulse in calm moments', sw: 'id="beatSw"' },
     ] },
     { title: 'Help', rows: [
       { icon: 'info', label: 'How it works', attrs: 'data-open="info"' },
