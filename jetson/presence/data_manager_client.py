@@ -332,9 +332,18 @@ class DataManagerClient:
             req.add_header("Authorization", f"Bearer {self.token}")
         t0 = time.time()
         with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
-            res = json.loads(r.read().decode())
+            raw = r.read()
         t1 = time.time()
-        st = res.get("server_time") if isinstance(res, dict) else None
+        try:
+            res = json.loads(raw.decode())
+        except ValueError:
+            res = None
+        if not isinstance(res, dict):
+            # not the data manager's answer (portal, proxy, stray advert): the batch was not
+            # confirmed. An OSError, so it is re-queued like any other connection problem; a
+            # ValueError here used to drop it as "unsendable", a list ended the sender thread.
+            raise OSError("the answer is not a data manager JSON object")
+        st = res.get("server_time")
         if isinstance(st, (int, float)):
             skew = round(st / 1000 - (t0 + t1) / 2, 1)
             if abs(skew) > CLOCK_SKEW_WARN_S and (self.clock_skew_s is None

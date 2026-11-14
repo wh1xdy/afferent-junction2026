@@ -24,6 +24,7 @@ class PresenceSync:
         self.source = source
         self._sent: dict[tuple[str, str], tuple] = {}   # (kind, id) -> (start, end, value)
         self._home_start: float | None = None
+        self._last_home_start: float | None = None      # kept after the close (to_dict / restore)
 
     def _send(self, kind: str, ident: str, start: float, end: float | None, value=None, meta=None):
         key, sig = (kind, ident), (round(start, 1), None if end is None else round(end, 1), value)
@@ -47,7 +48,7 @@ class PresenceSync:
                 # one (app restart): close the old one at its last known point
                 sent += self._send("presence.home", f"home-{int(self._home_start)}",
                                    self._home_start, presence.since)
-            self._home_start = presence.since
+            self._home_start = self._last_home_start = presence.since
             sent += self._send("presence.home", f"home-{int(presence.since)}", presence.since, None)
         elif self._home_start is not None:
             end = presence.since if presence.since is not None else now
@@ -63,7 +64,17 @@ class PresenceSync:
                                value=v.peak_guests)
         return sent
 
-    def restore(self, presence):
-        """After loading saved state: resume the open home interval with the same id."""
+    def to_dict(self) -> dict:
+        """Saved with the trackers (app.save): the start of the last home period."""
+        return {"last_home_start": self._last_home_start}
+
+    def restore(self, presence, saved: dict | None = None):
+        """After loading saved state: resume the open home interval with the same id. Not home:
+        send the close of the last home period again. It may have been lost in the client's
+        memory queue by the restart, and an interval never closed counts as home until now."""
+        last = (saved or {}).get("last_home_start")
+        self._last_home_start = last if isinstance(last, (int, float)) else None
         if presence.state == HOME and presence.since is not None:
-            self._home_start = presence.since
+            self._home_start = self._last_home_start = presence.since
+        elif self._last_home_start is not None and presence.since is not None:
+            self._home_start = self._last_home_start          # update() closes it at presence.since

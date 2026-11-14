@@ -10,6 +10,9 @@ writes to the local `minute` table — no parallel angle implementation here.
   head_trunk_angle   -> posture.head_trunk_angle_deg    head vs trunk
                                                         (valid: face, profile, ~3/4)
 
+Live camera only: a video file (CAMERA=<file>, or `afferent.cli process-video`) is a replay
+with synthetic timestamps, not a measurement of now, so nothing is pushed for it.
+
 Standing filter: only minutes whose activity is standing or walking are sent. The
 runtime's SituationTracker calls a frame sitting when a knee bends below 120 deg; the
 hip-ankle span test is only a fallback when the knees are not visible (same rule as
@@ -26,6 +29,7 @@ import logging
 import re
 from typing import Callable
 
+from .capture import _is_file_source
 from .data_manager_client import DataManagerClient
 
 _log = logging.getLogger("afferent.datasink")
@@ -55,6 +59,11 @@ class DataSink:
     def from_config(cls, cfg, site_fn: Callable[[], str]) -> "DataSink | None":
         url = (getattr(cfg, "data_manager_url", "") or "").strip()
         if not url or url.lower() == "off":
+            return None
+        if _is_file_source(getattr(cfg, "camera", "")):
+            # a video file is a replay: its frames are stamped "now + frame/fps", so its
+            # minutes would be stored as the patient's posture now, whoever is in the clip
+            _log.info("video file source: posture minutes stay local (not sent to the data manager)")
             return None
         client = DataManagerClient(source="posture", url=url,
                                    token=getattr(cfg, "data_manager_token", "") or None)

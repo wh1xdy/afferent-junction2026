@@ -186,7 +186,7 @@ some Android phones advertise nothing identifying and are then not counted.
 | `GUEST_RSSI_MIN` / `GUEST_DWELL_MIN` / `GUEST_PHONES_ONLY` | from profile | BLE range, visit length, phones-only |
 | `SCAN_INTERVAL_S` | 30 | |
 | `HUB_URL` | – | UNO Q modulino-hub, for activity + buzzer |
-| `SIM` | – | `1` = simulated phone/guests |
+| `SIM` | – | `1` = simulated phone/guests (nothing is sent to the data manager: simulated intervals are not the patient's) |
 | `DATA_MANAGER_URL` | http://127.0.0.1:8100 | afferent-data-manager (`jetson/data_manager`): home periods, outings and visits are stored there as intervals; `off` disables |
 | `DATA_MANAGER_TOKEN` | – | its `API_TOKEN`, if set |
 
