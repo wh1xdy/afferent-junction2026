@@ -16,7 +16,7 @@
   };
   A.P = P;
 
-  const LAYER = { stars: 0.02, aurora: 0.04, far: 0.1, islands: 0.2, fogFar: 0.3, mid: 0.5, fogNear: 0.7, ground: 1, fore: 1.35 };
+  const LAYER = { stars: 0.02, aurora: 0.04, far: 0.1, islands: 0.2, fogFar: 0.3, mid: 0.5, fogNear: 0.7, ground: 1, fore: 1.5 };
   const GROUPS = ['yellow', 'blue', 'green', 'dawn'];
 
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return [c, c.getContext('2d')]; };
@@ -119,11 +119,12 @@
   const RIPPLES = Array.from({ length: 46 }, () => ({ x: r0(), y: r0(), w: 6 + r0() * 26, p: r0() * 6.28 }));
   const GLINTS = Array.from({ length: 70 }, () => ({ x: r0() * 1400, y: Math.pow(r0(), 0.8), p: r0() * 6.28, f: 0.8 + r0() * 2 }));
 
-  let S = null, W = 0, H = 0, gy = 0, hy = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
+  let S = null, W = 0, H = 0, gy = 0, hy = 0, my = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
   const states = new WeakMap();
   const MQ = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let sized = { W: 0, H: 0 }, vign = null, darkC = null, darkX = null, grainPat = null, borderC = null, auroraC = null, auroraX = null;
   const n0 = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+  const { layout, MID_H } = A.Layers;
 
   function newState() {
     const N = 120;
@@ -199,6 +200,24 @@
     return true;
   }
   const at = (wx, f = 1) => fx + (wx - S.worldX) * f;
+  const bases = new Map();
+  function stripBase(n, g, lt) {
+    const sat = satOf(g), li = Math.min(1, lightOf(g) * lt), key = n + ':' + sat.toFixed(2) + ':' + li.toFixed(2);
+    if (bases.has(key)) return bases.get(key);
+    let c = null;
+    try {
+      const [cv, x] = mk(16, 16);
+      ART.draw(x, n, 0, -48, 16, 64, sat, li, 1);
+      const d = x.getImageData(0, 13, 16, 1).data;
+      let r = 0, gg = 0, b = 0, a = 0;
+      for (let i = 0; i < d.length; i += 4) { r += d[i] * d[i + 3]; gg += d[i + 1] * d[i + 3]; b += d[i + 2] * d[i + 3]; a += d[i + 3]; }
+      if (a > 0) c = [r / a, gg / a, b / a];
+      cv.width = 0;
+    } catch {}
+    if (bases.size > 40) bases.clear();
+    bases.set(key, c);
+    return c;
+  }
 
   function sprite(ctx, name, c, x, y, w, h, a, add) {
     if (a <= 0.003) return;
@@ -612,8 +631,8 @@
 
   function sea(ctx) {
     const top = col(mixc(mixc(HAZE, P.sea, 0.5), P.dawnSky, 0.5 * st.ds.dawn), 'blue', 1, 0.15), bot = col(mixc(P.seaDeep, P.sea, 0.5 * st.ds.dawn), 'blue');
-    ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H, hy, gy, [[0, top], [1, bot]]);
-    ctx.fillRect(0, hy, W, gy - hy + 2);
+    ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H + ':' + Math.round(hy), hy, gy, [[0, top], [1, bot]]);
+    ctx.fillRect(0, hy, W, H - hy);
     const t = n0(S.t, 0), o = off(LAYER.islands), c = grade(P.silver200, 'blue');
     ctx.fillStyle = rgb(c);
     for (const r of RIPPLES) {
@@ -630,15 +649,19 @@
   }
 
   function midHills(ctx) {
-    if (strip('mid_hills_spruce', LAYER.mid, gy + 8 * u, H * 0.13, 'green', 1, 0.82)) return;
+    if (strip('mid_hills_spruce', LAYER.mid, my + 8 * u, H * MID_H, 'green', 1, 0.82)) {
+      const c = stripBase('mid_hills_spruce', 'green', 0.82);
+      if (c) { ctx.fillStyle = rgb(c); ctx.fillRect(0, my + 6 * u, W, H - my); }
+      return;
+    }
     const c1 = col(mixc(P.snow, P.frost, 0.4), 'blue', 1, 0.22), c2 = col(mixc(P.dusk, P.kaamos, 0.4), 'blue', 1, 0.3), tc = col(mixc(P.spruce, P.night800, 0.35), 'green', 1, 0.28);
-    const base = hy + H * 0.1, f = LAYER.mid, o = off(f), sc = 1 / u, step = 6 * u;
+    const base = my - H * 0.12, f = LAYER.mid, o = off(f), sc = 1 / u, step = 6 * u;
     const yAt = x => { const q = (x + o) * sc; return base - H * 0.05 * (0.25 + 0.75 * noise(q * 0.006 + 41)) - H * 0.02 * noise(q * 0.02 + 7); };
-    ctx.beginPath(); ctx.moveTo(-step, gy);
+    ctx.beginPath(); ctx.moveTo(-step, H);
     const pts = [];
     for (let x = -step; x <= W + step; x += step) { pts.push([x, yAt(x)]); ctx.lineTo(x, yAt(x)); }
-    ctx.lineTo(W + step, gy); ctx.closePath();
-    ctx.fillStyle = vgrad(ctx, 'mh' + c1 + c2 + H, base - H * 0.07, gy, [[0, c1], [0.3, c1], [0.75, c2], [1, c2]]); ctx.fill();
+    ctx.lineTo(W + step, H); ctx.closePath();
+    ctx.fillStyle = vgrad(ctx, 'mh' + c1 + c2 + H + ':' + Math.round(my), base - H * 0.07, my, [[0, c1], [0.3, c1], [0.75, c2], [1, c2]]); ctx.fill();
     laminate(ctx, pts, 0.3, 1, 0.85);
     const gapU = 22 * u, i0 = Math.floor((o - 40 * u) / gapU), i1 = Math.ceil((o + W + 40 * u) / gapU);
     ctx.beginPath();
@@ -757,11 +780,6 @@
       else if (c.x1 - wx < blend && k < cs.length - 1) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
       g.addColorStop(i / 16, rgb(cc));
     }
-    if (typeof S.terrain === 'function') {
-      ctx.fillStyle = g; ctx.fillRect(0, gy - 4 * u, W, H - gy + 4 * u);
-      ctx.fillStyle = vgrad(ctx, 'vale' + H + ':' + Math.round(gy), gy - 4 * u, H, [[0, 'rgba(14,26,62,0.55)'], [0.4, 'rgba(14,26,62,0.4)'], [1, 'rgba(10,18,44,0.6)']]);
-      ctx.fillRect(0, gy - 4 * u, W, H - gy + 4 * u);
-    }
     ctx.beginPath(); ctx.moveTo(-step, H + 2);
     for (let x = -step; x <= W + step; x += step) ctx.lineTo(x, gyAt(S.worldX + x - fx));
     ctx.lineTo(W + step, H + 2); ctx.closePath();
@@ -872,13 +890,13 @@
     if (!ART.has(n)) return false;
     const w = h * ART.aspect(n), x = at(wx, f) - w / 2;
     if (x > W + 20 || x + w < -20) return true;
-    return art(n, x, gy - terrAt(x + w / 2) + h * sink - h, w, h, g, 1, lt);
+    return art(n, x, (f >= 1 ? gy - terrAt(x + w / 2) : my) + h * sink - h, w, h, g, 1, lt);
   }
   function backProps(c) {
     const m = (c.x0 + c.x1) / 2, cw = c.x1 - c.x0;
     if (c.type === 'harbour') prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
     if (c.type === 'shore' && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
-      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = gy - terrAt(lx) + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
+      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = my + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
       glow(ctxRef, lx, ly, lh * 0.12, P.flame, 0.6 * on); glow(ctxRef, lx, ly, lh * 0.035, P.daylight, 0.8 * on);
     }
     if (c.type === 'sauna') prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
@@ -1436,9 +1454,15 @@
       u = H / 844;
       rm = !!(A.config && A.config.reducedMotion) || !!(MQ && MQ.matches);
       const cam = !rm && S.cam ? S.cam : null;
-      gy = H * 0.82 + n0(cam?.y, 0); hy = H * 0.6; fx = W * 0.35 + n0(cam?.x, 0);
+      fx = W * 0.35 + n0(cam?.x, 0);
       pm = rm ? 0.5 : 1;
       st = states.get(S); if (!st) { st = newState(); states.set(S, st); }
+      const L = layout(W, H, n0(cam?.y, 0), 0);
+      gy = L.gy; hy = L.hy;
+      let low = 0;
+      if (typeof S.terrain === 'function') for (let i = 0; i <= 12; i++) low = Math.max(low, -S.terrain(S.worldX + i / 12 * W - fx) * u);
+      st.low = st.low == null ? low : st.low + (low - st.low) * (1 - Math.exp(-Math.max(st.dt, 0.001) / 0.35));
+      my = layout(W, H, n0(cam?.y, 0), st.low).my;
       const sess = A.session && A.session.V === S ? A.session : null;
       I = { night: S.night ?? !!sess?.night, mode: S.mode ?? sess?.mode ?? null, phase: S.phase ?? sess?.phase ?? null };
       if (sized.W !== W || sized.H !== H || !vign) resize();
