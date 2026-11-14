@@ -210,6 +210,30 @@ test('the background layers cover the whole screen at every camera height, dip a
   assert.ok(!Layers.covered(H, [['sky', 0, 300], ['mid', 400, H]]), 'the check finds a gap');
 });
 
+test('ground tiles never change once made, one ground look per leg, biome changes fade over a tile', () => {
+  const t = session({ input: 'auto' });
+  const seen = new Map();
+  let changes = 0, fades = 0;
+  until(t, () => t.games.length >= 2 || t.s.phase === 'dawn', 150, () => {
+    const V = t.s.V;
+    for (const c of V.chunks) {
+      const k = seen.get(c);
+      if (!k) { seen.set(c, `${c.x0}|${c.x1}|${c.type}|${c.from}`); if (c.from) fades++; continue; }
+      if (k !== `${c.x0}|${c.x1}|${c.type}|${c.from}`) changes++;
+    }
+    for (let i = 1; i < V.chunks.length; i++) {
+      const a = V.chunks[i - 1], c = V.chunks[i];
+      assert.ok(Math.abs(c.x0 - a.x1) < 1, 'tiles are contiguous');
+      if (c.type !== a.type && a.pierEnd == null) assert.strictEqual(c.from, a.type, 'a biome change starts with a crossfade tile');
+    }
+  });
+  assert.strictEqual(changes, 0, 'a ground tile was resized or retyped after it was made');
+  const types = [...seen.keys()].map(c => c.type);
+  assert.ok(seen.size > 8, `tiles made: ${seen.size}`);
+  assert.ok(new Set(types).size <= t.games.length + 2, `ground looks: ${[...new Set(types)].join()}`);
+  assert.ok(fades >= 1, 'the ground changed look without a crossfade tile');
+});
+
 test('reduced motion keeps the camera still', () => {
   const t = session();
   t.A.config.reducedMotion = true;
