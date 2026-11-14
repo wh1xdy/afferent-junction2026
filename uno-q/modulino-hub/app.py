@@ -708,12 +708,19 @@ def push_readings(bpm, br, rm, two):
 # ── finger presence: LEDs off until a hand is in the holders ─────────────────────────
 # Sensor + is wired to D2/D3, so the sketch can power them (call "sensor_power").
 # Measured: after power-on a sensor needs ~1.5 s to settle; finger 1 then varies < ~130
-# (14-bit, per 250 ms) without a finger and swings ~2500-3000 with one. Finger 2's lead
-# picks up spikes of 800-4000 even without a finger, so finger 1 decides for both.
-PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # flash = 2.25 s (amp settles ~1.25 s)
+# (14-bit, per 250 ms) without a finger and swings ~2500-3000 with one.
+# Without a finger both clips also show single events above the limit: a dip in the tail of
+# the power-on transient (clip 1, 891 at 2026-11-14 ~20:40), spikes on finger 2's lead and
+# spikes on both clips at once (800-2700), so the box said "finger detected" every ~17 s with
+# nobody there. A finger swings on every beat, so the swing must be there in two windows in a
+# row (look, then confirm). A single event is in one of them only. With that, either clip can
+# switch the sensors on: a finger in clip 2 alone is found too.
+PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # flash = 3.25 s (amp settles ~1.25 s,
+                                                                 # then look 1 s and confirm 1 s)
 WARMUP_S = 4.0               # after switching on: no readings until the pulse has re-locked
 PRESENCE_RANGE = 800          # max 250 ms range in the look window above this = finger
                               # (measured: no finger 90-445, finger ~1600-3000)
+CONFIRM_RANGE = 500           # ...and in the confirm window above this (above the 445 of no finger)
 LEAVE_AFTER_S = 5.0           # pulse quality below 0.3 this long = hand gone
 presence = {"auto": True, "mode": "active", "since": time.time(), "last_probe_range": None}
 
@@ -730,8 +737,10 @@ def _last_t(ch=0):
     return ppgs[ch][-1][0] if ppgs[ch] else None
 
 
-def _probe_range(t_on):
-    w = [(t, v) for t, v in list(ppgs[0]) if t_on + PROBE_SETTLE_MS <= t < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS]
+def _probe_range(t_on, ch=0, start_ms=PROBE_SETTLE_MS):
+    """largest 250 ms swing of one clip in the window start_ms..start_ms+PROBE_LOOK_MS after t_on;
+    0 when it touched a rail, None with too few samples"""
+    w = [(t, v) for t, v in list(ppgs[ch]) if t_on + start_ms <= t < t_on + start_ms + PROBE_LOOK_MS]
     if len(w) < 20:
         return None
     if any(v < 200 or v > 13500 for _, v in w):
@@ -742,6 +751,14 @@ def _probe_range(t_on):
         best = max(best, max(seg) - min(seg))
         i += max(1, len(seg))
     return best
+
+
+def probe_finger(t_on):
+    """(finger, [(look, confirm) swing per clip]): a clip whose swing is above PRESENCE_RANGE in
+    the look window AND above CONFIRM_RANGE in the confirm window right after it"""
+    swings = [(_probe_range(t_on, c) or 0, _probe_range(t_on, c, PROBE_SETTLE_MS + PROBE_LOOK_MS) or 0)
+              for c in range(CHANNELS)]
+    return any(look > PRESENCE_RANGE and confirm > CONFIRM_RANGE for look, confirm in swings), swings
 
 
 def sensing():
@@ -806,15 +823,16 @@ def presence_loop(stopped):
             presence.update(mode="probing", since=time.time(), t_on=_last_t())
         elif presence["mode"] == "probing":
             t_on = presence.get("t_on") or 0
-            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS:
+            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + 2 * PROBE_LOOK_MS:
                 continue
-            r = _probe_range(t_on)
-            presence["last_probe_range"] = r
-            if r is not None and r > PRESENCE_RANGE:
+            found, swings = probe_finger(t_on)
+            presence["last_probe_range"] = max(look for look, _ in swings)
+            presence["last_probe_swings"] = swings
+            if found:
                 _forget_beats()
                 presence.update(mode="active", since=time.time())
                 weak_since = time.time()       # give the pulse a few seconds to lock
-                print(f"presence: finger detected (range {r}) -> sensors on", flush=True)
+                print(f"presence: finger detected (swing per clip {swings}) -> sensors on", flush=True)
             else:
                 _sensor_power(False)
                 _go_idle()
