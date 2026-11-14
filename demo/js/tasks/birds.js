@@ -106,15 +106,18 @@
           ctx.strokeStyle = rgb(C.silver050, 0.85); ctx.lineWidth = 2.5 * U;
           ctx.beginPath(); ctx.moveTo(b.x + b.w * 0.8, by + 1 * U); ctx.quadraticCurveTo(cx, by + 6 * U, b.x + b.w * 0.15, by - 9 * U); ctx.stroke();
           const c = this.cur;
+          let onBird = null;
           if (c) {
             const p = clamp((at - c.onAt) / 0.22, 0, 1), out = clamp((at - c.onAt - (SHOW - 0.2)) / 0.2, 0, 1);
             const hop = rm() ? 0 : (1 - J.ease.outSoft(p)) * 3 - Math.sin(clamp((at - this.okAt) / 0.3, 0, 1) * Math.PI) * 0.6;
-            bird(ctx, cx + (rm() ? 0 : (1 - J.ease.outSoft(p)) * 60 * U) + out * 80 * U, by - 2 * U - out * 40 * U, 20 * U, KINDS[c.kind], p * (1 - out), at, hop);
+            const x = cx + (rm() ? 0 : (1 - J.ease.outSoft(p)) * 60 * U) + out * 80 * U, y = by - 2 * U - out * 40 * U;
+            bird(ctx, x, y, 20 * U, KINDS[c.kind], p * (1 - out), at, hop);
+            onBird = [x, y - 5 * U, p * (1 - out)]; // the body's centre, and how visible the bird is
             if (at - this.okAt < 0.6) glow(ctx, cx, by - 20 * U, 60 * U, C.glow, 0.5 * (1 - (at - this.okAt) / 0.6));
           }
           K.progress(ctx, b, this.trials.length, Math.max(0, this.i + (c ? 0 : 1)), U);
           const first = this.trials.find(t => t.match);
-          if (c && c === first && c.tap === null && !rm()) tapCue(ctx, cx + 40 * U, by + 40 * U, U, at, 0.85);
+          if (c && c === first && c.tap === null && !rm()) tapCue(ctx, onBird[0], onBird[1], U, at, 0.85 * onBird[2]);
           ctx.restore();
         },
       });

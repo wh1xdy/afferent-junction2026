@@ -8,6 +8,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
+        // Navy (#0D182A, the kaamos surface) behind the web view while it loads, the same as the launch screen and
+        // capacitor.config.json backgroundColor, so a cold start goes navy to navy with no white frame.
+        window?.backgroundColor = UIColor(red: 13 / 255, green: 24 / 255, blue: 42 / 255, alpha: 1)
         window?.rootViewController = AfferentViewController()
         window?.makeKeyAndVisible()
 

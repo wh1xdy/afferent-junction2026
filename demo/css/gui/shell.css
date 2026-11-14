@@ -224,6 +224,8 @@
 .set-group.dev.open .group { display: flex; }
 .set-group.dev.open .dev-toggle .ms { transform: rotate(180deg); }
 .research { margin: 16px 32px 0; }
+/* The version line; 7 taps or a long press on it shows the Developer section (gui/shell.js). Reads as plain text. */
+.app-version { display: block; margin: 4px 24px 0; padding: 4px 8px; min-height: 32px; border: 0; background: none; text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 
 .time-val {
   border: 0; padding: 6px 10px; margin: -6px -10px -6px 0; border-radius: 8px; background: transparent;

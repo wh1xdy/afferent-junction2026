@@ -394,7 +394,9 @@
     if (!P || P.done || L.rt < INTRO) return;
     const t = L.rt - INTRO, show = clamp((t - 0.7) / 0.2, 0, 1) * (P.resp && !P.ghost ? 0 : 1) * (P.resp ? 1 - clamp((L.rt - P.respRt) / 0.3, 0, 1) : 1);
     if (show <= 0) return;
-    const i = P.big === 'left' ? 0 : 1, x = G.hx[i], y = G.gy + 0.04 * G.b.h, press = rm() ? 1 : E.inOut(clamp((t - 0.95) / 0.35, 0, 1));
+    // On the bigger lantern where it hangs right now (it swings in and wobbles), not on a fixed point below it.
+    const ps = pairState(g), l = ps && pairLayout(g, G, ps, at, dipOf(g, G, ps, at)).find(q => q.side === P.big);
+    const x = l ? l.x : G.hx[P.big === 'left' ? 0 : 1], y = l ? l.y : G.gy, press = rm() ? 1 : E.inOut(clamp((t - 0.95) / 0.35, 0, 1));
     touch(ctx, x, y, G.U, show, press);
   };
 
