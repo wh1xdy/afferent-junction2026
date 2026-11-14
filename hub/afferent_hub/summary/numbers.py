@@ -2,13 +2,11 @@ from statistics import mean
 
 from ..analytics.stats import rnd
 
-
 def _feature(analytics, key):
     for f in analytics.get("features") or []:
         if f.get("key") == key:
             return f
     return None
-
 
 def _feature_pair(analytics, key, digits):
     f = _feature(analytics, key)
@@ -19,19 +17,16 @@ def _feature_pair(analytics, key, digits):
     base = rnd((f.get("baseline") or {}).get("median"), digits)
     return now, base
 
-
 def _delta(now, base, digits):
     if now is None or base is None:
         return None
     return round(now - base, digits)
-
 
 def _unwrap_patient(patient):
     patient = patient or {}
     inner = patient.get("patient") if isinstance(patient.get("patient"), dict) else patient
     daily = patient.get("daily") or inner.get("daily") or []
     return inner, daily
-
 
 def _daily_means(daily, lo, hi, getter):
     vals = []
@@ -43,7 +38,6 @@ def _daily_means(daily, lo, hi, getter):
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             vals.append(float(v))
     return mean(vals) if vals else None
-
 
 def _activity(daily, week_start, week_end):
     steps_week = _daily_means(daily, week_start, week_end, lambda d: d.get("steps"))
@@ -66,7 +60,6 @@ def _activity(daily, week_start, week_end):
         out["daily_simulated"] = bool(simulated)
     return out
 
-
 def _top_contributors(composite):
     rows = [c for c in composite.get("contributions") or [] if (c.get("contribution") or 0) > 0]
     rows.sort(key=lambda c: c.get("contribution") or 0, reverse=True)
@@ -75,7 +68,6 @@ def _top_contributors(composite):
          "contribution": rnd(c.get("contribution"), 3)}
         for c in rows[:3]
     ]
-
 
 def _best_calm(bandit):
     calm = (bandit.get("by_mode") or {}).get("calm") or {}
@@ -88,7 +80,6 @@ def _best_calm(bandit):
         "best_calm_n": arm.get("n"),
     }
 
-
 def _pre_post(analytics):
     s = analytics.get("pre_post_summary") or {}
     return {
@@ -97,7 +88,6 @@ def _pre_post(analytics):
         "pre_post_mood_delta_median": rnd(s.get("mood_delta_median"), 1),
         "pre_post_settled_share": rnd(s.get("settled_share"), 2),
     }
-
 
 def summary_numbers(analytics: dict, patient: dict) -> dict:
     analytics = analytics or {}

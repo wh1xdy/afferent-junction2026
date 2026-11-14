@@ -1,16 +1,3 @@
-/*
-  End-to-end live demo test (headless Chrome via playwright-core).
-
-  1. Start the hub:   ./start.sh --reset
-  2. Run the test:    NODE_PATH=<dir with node_modules/playwright-core> node hub/tests/e2e_live_demo.js
-     Options (env):   HUB=http://localhost:8000  CLOCK=morning|night  TIMEOUT_S=240  SHOTS=<dir for screenshots>
-
-  It opens the clinic dashboard and the game (autoplay, ?input=auto) side by side, lets one session
-  play to the end and checks: the session reached the hub as Anna's newest session, the dashboard
-  updated live without a reload, the bedside light changed at dawn, and neither page threw an error.
-  Exit code 0 on pass, 1 on fail. The session stays in the database; reset with
-  curl -X POST localhost:8000/api/demo/reset
-*/
 const { chromium } = require('playwright-core');
 
 const HUB = (process.env.HUB || 'http://localhost:8000').replace(/\/$/, '');

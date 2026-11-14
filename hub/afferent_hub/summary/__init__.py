@@ -11,10 +11,8 @@ DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no adv
 _cache: dict[tuple[str, str], dict] = {}
 checks: list = []
 
-
 def _key(patient_id, numbers):
     return patient_id, hashlib.sha256(json.dumps(numbers, sort_keys=True).encode()).hexdigest()
-
 
 def _gemma(numbers):
     if os.environ.get("AFFERENT_SUMMARY", "").lower() == "template":
@@ -31,7 +29,6 @@ def _gemma(numbers):
     if reason:
         return None, model, f"rejected: {reason}"
     return text, model, None
-
 
 def weekly_summary(analytics: dict, patient: dict, refresh: bool = False) -> dict:
     numbers = summary_numbers(analytics, patient)
@@ -62,10 +59,8 @@ def weekly_summary(analytics: dict, patient: dict, refresh: bool = False) -> dic
         _cache[key] = result
     return dict(result)
 
-
 def clear_cache() -> None:
     _cache.clear()
     ollama.reset()
-
 
 __all__ = ["weekly_summary", "summary_numbers", "clear_cache", "checks", "DISCLAIMER"]

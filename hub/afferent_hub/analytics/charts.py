@@ -13,7 +13,6 @@ STATE = {"stable": "#4FC3D9", "watch": "#FFD27A", "check_in": "#F2B544", "booste
 STATE_LABEL = {"watch": "Watch", "check_in": "Check-in call", "booster": "Booster discussion"}
 FONT = "Inter, system-ui, -apple-system, Segoe UI, sans-serif"
 
-
 class Svg:
     def __init__(self, w, h, title):
         self.w, self.h = w, h
@@ -36,7 +35,6 @@ class Svg:
 
     def render(self):
         return "\n".join(self.parts + ["</svg>"]) + "\n"
-
 
 class Panel:
     def __init__(self, svg, x, y, w, h, xmin, xmax, ymin, ymax):
@@ -105,20 +103,17 @@ class Panel:
         self.svg.line(self.x, self.py(v), self.x + self.w, self.py(v), color, 1, "4 4")
         self.svg.text(self.x + self.w - 4, self.py(v) - 5, label, 11, color, "end")
 
-
 def header(svg, title, subtitle):
     svg.text(28, 38, title, 17, TEXT, weight=600)
     svg.text(28, 60, subtitle, 12, MUTED)
     svg.add(f'<rect x="{svg.w - 128}" y="22" width="100" height="22" rx="11" fill="rgba(183,156,255,0.14)"/>')
     svg.text(svg.w - 78, 37, "SIMULATED", 11, "#B79CFF", "middle", 600, 'letter-spacing="1"')
 
-
 def legend(svg, x, y, items):
     for label, color in items:
         svg.add(f'<rect x="{x}" y="{y - 9}" width="14" height="4" rx="2" fill="{color}"/>')
         svg.text(x + 20, y - 3, label, 12, MUTED)
         x += 28 + 7 * len(label)
-
 
 def patient_example(ex: dict, pid: str, name: str, thresholds: dict) -> str:
     days = ex["days"]
@@ -162,7 +157,6 @@ def patient_example(ex: dict, pid: str, name: str, thresholds: dict) -> str:
     svg.text(bot.x + bot.w, y + 30, "day since TMS end", 11, FAINT, "end")
     return svg.render()
 
-
 def cohort_bands(curves: dict, onset: int) -> str:
     days = curves["days"]
     svg = Svg(880, 380, "Composite index across 50 simulated relapse and 50 stable patients")
@@ -180,7 +174,6 @@ def cohort_bands(curves: dict, onset: int) -> str:
     svg.text(p.px(last) + 4, p.py(curves["stable_composite"]["median"][-1]) + 4, "stable", 12, TEXT)
     legend(svg, 70, 364, [("relapse (onset day 28)", RELAPSE), ("stable control", STABLE)])
     return svg.render()
-
 
 def lead_times(composite: list, mood: list) -> str:
     svg = Svg(880, 300, "Days from relapse onset to the first check-in suggestion")
@@ -207,7 +200,6 @@ def lead_times(composite: list, mood: list) -> str:
         if missing:
             svg.text(p.x + p.w, cy - 22, f"{missing} not flagged by day 55", 11, MUTED, "end")
     return svg.render()
-
 
 def bandit_curve(curves: dict, anna: dict) -> str:
     xs = curves["bandit_sessions"]

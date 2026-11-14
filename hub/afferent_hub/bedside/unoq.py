@@ -8,7 +8,6 @@ from .source import OnEvent
 
 log = logging.getLogger("afferent.bedside")
 
-
 class UnoQSerial:
     name = "unoq"
 

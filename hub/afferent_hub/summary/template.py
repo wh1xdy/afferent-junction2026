@@ -6,17 +6,14 @@ def _num(v, d):
         return "0"
     return s
 
-
 def _signed(v, d):
     s = _num(v, d)
     if s is None or s == "0" or s.startswith("-"):
         return s
     return "+" + s
 
-
 def _pct(v):
     return f"{round(v * 100)}%"
-
 
 def _lc(label):
     label = str(label or "")
@@ -24,17 +21,14 @@ def _lc(label):
         return label[0].lower() + label[1:]
     return label
 
-
 def _join(parts):
     if len(parts) <= 1:
         return "".join(parts)
     return ", ".join(parts[:-1]) + " and " + parts[-1]
 
-
 def _lead(n):
     name = n["display_name"] + (" (simulated)" if n.get("simulated") else "")
     return f"{name}, week {n['week_since_tms']} after TMS, days {n['week_start_day']} to {n['week_end_day']}."
-
 
 def _status(n):
     status = f"Status: {_lc(n.get('state_label') or 'Stable')}"
@@ -61,14 +55,12 @@ def _status(n):
             index += f" ({'up' if trend > 0 else 'down'} {_num(abs(trend), 2)} over 7 days)"
     return f"{status}, with {_join([index] + tail)}."
 
-
 def _contributors(n):
     top = n.get("top_contributors") or []
     if not top:
         return "No feature is above the personal baseline this week."
     parts = [f"{_lc(c['label'])} ({_signed(c['signed_z'], 1)})" for c in top if c.get("signed_z") is not None]
     return f"Largest contributors, in z against the personal baseline: {_join(parts)}."
-
 
 def _everyday(n):
     parts = []
@@ -86,7 +78,6 @@ def _everyday(n):
     if n.get("daily_simulated") and not n.get("simulated"):
         label += " (simulated)"
     return f"{label}: {_join(parts)}."
-
 
 def _sessions(n):
     played, missed = n.get("sessions_7d"), n.get("missed_7d")
@@ -109,7 +100,6 @@ def _sessions(n):
     scope = f"across the last {count} played sessions" if count else "across recent sessions"
     return f"{head}; {scope} {_join(parts)}."
 
-
 def _bandit(n):
     task = n.get("best_calm_task")
     if not task:
@@ -121,7 +111,6 @@ def _bandit(n):
         detail.append(f"P(best) {_num(n['best_calm_p_best'], 2)}")
     tail = f" ({', '.join(detail)})" if detail else ""
     return f"In calm sessions, {task} was most often followed by a settling pulse{tail}."
-
 
 def render(numbers: dict) -> str:
     parts = [_lead(numbers), _status(numbers), _contributors(numbers), _everyday(numbers),

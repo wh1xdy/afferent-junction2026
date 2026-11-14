@@ -17,7 +17,6 @@ _NUMBER = re.compile(r"(?<![\w.])[-+\u2212]?\d+(?:\.\d+)?")
 _THOUSANDS = re.compile(r"(?<=\d),(?=\d{3}\b)")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z(])")
 
-
 def _collect(value, out):
     if isinstance(value, bool) or value is None:
         return
@@ -32,7 +31,6 @@ def _collect(value, out):
         for v in value:
             _collect(v, out)
 
-
 def allowed_numbers(numbers: dict) -> set[float]:
     raw = []
     _collect(numbers, raw)
@@ -44,16 +42,13 @@ def allowed_numbers(numbers: dict) -> set[float]:
             allowed.add(round(a * 100, d))
     return allowed
 
-
 def extract_numbers(text: str) -> list[float]:
     clean = _THOUSANDS.sub("", text)
     return [abs(float(m.replace("\u2212", "-"))) for m in _NUMBER.findall(clean)]
 
-
 def untraceable_numbers(text: str, numbers: dict) -> list[float]:
     allowed = allowed_numbers(numbers)
     return [x for x in extract_numbers(text) if not any(abs(x - a) < 1e-9 for a in allowed)]
-
 
 def forbidden_phrases(text: str) -> list[str]:
     low = text.lower()
@@ -62,10 +57,8 @@ def forbidden_phrases(text: str) -> list[str]:
         found.append("112")
     return found
 
-
 def sentences(text: str) -> list[str]:
     return [s for s in _SENTENCE_END.split(text.strip()) if s]
-
 
 def normalize(text: str) -> str:
     text = (text or "").strip()
@@ -77,7 +70,6 @@ def normalize(text: str) -> str:
     if text.startswith('"') and text.endswith('"'):
         text = text[1:-1].strip()
     return text
-
 
 def check(text: str, numbers: dict) -> str | None:
     if not text:

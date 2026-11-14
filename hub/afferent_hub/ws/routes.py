@@ -9,7 +9,6 @@ from .manager import Client
 log = logging.getLogger("afferent.ws")
 router = APIRouter()
 
-
 async def _loop(ws: WebSocket, client: Client, handle):
     hub = ws.app.state.hub
     try:
@@ -32,7 +31,6 @@ async def _loop(ws: WebSocket, client: Client, handle):
     finally:
         hub.rooms.remove(client)
 
-
 @router.websocket("/ws/app")
 async def ws_app(ws: WebSocket):
     await ws.accept()
@@ -43,7 +41,6 @@ async def ws_app(ws: WebSocket):
         await _loop(ws, client, hub.handle_app)
     finally:
         await hub.app_closed(client)
-
 
 @router.websocket("/ws/clinic")
 async def ws_clinic(ws: WebSocket):
@@ -59,7 +56,6 @@ async def ws_clinic(ws: WebSocket):
             await hub.rooms.send(c, {"type": "pong"})
 
     await _loop(ws, client, handle)
-
 
 @router.websocket("/ws/bedside")
 async def ws_bedside(ws: WebSocket):

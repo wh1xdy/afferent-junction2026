@@ -1,4 +1,3 @@
-// Run: node demo/tests/skill.test.js
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');

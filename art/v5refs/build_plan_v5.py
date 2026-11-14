@@ -60,50 +60,40 @@ KEEPER_ID = {"path": E + "d2_keeper_26sunburst_refs_v1.png",
                      "texture, the egg-round hood seen in strict profile with only a thin dark crescent at its right edge, the two hem "
                      "stripes, the mitten and the small dark iron ring-handle lantern. Change only the pose."}
 
-
 def style(path, what="rendering"):
     return {"path": path, "role": f"style reference, an approved concept plate. Take only the {what}: soft matte shapes, smooth "
                                   "gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its "
                                   "composition, sky, landscape, characters or night lighting."}
 
-
 def layout(path, what):
     return {"path": path, "role": f"layout reference only, the current in-game asset that this image replaces. Match its footprint, "
                                   f"aspect and placement of parts ({what}). Ignore its style, colours and rendering entirely."}
 
-
 def ref(path, role):
     return {"path": path, "role": role}
 
-
 def sprite(asset, subject, framing, extra_avoid="", lead=LEAD):
     return "\n\n".join([lead, "ASSET: " + asset, "SUBJECT: " + subject, framing, RENDER, LIGHT, AVOID + extra_avoid])
-
 
 def plate(asset, subject, framing, light):
     return "\n\n".join([LEAD, "ASSET: " + asset, "SUBJECT: " + subject, framing, RENDER_PLATE,
                         "LIGHT AND COLOUR: " + light + " " + LIGHT_PLATE_RULE, AVOID_PLATE])
 
-
 GAME = "for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night"
 CUT = "It is cut out on a fully transparent background and placed over a painted landscape in code."
 STRIP_CUT = "Cut out on a fully transparent background; the game tiles copies side by side and scrolls them in parallax."
-
 
 def tiling(band):
     return (f"TILING: The band runs off the left and right image borders; both ends are cut straight and vertically by the borders at "
             f"exactly the same heights, so the right end continues seamlessly into the left end of the next copy. {band} Everything above "
             f"the band is empty transparent space.")
 
-
 ASSETS = []
-
 
 def add(batch, rank, prio, name, size, transparent, refs, prompt, use, checks, final_edge, why, step=1, n=3, quality="xhigh"):
     ASSETS.append(dict(name=name, batch=batch, step=step, rank=rank, prio=prio, model=MODEL, size=size, quality=quality, n=n,
                        transparent=transparent, raw=True, refs=refs, prompt=prompt, code_use=use, checks=checks,
                        final_max_edge=final_edge, why=why))
-
 
 GROUND_BODY = ("Directly under the snow crust the cut edge of the ground is laminated like bent birch plywood: three thin, even, parallel "
                "layers that follow the top curve exactly, in birch white #F2EEE6, birch ply #E2C79C and ply edge #B48E5C. Below the "
@@ -313,7 +303,6 @@ for name, size, rank, prio, r1, subj, keep in PROPS:
         "world.js prop", ["no lit window or lamp painted", "no red or coral"], 1024,
         "Props must share the Keeper's rendering; old versions are vector-flat or carry coral")
 
-
 def task(name, rank, prio, size, transparent, refs, asset, subj, framing, use, checks, edge, why, extra_avoid=""):
     add("b3_tasks", rank, prio, name, size, transparent, refs,
         sprite(f"{asset} for a task that opens in an arch window (the Opening) in {GAME[4:]}. {CUT if transparent else ''}".strip(),
@@ -321,7 +310,6 @@ def task(name, rank, prio, size, transparent, refs, asset, subj, framing, use, c
         plate(asset + f" for a task that opens in an arch window in {GAME[4:]}. It fills its frame edge to edge.", subj, framing,
               "Painted light is allowed here but stays soft."),
         use, checks, edge, why)
-
 
 TCUR = TASK
 task("task_beacon_lighthouse", 1, "A", "1024x1664", True,
@@ -613,11 +601,9 @@ BATCHES = {
     "b4_backdrops_keyart": "Backdrops and pitch key art",
 }
 
-
 def est(a):
     w, h = map(int, a["size"].split("x"))
     return round(a["n"] * (0.125 * w * h / 2**20 + 0.012 * len(a["refs"])), 2)
-
 
 plan = {
     "name": "v5 production set (Layers of Light, gpt-image-2.6-sunburst)",

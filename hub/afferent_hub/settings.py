@@ -5,7 +5,6 @@ from pathlib import Path
 HUB = Path(__file__).resolve().parents[1]
 ROOT = HUB.parent
 
-
 @dataclass
 class Settings:
     db: str = str(HUB / "data" / "afferent.db")

@@ -27,7 +27,6 @@ SUGGESTIONS = {
 SEVERITY = {"stable": 0, "watch": 1, "check_in": 2, "booster": 3}
 DEFAULT_PULSE = 68.0
 
-
 def score(sessions: list[dict], daily: list[dict], now_day: int, params: dict = PARAMS) -> dict:
     now_day = max(int(now_day), 0)
     n = now_day + 1
@@ -66,7 +65,6 @@ def score(sessions: list[dict], daily: list[dict], now_day: int, params: dict = 
     return {"now_day": now_day, "extract": ex, "features": feats, "composite": composite,
             "completeness": completeness, "contrib": contrib, "cusum": cus, "states": states}
 
-
 def infer_day0(sessions: list[dict], daily: list[dict]) -> dt.date | None:
     for r in daily:
         if r.get("date") and r.get("day_index") is not None:
@@ -79,10 +77,8 @@ def infer_day0(sessions: list[dict], daily: list[dict]) -> dt.date | None:
                 continue
     return None
 
-
 def day_date(day0, d):
     return (day0 + dt.timedelta(days=d)).isoformat() if day0 else None
-
 
 def director(sessions: list[dict], now_day: int) -> dict:
     ordered = sorted((s for s in sessions if s.get("status") in PLAYED and (s.get("day_index") or 0) <= now_day),
@@ -101,11 +97,9 @@ def director(sessions: list[dict], now_day: int) -> dict:
             for k in ("eye_openness", "head_pitch_deg", "blink_rate_per_min")}
     return {"baseline_pulse_bpm": stats.rnd(pulse, 1), "rest_baseline": rest}
 
-
 def pp_pair(pp: dict | None, key: str, nd: int) -> dict:
     p = (pp or {}).get(key) or {}
     return {k: stats.rnd(p.get(k), nd) for k in ("start", "end", "delta")}
-
 
 def pre_post(sessions: list[dict], now_day: int, day0) -> tuple[list, dict]:
     ordered = sorted((s for s in sessions if s.get("status") in PLAYED and s.get("day_index") is not None
@@ -126,7 +120,6 @@ def pre_post(sessions: list[dict], now_day: int, day0) -> tuple[list, dict]:
                "settled_share": stats.rnd(sum(1 for p in pulse if p <= -2) / len(pulse), 2) if pulse else None}
     return rows, summary
 
-
 def cusum_block(sc: dict, day0, params: dict) -> dict:
     states, cus = sc["states"], sc["cusum"]
     now = sc["now_day"]
@@ -142,7 +135,6 @@ def cusum_block(sc: dict, day0, params: dict) -> dict:
             "state": states[now], "state_label": STATE_LABELS[states[now]], "since_day": history[-1]["day"],
             "first_watch_day": first["watch"], "first_check_in_day": first["check_in"],
             "first_booster_day": first["booster"], "history": history}
-
 
 def feature_blocks(sc: dict, now_day: int) -> list[dict]:
     out = []
@@ -168,7 +160,6 @@ def feature_blocks(sc: dict, now_day: int) -> list[dict]:
         })
     return out
 
-
 def composite_block(sc: dict, now_day: int, params: dict) -> dict:
     comp = sc["composite"]
     value = comp[now_day]
@@ -193,7 +184,6 @@ def composite_block(sc: dict, now_day: int, params: dict) -> dict:
             "completeness": stats.rnd(compl, 2), "confidence": confidence,
             "n_features": sum(1 for r in rows if r["contribution"] is not None), "n_features_total": len(FEATURES)}
 
-
 def completeness_block(sc: dict, now_day: int) -> dict:
     ex = sc["extract"]
     lo = max(0, now_day - 6)
@@ -204,7 +194,6 @@ def completeness_block(sc: dict, now_day: int) -> dict:
                   for f in sc["features"]}
     return {"overall": stats.rnd(sc["completeness"][now_day], 2), "sessions_7d": sessions_7d, "days_7d": days_7d,
             "missed_7d": missed_7d, "by_feature": by_feature}
-
 
 def timeline_block(sc: dict, now_day: int, day0) -> dict:
     ex = sc["extract"]
@@ -227,7 +216,6 @@ def timeline_block(sc: dict, now_day: int, day0) -> dict:
         **{k: [stats.rnd(v, 3) for v in series] for k, series in ctx.items()},
         "live_days": live_days,
     }
-
 
 def analyze_patient(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
     sessions = [s for s in sessions or [] if isinstance(s, dict)]

@@ -13,14 +13,12 @@ STATES = ("stable", "watch", "check_in", "booster")
 SHOWN_TIERS = ("low", "moderate", "high", "incomplete", "not_answered")
 FEATURE_KEYS = [f["key"] for f in FEATURES]
 
-
 def _minute(iso: str | None) -> int | None:
     try:
         t = dt.datetime.fromisoformat(iso)
     except (TypeError, ValueError):
         return None
     return t.hour * 60 + t.minute
-
 
 def phq_baseline(patient: dict, history: list[dict]) -> tuple[int | None, str, list[dict]]:
     pb = patient.get("phq_baseline") if isinstance(patient.get("phq_baseline"), dict) else {}
@@ -29,7 +27,6 @@ def phq_baseline(patient: dict, history: list[dict]) -> tuple[int | None, str, l
     if not history:
         return None, "app", history
     return history[0]["total"], "app", history[1:]
-
 
 def phq_state(base: int | None, totals: list[int]) -> str | None:
     if base is None or not totals:
@@ -45,10 +42,8 @@ def phq_state(base: int | None, totals: list[int]) -> str | None:
         return "watch"
     return "stable"
 
-
 def _rank(state: str | None) -> int:
     return STATES.index(state) if state in STATES else -1
-
 
 def _phq(patient: dict, checkins: list[dict], nd: int) -> tuple[dict, str | None, int | None, int]:
     block = views.phq_block(patient, checkins, nd)
@@ -66,7 +61,6 @@ def _phq(patient: dict, checkins: list[dict], nd: int) -> tuple[dict, str | None
     return ({"baseline": base, "baseline_source": source, "history": history, "overdue": block["overdue"],
              "last_status": status}, state, state_day, len(full) - len(history))
 
-
 def _safety(checkins: list[dict], nd: int) -> tuple[list[dict], int]:
     out = []
     for c in checkins:
@@ -82,7 +76,6 @@ def _safety(checkins: list[dict], nd: int) -> tuple[list[dict], int]:
     kept = [{k: v for k, v in e.items() if k != "_t"} for e in out[:CAPS["safety"]]]
     return kept, len(out) - len(kept)
 
-
 def _talk(patient: dict, flags: list[dict], lo: int, hi: int) -> tuple[list[dict], int]:
     out = []
     for f in flags:
@@ -97,7 +90,6 @@ def _talk(patient: dict, flags: list[dict], lo: int, hi: int) -> tuple[list[dict
     out.sort(key=lambda e: e["_t"], reverse=True)
     kept = [{"day": e["day"], "minute": e["minute"]} for e in out[:CAPS["talk"]]]
     return kept, len(out) - len(kept)
-
 
 def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict,
           checkins: list[dict], flags: list[dict]) -> dict:

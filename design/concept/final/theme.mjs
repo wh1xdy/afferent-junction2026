@@ -1,4 +1,3 @@
-// Usage: MCU=/path/to/@material/material-color-utilities/index.js node theme.mjs theme.json
 import fs from 'fs';
 const { Hct, TonalPalette, hexFromArgb, argbFromHex } = await import(process.env.MCU);
 const H = h => Hct.fromInt(argbFromHex(h));

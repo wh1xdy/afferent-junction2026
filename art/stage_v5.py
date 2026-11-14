@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pillow"]
-# ///
 import argparse
 import json
 import pathlib
@@ -9,7 +5,6 @@ import pathlib
 from PIL import Image
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-
 
 def finalise(src, current, clamp=True):
     im = Image.open(src).convert("RGBA")
@@ -26,7 +21,6 @@ def finalise(src, current, clamp=True):
         s = edge / max(im.size)
         im = im.resize((max(1, round(im.width * s)), max(1, round(im.height * s))), Image.LANCZOS)
     return im
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

@@ -5,12 +5,10 @@ READ = ("info", "metrics", "latest", "samples", "series", "daily", "stats", "tre
 ROOM = {"env.temperature_c": "temp_c_mean", "env.humidity_pct": "humidity_pct"}
 FINGERS = ("modulino-hub/finger1", "modulino-hub/finger2")
 
-
 class SensorError(Exception):
     def __init__(self, msg: str, status: int | None = None):
         super().__init__(msg)
         self.status = status
-
 
 class SensorSource:
     def __init__(self, url: str, token: str | None = None):

@@ -8,19 +8,15 @@ from .loader import TEAM
 
 MANIFEST = TEAM / "manifest.json"
 
-
 def blob_id(data: bytes) -> str:
     return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
-
 
 def entries(module: str | None = None) -> list[dict]:
     rows = json.loads(MANIFEST.read_text())
     return [r for r in rows if module is None or r["path"].split("/")[0] == module]
 
-
 def _git(*args) -> bytes:
     return subprocess.run(["git", *args], cwd=TEAM, check=True, capture_output=True).stdout
-
 
 def resync(module: str | None = None) -> list[str]:
     rows, changed = json.loads(MANIFEST.read_text()), []
@@ -38,7 +34,6 @@ def resync(module: str | None = None) -> list[str]:
         r["blob"] = blob_id(data)
     MANIFEST.write_text(json.dumps(rows, indent=1) + "\n")
     return changed
-
 
 if __name__ == "__main__":
     for path in resync(sys.argv[1] if len(sys.argv) > 1 else None):

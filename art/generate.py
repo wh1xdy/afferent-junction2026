@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pillow"]
-# ///
 import argparse
 import base64
 import concurrent.futures
@@ -42,21 +38,17 @@ ISOLATED = (
 )
 BACKDROP = "Full-bleed painting that fills the entire frame edge to edge, no frame, no border, no vignette."
 
-
 def load_key():
     for line in (ROOT / ".env").read_text().splitlines():
         if line.startswith("OPENAI_API_KEY="):
             return line.split("=", 1)[1].strip().strip('"').strip("'")
     sys.exit("OPENAI_API_KEY not found in .env")
 
-
 def redact(text):
     return re.sub(r"sk-[A-Za-z0-9_\-*.]+", "sk-[redacted]", text)
 
-
 def legacy(model):
     return model in LEGACY
-
 
 def size_ok(model, size):
     if legacy(model):
@@ -67,10 +59,8 @@ def size_ok(model, size):
     w, h = int(m[1]), int(m[2])
     return w % 16 == 0 and h % 16 == 0 and max(w, h) <= 3840 and max(w, h) <= 3 * min(w, h) and 655360 <= w * h <= 8294400
 
-
 def refs_of(raw):
     return [r if isinstance(r, dict) else {"path": r} for r in raw or []]
-
 
 def load_assets(plan_path):
     if not plan_path.exists():
@@ -94,7 +84,6 @@ def load_assets(plan_path):
     ]
     return style, suffix, layout, assets
 
-
 def build_prompt(a, style, suffix, layout):
     refs = [f"Image {i + 1}: {r['role']}" for i, r in enumerate(a["refs"]) if r.get("role")]
     if a.get("raw"):
@@ -104,7 +93,6 @@ def build_prompt(a, style, suffix, layout):
     else:
         body = [f"{style} {suffix} {a['prompt']}"]
     return "\n\n".join(([("REFERENCE IMAGES:\n" + "\n".join(refs))] if refs else []) + body)
-
 
 @contextlib.contextmanager
 def locked():
@@ -116,10 +104,8 @@ def locked():
         finally:
             fcntl.flock(fh, fcntl.LOCK_UN)
 
-
 def read_ledger():
     return json.loads(LEDGER.read_text()) if LEDGER.exists() else {"total_usd": 0.0, "calls": []}
-
 
 def record(entry):
     with locked():
@@ -132,11 +118,9 @@ def record(entry):
         tmp.replace(LEDGER)
         return led["total_usd"]
 
-
 def spent():
     with locked():
         return read_ledger()["total_usd"]
-
 
 def cost(usage, size, quality, model=MODEL, n=1):
     old = legacy(model)
@@ -155,10 +139,8 @@ def cost(usage, size, quality, model=MODEL, n=1):
     image_in = details.get("image_tokens", 0)
     return max(floor, text_in * price["text_in"] + image_in * price["image_in"] + usage.get("output_tokens", 0) * price["image_out"])
 
-
 class BillingError(Exception):
     pass
-
 
 def multipart(fields, files):
     boundary = uuid.uuid4().hex
@@ -174,7 +156,6 @@ def multipart(fields, files):
         ]
     out.append(f"--{boundary}--\r\n".encode())
     return b"".join(out), f"multipart/form-data; boundary={boundary}"
-
 
 def post(key, endpoint, data, ctype):
     for attempt in range(5):
@@ -198,7 +179,6 @@ def post(key, endpoint, data, ctype):
                 continue
             raise RuntimeError(f"HTTP {e.code} {code or etype}: {msg}")
 
-
 def generate(key, prompt, asset, quality, model, n=1):
     fields = {
         "model": model,
@@ -221,10 +201,8 @@ def generate(key, prompt, asset, quality, model, n=1):
     imgs = [base64.b64decode(d["b64_json"]) for d in data["data"]]
     return imgs, cost(data.get("usage"), asset["size"], quality, model, len(imgs))
 
-
 def outputs(out, a, n):
     return [out / f"{a['name']}.png"] if n == 1 else [out / f"{a['name']}_v{i + 1}.png" for i in range(n)]
-
 
 def contact_sheet(paths, dest, cell=360, cols=4):
     try:
@@ -257,7 +235,6 @@ def contact_sheet(paths, dest, cell=360, cols=4):
     dest.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(dest)
     print(f"sheet  {dest.relative_to(ROOT) if dest.is_relative_to(ROOT) else dest}  ({len(paths)} images)")
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -350,7 +327,6 @@ def main():
     if "billing" in results:
         print("stopped, no retry")
         sys.exit(2)
-
 
 if __name__ == "__main__":
     main()

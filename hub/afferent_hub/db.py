@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS analytics_cache (patient_id TEXT PRIMARY KEY, json TE
 
 TABLES = ("patients", "sessions", "daily", "privacy", "flags", "checkins", "analytics_cache")
 
-
 class Store:
     def __init__(self, path: str | Path):
         self.path = str(path)
