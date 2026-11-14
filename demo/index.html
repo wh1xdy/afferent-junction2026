@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="css/tasks/loyly.css">
   <link rel="stylesheet" href="css/tasks/breath.css">
   <link rel="stylesheet" href="css/vitals.css">
+  <link rel="stylesheet" href="css/livevitals.css">
   <link rel="stylesheet" href="css/ba.css">
   <link rel="stylesheet" href="css/splash.css">
   <link rel="stylesheet" href="css/gui/column.css">
@@ -46,6 +47,24 @@
       <span id="liveChip" class="live-chip hidden"></span>
       <p id="breathLine" class="breath-line"><span id="breathMain"></span><span id="breathSub" class="sub"></span></p>
       <span id="cue" class="cue" aria-live="polite"></span>
+      <p id="lvChip" class="lv-chip" role="status"></p>
+      <aside id="liveVitals" class="live-vitals" aria-label="Live vitals">
+        <p class="lv-title">Live vitals</p>
+        <div class="lv-grid">
+          <span class="lv-k"><span class="ms fill lv-heart" aria-hidden="true">favorite</span>Pulse</span>
+          <span class="lv-k">HRV</span>
+          <span class="lv-k">Breathing</span>
+          <span class="lv-v" data-k="pulse"></span>
+          <span class="lv-v" data-k="hrv"></span>
+          <span class="lv-v" data-k="breathing"></span>
+          <span class="lv-sim">Simulated</span>
+        </div>
+        <p class="lv-state"><span class="lv-dot" aria-hidden="true"></span><span class="lv-label"></span></p>
+        <p class="lv-why"></p>
+        <div class="lv-calm"><span class="lv-k">Calm response</span><span class="lv-bar"><span class="lv-fill"></span></span></div>
+        <p class="lv-music lv-extra"></p>
+        <p class="lv-room lv-extra"></p>
+      </aside>
       <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
 
       <div id="start" class="screen start fade">
@@ -296,6 +315,7 @@
   <script src="js/voice-config.js"></script>
   <script src="js/voice.js"></script>
   <script src="js/vitals.js"></script>
+  <script src="js/livevitals.js"></script>
   <script src="js/main.js"></script>
   <script src="js/splash.js"></script>
 </body>
