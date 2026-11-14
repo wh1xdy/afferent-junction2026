@@ -151,7 +151,11 @@
           for (const f of this.flies) {
             if (f.state !== 'air' || now < f.t0) continue;
             const p = this.pos(f, now);
-            if (!f.frost && !f.graded && p.phase === 2 && p.hf < f.band) { f.graded = true; this.rt?.lapse(f); this.grade(f, 'miss'); }
+            if (!f.frost && !f.graded && p.phase === 2 && p.hf < f.band) {
+              f.graded = true; this.rt?.lapse(f); this.grade(f, 'miss');
+              const b = this.box();
+              J.verdict('miss', b.x + p.u * b.w, b.y + p.v * b.h, f.r * b.w + 8 * unit(b));
+            }
             if (!f.frost && p.hf >= f.band) { open = true; if (!f.graded && R() < dt * 9) { const b = this.box(); fx.trailMote(b.x + p.u * b.w, b.y + p.v * b.h, this.pal().fly, { life: 0.45, size: [1.8, 0.4], vy: -8 }); } }
             if (p.phase === 2 && p.hf < -0.15) { f.state = 'gone'; if (!f.frost) this.reserve++; }
           }
@@ -223,6 +227,7 @@
           const s = this.stroke;
           this.log.gestures++;
           if (!s.catches) this.errors++;
+          if (!s.catches && this.head) J.verdict('wrong', this.head.x, this.head.y, 16 * unit(this.box()));
           if (s.dim) this.log.passes_dim++;
           this.log.multi_max = Math.max(this.log.multi_max, s.catches);
           sfx('ff_whoosh', { len: s.len });
@@ -250,6 +255,7 @@
           this.log.frost_touches++;
           this.chillAt = J.at;
           fx.snow(x, y, 8, C.silver100);
+          J.verdict('wrong', x, y, f.r * this.box().w + 8 * unit(this.box()));
           fx.burst(x, y, 5, C.ice, 90, { kind: 'mote', life: 0.4, size: [2, 0.6] });
           if (!this.stroke.frost) { this.stroke.frost = true; this.tier = A.Skill?.drop(ID) ?? Math.max(0, this.tier - 1); hap('miss'); }
           sfx('ff_frost');
@@ -267,6 +273,7 @@
           this.log.apex.push((t - f.ta) * 1000);
           if (s.catches === 3) this.bumpTier(grade);
           const res = this.grade(f, grade);
+          J.verdict('right', x, y, f.r * this.box().w + 8 * U);
           const fever = J.at < this.feverUntil, big = (fever ? 1.3 : 1) * (grade === 'perfect' ? 1.25 : 1);
           const nSp = grade === 'barely' ? 5 : 10 + Math.min(2, s.catches - 1);
           const pf = pal.dark ? C.amberDeep : pal.fly;

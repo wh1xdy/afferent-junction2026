@@ -74,8 +74,10 @@
             this.syncTaps.push(t);
             if (!this.syncTaps.some((x, k) => k < this.syncTaps.length - 1 && Math.round((x - this.beatAt(0)) / P) === i)) this.asyn.push(t - this.beatAt(i));
             this.wave('tap'); hap('touch'); sfx('drips_tap');
+            const p = this.pool(); if (p) J.verdict('ok', p.x, p.y, p.rx * 0.45);
           } else {
             this.contTaps.push(t);
+            const p = this.pool(); if (p) J.verdict('ok', p.x, p.y, p.rx * 0.45);
             this.wave('tap'); hap('touch'); sfx('drips_tap', { i: this.contTaps.length });
             J.border((NSYNC + this.contTaps.length) / (NSYNC + NCONT));
             this.sync();

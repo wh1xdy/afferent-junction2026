@@ -262,7 +262,7 @@ The two finger clips on the UNO Q feed the app with pulse, per-finger pulse, bre
 - Phone, direct: the `AfferentFinger` plugin (iOS and Android, same calls and events) reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading; RMSSD byte `255` = above 254 ms, shown as no reading).
 - Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone only.
 
-Nothing live goes to the clinic. The patient hands data over in person (signed QR code, printed report or file). The Jetson hub (`jetson/hub`, above) stores the finger readings for the patient's own report and serves only the patient.
+Nothing live goes to the clinic. The patient hands data over in person (a code that links to their dashboard, a printed code or a file; see "Show to my doctor" below). The Jetson hub (`jetson/hub`, above) stores the finger readings for the patient's own report and serves only the patient.
 
 Rules, the same on both paths:
 
@@ -286,19 +286,31 @@ What the app claims matches the hardware: the "pulse stone" is the two finger cl
 
 Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`). Off unless the patient turns it on. The bedside unit heard over Bluetooth means home; its silence means "could not look", so leaving home is only decided when the saved home Wi-Fi (two devices or more) is gone too. Learning who is usually around counts watched time only: app open and Bluetooth on.
 
+### Show to my doctor: a link to the dashboard
+
+The code the patient shows is a link to their dashboard, not the numbers themselves. Nothing goes to a clinician by itself: the patient chooses to show the code.
+
+- The phone builds the same dashboard as the Share tab (`demo/js/qrexport.js`, `demo/js/dashboard_gen.js`) and locks it on the phone (`demo/js/handover.js`): AES-GCM under a fresh random 256-bit key. Only the locked bytes go to the voice relay (`POST /share`, with the relay's access code). The code holds `https://<relay>/d/<id>#<key>`. A browser never sends what follows `#`, so the relay never sees the key or anything it could read.
+- The doctor's browser opens the viewer at `/d/<id>` (`voice-relay/viewer.html`), fetches the locked bytes, unlocks them there and shows the dashboard in a sandboxed frame (scripts only, no same origin, no other sites). A wrong or cut key, an ended link and a link taken back each get a plain message.
+- A link lasts 7 days. The patient can take it back from the code view or from Settings (Export to your clinic), with the revoke token the relay gave at upload; the key itself is never stored.
+- No relay set up or reachable: the paired home hub publishes the dashboard (`/api/export/publish`) and the code holds its `/shared/<id>` address, labelled "On this network only". It opens without the hub token, for 7 days or until the next publish, sandboxed in its own origin; the pairing token is never in the link. A hub from before this answers only `/api/export/dashboard`, which needs the token. With neither, the sheet offers Save file and the Share sheet.
+- The relay address and code are the voice companion's (`demo/js/voice-config.js`, `npm run voiceconfig`, or typed on the phone). The relay keeps shares in memory (deploy with one instance, see `voice-relay/README.md`).
+- The phone no longer makes the signed data code. `demo/js/qrpayload.js` stays: it draws the QR matrix, caches the summary, and the clinic still imports signed codes made earlier (printed ones are valid 30 days). The clinic's Scan offers to open a dashboard link instead.
+- Tests: `node demo/tests/handover.test.js`, `node demo/tests/qrshow.test.js`, `pytest voice-relay/test_main.py`.
+
 ### Sensor numbers in the handover
 
 No sensor number is sent or streamed to the clinic page. Its socket only says which stored document changed (`session_added`: ids, day, status; `analytics_updated`: the list row). The page has two inputs: the stored session documents on the patient's own hub, which it reads over HTTP and re-reads when a session has been stored (Signals in the patient detail), and the code the patient shows or prints (Signals in the imported view).
 
 This holds for the clinic page, not for the hub's network. `GET /api/bedside/state` gives the current pulse and `physio` to the hub's own machine only, but `/ws/app` relays the current readings to any client that connects as the phone, and the stored documents have no login. Closing that needs a pairing token for the phone: not decided yet.
 
-The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numbers from the finger clips for its 8 weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms).
+The dashboard behind "Show to my doctor" shows three weekly numbers from the finger clips for its 8 weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms). The signed code format (`demo/js/qrpayload.js`), which the clinic still imports for codes made earlier, carries the same three.
 
 - Built in `hub/afferent_hub/qr.py` (`vitals_block`) from the `vitals` blocks of the stored sessions: per day the last played session, per week the median, as for the other measures. The pulse is the session mean of the fused finger pulse, with the clips on during play. It is not `morning_pulse`, which is the bedside morning reading of `daily.v1` and has no real source today.
 - The recorder (`demo/js/record.js`) keeps a finger reading only when its reported quality is 0.3 or more; a weaker stretch is a gap. A session counts only when its finger block reports quality, that quality never fell below 0.3, and it has at least 10 s of readings; the clinic's Signals section applies the same rule to a stored session. A week without such a session has no value (never 0). Simulated sessions are used only when there is no measured one, and the number is then marked simulated.
 - In the code they are map key 18, and the version stays 1. A code made before this still decodes (no key 18: "carries no finger sensor numbers"). A code made after it decodes in an older reader, which shows everything else and ignores key 18; the signature covers the whole body either way. New numbers go into a new key, never into `FEATURES`, whose fixed lengths older readers check.
 - Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
-- The printed page lists the same weekly numbers under the code.
+- "Print or save as PDF" now prints the link code and when it ends; the weekly numbers are on the dashboard, not on paper.
 
 ### Room climate
 
@@ -307,7 +319,7 @@ The bedside unit's Modulino Thermo measures the bedroom's temperature and humidi
 - **Live, to the phone.** The hub turns every `thermo` event from the bedside source (UNO Q `/state` `climate`, about once a minute; or the simulator) into a `room` message for the app of the patient the unit belongs to: `{ temp_c, humidity_pct, source: "modulino_thermo" | "simulated", simulated, age_s }`, and sends the last one right after `hello`. Nothing goes to the clinic socket. On the phone `A.Sensors.room(now)` gives `{ celsius, humidity, source, at }` only for a measured reading at most 150 s old, never a simulated one (`A.Sensors.roomFrame(now)` includes simulated ones, which "Your signals" shows labelled). The line for the live vitals overlay is `A.Room.line(A.Sensors.room(now))`: "Room 21.5 °C · 40 %".
 - **One gentle response.** At night, on the start screen before the wind-down games, a measured room warmer than 19.5 °C gets one quiet line: "Your room is 22.5 °C tonight. Sleep often comes more easily a little cooler, around 16 to 19 °C." Nothing else changes and nothing is asked of the patient (`demo/js/room.js`). The session records the measured room in `context.room_temp_c`.
 - **Over the weeks.** The UNO Q hands the data manager one mean per minute (`env.temperature_c`, `env.humidity_pct`, source `modulino-hub`). The hub reads them as hourly buckets and takes the night of each date, 23:00 to 07:00, when at least 4 of its 8 hours have a reading (`hub/afferent_hub/room.py`). Without the data manager, and for the demo roster, the daily records' own `room` fields are used and marked simulated where the record says so.
-- **Patient view** (`patient-view` `room`, Week tab): each night of the week, the typical night and the 16 to 19 °C band. **Shared dashboard** (Share, `demo/js/qrexport.js`): a "Bedroom at night (8 weeks)" card with the weekly medians of the night temperature and humidity, the nights with a reading and the simulated mark, from `GET /api/patients/<id>/room-nights`. The QR code shares the dashboard, not the numbers: neither the "Show to my doctor" code nor `qr-body` carries the room. "What your clinic sees" lists it. It is context next to the vitals, not part of the index.
+- **Patient view** (`patient-view` `room`, Week tab): each night of the week, the typical night and the 16 to 19 °C band. **Shared dashboard** (Share, `demo/js/qrexport.js`): a "Bedroom at night (8 weeks)" card with the weekly medians of the night temperature and humidity, the nights with a reading and the simulated mark, from `GET /api/patients/<id>/room-nights`. The "Show to my doctor" code links to this same dashboard, room card included; `qr-body` itself does not carry the room. "What your clinic sees" lists it. It is context next to the vitals, not part of the index.
 
 ### Talk transcripts on the hub
 

@@ -313,6 +313,7 @@
 
         payoff(slow, grade, q, f, tr) {
           const L = this.L, at = J.at, cx = (L.x0 + L.x1) / 2, cy = L.tray - 20 * L.U, fever = !!tr?.fever;
+          J.verdict(slow ? 'right' : 'wrong', cx, cy, 34 * L.U);
           if (!slow) {
             this.puff(cx, cy, 0.5, { life: 1.4 });
             this.steam = Math.max(this.steam, 0.25);

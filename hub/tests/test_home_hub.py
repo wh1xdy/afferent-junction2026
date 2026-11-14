@@ -352,10 +352,25 @@ def test_nothing_is_served_without_the_hub_token(tmp_path):
 
     with stranger(app) as c:                                # the phone app: the token is part of the hub address
         assert c.get(f"/k/{HUB_TOKEN}/api/patients/anna/qr-body").status_code == 200
+        out = c.post(f"/k/{HUB_TOKEN}/api/export/publish", json={"patient_id": "anna", "html": "<p>dash</p>"}).json()
+        assert HUB_TOKEN not in json.dumps(out)
         assert c.post(f"/k/{HUB_TOKEN}/api/patients/anna/privacy", json={"sharing": "summary"}).status_code == 200
         with c.websocket_connect(f"/k/{HUB_TOKEN}/ws/app") as ws:
             ws.send_json({"type": "hello", "patient_id": "anna"})
             assert ws.receive_json()["type"] == "config"
+
+
+def test_the_handed_over_dashboard_link_opens_without_the_hub_token(tmp_path):
+    app = home_app(settings(tmp_path))
+    with stranger(app) as doctor:                           # a phone on the same Wi-Fi, never paired
+        out = doctor.post("/api/export/publish", json={"patient_id": "anna", "html": "<p>dashboard</p>"},
+                          headers={"Authorization": f"Bearer {HUB_TOKEN}"}).json()   # what the patient's phone sent
+        assert doctor.get(out["url"]).status_code == 401, "the hub's own address still needs the token"
+        page = doctor.get(out["share_url"])
+        assert page.status_code == 200 and page.text == "<p>dashboard</p>"
+        assert "set-cookie" not in page.headers
+        assert doctor.get("/shared/not-the-id").status_code == 404
+        assert doctor.get("/api/patients").status_code == 401, "the link opens nothing else"
 
 
 def test_no_token_locks_the_hub_and_open_is_a_choice(tmp_path, caplog):

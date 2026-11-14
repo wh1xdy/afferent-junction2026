@@ -75,6 +75,7 @@
           c.resp = dir > 0 ? 'happy' : 'sad'; c.rt = Math.max(0, t - c.on);
           this.flashAt = J.at; this.last = c; this.lastDir = dir;
           const b = this.b;
+          if (b) J.verdict('ok', b.x + b.w / 2, b.y + b.h * 0.47, Math.min(b.w, b.h) * 0.2);
           // Same soft glow for either answer: there is no right one.
           if (b) { const U = unit(b), cx = b.x + b.w / 2, cy = b.y + b.h * 0.47; fx.burst(cx, cy, 8, C.silver050, 90 * U, { kind: 'spark', size: [3.5 * U, 1] }); J.bloom(cx, cy, 90 * U, C.silver100, 0.22, 0.12, 0.45); }
           hap('touch'); sfx('fog_drift', { piano: [3 + (this.items % 5), 0.1] });
