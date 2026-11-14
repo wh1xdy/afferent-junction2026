@@ -254,6 +254,7 @@
     const item = (icon, text) => h('li', {}, [h('span', { class: 'qs-li', html: svg(icon) }), h('span', { text })]);
     const vitalsItem = item(ICON.pulse, '');
     const way = route();
+    const note = h('p', { class: 'qs-note', id: 'qsNote', 'data-way': way, text: NOTE[way] });
     const content = h('div', { class: 'qs-content' }, [
       h('p', { class: 'qs-sub', text: 'The code opens a dashboard with' }),
       h('ul', { class: 'qs-list' }, [
@@ -264,7 +265,7 @@
         item(ICON.taskAlt, 'How complete the data is'),
         item(ICON.visOff, 'No name. No camera images. No pulse traces, only weekly numbers.'),
       ]),
-      h('p', { class: 'qs-note', id: 'qsNote', 'data-way': way, text: NOTE[way] }),
+      note,
       h('div', { class: 'qf' }, [ini, h('label', { for: 'qsIni', class: 'qf-label', text: 'Add an initial' }), h('p', { class: 'qf-help', id: 'qsIniHelp', text: 'Optional. Up to 3 letters, shown on the dashboard.' })]),
     ]);
     const empty = h('p', { class: 'qs-empty', text: 'Open Afferent at home once, so there is something to show.', hidden: true });
@@ -316,6 +317,7 @@
     };
     const offerFile = html => {
       fileBox.hidden = false;
+      note.hidden = true;
       try {
         if (fileUrl) URL.revokeObjectURL(fileUrl);
         fileUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
