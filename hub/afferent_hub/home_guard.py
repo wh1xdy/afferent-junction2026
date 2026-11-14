@@ -4,7 +4,9 @@ The laptop hub has no login and answers every origin. On the patient's home box 
 the port is reachable by every app on the Wendy Net mesh, by a browser page on a laptop that runs
 `wendy net forward`, and by whatever a relay for the phone listens on. So here:
 
-- /api/* and /ws/* need the hub token (AFFERENT_HUB_TOKEN). Only /api/health is open. The token comes
+- /api/* and /ws/* need the hub token (AFFERENT_HUB_TOKEN). Only /api/health is open, and the dashboard
+  link the patient hands over (/shared/<id>, an unguessable address that the next publish or 7 days end;
+  api/routes.py). The token comes
   as `Authorization: Bearer`, as the cookie a pairing link sets, or as a path prefix `/k/<token>/...`
   (the phone app's hub address, because a WebSocket cannot carry a header). A page opened through
   the prefix gets the cookie and is sent on to the plain address.

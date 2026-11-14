@@ -47,6 +47,31 @@ pushing — that they talk to their doctor.
 Privacy: audio passes through Google while a conversation is open. The relay stores nothing and logs
 no audio or text. The transcript is kept on the phone only.
 
+## Shared dashboards ("Show to my doctor")
+
+The relay also keeps the patient's dashboard for "Show to my doctor", locked so that it cannot read it:
+
+```
+phone ──POST /share (X-Afferent-Code, locked bytes)──► relay ──► {id, expires, revoke}
+code on the phone's screen: https://<relay>/d/<id>#<key>
+doctor ──GET /d/<id>──► viewer page ──GET /d/<id>/blob──► locked bytes, unlocked in the browser
+phone ──DELETE /d/<id> (X-Revoke-Token)──► taken back
+```
+
+- The phone locks the dashboard itself (`demo/js/handover.js`: AES-GCM, a fresh random 256-bit key per share)
+  and sends only the result: one format byte, the nonce, the ciphertext. The key is the part of the link after
+  `#`, which browsers never send, so it never reaches the relay, its logs or Google's front end.
+- `viewer.html` (served at `/d/<id>`) unlocks it in the doctor's browser and shows it in a sandboxed frame.
+  Its policy lets that frame reach only this relay, so the dashboard cannot send anything elsewhere.
+- Uploads need the same access code as `/live`. Limits: about 2 MB per share, 7 days, 30 uploads an hour and
+  120 reads a minute per address, at most 500 shares or 64 MB in all (`SHARE_*` below). A share ends after
+  7 days or when the patient takes it back with the revoke token it got at upload.
+- **Kept in memory.** A restart, a redeploy or a scale-down to zero drops every share (the patient then
+  makes a new code), and a second instance would not know the first one's shares. So deploy with exactly
+  one instance kept warm: `--min-instances 1 --max-instances 1`. A bucket would lift this; there is none yet.
+
+Tests: `pytest test_main.py` (the share tests need no Google account either).
+
 ## Settings (environment variables)
 
 | Variable | Default | |
@@ -57,6 +82,10 @@ no audio or text. The transcript is kept on the phone only.
 | `VERTEX_MODEL` | `gemini-3.8-live` | Live model ID. |
 | `VOICE_NAME` | `Kore` | Prebuilt voice. |
 | `MAX_SESSION_SECONDS` | `900` | Hard stop per conversation. Vertex itself ends connections after about 10 minutes. |
+| `SHARE_TTL_SECONDS` | `604800` | How long a shared dashboard stays (7 days). |
+| `SHARE_MAX_BYTES` | `2097152` | Largest share (2 MB). |
+| `SHARE_TOTAL_BYTES` / `SHARE_MAX_COUNT` | `67108864` / `500` | Ceiling for all shares together; above it uploads get 503. |
+| `SHARE_UPLOADS_PER_HOUR` / `SHARE_READS_PER_MINUTE` | `30` / `120` | Per client address (the last `X-Forwarded-For` entry). |
 
 ## Deploy (once, ~10 min)
 
@@ -77,12 +106,13 @@ gcloud projects add-iam-policy-binding $PROJECT \
 cd voice-relay
 gcloud run deploy afferent-voice --source . --region europe-north1 \
   --service-account afferent-voice@$PROJECT.iam.gserviceaccount.com \
-  --allow-unauthenticated --timeout 3600 --max-instances 2 \
+  --allow-unauthenticated --timeout 3600 --min-instances 1 --max-instances 1 \
   --set-env-vars RELAY_CODE=$CODE,GOOGLE_CLOUD_PROJECT=$PROJECT,VERTEX_LOCATION=us-central1
 ```
 
 `--allow-unauthenticated` is needed because the phone cannot sign in to Google Cloud; the access code
-is what keeps strangers out. `--max-instances 2` caps the cost if the code leaks. The command prints
+is what keeps strangers out. One instance, kept warm, holds every shared dashboard (above) and caps the
+cost if the code leaks; one instance takes many voice conversations at once. The command prints
 the service URL; check it with:
 
 ```sh
@@ -90,6 +120,21 @@ curl https://afferent-voice-….run.app/health       # {"ok":true,"configured":t
 ```
 
 To change the code later: `gcloud run services update afferent-voice --region europe-north1 --update-env-vars RELAY_CODE=new-code`.
+
+Already deployed? A redeploy keeps the service account, the variables and the other settings; add the
+shares' instance settings once:
+
+```sh
+cd voice-relay
+gcloud run deploy afferent-voice --source . --region europe-north1 --min-instances 1 --max-instances 1
+URL=$(gcloud run services describe afferent-voice --region europe-north1 --format 'value(status.url)')
+curl -s $URL/health                                          # {"ok":true,"configured":true}
+head -c 64 /dev/urandom | { printf '\001'; cat; } | curl -s -X POST $URL/share \
+  -H "X-Afferent-Code: $CODE" -H 'Content-Type: application/octet-stream' --data-binary @-   # {"id":…,"expires":…,"revoke":…}
+```
+
+The second check stores 65 random bytes as a share; it ends by itself after 7 days, or
+`curl -X DELETE $URL/d/<id> -H 'X-Revoke-Token: <revoke>'` drops it at once.
 
 ## Point the app at it
 
