@@ -49,6 +49,8 @@ def _stub_modules():
         def update_finger(self, *a): pass
         def update_breathing(self, *a): pass
         def update_hrv(self, *a): pass
+        def update_status(self, *a, **k): pass
+        def clear_readings(self): pass
     ble.HeartRateBroadcaster = HeartRateBroadcaster
     sys.modules["ble"] = ble
     os.environ.setdefault("APP_SOCKET", "/tmp/none")
