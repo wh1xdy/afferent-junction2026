@@ -31,7 +31,7 @@
       // Balanced: sad face left/right x probe at sad/neutral, 3 of each cell.
       const trials = K.shuffle(Array.from({ length: n }, (_, i) => ({ sadSide: i % 2 ? 1 : -1, atSad: Math.floor(i / 2) % 2 === 0, tint: [C.sky, C.coralSoft, C.violet300][i % 3] })))
         .map(t => ({ ...t, probeSide: t.atSad ? t.sadSide : -t.sadSide, on: null, resp: null, rt: null, ok: null }));
-      return base(ID, n * (FIX + FACE + 0.9 + ITI) + 3, {
+      return base(ID, n * (FIX + FACE + LIMIT + ITI) + 3, {
         trials, i: -1, state: 'gap', stateAt: 0, b: null, bot: null, hitAt: -9, missAt: -9, outro: 1.3,
         extra: { v: 1, n_trials: n, face_ms: K.ms(FACE) },
 

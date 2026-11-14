@@ -43,7 +43,7 @@
         angle, mirror, shape: i % RUNES.length, baseA: 90 * Math.floor(R() * 4), dir: R() < 0.5 ? -1 : 1,
         tint: [C.sky, C.violet300, C.teal, C.silver200][i % 4], on: null, resp: null, rt: null, ok: null,
       })));
-      return base(ID, n * (FIX + 3 + ITI) + 4, {
+      return base(ID, n * (FIX + LIMIT + ITI) + 4, {
         trials, i: -1, state: 'gap', stateAt: 0, b: null, bot: null, flashAt: -9, flashOk: true, flashSide: 0, outro: 1.3,
         extra: { v: 1, n_trials: n, limit_ms: K.ms(LIMIT) },
 

@@ -908,6 +908,18 @@ test('dawn takes over from the generated music, and the next session starts with
   assert.deepStrictEqual(a.calls.warnings || [], []);
 });
 
+test('generated music whose first beat is already past when it is first stepped (a stalled tick) still plays', () => {
+  const a = app();
+  const ctx = a.M.init(), out = ctx.createGain();
+  const y = a.A.BioSynth.create(ctx, { out, at: 1, bpm: 60, voice: 'calm', night: false, seed: 1 });
+  // The first beat (t 1 s) went by during a 0.45 s stall: the step skips it onto beat 1, which is not a bar line.
+  y.step(1.45, 60);
+  y.step(2, 60);
+  y.step(2.5, 60);
+  assert.ok(y.notes > 0, 'no notes were scheduled');
+  assert.ok(y.beats.length >= 1, 'no beats were scheduled');
+});
+
 (async () => {
   let failed = 0;
   for (const [name, f] of tests) {

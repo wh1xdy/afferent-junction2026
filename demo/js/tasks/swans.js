@@ -22,7 +22,7 @@
       const n = 12;
       const trials = K.shuffle(Array.from({ length: n }, (_, i) => ({ dir: i % 2 ? 1 : -1, cong: Math.floor(i / 2) % 2 === 0 })))
         .map(t => ({ ...t, on: null, resp: null, rt: null, ok: null }));
-      return base(ID, n * (FIX + 1.1 + ITI) + 3, {
+      return base(ID, n * (FIX + LIMIT + ITI) + 3, {
         trials, i: -1, state: 'gap', stateAt: 0, b: null, bot: null, ptr: null, tilt: 0, flashAt: -9, flashOk: true, outro: 1.3,
         extra: { v: 1, n_trials: n },
 

@@ -7,6 +7,7 @@ import asyncio
 import copy
 import json
 import socket
+import threading
 import time
 from pathlib import Path
 
@@ -57,13 +58,57 @@ def one(events, t):
     return found[0]
 
 
+def guard_network(monkeypatch, socketpair=None):
+    """Every connect fails the test, except the one inside socket.socketpair(): asyncio's self-pipe.
+    Where there is no native socketpair (Windows), Python builds one from a loopback listener and a
+    connect to it. A loopback connect anywhere else is refused like any other."""
+    real_pair = socketpair or socket.socketpair
+    inside = threading.local()
+
+    def pair(*a, **k):
+        inside.n = getattr(inside, "n", 0) + 1
+        try:
+            return real_pair(*a, **k)
+        finally:
+            inside.n -= 1
+
+    def guard(real):
+        def connect(self, *a, **k):
+            if getattr(inside, "n", 0):
+                return real(self, *a, **k)
+            raise AssertionError("a test tried to open a network connection")
+        return connect
+
+    monkeypatch.setattr(socket, "socketpair", pair)
+    monkeypatch.setattr(socket.socket, "connect", guard(socket.socket.connect))
+    monkeypatch.setattr(socket.socket, "connect_ex", guard(socket.socket.connect_ex))
+
+
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
-    def refuse(self, *a, **k):
-        raise AssertionError("a test tried to open a network connection")
+    guard_network(monkeypatch)
 
-    monkeypatch.setattr(socket.socket, "connect", refuse)
-    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
+
+def test_the_network_guard_lets_only_socketpair_connect(monkeypatch):
+    # the socketpair Windows uses: a loopback listener and a connect to it
+    fallback = getattr(socket, "_fallback_socketpair", None)
+    if fallback is None:
+        pytest.skip("this Python has no fallback socketpair")
+    monkeypatch.undo()                                # the autouse guard, put back below over the fallback
+    guard_network(monkeypatch, socketpair=fallback)
+    a, b = socket.socketpair()
+    try:
+        a.sendall(b"x")
+        assert b.recv(1) == b"x"
+    finally:
+        a.close()
+        b.close()
+    asyncio.run(asyncio.sleep(0))                     # an event loop (its self-pipe) can still be made
+    with socket.socket() as s:
+        with pytest.raises(AssertionError):
+            s.connect(("127.0.0.1", 9))               # loopback outside socketpair: refused
+        with pytest.raises(AssertionError):
+            s.connect_ex(("localhost", 9))
 
 
 # ── map_state ────────────────────────────────────────────────────────────────────────

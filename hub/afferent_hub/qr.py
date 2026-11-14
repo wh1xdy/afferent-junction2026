@@ -19,12 +19,16 @@ VITAL_SOURCES = ("finger_ppg", "simulated")
 MIN_VITAL_QUALITY = 0.3
 MIN_VITAL_SAMPLES = 10
 
+_local = views.local_time
+
 def _minute(iso: str | None) -> int | None:
-    try:
-        t = dt.datetime.fromisoformat(iso)
-    except (TypeError, ValueError):
-        return None
-    return t.hour * 60 + t.minute
+    t = _local(iso)
+    return None if t is None else t.hour * 60 + t.minute
+
+def _wall(t: dt.datetime | None) -> dt.datetime:
+    """Sort key: the local wall-clock time itself, not the stamp's text (a `Z` stamp and an offset
+    stamp do not sort as strings)."""
+    return dt.datetime.min if t is None else t.replace(tzinfo=None)
 
 def _named(session: dict, block: str) -> bool:
     name = f"vitals.{block}"
@@ -109,17 +113,19 @@ def _phq(patient: dict, checkins: list[dict], nd: int) -> tuple[dict, str | None
     return ({"baseline": base, "baseline_source": source, "history": history, "overdue": block["overdue"],
              "last_status": status}, state, state_day, len(full) - len(history))
 
-def _safety(checkins: list[dict], nd: int) -> tuple[list[dict], int]:
+def _safety(patient: dict, checkins: list[dict], nd: int) -> tuple[list[dict], int]:
     out = []
     for c in checkins:
         s = c.get("safety") or {}
-        day = c.get("day_index")
+        # day and minute are read off the same stamp, on the same local clock (views.local_time)
+        iso = c.get("completed_iso") or c.get("stopped_iso") or c.get("started_iso")
+        t = _local(iso)
+        day = views.local_day(patient, iso) if t is not None else c.get("day_index")
         if s.get("tier") not in SHOWN_TIERS or day is None or day < nd - SAFETY_DAYS + 1:
             continue
-        iso = c.get("completed_iso") or c.get("stopped_iso") or c.get("started_iso")
-        out.append({"day": day, "minute": _minute(iso), "tier": s["tier"], "source": s.get("source"),
-                    "screen": s.get("screen"), "c6_repeat": bool((c.get("cssrs") or {}).get("c6_repeat")),
-                    "_t": iso or ""})
+        out.append({"day": day, "minute": None if t is None else t.hour * 60 + t.minute, "tier": s["tier"],
+                    "source": s.get("source"), "screen": s.get("screen"),
+                    "c6_repeat": bool((c.get("cssrs") or {}).get("c6_repeat")), "_t": _wall(t)})
     out.sort(key=lambda e: (e["day"], e["_t"]), reverse=True)
     kept = [{k: v for k, v in e.items() if k != "_t"} for e in out[:CAPS["safety"]]]
     return kept, len(out) - len(kept)
@@ -129,12 +135,12 @@ def _talk(patient: dict, flags: list[dict], lo: int, hi: int) -> tuple[list[dict
     for f in flags:
         if f.get("type") != "talk_request" or not f.get("t_iso"):
             continue
-        try:
-            day = views.day_index(patient, f["t_iso"][:10])
-        except ValueError:
+        t = _local(f["t_iso"])
+        if t is None:
             continue
+        day = views.day_index(patient, t.date().isoformat())
         if lo <= day <= hi:
-            out.append({"day": day, "minute": _minute(f["t_iso"]), "_t": f["t_iso"]})
+            out.append({"day": day, "minute": t.hour * 60 + t.minute, "_t": _wall(t)})
     out.sort(key=lambda e: e["_t"], reverse=True)
     kept = [{"day": e["day"], "minute": e["minute"]} for e in out[:CAPS["talk"]]]
     return kept, len(out) - len(kept)
@@ -177,7 +183,7 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
     since = cus.get("since_day")
     if _rank(phq_st) > _rank(cus_state) and phq_st == shown:
         since = phq_day
-    safety, safety_omitted = _safety(checkins, nd)
+    safety, safety_omitted = _safety(patient, checkins, nd)
     talk, talk_omitted = _talk(patient, flags, lo, nd)
 
     vitals = vitals_block(sessions, nd)

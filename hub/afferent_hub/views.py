@@ -97,6 +97,23 @@ def day_date(patient: dict, day: int) -> dt.date:
 def day_index(patient: dict, date: str) -> int:
     return (dt.date.fromisoformat(date) - tms_end(patient)).days
 
+LOCAL_TZ: dt.tzinfo | None = None   # the hub's clock for local_time(); None = the system's time zone (tests set one)
+
+def local_time(iso: str | None) -> dt.datetime | None:
+    """The local wall-clock time of a stamp. The app stamps local time with its offset, which is kept as
+    written; a UTC stamp (`...Z`, as a page's toISOString() writes) says nothing about the person's
+    clock, so it is read on the hub's local clock, the one day_index counts by. None if unreadable."""
+    try:
+        t = dt.datetime.fromisoformat(iso.replace("Z", "+00:00") if isinstance(iso, str) else iso)
+    except (TypeError, ValueError):
+        return None
+    return t.astimezone(LOCAL_TZ) if t.utcoffset() == dt.timedelta(0) else t
+
+def local_day(patient: dict, iso: str | None) -> int | None:
+    """day_index of a stamp's local date (local_time), so a day and a minute read off one stamp agree."""
+    t = local_time(iso)
+    return None if t is None else day_index(patient, t.date().isoformat())
+
 def _get(d, *path, default=None):
     for k in path:
         if not isinstance(d, dict):

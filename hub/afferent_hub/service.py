@@ -72,6 +72,7 @@ class Hub:
         self.settings = settings
         self.store = Store(settings.db)
         self.rooms = Rooms()
+        self.rooms.default_patient = settings.bound_patient
         self.session_v = _validator("session.v3.schema.json")
         self.daily_v = _validator("daily.v1.schema.json")
         self.checkin_v = _validator("checkin.v1.schema.json")
@@ -475,8 +476,10 @@ class Hub:
     async def add_flag(self, pid: str, ftype: str, source: str, session_id: str | None = None, t_iso=None,
                        extra: dict | None = None):
         flags = self.store.flags(pid)
-        checkin_id = (extra or {}).get("checkin_id")
+        checkin_id, talk_id = (extra or {}).get("checkin_id"), (extra or {}).get("talk_id")
         if checkin_id and any(f.get("checkin_id") == checkin_id for f in flags):
+            return
+        if talk_id and any(f.get("talk_id") == talk_id for f in flags):
             return
         if session_id and any(f.get("session_id") == session_id and f["type"] == ftype for f in flags):
             return
@@ -499,9 +502,10 @@ class Hub:
         async with self.lock(pid):
             if self.store.checkin(doc["checkin_id"]) is not None:
                 return {"ok": True, "duplicate": True, "checkin_id": doc["checkin_id"], "patient_id": pid}
-            try:
-                day = views.day_index(p, doc["started_iso"][:10])
-            except (TypeError, ValueError):
+            # the local date (views.local_time): a UTC-stamped check-in just after midnight is on the new day,
+            # as the QR's minute for it is
+            day = views.local_day(p, doc.get("started_iso"))
+            if day is None:
                 day = views.now_day(p)
             stored = {**doc, "day_index": day, "received_iso": views.now_iso()}
             self.store.add_checkin(stored)
@@ -540,7 +544,9 @@ class Hub:
         if decline_report["level"] == "low":
             level = "bad"
         facts = wellbeing.hub_facts(analytics, phq) if level != "ok" else []
-        if level == "bad" and self.sensors is not None and self.sensors.enabled:
+        # the data manager holds the bound patient's home only (as in decline())
+        if (level == "bad" and pid == self.settings.bound_patient and self.sensors is not None
+                and self.sensors.enabled):
             facts += await asyncio.to_thread(wellbeing.sensor_facts, self.sensors.get)
         decline_facts = decline.facts(decline_report)
         facts = (decline_facts + facts)[:wellbeing.FACT_MAX]
@@ -767,8 +773,13 @@ class Hub:
         elif t == "voice_context":
             await self.rooms.send(client, await self.voice_context(msg.get("patient_id") or pid))
         elif t == "crisis":
+            # talk_id: the phone keeps the request until this ack (demo/js/hub.js) and may send it again
+            tid = msg.get("talk_id") if isinstance(msg.get("talk_id"), str) and msg.get("talk_id") else None
             await self.add_flag(msg.get("patient_id") or pid, "talk_request", msg.get("source") or "talk_button",
-                                session_id=msg.get("session_id"), t_iso=msg.get("t_iso"))
+                                session_id=msg.get("session_id"), t_iso=msg.get("t_iso"),
+                                extra={"talk_id": tid} if tid else None)
+            if tid:
+                await self.rooms.send(client, {"type": "ack", "talk_id": tid, "ok": True, "error": None})
 
     async def app_closed(self, client: Client):
         pid, sid = client.patient_id, client.session_id

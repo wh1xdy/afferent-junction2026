@@ -12,23 +12,40 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     private var lastSent: TimeInterval = 0
+    /// main queue: start() was called and stop() was not (also while the camera prompt is up)
+    private var wanted = false
 
+    /// Rejects with code 'unauthorized' when the camera is not allowed, as AfferentPulse.start does:
+    /// ARKit would otherwise run without frames and the web layer (Sensors.startCamera) would never
+    /// fall back to touch input.
     @objc func start(_ call: CAPPluginCall) {
         guard FaceSession.supported else {
             call.reject("needs ARKit face tracking")
             return
         }
-        DispatchQueue.main.async {
-            FaceSession.shared.hold(.eyes, anchors: { [weak self] session, anchors in self?.eyes(session, anchors) })
+        DispatchQueue.main.async { self.wanted = true }
+        FaceSession.authorize { ok in
+            guard ok else {
+                self.wanted = false
+                call.reject("camera permission denied", "unauthorized")
+                return
+            }
+            if self.wanted { self.hold() }
             call.resolve()
         }
     }
 
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
+            self.wanted = false
             FaceSession.shared.release(.eyes)
             call.resolve()
         }
+    }
+
+    /// Main queue.
+    private func hold() {
+        FaceSession.shared.hold(.eyes, anchors: { [weak self] session, anchors in self?.eyes(session, anchors) })
     }
 
     private func pitchDegrees(face: ARFaceAnchor, camera: ARCamera?) -> Double? {
