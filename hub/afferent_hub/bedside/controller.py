@@ -132,12 +132,12 @@ class Bedside:
             s["connected"] = bool(msg.get("connected"))
         elif t == "pulse":
             s["pulse"] = {"bpm": msg.get("bpm"), "quality": msg.get("quality", 0), "contact": bool(msg.get("contact")),
-                          "source": msg.get("source")}
+                          "source": "simulated" if s["simulated"] else msg.get("source")}
             await self.to_app({"type": "pulse", **s["pulse"]})
         elif t == "physio":
             p = {k: msg.get(k) for k in PHYSIO_KEYS}
-            if s["simulated"]:
-                p["simulated"] = True
+            if s["simulated"] or p["simulated"] or p["source"] == "simulated":
+                p["simulated"], p["source"] = True, "simulated"
             s["physio"] = p
             await self.to_app({"type": "physio", **p})
         elif t == "knob":
