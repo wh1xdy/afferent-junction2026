@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en" data-sky="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>End</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .scrim-end { position: absolute; inset: 0; background: linear-gradient(to top, var(--md-sys-color-surface-container-lowest) 0, var(--md-sys-color-surface-container-lowest) 90px, transparent 360px); }
+  .words { padding: 40px 24px 0; }
+  .night .words { padding-top: 120px; text-align: center; }
+  .night .words .ms { font-size: 32px; color: var(--md-sys-color-on-surface-variant); display: block; margin-bottom: 16px; }
+  .night h1 { color: var(--md-sys-color-on-surface-variant); }
+  .offer { margin: 0 16px 16px; padding: 20px 20px 12px; border-radius: var(--md-sys-shape-corner-extra-large); background: color-mix(in srgb, var(--md-sys-color-surface-container) 92%, transparent); }
+  .offer .acts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+  .foot { padding: 0 16px 28px; display: flex; justify-content: center; }
+  .morning .bar .icon-btn { background: color-mix(in srgb, var(--md-sys-color-surface) 55%, transparent); color: var(--md-sys-color-on-surface); }
+  .morning .scrim-end { background: linear-gradient(to bottom, color-mix(in srgb, var(--md-sys-color-surface) 35%, transparent) 0, transparent 300px); }
+  .asleep { background: #000; }
+  .asleep .moon { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); font-size: 40px; color: #fff; opacity: 0.14; }
+  .asleep .wake { position: absolute; top: 52px; right: 12px; background: #121212; color: rgba(255, 255, 255, 0.5); }
+</style>
+</head>
+<body>
+<div class="phone" id="p">
+  <div class="world" id="world" aria-hidden="true"></div>
+  <div class="scrim-end" aria-hidden="true"></div>
+  <div class="ui">
+    <div class="safe-top"></div>
+    <div class="bar"><span class="sp"></span><a class="icon-btn state" href="crisis.html?v=talk" aria-label="Talk to someone"><span class="ms">chat_bubble</span></a></div>
+    <div class="words">
+      <span class="ms" data-show="v=night|">bedtime</span>
+      <h1 class="display-m" style="margin:0" id="w">Rest well.</h1>
+    </div>
+    <div class="grow"></div>
+    <div class="offer" data-show="offer" role="region" aria-label="Offer">
+      <p class="title-l" style="margin:0">Would you like someone to talk to?</p>
+      <div class="acts"><button class="btn text small state">Not now</button><a class="btn tonal small state" href="crisis.html?v=talk">Yes</a></div>
+    </div>
+    <div class="foot"><a class="btn state" id="done" href="start.html">Done</a></div>
+  </div>
+</div>
+<div class="phone asleep" id="asleep" hidden aria-label="Fell asleep. Tap to wake">
+  <span class="ms moon">bedtime</span>
+  <button class="icon-btn wake" data-show="touched" aria-label="Close"><span class="ms">close</span></button>
+</div>
+<script src="js/ui.js"></script>
+<script>
+  const v = document.documentElement.dataset.v || 'night';
+  const p = document.getElementById('p'), w = document.getElementById('world'), done = document.getElementById('done');
+  if (v === 'asleep') { p.hidden = true; document.getElementById('asleep').hidden = false; document.body.style.background = '#000'; }
+  else if (v === 'morning') {
+    document.documentElement.dataset.sky = 'day';
+    p.classList.add('morning'); w.className = 'world dawn'; w.style.top = '-60px'; w.style.height = '940px';
+    document.getElementById('w').textContent = 'Good morning.'; done.classList.add('tonal');
+  } else { p.classList.add('night'); w.className = 'world night dim'; done.classList.add('text'); }
+</script>
+</body>
+</html>

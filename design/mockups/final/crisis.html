@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" data-sky="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Talk to someone</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  body { background: var(--md-sys-color-surface-container-lowest); }
+  [data-sky="day"] body { background: var(--md-sys-color-surface); }
+  .wrap { min-height: 100vh; display: flex; flex-direction: column; padding: 0 16px 24px; }
+  .mark { width: 56px; height: 56px; border-radius: var(--md-sys-shape-corner-large); display: grid; place-items: center; background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); margin: 8px 8px 20px; }
+  .mark svg { width: 20px; height: 31px; }
+  .now { margin: 0 8px 12px; padding: 12px 16px; border-radius: var(--md-sys-shape-corner-large); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); display: flex; gap: 12px; align-items: center; }
+  .lead { margin: 0 8px 12px; }
+  .line { margin: 0 8px 20px; }
+  .foot { margin: 16px 8px 0; }
+  .contact .label { font-size: 16px; line-height: 22px; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap" role="dialog" aria-labelledby="lead">
+  <div class="safe-top"></div>
+  <div class="mark" aria-hidden="true"><span data-lantern="flame" data-glow="1"></span></div>
+  <p class="now title-m" data-show="v=crisis"><span class="ms">call</span><span>If you might act on these thoughts, call 112 now.</span></p>
+  <h1 class="lead headline-s" id="lead">If today is heavy, you do not have to carry it alone.</h1>
+  <p class="line body-m muted" data-show="v=support|crisis">Your clinic will see your answers. If you need someone now, call 112 or a helpline below.</p>
+  <div class="contacts">
+    <a class="contact state" id="c112" href="tel:112"><span class="txt"><span class="label">Emergency</span><span class="num">112</span></span><span class="call" aria-label="Call 112"><span class="ms fill">call</span></span></a>
+    <a class="contact state" id="cmieli" href="tel:0925250111"><span class="txt"><span class="label">MIELI Crisis Helpline</span><span class="num">09 2525 0111 · in Finnish, 24 h</span></span><span class="call" aria-label="Call MIELI Crisis Helpline"><span class="ms fill">call</span></span></a>
+    <a class="contact state" href="tel:116117"><span class="txt"><span class="label">Medical Helpline</span><span class="num">116117 · 24 h</span></span><span class="call" aria-label="Call Medical Helpline"><span class="ms fill">call</span></span></a>
+    <a class="contact state" href="tel:0900000000"><span class="txt"><span class="label">Your clinic</span><span class="num">09 000 0000 · office hours</span></span><span class="call" aria-label="Call your clinic"><span class="ms fill">call</span></span></a>
+  </div>
+  <p class="foot body-s muted">Afferent is not an emergency service and is not watched around the clock.</p>
+  <div class="grow"></div>
+  <a class="btn tonal block state" href="start.html">Close</a>
+</div>
+<script src="js/ui.js"></script>
+<script>
+  const v = document.documentElement.dataset.v || 'talk';
+  const lead = v === 'crisis' ? 'c112' : v === 'support' ? 'cmieli' : 'cmieli';
+  document.querySelector('#' + lead).classList.add('primary');
+  document.querySelector('#' + lead + ' .call').classList.add('primary');
+  if (v === 'talk') document.documentElement.dataset.sky = new URLSearchParams(location.search).get('sky') || 'night';
+</script>
+</body>
+</html>

@@ -1,0 +1,953 @@
+{
+ "version": 1,
+ "note": "Generated with the soundscape pass of 14 Nov 2026. Loops: start a looping AudioBufferSourceNode with loopStart and loopEnd in seconds and start(0, loopStart). gainDb is a starting mix value relative to the file; see design/soundscape.md.",
+ "files": {
+  "amb_night_air": {
+   "path": "ambience/amb_night_air",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -1.9,
+   "gainDb": -2,
+   "role": "kaamos base air: light wind through bare winter trees",
+   "spatial": "stereo bed, full width",
+   "loopStart": 0.5,
+   "loopEnd": 45.5,
+   "loopLen": 45.0
+  },
+  "amb_wind_fell": {
+   "path": "ambience/amb_wind_fell",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -9.7,
+   "gainDb": -10,
+   "role": "cold open wind for fell, saddle and summit; gusts for wake",
+   "spatial": "stereo bed, ride speed opens a highpass and gain",
+   "loopStart": 0.5,
+   "loopEnd": 50.5,
+   "loopLen": 50.0
+  },
+  "amb_forest_birch": {
+   "path": "ambience/amb_forest_birch",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -3.6,
+   "gainDb": -4,
+   "role": "winter wind in trees with faint ice, birch forest and loom",
+   "spatial": "stereo bed",
+   "loopStart": 0.5,
+   "loopEnd": 50.5,
+   "loopLen": 50.0
+  },
+  "amb_snowfall": {
+   "path": "ambience/amb_snowfall",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.1,
+   "truePeak": -1.7,
+   "gainDb": -8,
+   "role": "soft falling snow texture over the night air",
+   "spatial": "stereo bed, full width",
+   "loopStart": 0.5,
+   "loopEnd": 50.5,
+   "loopLen": 50.0
+  },
+  "amb_lake_ice_night": {
+   "path": "ambience/amb_lake_ice_night",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -2.8,
+   "gainDb": -6,
+   "role": "frozen lake with fine ice fissures, lake and fireflies at night",
+   "spatial": "stereo bed, slightly below horizon",
+   "loopStart": 0.5,
+   "loopEnd": 50.5,
+   "loopLen": 50.0
+  },
+  "amb_lake_under_ice": {
+   "path": "ambience/amb_lake_under_ice",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -1.1,
+   "gainDb": -9,
+   "role": "water moving under ice in a windy forest (Sweden)",
+   "spatial": "stereo bed, low and wide",
+   "loopStart": 0.5,
+   "loopEnd": 60.5,
+   "loopLen": 60.0
+  },
+  "amb_shore_waves": {
+   "path": "ambience/amb_shore_waves",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -1.1,
+   "gainDb": -5,
+   "role": "gentle small waves on a shore, fork shore branch, dawn shore",
+   "spatial": "stereo bed, wider than the screen",
+   "loopStart": 0.5,
+   "loopEnd": 60.5,
+   "loopLen": 60.0
+  },
+  "amb_lake_lapping": {
+   "path": "ambience/amb_lake_lapping",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -1.4,
+   "gainDb": -10,
+   "role": "close water lapping, pier and harbour channel (Bite)",
+   "spatial": "stereo bed, narrowed to 60% width, front low",
+   "loopStart": 0.5,
+   "loopEnd": 50.4976,
+   "loopLen": 49.9976
+  },
+  "amb_harbour_rope": {
+   "path": "ambience/amb_harbour_rope",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 1,
+   "lufs": -26.8,
+   "truePeak": -1.5,
+   "gainDb": -14,
+   "role": "mooring rope creaking on a cleat, harbour pier",
+   "spatial": "mono point, 3 m front left, HRTF",
+   "loopStart": 0.5,
+   "loopEnd": 62.5034,
+   "loopLen": 62.0034
+  },
+  "amb_sauna_stove": {
+   "path": "ambience/amb_sauna_stove",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -4.9,
+   "gainDb": -3,
+   "role": "Finnish sauna stove drone with crackle, sauna interior (breath calm, loyly)",
+   "spatial": "stereo bed, warm, lowpass 7 kHz",
+   "loopStart": 0.5,
+   "loopEnd": 50.5,
+   "loopLen": 50.0
+  },
+  "amb_fire_crackle": {
+   "path": "ambience/amb_fire_crackle",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 1,
+   "lufs": -23.2,
+   "truePeak": -2.0,
+   "gainDb": -10,
+   "role": "fireplace crackle, the stove as a point; lowpassed it doubles as lantern flame",
+   "spatial": "mono point, 1.5 m front low; as lantern: centre, lowpass 900 Hz, -22 dB",
+   "loopStart": 0.5,
+   "loopEnd": 45.5,
+   "loopLen": 45.0
+  },
+  "amb_boat_far": {
+   "path": "ambience/amb_boat_far",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 1,
+   "lufs": -23.0,
+   "truePeak": -4.7,
+   "gainDb": -20,
+   "role": "boat motor on the Gulf of Finland, lowpassed to sound distant",
+   "spatial": "mono point, 40 m right, strong reverb send",
+   "loopStart": 0.5,
+   "loopEnd": 40.494,
+   "loopLen": 39.994
+  },
+  "amb_dawn_woodland": {
+   "path": "ambience/amb_dawn_woodland",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -4.0,
+   "gainDb": -3,
+   "role": "windy woodland in late winter with a European robin singing (UK)",
+   "spatial": "stereo bed, fades in at dawn",
+   "loopStart": 0.5,
+   "loopEnd": 60.5,
+   "loopLen": 60.0
+  },
+  "amb_ride_ski": {
+   "path": "ambience/amb_ride_ski",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.0,
+   "truePeak": -10.0,
+   "gainDb": -12,
+   "role": "ski run point of view, the ride glide",
+   "spatial": "stereo bed at 50% width, gain and lowpass follow speed",
+   "loopStart": 0.5,
+   "loopEnd": 40.5,
+   "loopLen": 40.0
+  },
+  "amb_ride_drag": {
+   "path": "ambience/amb_ride_drag",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 1,
+   "lufs": -23.0,
+   "truePeak": -7.2,
+   "gainDb": -14,
+   "role": "sled dragged over snow, slow ride and braking",
+   "spatial": "mono centre close",
+   "loopStart": 0.5,
+   "loopEnd": 9.0,
+   "loopLen": 8.5
+  },
+  "amb_wind_chimes": {
+   "path": "ambience/amb_wind_chimes",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "loop",
+   "channels": 2,
+   "lufs": -23.1,
+   "truePeak": -3.0,
+   "gainDb": -20,
+   "role": "wind chimes in the breeze, harbour houses and shutters, rare",
+   "spatial": "stereo, place right-up, duck often",
+   "loopStart": 0.5,
+   "loopEnd": 50.5,
+   "loopLen": 50.0
+  },
+  "sfx_step_snow_01": {
+   "path": "sfx/sfx_step_snow_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -20.3,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "boot in snow, the Keeper walking (launch strides, porch)",
+   "spatial": "mono centre close",
+   "duration": 0.65
+  },
+  "sfx_step_snow_02": {
+   "path": "sfx/sfx_step_snow_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -21.5,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "boot in snow, the Keeper walking (launch strides, porch)",
+   "spatial": "mono centre close",
+   "duration": 0.65
+  },
+  "sfx_step_snow_03": {
+   "path": "sfx/sfx_step_snow_03",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.8,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "boot in snow, the Keeper walking (launch strides, porch)",
+   "spatial": "mono centre close",
+   "duration": 0.65
+  },
+  "sfx_step_snow_04": {
+   "path": "sfx/sfx_step_snow_04",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -22.4,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "boot in snow, the Keeper walking (launch strides, porch)",
+   "spatial": "mono centre close",
+   "duration": 0.65
+  },
+  "sfx_ski_swish": {
+   "path": "sfx/sfx_ski_swish",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 2,
+   "lufs": -18.0,
+   "truePeak": -3.5,
+   "gainDb": -8,
+   "role": "ski pass-by swish for leap, dive and fast descents",
+   "spatial": "stereo as recorded",
+   "duration": 2.4
+  },
+  "sfx_land_snow": {
+   "path": "sfx/sfx_land_snow",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -33.1,
+   "truePeak": -1.5,
+   "gainDb": -2,
+   "role": "soft snow impact for landing",
+   "spatial": "mono centre low",
+   "duration": 0.855
+  },
+  "sfx_ice_ping": {
+   "path": "sfx/sfx_ice_ping",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -38.0,
+   "truePeak": -1.5,
+   "gainDb": -4,
+   "role": "pebble on lake ice, the singing ice ping",
+   "spatial": "mono, random 20 to 60 m left or right",
+   "duration": 0.89
+  },
+  "sfx_ice_crack_01": {
+   "path": "sfx/sfx_ice_crack_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -25.5,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "ice crack",
+   "spatial": "mono, 10 to 30 m, sides",
+   "duration": 1.8
+  },
+  "sfx_ice_crack_02": {
+   "path": "sfx/sfx_ice_crack_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -24.4,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "ice crack",
+   "spatial": "mono, 10 to 30 m, sides",
+   "duration": 1.806
+  },
+  "sfx_ice_crack_03": {
+   "path": "sfx/sfx_ice_crack_03",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -22.3,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "ice crack",
+   "spatial": "mono, 10 to 30 m, sides",
+   "duration": 1.8
+  },
+  "sfx_ice_boom_01": {
+   "path": "sfx/sfx_ice_boom_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -6.5,
+   "gainDb": -14,
+   "role": "deep lake ice fracture, far",
+   "spatial": "mono, 60 m, below, long reverb; never in calm or rest",
+   "duration": 3.0
+  },
+  "sfx_ice_boom_02": {
+   "path": "sfx/sfx_ice_boom_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -2.9,
+   "gainDb": -14,
+   "role": "deep lake ice fracture, far",
+   "spatial": "mono, 60 m, below, long reverb; never in calm or rest",
+   "duration": 2.5
+  },
+  "sfx_icicle_tinkle_01": {
+   "path": "sfx/sfx_icicle_tinkle_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -23.5,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "icicles breaking into a tinkle, frost motes and hoarfrost",
+   "spatial": "mono, near the motes",
+   "duration": 2.2
+  },
+  "sfx_icicle_tinkle_02": {
+   "path": "sfx/sfx_icicle_tinkle_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -30.4,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "icicles breaking into a tinkle, frost motes and hoarfrost",
+   "spatial": "mono, near the motes",
+   "duration": 2.396
+  },
+  "sfx_loyly_hiss_01": {
+   "path": "sfx/sfx_loyly_hiss_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.8,
+   "truePeak": -1.5,
+   "gainDb": -4,
+   "role": "real Finnish sauna loyly hiss",
+   "spatial": "mono, at the stones, 1 m front",
+   "duration": 7.5
+  },
+  "sfx_loyly_hiss_02": {
+   "path": "sfx/sfx_loyly_hiss_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -24.5,
+   "truePeak": -1.5,
+   "gainDb": -4,
+   "role": "loyly hiss with a sharper start",
+   "spatial": "mono, at the stones",
+   "duration": 8.0
+  },
+  "sfx_loyly_hiss_long": {
+   "path": "sfx/sfx_loyly_hiss_long",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -3.2,
+   "gainDb": -6,
+   "role": "long steam hiss, the perfect pour bloom",
+   "spatial": "mono at the stones, add a stereo reverb send",
+   "duration": 16.0
+  },
+  "sfx_stove_door": {
+   "path": "sfx/sfx_stove_door",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -24.1,
+   "truePeak": -1.5,
+   "gainDb": -12,
+   "role": "sauna stove door, metal, open and close",
+   "spatial": "mono, 1.5 m front low",
+   "duration": 7.6
+  },
+  "sfx_bell_hand_1": {
+   "path": "sfx/sfx_bell_hand_1",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -22.7,
+   "truePeak": -1.5,
+   "gainDb": -6,
+   "role": "English handbell strike 1 of 3",
+   "spatial": "mono, placed left, centre, right for the three bells",
+   "duration": 6.2
+  },
+  "sfx_bell_hand_2": {
+   "path": "sfx/sfx_bell_hand_2",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -27.0,
+   "truePeak": -1.5,
+   "gainDb": -6,
+   "role": "English handbell strike 1 of 3",
+   "spatial": "mono, placed left, centre, right for the three bells",
+   "duration": 7.4
+  },
+  "sfx_bell_hand_3": {
+   "path": "sfx/sfx_bell_hand_3",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.8,
+   "truePeak": -1.5,
+   "gainDb": -6,
+   "role": "English handbell strike 1 of 3",
+   "spatial": "mono, placed left, centre, right for the three bells",
+   "duration": 6.8
+  },
+  "sfx_bell_church_far": {
+   "path": "sfx/sfx_bell_church_far",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -23.0,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "church bell strike heard at a distance",
+   "spatial": "mono, far front right, long reverb",
+   "duration": 6.2
+  },
+  "sfx_chime_single": {
+   "path": "sfx/sfx_chime_single",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -19.7,
+   "truePeak": -1.5,
+   "gainDb": -12,
+   "role": "one soft wind chime",
+   "spatial": "mono, up right",
+   "duration": 3.373
+  },
+  "sfx_mote_twinkle_01": {
+   "path": "sfx/sfx_mote_twinkle_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -27.9,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "crystal twinkle with echo tail, mote or firefly caught",
+   "spatial": "mono at the mote position",
+   "duration": 6.0
+  },
+  "sfx_mote_twinkle_02": {
+   "path": "sfx/sfx_mote_twinkle_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -23.8,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "crystal twinkle with echo tail, mote or firefly caught",
+   "spatial": "mono at the mote position",
+   "duration": 6.0
+  },
+  "sfx_mote_gleam": {
+   "path": "sfx/sfx_mote_gleam",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.4,
+   "truePeak": -4.8,
+   "gainDb": -12,
+   "role": "gleam chime, light home or lantern fed",
+   "spatial": "mono at the lantern",
+   "duration": 3.6
+  },
+  "sfx_colour_swell": {
+   "path": "sfx/sfx_colour_swell",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 2,
+   "lufs": -18.0,
+   "truePeak": -4.6,
+   "gainDb": -6,
+   "role": "cymbal swell, colour return wave",
+   "spatial": "stereo, full width",
+   "duration": 10.0
+  },
+  "sfx_flame_whoosh": {
+   "path": "sfx/sfx_flame_whoosh",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 2,
+   "lufs": -18.9,
+   "truePeak": -1.5,
+   "gainDb": -8,
+   "role": "soft panned flame whoosh, lantern catches, lighthouse ignites",
+   "spatial": "stereo as recorded",
+   "duration": 4.0
+  },
+  "sfx_foghorn_far": {
+   "path": "sfx/sfx_foghorn_far",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -4.6,
+   "gainDb": -16,
+   "role": "long distant foghorn, the harbour far away",
+   "spatial": "mono, 200 m left, long reverb, lowpass 1.5 kHz",
+   "duration": 7.2
+  },
+  "sfx_crane_call": {
+   "path": "sfx/sfx_crane_call",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.6,
+   "truePeak": -1.5,
+   "gainDb": -12,
+   "role": "common cranes calling, the first sign of spring",
+   "spatial": "mono, far and high, once at dawn",
+   "duration": 11.8
+  },
+  "sfx_ui_tap_soft": {
+   "path": "sfx/sfx_ui_tap_soft",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -22.4,
+   "truePeak": -1.5,
+   "gainDb": -14,
+   "role": "soft UI tap",
+   "spatial": "mono centre dry",
+   "duration": 0.197
+  },
+  "sfx_ui_confirm": {
+   "path": "sfx/sfx_ui_confirm",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -31.7,
+   "truePeak": -1.5,
+   "gainDb": -10,
+   "role": "soft confirm click with reverb",
+   "spatial": "mono centre",
+   "duration": 1.7
+  },
+  "sfx_ui_tap_wood_01": {
+   "path": "sfx/sfx_ui_tap_wood_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -25.9,
+   "truePeak": -1.5,
+   "gainDb": -8,
+   "role": "finger tap on wood, birch ply UI tap",
+   "spatial": "mono centre dry",
+   "duration": 0.359
+  },
+  "sfx_ui_tap_wood_02": {
+   "path": "sfx/sfx_ui_tap_wood_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -25.4,
+   "truePeak": -1.5,
+   "gainDb": -8,
+   "role": "finger tap on wood, birch ply UI tap",
+   "spatial": "mono centre dry",
+   "duration": 0.35
+  },
+  "sfx_ui_tap_wood_03": {
+   "path": "sfx/sfx_ui_tap_wood_03",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -23.8,
+   "truePeak": -1.5,
+   "gainDb": -8,
+   "role": "finger tap on wood, birch ply UI tap",
+   "spatial": "mono centre dry",
+   "duration": 0.359
+  },
+  "sfx_bird_great_tit_01": {
+   "path": "sfx/sfx_bird_great_tit_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -7.9,
+   "gainDb": -12,
+   "role": "great tit song, Finland, birch tree",
+   "spatial": "mono, 15 to 30 m, up, left or right",
+   "duration": 2.83
+  },
+  "sfx_bird_great_tit_02": {
+   "path": "sfx/sfx_bird_great_tit_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -8.6,
+   "gainDb": -12,
+   "role": "great tit phrase at dawn (Germany)",
+   "spatial": "mono, 15 to 30 m, up",
+   "duration": 2.6
+  },
+  "sfx_bird_chaffinch_01": {
+   "path": "sfx/sfx_bird_chaffinch_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -3.3,
+   "gainDb": -12,
+   "role": "chaffinch song, Finland, spruce",
+   "spatial": "mono, 20 to 40 m, up",
+   "duration": 3.0
+  },
+  "sfx_bird_chaffinch_02": {
+   "path": "sfx/sfx_bird_chaffinch_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -5.3,
+   "gainDb": -12,
+   "role": "chaffinch song, Finland, spruce",
+   "spatial": "mono, 20 to 40 m, up",
+   "duration": 3.1
+  },
+  "sfx_bird_blackbird_01": {
+   "path": "sfx/sfx_bird_blackbird_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -6.7,
+   "gainDb": -14,
+   "role": "blackbird phrase, Finland",
+   "spatial": "mono, 30 to 50 m",
+   "duration": 2.2
+  },
+  "sfx_bird_blackbird_02": {
+   "path": "sfx/sfx_bird_blackbird_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -6.3,
+   "gainDb": -14,
+   "role": "blackbird phrase, Finland",
+   "spatial": "mono, 30 to 50 m",
+   "duration": 2.6
+  },
+  "sfx_bird_blackbird_03": {
+   "path": "sfx/sfx_bird_blackbird_03",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -6.2,
+   "gainDb": -14,
+   "role": "blackbird phrase, Finland",
+   "spatial": "mono, 30 to 50 m",
+   "duration": 2.4
+  },
+  "sfx_bird_redstart_01": {
+   "path": "sfx/sfx_bird_redstart_01",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -6.3,
+   "gainDb": -14,
+   "role": "common redstart phrase, Finland",
+   "spatial": "mono, 20 to 40 m",
+   "duration": 2.5
+  },
+  "sfx_bird_redstart_02": {
+   "path": "sfx/sfx_bird_redstart_02",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -7.7,
+   "gainDb": -14,
+   "role": "common redstart phrase, Finland",
+   "spatial": "mono, 20 to 40 m",
+   "duration": 1.8
+  },
+  "sfx_bird_willow_warbler": {
+   "path": "sfx/sfx_bird_willow_warbler",
+   "formats": [
+    "m4a",
+    "ogg"
+   ],
+   "kind": "oneshot",
+   "channels": 1,
+   "lufs": -18.0,
+   "truePeak": -7.1,
+   "gainDb": -14,
+   "role": "willow warbler song, Finland",
+   "spatial": "mono, 20 to 40 m",
+   "duration": 8.38
+  }
+ }
+}

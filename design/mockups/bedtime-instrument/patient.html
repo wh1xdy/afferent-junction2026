@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-sky="dawn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your week</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/patient.css">
+</head>
+<body>
+<div class="safe-top"></div>
+<header class="top-bar">
+  <a class="icon-btn state" href="start.html" aria-label="Back"><span class="ms">arrow_back</span></a>
+  <span class="title"></span>
+  <span class="sim-badge">Simulated</span>
+  <button class="icon-btn state" aria-label="Talk to someone"><span class="ms">support</span></button>
+</header>
+
+<section class="hero" aria-labelledby="hl">
+  <div class="hero-sky" aria-hidden="true"></div>
+  <div class="hero-in">
+    <p class="label-l hero-when"><span class="num">07:48</span> · Today</p>
+    <h1 id="hl" class="display-s">You reached dawn.</h1>
+    <svg class="arc" viewBox="0 0 320 96" role="img" aria-label="Your light rose from night to dawn">
+      <defs><linearGradient id="ag" x1="0" x2="1"><stop offset="0" stop-color="#5A7CA6"/><stop offset="1" stop-color="#FFD9A0"/></linearGradient><filter id="bl"><feGaussianBlur stdDeviation="4"/></filter></defs>
+      <path d="M8 80 C 70 78, 110 64, 150 56 S 250 26, 308 16" fill="none" stroke="url(#ag)" stroke-width="8" opacity=".35" filter="url(#bl)"/>
+      <path d="M8 80 C 70 78, 110 64, 150 56 S 250 26, 308 16" fill="none" stroke="url(#ag)" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="8" cy="80" r="4" fill="#5A7CA6"/><circle cx="308" cy="16" r="10" fill="#FFD9A0" opacity=".3"/><circle cx="308" cy="16" r="5" fill="#FFF3DC"/>
+    </svg>
+  </div>
+</section>
+
+<section class="block" aria-labelledby="wk">
+  <div class="subhead"><h2 id="wk" class="title-s" style="margin:0">Your week</h2><button class="icon-btn state" aria-label="Each lantern is the one you picked at the end of the day. A dark lantern is a quiet day."><span class="ms">info</span></button></div>
+  <div class="card week-card"><div class="week" role="list" aria-label="Your week"><div class="day" aria-label="Sunday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#5A7CA6" data-glow="0.5"></span></span><span class="d">S</span></div><div class="day" aria-label="Monday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">M</span></div><div class="day" aria-label="Tuesday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">T</span></div><div class="day" aria-label="Wednesday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern style="color:var(--md-sys-color-outline-variant)"></span></span><span class="d">W</span></div><div class="day" aria-label="Thursday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span></span><span class="d">T</span></div><div class="day" aria-label="Friday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">F</span></div><div class="day today" aria-label="Today"><span style="color:var(--md-sys-color-on-surface-variant)"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span></span><span class="d">S</span></div></div></div>
+</section>
+
+<section class="block" aria-labelledby="hp">
+  <div class="subhead"><h2 id="hp" class="title-s" style="margin:0">What helped</h2></div>
+  <ul class="list group">
+    <li class="li two"><span class="lead-circle"><span class="ms">air</span></span><span class="txt"><span class="hl">Breath</span><span class="sup">Slow breathing often settles you.</span></span></li>
+    <li class="li two"><span class="lead-circle"><span class="ms">flare</span></span><span class="txt"><span class="hl">Fireflies</span><span class="sup">Often lift a low morning.</span></span><span class="trail"><span class="ms learning" aria-label="Still learning">hourglass_empty</span></span></li>
+    <li class="li two"><span class="lead-circle"><span class="ms">wb_twilight</span></span><span class="txt"><span class="hl">Dawn light</span><span class="sup">Better days follow it.</span></span><span class="trail"><span class="ms learning" aria-label="Still learning">hourglass_empty</span></span></li>
+  </ul>
+</section>
+
+<section class="block" aria-labelledby="pv">
+  <div class="subhead"><h2 id="pv" class="title-s" style="margin:0">Privacy and export</h2><button class="icon-btn state" aria-label="Your clinic gets data only when it is exported from your hub. Nobody watches live."><span class="ms">info</span></button></div>
+  <div class="export">
+    <div class="seg" role="radiogroup" aria-labelledby="pv">
+      <button class="state" role="radio" aria-checked="true"><span class="ms">check</span>Summary</button>
+      <button class="state" role="radio" aria-checked="false">Skip today</button>
+      <button class="state" role="radio" aria-checked="false">Pause 7 d</button>
+    </div>
+  </div>
+  <ul class="list group">
+    <li><a class="li two state" href="#export"><span class="ms lead">upload_file</span><span class="txt"><span class="hl">In the next export</span><span class="sup">Session numbers, sleep, check-in</span></span><span class="trail"><span class="ms">chevron_right</span></span></a></li>
+    <li><a class="li state" href="settings.html"><span class="ms lead">sensors</span><span class="txt"><span class="hl">Sensors</span></span><span class="trail"><span class="body-m num">5 on</span><span class="ms">chevron_right</span></span></a></li>
+  </ul>
+</section>
+
+<footer class="foot muted body-s"><span class="ms">lock</span><span>Kept on your home hub. Nothing goes to the cloud.</span></footer>
+<script src="js/ui.js"></script>
+</body>
+</html>

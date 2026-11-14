@@ -1,0 +1,23 @@
+@font-face {
+  font-family: "Google Sans Flex";
+  src: url("../fonts/GoogleSansFlex-latin.woff2") format("woff2");
+  font-weight: 1 1000;
+  font-stretch: 25% 151%;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Material Symbols Rounded";
+  src: url("../fonts/MaterialSymbolsRounded-subset.woff2") format("woff2");
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("../../../fonts/JetBrainsMono-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: swap;
+}

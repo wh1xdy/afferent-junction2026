@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en" data-scheme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111220">
+<title>Afferent settings</title>
+<link rel="stylesheet" href="lp.css">
+<style>
+  body { background: var(--md-sys-color-surface); }
+  .content { padding: 0 16px 40px; }
+  .sub-row { display: flex; align-items: center; justify-content: space-between; padding: 20px 4px 4px 16px; color: var(--md-sys-color-primary); }
+  .sub-row .icon-btn { margin: -8px 0; }
+  .export { padding: 12px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; }
+  .status i { width: 8px; height: 8px; border-radius: 50%; background: var(--lp-aurora); }
+  .dev-only { display: none; }
+  .dev .dev-only { display: block; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px 16px; }
+  .group-card { background: var(--md-sys-color-surface-container); border-radius: var(--md-sys-shape-corner-large-increased); }
+</style>
+</head>
+<body>
+<main class="phone">
+  <header class="top-bar">
+    <a class="icon-btn sl" href="start.html" aria-label="Back"><span class="c"><span class="ms i-arrow-back"></span></span></a>
+    <h1 class="title title-l grow">Settings</h1>
+    <a class="icon-btn sl" href="info.html" aria-label="How it works"><span class="c"><span class="ms i-info"></span></span></a>
+  </header>
+
+  <div class="content">
+    <div class="sub-row"><h2 class="title-s">Sensors</h2><button class="icon-btn sl" aria-label="What sensors measure"><span class="c"><span class="ms s20 i-info"></span></span></button></div>
+    <div class="list-group">
+      <label class="li sl"><span class="ms i-visibility"></span><span class="txt body-l">Phone camera</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-ecg-heart"></span><span class="txt body-l">Pulse stone</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-light"></span><span class="txt body-l">Bedside light</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-videocam"></span><span class="txt body-l">Bedside camera</span><span class="switch"><input type="checkbox"><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-sensors"></span><span class="txt body-l">Presence</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-mobile-vibrate"></span><span class="txt body-l">Phone movement</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+    </div>
+
+    <div class="sub-row"><h2 class="title-s">Export</h2><button class="icon-btn sl" aria-label="What the export contains"><span class="c"><span class="ms s20 i-info"></span></span></button></div>
+    <div class="group-card export">
+      <div class="btn-group" role="radiogroup" aria-label="Export">
+        <button class="sl" role="radio" aria-checked="true"><span class="ms i-check"></span>Summary</button>
+        <button class="sl" role="radio" aria-checked="false">Skip today</button>
+        <button class="sl" role="radio" aria-checked="false">Pause 7 d</button>
+      </div>
+    </div>
+
+    <div class="sub-row"><h2 class="title-s">Comfort</h2></div>
+    <div class="list-group">
+      <label class="li sl"><span class="ms i-volume-up"></span><span class="txt body-l">Sound</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-bedtime"></span><span class="txt body-l">Quiet night</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-edit-note"></span><span class="txt body-l">Check-in questions</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+      <label class="li sl"><span class="ms i-motion-photos-off"></span><span class="txt body-l">Reduced motion</span><span class="switch"><input type="checkbox"><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+    </div>
+
+    <div class="sub-row"><h2 class="title-s">Hub</h2></div>
+    <div class="list-group">
+      <button class="li two sl"><span class="ms i-router"></span><span class="txt"><span class="body-l">Home hub</span><span class="sup num status"><i aria-hidden="true"></i>192.168.1.20:8000</span></span><span class="ms i-edit"></span></button>
+    </div>
+
+    <div class="dev-only">
+      <div class="sub-row"><h2 class="title-s">Developer</h2></div>
+      <div class="group-card">
+        <label class="li sl"><span class="ms i-code"></span><span class="txt body-l">Simulated sensors</span><span class="switch"><input type="checkbox" checked><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span></label>
+        <div class="chips">
+          <button class="chip sl" aria-pressed="true" data-toggle>Autoplay</button>
+          <button class="chip sl" aria-pressed="false" data-toggle>Night</button>
+          <button class="chip sl" aria-pressed="false" data-toggle>Stage 60 s</button>
+          <button class="chip sl" aria-pressed="false" data-toggle>Bad day</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+<script src="lp.js"></script>
+</body>
+</html>

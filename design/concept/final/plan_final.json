@@ -1,0 +1,89 @@
+{
+ "version": "concept-final-1",
+ "style": "Calm flat 2D illustration for a wordless Finnish mobile game, in the spirit of 1930s Finnish functionalist design: free-form wave curves and bent laminated birch plywood (inspiration only, no real buildings, furniture or products). Every landform, shoreline, snowdrift, fell and path is one long, smooth, asymmetric free-form curve drawn in a single unhurried gesture: no zigzags, no jagged edges, no hard corners. Every landform is laminated: along its curved top edge run two to four thin parallel offset lines in pale birch tones that follow the curve exactly, like the cut edge of bent birch plywood, so each layer of land reads as a bent ply sheet. Shapes are large, flat and matte like smooth painted plaster, each with at most one very soft smooth tonal gradient. Skies are perfectly smooth continuous gradients: no banding, no stripes, no scanlines, no noise, no speckle, no grain. No outlines, no brush texture, no paper grain, no 3D render look, no glossy or plastic highlights, no photorealism. Strong clear silhouettes, very few elements, a big calm empty sky, a small figure in a large world. Palette: deep fjord #0E1A2E, kaamos blue #1E3150, frost #9DB9CC, lilac haze #B4A6CE, birch white #F2EEE6, birch ply #E2C79C, ply edge #B48E5C, sun yellow #F2C230, honey #FFD58A, dawn apricot #F3A57A, ice #8FC6E0, spring green #9DBE8C, spruce #2F4A48, ceiling green #C8D6BE. Warm light is sun yellow and honey only, never orange-red, never pink, never red. Quiet, hopeful, gentle. No text, no letters, no numbers, no logos, no signature, no watermark, no faces.",
+ "suffixes": {
+  "plate": "Full-bleed illustration that fills the entire frame edge to edge, lighting painted in, no frame, no border, no vignette."
+ },
+ "assets": [
+  {
+   "name": "concept/concept_final_start",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "Kaamos, the blue polar-night morning before the light comes back. Portrait composition. The upper 55 percent is a vast, smooth, empty night sky graded from deep fjord #0E1A2E at the top to kaamos blue #1E3150 at the horizon, a few tiny soft stars, one very faint veil of aurora high up made of fine parallel frost-coloured lines. At 58 percent height a calm frozen bay; across it a long low far shore of laminated fells in frost blue, with nine tiny warm sun-yellow lights scattered along the far shore like distant lanterns, and a tiny slender white tower with a dark unlit lamp room on the far right horizon. In the lower third a large smooth laminated snow mound curves up from the left, its edge showing pale ply lines; on it, one third from the left, the Keeper sits quietly facing right, its lantern set down beside it glowing only as a small low ember. Everything is cool near-monochrome blue (deep fjord, kaamos blue, frost, snow tinted blue); the only warm pixels in the whole image are the ember in the lantern, the small soft warm pool of light it casts on the snow around the Keeper, and the far shore lights. The bottom 20 percent is quiet dark blue snow with nothing in it. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  },
+  {
+   "name": "concept/concept_final_ride",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "The Ride, mid-session. Portrait composition, side view. The Keeper slides standing on its feet down a long, smooth, rolling laminated snow hill in the lower half, moving from left to right, leaning forward, cloak streaming back in a smooth bell curve, lantern swinging forward with a bright warm sun-yellow flame. The hills are one continuous wave line and every crest is edged with two to four pale ply lines. Colour is coming back outward from the lantern: around and behind the Keeper a soft wide area where the world has its true colours (slender white birches with warm golden twig tips on the left, the ice of a lake below in clear ice blue, warm birch-ply snow edges), while the right side of the image, ahead of the Keeper, is still cool near-monochrome kaamos blue; the boundary is a very soft, gradual glow, never a hard ring or line. A gentle arc of seven small warm light motes floats ahead over the next crest along a jump curve. Sky: smooth gradient from deep fjord at the top to a lilac haze #B4A6CE band at the horizon, the blue hour. Upper 45 percent mostly empty sky. A tiny slender white tower far on the right horizon. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  },
+  {
+   "name": "concept/concept_final_bite",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "Ice fishing at night on the harbour ice, the first task of the morning, before any colour has returned. Portrait composition, side view, camera close. In the lower middle a round dark hole in smooth lake ice; the hole's rim shows thin pale ply lines like a cut plywood edge; a small round float sits in the black water of the hole with two soft concentric ripples. The Keeper sits on a small birch-ply crate on the left, holding a short thin fishing rod whose line drops into the hole. Its lantern stands on the ice beside it and casts a warm sun-yellow pool of light that reaches the hole and makes the float glow faintly. Everything outside the lantern's pool is cool near-monochrome kaamos blue and frost; the lantern pool is the only warm colour. Behind, a far shore of low laminated fells and a tiny unlit white tower on the right horizon. Upper 45 percent smooth empty night sky with a few faint stars. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  },
+  {
+   "name": "concept/concept_final_joutsen",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "A constellation moment in the sky, mid-session, after gold and blue have returned. Portrait composition. Lower 30 percent: a clearing between slender white birches with warm golden twig tips, on soft laminated snow; the Keeper stands small, left of centre, looking up with its lantern raised; behind it a frozen lake in clear ice blue. Upper 65 percent: a deep blue-hour sky (deep fjord at the top, kaamos blue below, a lilac haze band at the horizon) in which seven soft star points are joined by one single continuous, smooth, flowing line of warm light drawn in one unhurried gesture, tracing the abstract shape of a whooper swan in flight with a long neck and wide wings; the line is simple and elegant like one bent ribbon, not a detailed drawing. The light line is birch white with a sun-yellow core and a soft glow. Very faint fine parallel aurora lines in spring green are just starting to appear at the far top. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  },
+  {
+   "name": "concept/concept_final_loyly",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "Inside a small Finnish sauna, calm and warm. Portrait composition. The wall and the bench are bent laminated birch plywood: the bench sweeps in one long wave curve and its cut edges show fine parallel ply lines; the wall is smooth pale birch. In the lower centre, a dark round stove holding a mound of smooth dark stones; above it a simple wooden ladle tilts and pours one thin, silky, continuous thread of water onto the stones. Steam rises from the stones as a calm column of fine parallel curving lines in ceiling green #C8D6BE and birch white, like bent veneer strips, drifting up and to the right. One small round window high on the left shows the kaamos-blue night outside with a single star. Soft warm light; mostly birch ply, birch white and ceiling green, the stones dark. No people, no figure in the image."
+  },
+  {
+   "name": "concept/concept_final_dawn",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "Dawn, the handover. Portrait composition, side view. On a smooth laminated fell summit in the lower left third the Keeper stands lifting its lantern toward the sun; the lantern flame is small and soft now. The sun is a large soft honey-gold disc #FFD58A cresting behind a long laminated fell on the right at 55 percent height, its lower part hidden by the fell, with a broad soft warm glow around it, no rays, no starburst. The sky is a smooth gradient from soft kaamos blue at the very top through lilac haze to dawn apricot #F3A57A and pale honey at the horizon. The whole world below is in full returned colour: white birches with warm gold twig tips along the slope, a frozen lake in clear ice blue reflecting apricot, spruce green on the far hills, soft spring green patches where the snow has thinned, snow in warm birch white; every landform edge shows pale ply lines. Upper 40 percent open sky. The brightest value is soft honey gold, never pure white. Gentle, never blinding. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  },
+  {
+   "name": "concept/concept_final_end",
+   "action": "new",
+   "size": "1024x1536",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "The morning after dawn, a calm hold. Portrait composition. The sun, a soft honey-gold disc with a broad soft warm glow and no rays, sits just above a far laminated fell on the right at 40 percent height. Upper 38 percent: smooth clear sky from soft morning blue #6E8FC4 at the top to apricot near the sun. Middle: a wide frozen bay in ice blue reflecting gold, a far shore of laminated islands with small spruce in spruce green, and a row of small warm lights along the far shore. At 52 percent height on the left the Keeper stands small on a laminated snow bank looking at the sun, lantern lowered. The lower 42 percent of the image is a quiet, simple foreground of smooth sunlit snow banks in birch white with pale apricot and lilac shadows, very little detail, calm and empty. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  },
+  {
+   "name": "concept/concept_final_patient",
+   "action": "new",
+   "size": "1536x1024",
+   "quality": "high",
+   "prio": "A",
+   "transparent": false,
+   "suffix": "plate",
+   "prompt": "Kev\u00e4t, a soft, light morning as spring approaches. Landscape composition, low contrast, airy. A wide calm lake shore drawn as one long smooth wave curve from left to right with laminated ply edges, snow thinning into patches of soft spring green, three slender white birches with pale gold catkins on the left, a far shore of low laminated fells in frost blue, small spruce silhouettes in muted spruce green. Sky: a pale smooth gradient from soft blue at the top to birch white with a hint of apricot near the horizon, a low soft honey sun near the right horizon. The Keeper stands very small on the shore at the right third. Plenty of empty light sky in the upper half. The only character is the Keeper: a small, round, child-sized figure about half as wide as it is tall, wrapped in a felted wool cloak the colour of birch plywood #E2C79C with a soft kaamos-blue shadow side; a smooth dome-shaped hood that is perfectly round on top (no point, no tip, no ears, no pompom, no fur trim) flowing straight into a cloak that flares gently into a bell shape down to the ground; a hem band of two thin darker ply lines #B48E5C near the bottom of the cloak; no scarf. The figure is seen from the side or slightly from behind so no face is ever visible, the hood opening is not shown. One small mitten holds a small round lantern on a short handle at hip height."
+  }
+ ]
+}

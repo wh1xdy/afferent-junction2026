@@ -139,3 +139,20 @@ cd uno-q/modulino-hub && wendy run --device "$UNOQ" --detach --yes
 ```
 
 When plugged in over USB-C, `wendy discover` finds the boards directly (faster deploys).
+
+## Afferent app, hub and design (afferent-app)
+
+Home maintenance companion after TMS for depression: a two-minute wordless game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and a local hub with a clinician dashboard. All patient data in the demo is simulated. Developed on the `afferent-app` branch and merged here.
+
+- `hub/` Python hub: API, analytics, bedside simulator, serves the game and dashboard
+- `demo/` the game (web, wrapped by Capacitor), `design/` specs, tokens and mockups, `art/` art pipeline
+- `ios/App/` and `android/` Capacitor shells for the game (separate from the native `ios/Afferent` app)
+- `contracts/` API and session schemas; `STATUS.md`, `GameDesign.md`, `Statistics.md` and the other top-level docs
+
+Run it:
+
+```sh
+./start.sh --reset   # needs Python 3, creates hub/.venv on first run
+```
+
+Then open `http://localhost:8000/clinic/` (clinician dashboard) or `http://localhost:8000/app/?input=auto&clock=morning` (game, autoplay). Full instructions, options, the iPhone build and tests are in [`APP_README.md`](APP_README.md).

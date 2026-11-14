@@ -1,0 +1,44 @@
+{
+ "patient_id": "anna",
+ "week_start_day": 50,
+ "week_end_day": 56,
+ "generated_iso": "2026-11-15T07:43:15+02:00",
+ "text": "Anna (simulated), week 9 after TMS. Status: consider discussing a booster session, since day 45. The early-warning index is +2.45 (+0.24 over 7 days), with 100% data completeness and high confidence. Largest contributors: reaction time (+3.5), sleep regularity (+5.4), missed sessions (7 d) (+2.5). She played 6 of 7 days. Breath remains the task most often followed by a settling pulse (P(best) 0.95).",
+ "source": "template",
+ "model": null,
+ "numbers": {
+  "week_start_day": 50,
+  "week_end_day": 56,
+  "week_since_tms": 9,
+  "display_name": "Anna",
+  "simulated": true,
+  "state": "booster",
+  "state_label": "Consider discussing a booster session",
+  "state_since_day": 45,
+  "composite": 2.453,
+  "composite_trend_7d": 0.237,
+  "completeness": 1.0,
+  "confidence": "high",
+  "sessions_7d": 6,
+  "missed_7d": 1,
+  "top_contributors": [
+   {
+    "label": "Reaction time",
+    "signed_z": 3.48
+   },
+   {
+    "label": "Sleep regularity",
+    "signed_z": 5.37
+   },
+   {
+    "label": "Missed sessions (7 d)",
+    "signed_z": 2.48
+   }
+  ],
+  "best_calm_task": "Breath",
+  "best_calm_p_best": 0.953,
+  "pre_post_pulse_delta_median": -1.7
+ },
+ "simulated": true,
+ "disclaimer": "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
+}

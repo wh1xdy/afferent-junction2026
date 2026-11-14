@@ -1,0 +1,32 @@
+{
+  "schema": "afferent.daily/1",
+  "patient_id": "anna",
+  "day_index": 55,
+  "date": "2026-11-14",
+  "weekday": 5,
+  "simulated": true,
+  "simulated_fields": ["sleep", "morning_pulse_bpm", "room", "bedside_light", "presence", "steps", "knob_uses"],
+  "day_complete": true,
+  "sleep": {
+    "time_in_bed_h": 9.8,
+    "sleep_onset_h": 0.85,
+    "wake_time_h": 9.6,
+    "sleep_midpoint_h": 5.23,
+    "restlessness_events": 14,
+    "presence_hourly": [1, 1, 1, 1, 1, 1, 1, 1, 1, 0.6, 0.2, 0, 0, 0.5, 0.3, 0, 0, 0, 0, 0, 0, 0, 0.1, 0.8],
+    "quality": 0.9
+  },
+  "morning_pulse_bpm": 70.2,
+  "morning_pulse_quality": 0.8,
+  "room": { "temp_c_mean": 20.8, "temp_c_night": 19.6, "humidity_pct": 31 },
+  "bedside_light": { "on_minutes": 22, "dawn_level_pct": 15, "morning_light_min": 0 },
+  "presence": { "home_hours": 23.7, "away_hours": 0.3, "home_only": true, "visitors_count": 0 },
+  "steps": 1840,
+  "knob_uses": 1,
+  "played": false,
+  "declined": false,
+  "missed": true,
+  "session_time_h": null,
+  "session_ids": [],
+  "reminder_h": 7.5
+}

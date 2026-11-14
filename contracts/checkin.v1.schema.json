@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "afferent.checkin/1",
+  "title": "Afferent check-in (PHQ-9 every 14 days, gated C-SSRS screener)",
+  "type": "object",
+  "required": ["schema", "checkin_id", "patient_id", "started_iso", "status", "phq9", "safety"],
+  "properties": {
+    "schema": {"const": "afferent.checkin/1"},
+    "checkin_id": {"type": "string", "minLength": 1, "description": "UUID of this check-in attempt; the hub drops duplicates"},
+    "patient_id": {"type": "string", "minLength": 1},
+    "device_id": {"type": ["string", "null"]},
+    "app_version": {"type": ["string", "null"]},
+    "started_iso": {"type": "string", "description": "Local time with offset"},
+    "completed_iso": {"type": ["string", "null"]},
+    "stopped_iso": {"type": ["string", "null"]},
+    "status": {"enum": ["completed", "incomplete"]},
+    "trigger": {"enum": ["schedule", "clinician_early"]},
+    "early": {"type": "boolean", "description": "Less than 14 days after the previous completed check-in"},
+    "simulated": {"type": "boolean"},
+    "language": {"type": "string"},
+    "instrument_versions": {"type": "object"},
+    "phq9": {
+      "type": "object",
+      "required": ["items"],
+      "properties": {
+        "items": {
+          "type": "object",
+          "patternProperties": {"^phq9_[1-9]$": {"type": ["integer", "null"], "minimum": 0, "maximum": 3}},
+          "additionalProperties": false
+        },
+        "item_ms": {"type": "object"},
+        "changed": {"type": "object"},
+        "total": {"type": ["integer", "null"], "minimum": 0, "maximum": 27, "description": "Sum of items 1 to 9, null unless all 9 answered"},
+        "phq8_total": {"type": ["integer", "null"], "minimum": 0, "maximum": 24, "description": "Sum of items 1 to 8, null unless all 8 answered"},
+        "band": {"enum": ["minimal", "mild", "moderate", "moderately_severe", "severe", null]}
+      }
+    },
+    "cssrs": {
+      "type": ["object", "null"],
+      "properties": {
+        "asked": {"type": "boolean"},
+        "reason": {"enum": ["item9_positive", "always_ask", "not_licensed", null]},
+        "items": {"type": "object"},
+        "tier": {"enum": ["none", "low", "moderate", "high", null]},
+        "c6_repeat": {"type": "boolean"}
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["tier"],
+      "properties": {
+        "tier": {"enum": ["none", "low", "moderate", "high", "incomplete", "not_answered"]},
+        "item9": {"type": ["integer", "null"], "minimum": 0, "maximum": 3},
+        "source": {"enum": ["cssrs", "item9_fallback", null]},
+        "screen": {"enum": ["thank_you", "support", "crisis", "saved", null]},
+        "shared": {"const": true}
+      }
+    }
+  }
+}

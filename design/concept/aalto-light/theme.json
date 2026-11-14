@@ -1,0 +1,102 @@
+{
+  "name": "aalto-light",
+  "version": "0.1.0",
+  "description": "Afferent design concept 'Aalto Light': Finnish functionalist heritage (free-form wave, bent birch, the Paimio idea of designing for a person lying in bed), kaamos blue turning to spring light. Material 3 roles on top. No red anywhere.",
+  "palette": {
+    "deep_fjord":    { "hex": "#0E1A2E", "role": "Night base: surface in the dark scheme, sky top in kaamos" },
+    "kaamos_blue":   { "hex": "#1E3150", "role": "Brand colour and seed: app icon field, high containers, the world before colour returns" },
+    "frost":         { "hex": "#9DB9CC", "role": "Cold light, ice, secondary text on night" },
+    "lilac_haze":    { "hex": "#B4A6CE", "role": "Blue hour, the in-between state, measure tasks" },
+    "birch_white":   { "hex": "#F2EEE6", "role": "Text on night, snow, light-scheme surface. The brightest value at night" },
+    "birch_ply":     { "hex": "#E2C79C", "role": "Warm neutral: laminate bands, streak, frames, secondary accent" },
+    "ply_edge":      { "hex": "#B48E5C", "role": "Lamination lines, dividers on warm surfaces" },
+    "paimio_yellow": { "hex": "#F2C230", "role": "The one sun: primary action, the lantern, the streak's newest layer. One per screen" },
+    "dawn_apricot":  { "hex": "#F3A57A", "role": "Dawn horizon, gentle attention (replaces the error role; never red)" },
+    "spring_green":  { "hex": "#9DBE8C", "role": "Spring, aurora, 'steady' state, tertiary accent" },
+    "ceiling_green": { "hex": "#C8D6BE", "role": "Paimio ceiling: calm wash for breath and loyly, light-scheme tertiary container" }
+  },
+  "m3": {
+    "seed": "#1E3150",
+    "dark_kaamos": {
+      "primary": "#F2C230", "onPrimary": "#2B2100", "primaryContainer": "#4F4000", "onPrimaryContainer": "#FFE38C",
+      "primaryFixed": "#F2C230", "onPrimaryFixed": "#2B2100",
+      "secondary": "#E2C79C", "onSecondary": "#3D2E14", "secondaryContainer": "#4F3F26", "onSecondaryContainer": "#FBE3BC",
+      "tertiary": "#9DBE8C", "onTertiary": "#163514", "tertiaryContainer": "#2C4A28", "onTertiaryContainer": "#C8E8B5",
+      "error": "#F3A57A", "onError": "#4A2309", "errorContainer": "#5E3A22", "onErrorContainer": "#FFDCC7",
+      "surface": "#0E1A2E", "surfaceDim": "#0A1424", "surfaceBright": "#30405C",
+      "surfaceContainerLowest": "#08111F", "surfaceContainerLow": "#122038", "surfaceContainer": "#172742",
+      "surfaceContainerHigh": "#1E3150", "surfaceContainerHighest": "#283D60",
+      "onSurface": "#F2EEE6", "onSurfaceVariant": "#B9C6D3", "outline": "#7F8DA0", "outlineVariant": "#34445E",
+      "inverseSurface": "#F2EEE6", "inverseOnSurface": "#1B2230", "inversePrimary": "#735C00",
+      "scrim": "#05080F", "shadow": "#000000"
+    },
+    "light_kevat": {
+      "primary": "#2C4A73", "onPrimary": "#FFFFFF", "primaryContainer": "#D6E3FF", "onPrimaryContainer": "#0E1A2E",
+      "primaryFixed": "#F2C230", "onPrimaryFixed": "#2B2100",
+      "secondary": "#6B5532", "onSecondary": "#FFFFFF", "secondaryContainer": "#F3DEBA", "onSecondaryContainer": "#251A06",
+      "tertiary": "#3F6A35", "onTertiary": "#FFFFFF", "tertiaryContainer": "#C8D6BE", "onTertiaryContainer": "#10200C",
+      "error": "#9A4B22", "onError": "#FFFFFF", "errorContainer": "#FFDCC7", "onErrorContainer": "#341100",
+      "surface": "#FAF7F1", "surfaceDim": "#DDD8CE", "surfaceBright": "#FFFDF9",
+      "surfaceContainerLowest": "#FFFFFF", "surfaceContainerLow": "#F5F1E9", "surfaceContainer": "#F0EBE1",
+      "surfaceContainerHigh": "#EAE4D8", "surfaceContainerHighest": "#E4DDD0",
+      "onSurface": "#1B2230", "onSurfaceVariant": "#45505F", "outline": "#757E8B", "outlineVariant": "#C9C4B8",
+      "inverseSurface": "#2E3440", "inverseOnSurface": "#F2EEE6", "inversePrimary": "#A9C7FF",
+      "scrim": "#000000", "shadow": "#000000"
+    },
+    "notes": "Dark (kaamos) is the default for the morning game in bed and the start and end screens. Light (kevat) is the patient view by day and the clinician dashboard. The error role is apricot, used only for connection problems; clinical states use their own tokens with labels."
+  },
+  "clinic_states": {
+    "stable": "#9DBE8C", "watch": "#E2C79C", "check_in": "#F2C230", "booster": "#F3A57A",
+    "rule": "Always with a text label, never colour alone, never red"
+  },
+  "world_stages": {
+    "kaamos":      { "sky_top": "#0E1A2E", "sky_bottom": "#1E3150", "land": "#5C6B80", "accent": "#F2C230", "saturation": 0.05 },
+    "first_light": { "sky_top": "#1E3150", "sky_bottom": "#3E4D72", "land": "#E2C79C", "accent": "#F2C230", "saturation": 0.6 },
+    "blue_hour":   { "sky_top": "#22375A", "sky_bottom": "#B4A6CE", "land": "#9DB9CC", "accent": "#9DBE8C", "saturation": 0.8 },
+    "kevat_dawn":  { "sky_top": "#6E8FC4", "sky_bottom": "#F3A57A", "land": "#9DBE8C", "accent": "#F2C230", "saturation": 1.0 }
+  },
+  "type": {
+    "brand": { "family": "Jost", "files": ["fonts/Jost-latin.woff2", "fonts/Jost-latin-ext.woff2"], "licence": "fonts/OFL-Jost.txt", "weights": [300, 400], "use": "Display, headline, streak numeral, wordmark (lowercase)" },
+    "plain": { "family": "Google Sans Flex", "files": ["fonts/GoogleSansFlex-latin-rond.woff2", "fonts/GoogleSansFlex-latin-ext-rond.woff2"], "licence": "fonts/OFL-GoogleSansFlex.txt", "axes": { "ROND": 100 }, "weights": [400, 500, 600], "use": "Title, body, label: all UI and the dashboard (tabular figures)" },
+    "voice": { "family": "Fraunces", "files": ["fonts/Fraunces-latin.woff2", "fonts/Fraunces-latin-ext.woff2"], "licence": "fonts/OFL-Fraunces.txt", "weights": [300], "axes": { "opsz": 48 }, "use": "The quote after a session only" },
+    "scale_px": {
+      "display_large": [57, 64, "Jost 300"], "display_medium": [45, 52, "Jost 300"], "display_small": [36, 44, "Jost 300"],
+      "headline_large": [32, 40, "Jost 400"], "headline_medium": [28, 36, "Jost 400"], "headline_small": [24, 32, "Jost 400"],
+      "title_large": [22, 28, "Google Sans Flex 500"], "title_medium": [16, 24, "Google Sans Flex 500"], "title_small": [14, 20, "Google Sans Flex 500"],
+      "body_large": [17, 26, "Google Sans Flex 400"], "body_medium": [15, 22, "Google Sans Flex 400"], "body_small": [13, 18, "Google Sans Flex 400"],
+      "label_large": [15, 20, "Google Sans Flex 600"], "label_medium": [13, 16, "Google Sans Flex 600"], "label_small": [11, 16, "Google Sans Flex 600"],
+      "quote": [22, 32, "Fraunces 300 opsz 48"]
+    }
+  },
+  "shape": {
+    "corner_px": { "none": 0, "extra_small": 6, "small": 10, "medium": 16, "large": 24, "extra_large": 32, "full": 999 },
+    "signature": {
+      "wave_edge": "Top edge of bottom sheets and the end card: one asymmetric free-form curve, low on the left, rising to the right (the shoreline), amplitude 18 px on a phone",
+      "laminate_band": "Bent ribbon of 4 to 6 parallel lines, used for the streak, dividers and the task frame edge",
+      "window": "Task panel: tall rounded rectangle (radius 32) with a 6 px birch-ply frame showing two lamination lines",
+      "sun": "Perfect circle, the only geometric primitive; used for the primary button state dot, progress and the week row",
+      "pebble": "Rounded free-form blob for chips and the streak badge, never a perfect pill on decorative elements"
+    },
+    "rules": "No sharp corners, no zigzags, no straight horizon in the art. UI controls stay M3-clean (pills, rounded rects); the free curve appears once per screen."
+  },
+  "motion": {
+    "ui_emphasized_decelerate": { "curve": "cubic-bezier(0.05, 0.7, 0.1, 1)", "ms": 450, "use": "Sheets, panels entering" },
+    "ui_emphasized_accelerate": { "curve": "cubic-bezier(0.3, 0, 0.8, 0.15)", "ms": 250, "use": "Leaving" },
+    "ui_standard": { "curve": "cubic-bezier(0.2, 0, 0, 1)", "ms": 300, "use": "Small state changes" },
+    "spring_bend": { "damping": 0.82, "stiffness": 260, "use": "Task window opening along a curved path, laminate layer pressing in" },
+    "breath": { "curve": "cubic-bezier(0.45, 0, 0.55, 1)", "in_ms": 4000, "out_ms": 6000, "use": "Lantern, aurora, fog, figure; 6 breaths per minute, never faster" },
+    "daylight_sweep": { "curve": "cubic-bezier(0.65, 0, 0.35, 1)", "ms": 4000, "use": "Colour return: low light travels from the sun side across the world" },
+    "dawn": { "ms": 8000, "use": "Sun crests the fell; bedside light ramps on the same curve" },
+    "reduced_motion": "Crossfades instead of paths and springs, parallax x0.5, no particles faster than 0.2 screen per second, no flashes"
+  },
+  "bedside": {
+    "wake_ramp": [
+      { "t_s": 0, "rgb": "#FF9E3D", "level": 2 },
+      { "t_s": 600, "rgb": "#FFB54A", "level": 15 },
+      { "t_s": 1200, "rgb": "#FFD27A", "level": 40 },
+      { "t_s": 1800, "rgb": "#FFF0D2", "level": 70 }
+    ],
+    "session_follow": "During the session the lamp follows the world stage: kaamos off, first light #FFB54A 8, blue hour #FFD27A 15, kevat dawn #FFF0D2 60 over 8 s",
+    "rule": "Warm only, never blue light before the player is up, never flashes"
+  }
+}

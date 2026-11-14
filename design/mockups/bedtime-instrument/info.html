@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-sky="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How to play</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/m3.css">
+<style>
+  .world { position: absolute; inset: -96px 0 auto 0; height: 844px; background: url("img/sky-night-phone.jpg") center top / cover no-repeat; }
+  .scrim { position: fixed; inset: 0; background: color-mix(in srgb, var(--md-sys-color-scrim) 52%, transparent); }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--md-sys-color-surface-container-low); border-radius: var(--md-shape-xl) var(--md-shape-xl) 0 0; padding: 0 0 32px; }
+  .handle { width: 32px; height: 4px; border-radius: 2px; background: var(--md-sys-color-on-surface-variant); opacity: 0.4; margin: 22px auto 18px; }
+  .sheet h1 { margin: 0 24px 12px; }
+  .g { display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 0 24px; }
+  .g .glyph { width: 48px; height: 48px; border-radius: var(--md-shape-lg); display: grid; place-items: center; background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-primary); flex: none; }
+  .g .glyph .ms { font-size: 26px; }
+  .g p { margin: 0; }
+  .close { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="world" aria-hidden="true"></div>
+  <div class="scrim" aria-hidden="true"></div>
+  <section class="sheet" role="dialog" aria-labelledby="ht">
+    <div class="handle" aria-hidden="true"></div>
+    <h1 id="ht" class="title-l">How to play</h1>
+    <div class="g"><span class="glyph"><span class="ms">touch_app</span></span><p class="body-l">Tap when the lantern flares</p></div>
+    <div class="g"><span class="glyph"><span class="ms">swipe</span></span><p class="body-l">Drag or swipe in the panel</p></div>
+    <div class="g"><span class="glyph"><span class="ms">air</span></span><p class="body-l">Hold to breathe in, let go to breathe out</p></div>
+    <div class="g"><span class="glyph"><span class="ms">wb_twilight</span></span><p class="body-l">Each task brings colour back. Dawn ends the night.</p></div>
+    <div class="close"><button class="btn text state">Got it</button></div>
+  </section>
+</div>
+</body>
+</html>

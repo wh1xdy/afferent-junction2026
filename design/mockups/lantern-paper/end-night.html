@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en" data-scheme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C0D1C">
+<title>Rest well</title>
+<link rel="stylesheet" href="lp.css">
+<link rel="stylesheet" href="end.css">
+<style>
+  .scene { background-image: url("img/bg_end_night.jpg"); background-position: 50% 40%; filter: brightness(0.55) saturate(0.8); transition: filter 4s var(--lp-ease-light); }
+  .scene::after { background: linear-gradient(180deg, rgba(8, 9, 20, 0.5) 0%, transparent 22%, transparent 55%, rgba(8, 9, 20, 0.7) 100%); }
+  .asleep .scene { filter: brightness(0.22) saturate(0.6); }
+  .asleep .pick-card, .asleep .top-bar .grow ~ * { display: none; }
+  .asleep .greet { color: var(--md-sys-color-on-surface-variant); top: auto; }
+  .asleep .top-bar .icon-btn:first-child { opacity: 0.7; }
+  .pick-card { --lp-frame: var(--md-sys-color-outline); }
+  .greet { padding-top: 248px; }
+  .asleep .greet { padding-top: 300px; font-size: 36px; line-height: 44px; }
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"></div>
+<main class="phone">
+  <header class="top-bar">
+    <a class="icon-btn sl" href="start.html" aria-label="Close"><span class="c"><span class="ms i-close"></span></span></a>
+    <span class="grow"></span>
+    <a class="icon-btn sl" href="crisis.html" aria-label="Talk to someone"><span class="c"><span class="ms i-support"></span></span></a>
+  </header>
+  <h1 class="greet display-m">Rest well.</h1>
+  <div class="pick-card paper">
+    <div class="mood-pick" role="radiogroup" aria-label="How do you feel now">
+      <button class="sl" role="radio" aria-checked="false" aria-label="1 of 5" data-lantern="1"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="2 of 5" data-lantern="2"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="3 of 5" data-lantern="3"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="4 of 5" data-lantern="4"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="5 of 5" data-lantern="5"></button>
+    </div>
+  </div>
+</main>
+<script src="lp.js"></script>
+<script src="end.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "appId": "fi.junction.afferent",
+  "appName": "Afferent",
+  "webDir": "demo",
+  "ios": { "contentInset": "never" },
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "allowMixedContent": true }
+}
