@@ -86,6 +86,12 @@ cd jetson/vision && wendy run --device <jetson> --detach --yes
 Both apps use `"mode": "mesh"` networking, so their ports are reachable only inside
 Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a laptop).
 
+## Laptop POC
+
+[`posture-analysis/posture`](posture-analysis/posture) — Dockerised webcam pipeline for posture, gait
+and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
+README for setup; the project plan is in [`docs/plan_posture_depression.md`](docs/plan_posture_depression.md).
+
 ## HTTP
 
 - UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
@@ -158,3 +164,7 @@ Run it:
 ```
 
 Then open `http://localhost:8000/clinic/` (clinician dashboard) or `http://localhost:8000/app/?input=auto&clock=morning` (game, autoplay). Full instructions, options, the iPhone build and tests are in [`APP_README.md`](APP_README.md).
+
+## Contributing
+
+All repo content — code, comments, docs, commit messages — is in English.

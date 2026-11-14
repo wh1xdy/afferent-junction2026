@@ -1,0 +1,51 @@
+# afferent training env.
+#
+#   CPU (works everywhere, used for local smoke tests / data prep):
+#     docker compose build train
+#     docker compose run --rm train make prelabel
+#
+#   GPU (needs nvidia-container-toolkit on the host -- NOT installed on the
+#   dev laptop, so untested here; on Modal / Verda use the cu121 image
+#   directly, see README):
+#     docker compose --profile gpu build train-gpu
+#     docker compose --profile gpu run --rm train-gpu make train AMP=1
+services:
+  train:
+    build:
+      context: .
+      args:
+        TORCH_VARIANT: cpu
+    image: afferent-train:cpu
+    working_dir: /workspace/training
+    volumes:
+      - .:/workspace/training                       # code + data/ + work_dirs/
+      - ../posture/recordings:/workspace/posture/recordings:ro
+      - ../posture/models:/workspace/posture/models # install-model target
+      - ./cache:/cache                              # checkpoints / rtmlib ONNX
+    environment:
+      AFFERENT_DATA_ROOT: /workspace/training/data/
+      VIDEOS_DIR: /workspace/posture/recordings
+      POSTURE_MODELS: /workspace/posture/models
+      DEVICE: cpu
+    shm_size: "4gb"                                  # dataloader workers
+    stdin_open: true
+    tty: true
+
+  train-gpu:
+    extends: train
+    profiles: ["gpu"]
+    build:
+      context: .
+      args:
+        TORCH_VARIANT: cu121
+    image: afferent-train:cu121
+    environment:
+      DEVICE: cuda
+    gpus: all            # compose >= 2.30; older: use the deploy block below
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
