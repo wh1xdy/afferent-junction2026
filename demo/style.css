@@ -38,6 +38,14 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 #game { width: 100%; height: 100%; display: block; }
+#phone::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: url(assets/bg_start.png) center / cover no-repeat;
+  opacity: 0; transition: opacity 1.8s var(--ease);
+}
+#phone:has(#start:not(.hidden))::before { opacity: 1; }
+#phone:has(#end:not(.hidden))::before { background-image: linear-gradient(rgba(16, 20, 44, 0) 62%, rgba(16, 20, 44, 0.4)), url(assets/bg_end_dawn.png); background-position: center, 78% 50%; opacity: 1; transition-duration: 3.2s; }
+#phone:has(#end.night:not(.hidden))::before { background-image: url(assets/bg_end_night.png); filter: brightness(0.6); }
 
 .overlay {
   position: absolute; inset: 0;
