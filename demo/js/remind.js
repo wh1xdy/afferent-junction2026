@@ -2,7 +2,7 @@
   const KEY = 'afferent.remind.v1', CHANNEL = 'morning', ACTIONS = 'morning';
   const OFFSET_MIN = 30, BOUNDARY_MS = 4 * 3600e3, KEEP_DAYS = 60, HORIZON = 21;
   const BACKOFF_AFTER = 3, THIN_BACK = 2, THIN_WINDOW = 10, THIN_UNPROMPTED = 7;
-  const ASK_AFTER = 3, ASK_MAX = 3, PAUSE_DAYS = 7;
+  const PAUSE_DAYS = 7;
   const LIT = new Set(['completed', 'fell_asleep']);
 
   const cap = window.Capacitor;
@@ -20,7 +20,7 @@
   const fireAt = (k, wake) => { const [h, m] = wake.split(':').map(Number); const d = dateOf(k); d.setHours(h, m + OFFSET_MIN, 0, 0); return d; };
   const daytime = d => d.getHours() >= 6 && d.getHours() < 21;
 
-  const fresh = () => ({ on: false, asked: false, offers: 0, wake: '07:00', plan: [], sent: {}, answered: {}, lit: {}, used: {}, thinned: false, silent: false, pauseTo: null });
+  const fresh = () => ({ on: false, asked: false, wake: '07:00', plan: [], sent: {}, answered: {}, lit: {}, used: {}, thinned: false, silent: false });
   const load = () => { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && typeof s === 'object') return { ...fresh(), ...s }; } catch {} return fresh(); };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch {} };
   let st = load();
@@ -28,7 +28,6 @@
   const pool = fetch('data/reminders.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
   const wake = () => A.config?.wake || st.wake;
   const isLit = r => LIT.has(r.status) || (r.status === 'partial' && !!r.core && !r.unengaged && !r.core.unengaged);
-  const litCount = () => Object.values(st.answered).filter(v => v === 'lit').length;
   const ignored = () => {
     const last = Object.keys(st.answered).sort().pop() || '';
     return Object.entries(st.sent).filter(([d, s]) => d > last && s.kind === 'line').length;
@@ -50,12 +49,13 @@
 
   const build = (lines, now = Date.now()) => {
     const out = [], used = { ...st.used }, t = today(), w = wake();
+    const pauseTo = A.Streak?.pausedUntil?.();
     let ign = ignored(), thin = st.thinned, last = Object.keys(st.sent).sort().pop() ?? null;
     for (let i = 0; i <= HORIZON; i++) {
       const d = shift(t, i), at = fireAt(d, w);
       if (!daytime(at)) break;
       if (+at <= now || st.answered[d] || st.sent[d]) continue;
-      if (st.pauseTo && d <= st.pauseTo) continue;
+      if (pauseTo && d <= pauseTo) continue;
       if (thin && last === shift(d, -1)) continue;
       if (ign >= BACKOFF_AFTER) { out.push({ day: d, at: +at, kind: 'backoff', tpl: 'backoff' }); break; }
       const tpl = oldest(lines, used);
@@ -91,13 +91,7 @@
     if (st.plan.length) await LN.schedule({ notifications: st.plan.map(notification(data)) });
   }).catch(() => {}));
 
-  const pause = (days = PAUSE_DAYS, from = today()) => {
-    const to = shift(from, days - 1);
-    if (!st.pauseTo || st.pauseTo < to) st.pauseTo = to;
-    save();
-    A.bus.emit('streakPause', { from, to, source: 'patient' });
-    return sync();
-  };
+  const pause = (days = PAUSE_DAYS) => A.Streak?.setPause(shift(today(), days - 1));
 
   const decline = day => {
     if (day !== today() || st.answered[day] || !A.declinedRecord) return;
@@ -111,7 +105,7 @@
     await LN.registerActionTypes({ types: [{ id: ACTIONS, actions: [{ id: 'decline', title: 'Not today' }, { id: 'pause', title: 'Pause 7 days' }] }] });
     await LN.addListener('localNotificationActionPerformed', e => {
       const day = e.notification?.extra?.day;
-      if (e.actionId === 'pause') pause(PAUSE_DAYS, day && day > today() ? day : today());
+      if (e.actionId === 'pause') pause();
       if (e.actionId === 'decline') decline(day);
     });
   })().catch(() => {});
@@ -127,29 +121,8 @@
     return st.on;
   };
 
-  let offer = false, btn = null;
-  const mount = () => {
-    const again = document.getElementById('again');
-    if (!again) return;
-    btn = document.createElement('button');
-    btn.id = 'remindAsk'; btn.className = 'primary quiet'; btn.hidden = true;
-    btn.textContent = 'Remind me in the morning';
-    btn.addEventListener('pointerdown', e => e.stopPropagation());
-    btn.onclick = e => { e.stopPropagation(); btn.hidden = true; set({ on: true }); };
-    again.before(btn);
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
-  else mount();
-
-  A.bus.on('endScreen', () => { if (btn) btn.hidden = true; });
-  A.bus.on('quoteDone', async () => {
-    if (!offer || !btn) return;
-    offer = false;
-    const p = await LN.checkPermissions().catch(() => null);
-    if (!p || p.display === 'denied') { st.asked = true; save(); return; }
-    st.offers++; save();
-    btn.hidden = false;
-  });
+  A.bus.on('prefs', p => { if (!!p.reminder !== st.on || p.wake !== st.wake) set({ on: !!p.reminder, wake: p.wake }).then(on => { if (!on && p.reminder) A.Prefs.set({ reminder: false }); }); });
+  A.bus.on('pause', () => sync());
 
   A.bus.on('sessionEnd', r => {
     const d = today(), lit = isLit(r);
@@ -162,7 +135,6 @@
       st.silent = false;
       const recent = Object.keys(st.lit).sort().slice(-THIN_WINDOW);
       if (recent.filter(k => !st.lit[k]).length >= THIN_UNPROMPTED) st.thinned = true;
-      offer = !st.on && !st.asked && st.offers < ASK_MAX && litCount() >= ASK_AFTER && daytime(new Date());
     }
     sync();
   });

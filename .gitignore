@@ -4,8 +4,8 @@ graphify-out/
 art/raw/
 .env
 art/spend.json
+art/.spend.lock
 __pycache__/
-art/batch.log
 hub/.venv/
 hub/data/
 demo/design/

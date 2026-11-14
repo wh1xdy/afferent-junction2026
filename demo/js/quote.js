@@ -72,5 +72,4 @@
   });
   A.bus.on('shineEnd', ({ skipped } = {}) => { if (skipped) hide(); });
 
-  A.Quote = { pick, hide };
 })();
