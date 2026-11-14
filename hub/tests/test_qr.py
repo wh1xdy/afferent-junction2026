@@ -29,9 +29,13 @@ def stat(mean, samples=60):
     return {"mean": mean, "min": mean - 2, "max": mean + 2, "first": mean, "last": mean, "samples": samples}
 
 def finger_session(day, pulse=70.0, breathing=12.0, rmssd=40.0, source="finger_ppg", quality=0.7,
-                   quality_reported=True, samples=60, status="completed", simulated_fields=(), hour=7):
+                   quality_reported=True, samples=60, status="completed", simulated_fields=(), hour=7,
+                   quality_min=None):
+    q = stat(quality if quality_reported else None)
+    if q["samples"]:
+        q.update(min=quality if quality_min is None else quality_min, max=max(quality, 0.9))
     finger = {"source": source, "transport": "ble", "quality_reported": quality_reported, "seconds": 120,
-              "pulse_bpm": stat(pulse, samples), "quality": stat(quality if quality_reported else None),
+              "pulse_bpm": stat(pulse, samples), "quality": q,
               "finger_1_bpm": stat(pulse), "finger_2_bpm": stat(pulse), "fingers_abs_diff_bpm": 1.0,
               "presence_s": None}
     vitals = {"pulse_mean_bpm": pulse, "pulse_min_bpm": pulse, "pulse_max_bpm": pulse, "pulse_source": source,
@@ -245,6 +249,19 @@ def test_a_week_without_usable_clip_data_has_no_value():
     partial = qr.vitals_block([finger_session(50, rmssd=None)], 56)
     assert partial["weekly"]["rmssd_ms"] == [None] * 8 and partial["weekly"]["breathing_per_min"][7] == 12.0
 
+def test_a_session_with_a_weak_stretch_carries_no_value():
+    # 80 s at 62 bpm with quality 0.9, then 40 s at 170 bpm with quality 0.05, as a recorder that kept every reading
+    # stored it: the mean quality passes 0.3, the mean pulse is not a measurement
+    mixed = finger_session(50, pulse=98.0, breathing=18.0, rmssd=126.7, quality=0.62, quality_min=0.05)
+    assert qr.session_vital(mixed, "finger", "pulse_bpm") is None
+    assert qr.vitals_block([mixed], 56) == NO_VITALS
+    kept = finger_session(50, pulse=62.0, quality=0.62, quality_min=0.3)
+    assert qr.session_vital(kept, "finger", "pulse_bpm") == (62.0, False)
+    assert qr.vitals_block([mixed, finger_session(51, pulse=62.0)], 56)["weekly"]["pulse_bpm"] == [None] * 7 + [62.0]
+    unknown = finger_session(50)
+    unknown["vitals"]["finger"]["quality"]["min"] = None
+    assert qr.session_vital(unknown, "finger", "pulse_bpm") is None
+
 def test_simulated_vitals_stay_marked_and_never_mix_with_measured():
     sim = [finger_session(50, 90.0, 20.0, 60.0, source="simulated"), finger_session(44, 92.0, 21.0, 61.0, source="simulated")]
     v = qr.vitals_block(sim, 56)
@@ -290,6 +307,12 @@ def test_a_simulated_finger_session_marks_the_numbers_and_the_code(client):
 def test_no_reported_quality_keeps_the_numbers_out_of_the_code(client):
     doc = real_finger_doc()
     doc["vitals"]["finger"].update(quality_reported=False, quality=stat(None))
+    assert client.post("/api/sessions", json=doc).status_code == 200
+    assert client.get("/api/patients/anna/qr-body").json()["vitals"] == NO_VITALS
+
+def test_a_weak_stretch_keeps_the_numbers_out_of_the_code(client):
+    doc = real_finger_doc()
+    doc["vitals"]["finger"]["quality"].update(mean=0.62, min=0.05)
     assert client.post("/api/sessions", json=doc).status_code == 200
     assert client.get("/api/patients/anna/qr-body").json()["vitals"] == NO_VITALS
 

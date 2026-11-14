@@ -74,10 +74,12 @@ def test_post_session_updates_analytics_and_daily(client):
         body = r.json()
         assert body["ok"] and not body["duplicate"] and body["day_index"] == 56
         added = recv_until(clinic, "session_added")
-        assert added["session_id"] == s["session_id"] and added["rt_median_ms"] == 620
+        assert added == {"type": "session_added", "patient_id": "anna", "session_id": s["session_id"],
+                         "day_index": 56, "status": s["status"]}
         upd = recv_until(clinic, "analytics_updated")
         assert upd["patient_id"] == "anna" and upd["row"]["id"] == "anna"
-        assert upd["analytics"]["now_day"] == 56
+        assert set(upd) == {"type", "patient_id", "row"}
+    assert client.get("/api/patients/anna/analytics").json()["now_day"] == 56
     again = client.post("/api/sessions", json=s).json()
     assert again["duplicate"] is True
     after = client.get("/api/patients/anna").json()
@@ -146,8 +148,10 @@ def test_websocket_relay(client):
         bedside.send_json({"type": "ping"})
         recv_until(bedside, "pong")
         state = client.get("/api/bedside/state").json()
-        assert state["pulse"]["bpm"] == 71.5 and state["thermo"]["temp_c"] == 20.5 and state["knob"]["level"] == 40
+        assert state["thermo"]["temp_c"] == 20.5 and state["knob"]["level"] == 40
         assert state["presence"]["in_bed"] is True
+        assert "pulse" not in state and "physio" not in state
+        assert client.app.state.hub.bedside.state["pulse"]["bpm"] == 71.5
 
         doc = new_session(session_id=sid)
         app.send_json({"type": "session_end", "session": doc})

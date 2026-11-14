@@ -97,10 +97,8 @@ def compact_session(s: dict) -> dict:
     }
 
 def session_added(s: dict) -> dict:
-    c = compact_session(s)
-    return {"type": "session_added", "patient_id": s["patient_id"],
-            **{k: c[k] for k in ("session_id", "day_index", "status", "profile", "simulated", "pre_post",
-                                 "rt_median_ms", "mood_start", "mood_end")}}
+    return {"type": "session_added", "patient_id": s["patient_id"], "session_id": s["session_id"],
+            "day_index": s.get("day_index"), "status": s.get("status")}
 
 def day_sessions(sessions: list[dict], day: int) -> list[dict]:
     return [s for s in sessions if s.get("day_index") == day and s.get("status") in PLAYED]

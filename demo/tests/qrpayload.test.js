@@ -251,6 +251,66 @@ test('over the cap: talk then PHQ shrink, safety never dropped, then chunks', ()
   assert.throws(() => QR.encode(worstCase(), { key, now: NOW, maxChars: 150 }), /too_large/);
 });
 
+test('multi-part codes: no part ends in a space, wherever the cut falls', () => {
+  // base45 has a space in its alphabet and every reader trims what it scanned, so a part cut after a space loses a character.
+  // A base45 group of 3 characters never ends in a space (its last character is at most 32 of 45), so parts are cut on group borders.
+  // The bytes 06 54 encode to "0 0" and 00 24 to " 00": with them any cut that is not on a group border ends in a space.
+  for (let groups = 60; groups < 100; groups++) {
+    const bytes = Uint8Array.from({ length: 2 * groups }, (_, i) => ((i >> 1) % 2 ? [0x00, 0x24] : [0x06, 0x54])[i % 2]);
+    const data = QR.base45.encode(bytes);
+    assert.strictEqual(data.length, 3 * groups);
+    for (const cap of [15 + Math.ceil(data.length / 2), 16 + Math.ceil(data.length / 2), 15 + Math.ceil(data.length / 3), 17 + Math.ceil(data.length / 3)]) {
+      const parts = QR.chunk(data, cap);
+      assert.ok(parts.length >= 2 && parts.length <= 3 && parts.every(p => p.length <= cap), `groups ${groups}, cap ${cap}`);
+      assert.ok(parts.every(p => !p.endsWith(' ')), `groups ${groups}, cap ${cap}: a part ends in a space`);
+      const col = new QR.Collector();
+      let r;
+      for (const p of parts) r = col.add(`  ${p} \n`);
+      assert.strictEqual(r.status, 'complete');
+      assert.strictEqual(r.text, 'AF1:' + data, `groups ${groups}, cap ${cap}`);
+      assert.deepStrictEqual(QR.base45.decode(r.text.slice(4)), bytes);
+    }
+  }
+  for (let i = 0; i < 40; i++) {
+    const c = QR.encode(worstCase(), { key, now: NOW + i * 1000, maxChars: 400 });
+    assert.ok(c.parts.length === 3 && c.parts.every(p => !p.endsWith(' ')));
+    assert.strictEqual(QR.decode(c.parts, { now: NOW + i * 1000 }).status, 'ok', `encode ${i}`);
+  }
+});
+
+function forged(vitals18) {
+  const { zlibSync } = require('../vendor/qr/fflate.js');
+  const body = QR.pack(fixture());
+  body.set(18, vitals18);
+  const iat = Math.floor(NOW / 1000);
+  const cose = QR.sign(body, key, iat, iat + 600, new Uint8Array(8));
+  return QR.decode('AF1:' + QR.base45.encode(zlibSync(cose, { level: 9 })), { now: NOW });
+}
+
+test('finger sensor numbers: a code from another encoder cannot carry 0, a negative or junk as a value', () => {
+  const row = x => Array(8).fill(x);
+  const ok = forged([5, [21, 20, 17], row(712), row(124), row(415)]);
+  assert.strictEqual(ok.status, 'ok');
+  assert.deepStrictEqual(ok.body.vitals, { weekly: { pulse_bpm: row(71.2), breathing_per_min: row(12.4), rmssd_ms: row(41.5) },
+    days: { pulse_bpm: 21, breathing_per_min: 20, rmssd_ms: 17 }, simulated: { pulse_bpm: true, breathing_per_min: false, rmssd_ms: true } });
+
+  const d = forged([7, [1, 2, 3], row('a'), row(-5), row(0)]);
+  assert.strictEqual(d.status, 'ok');
+  assert.deepStrictEqual(d.body.vitals, { weekly: per(() => row(null)), days: per(0), simulated: per(false) });
+
+  const mixed = forged([0, [-4, 57, 'x'], [0, -1, 65536, 65535, true, null, 'x', 700], [120, 0, 0, 0, 0, 0, 0, 0], row(null)]).body.vitals;
+  assert.deepStrictEqual(mixed.weekly.pulse_bpm, [null, null, null, 6553.5, null, null, null, 70]);
+  assert.deepStrictEqual(mixed.weekly.breathing_per_min, [12, null, null, null, null, null, null, null]);
+  assert.deepStrictEqual(mixed.days, { pulse_bpm: 0, breathing_per_min: 56, rmssd_ms: 0 });
+  for (const v of [d.body.vitals, mixed]) assert.ok(VKEYS.every(k => v.weekly[k].every(x => x === null || (Number.isFinite(x) && x > 0))));
+
+  for (const bad of [['x', [1, 1, 1], row(700), row(120), row(400)], [-1, [1, 1, 1], row(700), row(120), row(400)], [0, [1, 1, 1], row(700), row(120)],
+    [0, [1, 1], row(700), row(120), row(400)], [0, [1, 1, 1], row(700), [120], row(400)], 7]) {
+    const r = forged(bad);
+    assert.deepStrictEqual([r.status, r.reason, 'body' in r], ['damaged', 'body_shape', false], JSON.stringify(bad));
+  }
+});
+
 test('tamper: a changed character never yields a different verified body', () => {
   const r = QR.encode(fixture(), { key, now: NOW });
   const original = JSON.stringify(QR.decode(r.text, { now: NOW }).body);

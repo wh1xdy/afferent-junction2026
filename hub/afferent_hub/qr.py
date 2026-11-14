@@ -36,8 +36,10 @@ def session_vital(session: dict, block: str, stat: str) -> tuple[float, bool] | 
     finger, b = v.get("finger") or {}, v.get(block) or {}
     if finger.get("source") not in VITAL_SOURCES or b.get("source") not in VITAL_SOURCES:
         return None
-    q = (finger.get("quality") or {}).get("mean")
-    if finger.get("quality_reported") is not True or q is None or q < MIN_VITAL_QUALITY:
+    quality = finger.get("quality") or {}
+    q, q_min = quality.get("mean"), quality.get("min")
+    if (finger.get("quality_reported") is not True or q is None or q < MIN_VITAL_QUALITY
+            or q_min is None or q_min < MIN_VITAL_QUALITY):
         return None
     st = b.get(stat) or {}
     if st.get("mean") is None or (st.get("samples") or 0) < MIN_VITAL_SAMPLES:

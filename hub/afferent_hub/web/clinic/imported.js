@@ -165,7 +165,7 @@
   const weekStart = (B, i) => Math.max(0, B.period.to_day - 55 + 7 * i);
 
   function signals(B) {
-    return `<section class="signals" aria-label="Signals"><div class="sect-h"><h2>Signals, 8 weeks</h2><span class="muted">finger sensor, weekly medians</span>${info('Pulse, breathing rate and HRV (RMSSD) from the finger sensor at the patient\'s home: for each week the median of the session means. The pulse here is not the resting pulse under Measures, which is the bedside morning reading. Numbers only: no usual range, and not part of the early-warning index. A week without a reading is a gap.')}</div>${C.signals.weeklyHtml(B.vitals, (i) => tiny(B, weekStart(B, i)))}</section>`;
+    return `<section class="signals" aria-label="Signals"><div class="sect-h"><h2>Signals, 8 weeks</h2><span class="muted">finger sensor, weekly medians</span>${info('Pulse, breathing rate and HRV (RMSSD) from the finger sensor during play sessions: for each week the median of the session means. The pulse here is not the resting pulse under Measures, which is the bedside morning reading. Numbers only: no usual range, and not part of the early-warning index. A week without a reading is a gap.')}</div>${C.signals.weeklyHtml(B.vitals, (i) => tiny(B, weekStart(B, i)))}</section>`;
   }
 
   function facts(B) {

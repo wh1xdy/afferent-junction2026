@@ -1,11 +1,16 @@
-"""Nothing live from the sensors reaches a clinic socket.
+"""No sensor number reaches a clinic socket, neither a current one nor a stored one.
 
 The hub gets current sensor values from two sides: the bedside source (finger clips on the UNO Q) and the
 phone's live_metrics during a session. Both stay between the patient's devices. A clinic socket gets
-events about stored documents only; the numbers themselves are read from the stored session afterwards.
+events that say which stored document changed, and nothing of its content: the dashboard on the patient's
+own hub then reads the stored documents over HTTP (GET /api/patients/:id and /api/patients/:id/analytics).
 
 The streamed values below are chosen so that they occur nowhere in the stored data: if one of them shows
-up in a clinic message, it was relayed.
+up in a clinic message, it was relayed. The stored session has its own values (STORED_VALUES): if one of
+those shows up, the hub pushed the content of a session that ended a moment before.
+
+The current reading the hub keeps for the phone (GET /api/bedside/state) is served to the hub's own
+machine only.
 """
 import json
 import uuid
@@ -19,6 +24,13 @@ CLINIC_TYPES = {"hello", "session_started", "session_interrupted", "session_adde
 LIVE_KEYS = {"physio", "camera_pulse", "live_metrics", "finger_bpm", "finger_sources", "breathing_snr_db",
              "rmssd_baseline_ms", "quality_reported", "pulse_quality", "trust_score"}
 LIVE_VALUES = ("137.7", "138.3", "139.9", "23.7", "87.7", "91.3", "141.7", "0.1377", "-33.7", "0.6177")
+STORED_KEYS = {"pre_post", "vitals", "analytics", "series", "finger", "hrv", "breathing", "pulse", "pulse_bpm",
+               "rmssd_ms", "rt_median_ms", "mood_start", "mood_end", "core", "tasks", "signal"}
+STORED_VALUES = ("79.4", "72.4", "73.9", "74.3", "73.2", "10.9", "41.4", "46.2", "75.1")
+ROW_KEYS = {"id", "display_name", "kind", "simulated", "day_index", "weeks_since_tms", "state", "state_label",
+            "state_since_day", "composite", "composite_trend_7d", "cusum", "top_contributors", "last_session_day",
+            "last_session_iso", "live_now", "missed_7d", "sessions_7d", "completeness", "confidence", "sparkline",
+            "flags", "need_rank"}
 
 PHYSIO = {"type": "physio", "source": "finger_ppg", "transport": "hub_http", "simulated": False, "pulse_bpm": 137.7,
           "quality": 0.6177, "quality_reported": True, "contact": True, "finger_bpm": [138.3, 139.9],
@@ -54,6 +66,8 @@ def real_finger_session(session_id):
         doc["vitals"][block]["source"] = "finger_ppg"
     text = json.dumps(doc)
     assert not [v for v in LIVE_VALUES if v in text]
+    assert doc["pre_post"]["pulse"] == {"start": 79.4, "end": 72.4, "delta": -7.0}
+    assert not [v for v in STORED_VALUES if v not in text]
     return doc
 
 
@@ -100,15 +114,72 @@ def test_a_clinic_socket_sees_no_sensor_value_while_the_devices_stream(client):
         text = json.dumps(m)
         assert not [v for v in LIVE_VALUES if v in text], (m["type"], [v for v in LIVE_VALUES if v in text])
 
+    # the stored session is there for the dashboard to read, with its numbers
     stored = client.get("/api/patients/anna").json()["sessions"][-1]
     assert stored["session_id"] == sid
     assert stored["vitals"]["finger"]["source"] == "finger_ppg"
     assert stored["vitals"]["hrv"]["rmssd_ms"]["mean"] == 41.4
-    added = next(m for m in seen if m["type"] == "session_added")
-    assert "vitals" not in added
-    for k, v in added.items():
-        if k not in ("type", "patient_id"):
-            assert stored[k] == v, k
+    assert stored["pre_post"]["pulse"]["start"] == 79.4
+    analytics = client.get("/api/patients/anna/analytics").json()
+    assert any(v in json.dumps(analytics) for v in STORED_VALUES), "the analytics object does hold session numbers"
+
+    # and no socket message carries any of it
+    added = [m for m in seen if m["type"] == "session_added"]
+    assert added == [{"type": "session_added", "patient_id": "anna", "session_id": sid,
+                      "day_index": stored["day_index"], "status": stored["status"]}]
+    updates = [m for m in seen if m["type"] == "analytics_updated"]
+    assert updates
+    for m in updates:
+        assert set(m) == {"type", "patient_id", "row"}, sorted(m)
+        assert set(m["row"]) == ROW_KEYS, sorted(set(m["row"]) ^ ROW_KEYS)
+    for m in seen:
+        assert not STORED_KEYS & set(keys(m)), (m["type"], STORED_KEYS & set(keys(m)))
+        if m["type"] != "hello":
+            text = json.dumps(m)
+            assert not [v for v in STORED_VALUES if v in text], (m["type"], [v for v in STORED_VALUES if v in text])
+
+
+def test_the_two_session_end_messages_are_built_without_session_content():
+    import inspect
+
+    from afferent_hub import views
+    from afferent_hub.service import Hub
+    doc = real_finger_session(str(uuid.uuid4()))
+    assert views.session_added(doc) == {"type": "session_added", "patient_id": "anna", "session_id": doc["session_id"],
+                                        "day_index": doc.get("day_index"), "status": "completed"}
+    src = inspect.getsource(Hub.broadcast_analytics)
+    assert '"row"' in src and '"analytics"' not in src and "sessions" not in src
+
+
+def bedside_reading(client):
+    with client.websocket_connect("/ws/bedside") as bedside:
+        bedside.send_json({"type": "hello", "device": "unoq", "fw": "test"})
+        bedside.send_json({"type": "pulse", "bpm": 137.7, "quality": 0.6177, "contact": True, "source": "finger_ppg"})
+        bedside.send_json(PHYSIO)
+        bedside.send_json({"type": "thermo", "temp_c": 20.5, "humidity_pct": 33})
+        bedside.send_json({"type": "knob", "level": 40})
+        bedside.send_json({"type": "ping"})
+        recv_until(bedside, "pong")
+    state = client.app.state.hub.bedside.state
+    assert state["pulse"]["bpm"] == 137.7 and state["physio"]["rmssd_ms"] == 87.7
+
+
+def test_the_current_reading_is_served_to_the_hubs_own_machine_only(client):
+    from fastapi.testclient import TestClient
+    bedside_reading(client)
+    for host in ("testclient", "192.168.50.20", "10.0.0.7", "::ffff:192.168.50.20", "fe80::1", ""):
+        r = TestClient(client.app, client=(host, 50000)).get("/api/bedside/state")
+        assert r.status_code == 200
+        state = r.json()
+        assert "pulse" not in state and "physio" not in state, host
+        assert not LIVE_KEYS & set(keys(state)), host
+        assert not [v for v in LIVE_VALUES if v in r.text], host
+        assert state["thermo"]["temp_c"] == 20.5 and state["knob"]["level"] == 40 and "light" in state, host
+        assert "connected" in state and state["patient_id"] == "anna"
+    for host in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+        state = TestClient(client.app, client=(host, 50000)).get("/api/bedside/state").json()
+        assert state["pulse"]["bpm"] == 137.7 and state["physio"]["rmssd_ms"] == 87.7, host
+        assert state["physio"]["finger_bpm"] == [138.3, 139.9]
 
 
 def test_the_hub_has_no_handler_that_forwards_live_metrics():

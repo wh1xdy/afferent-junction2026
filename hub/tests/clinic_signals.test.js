@@ -78,20 +78,59 @@ const fixture = json('session_finger_example.json');
   for (const x of rows) for (const k of ['age', 'ageText', 'stale']) assert.ok(!(k in x), `a stored row has no ${k}`);
 }
 
-// the same session as a real Bluetooth recording (AFF1 v1): no badge, true source, no quality, no SDNN or baseline
+// the same session as a real Bluetooth recording: no badge, true source, no SDNN or baseline
+const NO_STAT = { mean: null, min: null, max: null, first: null, last: null, samples: 0 };
 const real = JSON.parse(JSON.stringify(fixture));
 real.simulated_fields = [];
-Object.assign(real.vitals.finger, { source: 'finger_ppg', transport: 'ble', quality_reported: false, presence_s: null,
-  quality: { mean: null, min: null, max: null, first: null, last: null, samples: 0 } });
+Object.assign(real.vitals.finger, { source: 'finger_ppg', transport: 'ble', presence_s: null });
 real.vitals.breathing.source = 'finger_ppg';
 Object.assign(real.vitals.hrv, { source: 'finger_ppg', sdnn_ms: null, rmssd_vs_baseline: null });
+// and as recorded from a sensor version that does not report its signal quality (AFF1 v1)
+const noQuality = JSON.parse(JSON.stringify(real));
+Object.assign(noQuality.vitals.finger, { quality_reported: false, quality: { ...NO_STAT } });
 {
   const rows = Sg.sessionRows(real.vitals, real.simulated_fields);
   const r = byKey(rows);
   assert.ok(rows.every((x) => x.simulated === false));
   assert.ok(!r.sdnn && !r.vs_baseline && !r.presence);
-  assert.strictEqual(r.pulse.note, '71 to 79');
+  assert.strictEqual(r.pulse.note, '71 to 79, signal quality 0.62');
+  same([r.pulse.value, r.finger_1.value, r.finger_2.value, r.breathing.value, r.rmssd.value], ['73.9', '74.3', '73.2', '10.9', '41.4']);
   for (const k of ['pulse', 'finger_1', 'finger_2', 'breathing', 'rmssd']) assert.strictEqual(r[k].source, 'finger sensor (PPG), Bluetooth via the phone');
+
+  // The rule of the patient code (hub/afferent_hub/qr.py session_vital) holds here too: without a reported signal quality,
+  // or with one below 0.3, the stored numbers are not shown as measurements. The rows stay and say why.
+  const VITAL_ROWS = ['pulse', 'finger_1', 'finger_2', 'fingers_diff', 'breathing', 'rmssd'];
+  const refused = (vitals, why) => {
+    const x = byKey(Sg.sessionRows(vitals, []));
+    for (const k of VITAL_ROWS) same([k, x[k].value, x[k].missing, x[k].note, x[k].series], [k, 'no reading', true, why, null]);
+    assert.ok(!x.sdnn && !x.vs_baseline, 'no derived row either');
+    const page = Sg.html({ session: { started_iso: '2026-11-15T07:41:00+02:00', vitals, simulated_fields: [] } });
+    for (const n of ['73.9', '74.3', '73.2', '10.9', '41.4', '46.2', '71 to 79', '38 → 44']) assert.ok(!page.includes(n), `${why}: ${n} is shown`);
+    assert.strictEqual(count(page, 'class="sig-row none"'), VITAL_ROWS.length);
+    checkWording(page, why);
+    return x;
+  };
+  refused(noQuality.vitals, 'signal quality not reported');
+  const weak = JSON.parse(JSON.stringify(real));
+  weak.vitals.hrv.sdnn_ms = fixture.vitals.hrv.sdnn_ms;
+  Object.assign(weak.vitals.finger.quality, { mean: 0.12, min: 0.05, max: 0.2 });
+  weak.vitals.finger.presence_s = { idle: 0, probing: 6, active: 104 };
+  const w = refused(weak.vitals, 'signal quality below 0.3');
+  same([w.presence.value, w.presence.missing], ['104', false], 'how long a finger was detected is not a reading and stays');
+  same([w.camera.value, w.camera.missing], ['75.1', false], 'the camera pulse has its own trust score');
+  const partly = JSON.parse(JSON.stringify(real));
+  Object.assign(partly.vitals.finger.quality, { mean: 0.62, min: 0.05 });
+  refused(partly.vitals, 'signal quality below 0.3 in part of the session');
+  const never = JSON.parse(JSON.stringify(real));
+  never.vitals.finger.quality = { ...NO_STAT };
+  refused(never.vitals, 'no reading at signal quality 0.3 or more');
+  const noFinger = JSON.parse(JSON.stringify(real));
+  noFinger.vitals.finger = null;
+  const nf = byKey(Sg.sessionRows(noFinger.vitals, []));
+  same([nf.breathing.value, nf.rmssd.value, nf.breathing.note], ['no reading', 'no reading', 'signal quality not reported']);
+  const edge = JSON.parse(JSON.stringify(real));
+  Object.assign(edge.vitals.finger.quality, { mean: 0.3, min: 0.3 });
+  assert.strictEqual(byKey(Sg.sessionRows(edge.vitals, [])).pulse.value, '73.9');
   // simulated_fields alone is enough for the badge, per block
   const some = byKey(Sg.sessionRows(real.vitals, ['vitals.hrv', 'vitals.camera_pulse']));
   same([some.pulse.simulated, some.breathing.simulated, some.rmssd.simulated, some.camera.simulated], [false, false, true, true]);
@@ -142,10 +181,17 @@ const SESSION_FOOT = 'Measured values with their source, from a stored session. 
 
   sparkCalls.length = 0;
   const realHtml = Sg.html({ session: real });
-  assert.ok(realHtml.includes('signal quality not reported by this sensor version; not used by the game'));
+  assert.ok(!realHtml.includes('not reported by this sensor version'));
   assert.ok(!realHtml.includes('sim-badge') && realHtml.includes('2026-11-15 07:41'));
   assert.ok(realHtml.includes('finger sensor (PPG), Bluetooth via the phone'));
+  assert.strictEqual(sparkCalls.length, 3);
   checkWording(realHtml, 'session, real');
+
+  sparkCalls.length = 0;
+  const noQHtml = Sg.html({ session: noQuality });
+  assert.ok(noQHtml.includes('signal quality not reported by this sensor version; not used by the game'));
+  assert.strictEqual(sparkCalls.length, 0, 'no series is drawn for numbers that are not shown');
+  checkWording(noQHtml, 'session, no quality');
 
   const flat = JSON.parse(JSON.stringify(real));
   flat.vitals.series = { step_s: 5, t_s: [0, 5, 10], pulse_bpm: [70, 70, 70], breathing_per_min: [null, 12, null], rmssd_ms: [null, null, null] };
@@ -200,10 +246,12 @@ const NO_VITALS = { weekly: { pulse_bpm: Array(8).fill(null), breathing_per_min:
   const labels = [];
   const html = Sg.weeklyHtml(measured(), (i) => { labels.push(i); return `W${i}`; });
   for (const s of ['Pulse, finger sensor', '68.9<small> bpm</small>', 'Breathing rate', '11.6<small> per min</small>', 'HRV (RMSSD)', '44.9<small> ms</small>',
-    'finger sensor (PPG)', 'week from W7', 'week from W5', '21 days with a reading', '1 day with a reading', 'session mean, sitting with the clips on',
+    'finger sensor (PPG)', 'week from W7', 'week from W5', '21 days with a reading', '1 day with a reading', 'session mean, clips on during play',
     'id="sig-pulse_bpm"', 'id="sig-breathing_per_min"', 'id="sig-rmssd_ms"', WEEKLY_FOOT]) assert.ok(html.includes(s), s);
   same(labels, [7, 7, 5]);
   assert.ok(!html.includes('sim-badge') && !html.includes('no reading'));
+  // neither posture nor place is recorded with the clips, so neither is stated
+  for (const w of ['sitting', 'lying', 'home', 'resting']) assert.ok(!html.toLowerCase().includes(w), w);
   checkWording(html, 'weekly, measured');
 
   const simHtml = Sg.weeklyHtml(sim, (i) => `W${i}`);
@@ -316,6 +364,8 @@ function loadPage(extra = []) {
   assert.ok(!sig.includes('sim-badge'), 'measured rows carry no badge, though the demo code as a whole is simulated');
   assert.ok(page.includes('Simulated'), 'the code of a simulated patient stays marked');
   checkWording(visible(sig), 'imported, measured');
+  assert.ok(sig.includes('from the finger sensor during play sessions'));
+  for (const w of ['sitting', 'lying', 'at the patient', 'resting pulse from']) assert.ok(!sig.toLowerCase().includes(w), w);
   const iMeasures = page.indexOf('Measures, 8 weeks'), iSig = page.indexOf('<section class="signals"'), iFacts = page.indexOf('Mornings lit');
   assert.ok(iMeasures > 0 && iSig > iMeasures && iFacts > iSig, 'Signals sits between the measures and the facts');
   assert.ok(page.includes('Not live data.'));
@@ -375,6 +425,12 @@ function loadPage(extra = []) {
   // the socket messages the dashboard acts on: events about stored documents, none of them a reading
   const cases = [...src['clinic.js'].matchAll(/case '([a-z_]+)':/g)].map((m) => m[1]).sort();
   same(cases, ['analytics_updated', 'checkin_added', 'crisis_flag', 'daily_added', 'demo_reset', 'hello', 'privacy', 'session_added', 'session_interrupted', 'session_started']);
+  // what the page reads from a socket message: ids, the list row, flags and the privacy switch. The content of a session
+  // and the analytics object are not pushed (hub/tests/test_clinic_no_live.py); the page reads them from the hub as stored documents.
+  const fields = [...new Set([...src['clinic.js'].matchAll(/\bm\.([a-z_]+)/g)].map((x) => x[1]))].sort();
+  same(fields, ['checkin_id', 'flag_type', 'label', 'now_day', 'patient_id', 'patients', 'privacy', 'row', 'screen', 'source', 't_iso', 'type']);
+  assert.ok(/case 'analytics_updated':\s*onAnalytics\(m\)/.test(src['clinic.js']) && /function onAnalytics\(m\) \{[\s\S]*?refreshAnalytics\(id\);/.test(src['clinic.js']),
+    'after analytics_updated the page reads the stored analytics itself');
   // one socket, the clinic one
   for (const [f, text] of Object.entries(src)) {
     for (const m of text.matchAll(/\/ws\/[a-z]+/g)) assert.strictEqual(m[0], '/ws/clinic', `${f}: ${m[0]}`);

@@ -8,6 +8,7 @@
   const MINUS = '−';
   const NO_READING = 'no reading';
   const WEEKS = 8;
+  const MIN_QUALITY = 0.3;
   const SOURCE = {
     ble: 'finger sensor (PPG), Bluetooth via the phone',
     hub_http: 'finger sensor (PPG), hub HTTP',
@@ -21,7 +22,7 @@
   const VS_NOTE = 'RMSSD against the sensor’s median of its last 10 minutes of readings; not kept per person';
   // The numbers of a patient code (demo/js/qrpayload.js VITALS, map key 18): key, label, unit, what the number is.
   const WEEKLY = [
-    ['pulse_bpm', 'Pulse, finger sensor', 'bpm', 'session mean, sitting with the clips on'],
+    ['pulse_bpm', 'Pulse, finger sensor', 'bpm', 'session mean, clips on during play'],
     ['breathing_per_min', 'Breathing rate', 'per min', 'from the pulse rhythm'],
     ['rmssd_ms', 'HRV (RMSSD)', 'ms', '60 s windows'],
   ];
@@ -41,31 +42,47 @@
   const has = (st) => !!st && st.samples > 0 && isNum(st.mean);
   const range = (st) => (isNum(st.min) && isNum(st.max) ? `${fmt(st.min)} to ${fmt(st.max)}` : '');
 
+  // The rule of the patient code (hub/afferent_hub/qr.py session_vital): what the finger sensor recorded counts as a
+  // measurement only when the sensor reported its signal quality and that quality stayed at 0.3 or more.
+  // Returns why the session's finger numbers are not shown, or '' when they are.
+  function unusable(f) {
+    if (!f || f.quality_reported !== true) return 'signal quality not reported';
+    const q = f.quality;
+    if (!has(q)) return 'no reading at signal quality 0.3 or more';
+    if (q.mean < MIN_QUALITY) return 'signal quality below 0.3';
+    if (isNum(q.min) && q.min < MIN_QUALITY) return 'signal quality below 0.3 in part of the session';
+    return '';
+  }
+
   // Summary rows of one stored session. `vitals` is the session's vitals object, `simulatedFields` its simulated_fields.
   function sessionRows(vitals, simulatedFields) {
     const rows = [];
     const v = vitals || {};
     const f = v.finger, b = v.breathing, h = v.hrv, c = v.camera_pulse;
     const fsrc = f ? fingerSource(f) : SOURCE.finger;
+    const why = unusable(f);
+    const ok = (st) => !why && has(st);
     const block = (o, name) => ({ source: isSim(o) ? SOURCE.simulated : fsrc, simulated: isSim(o) || named(simulatedFields, name) });
     const push = (meta, key, label, value, unit, note, series) => rows.push({ ...meta, key, label, value: value ?? NO_READING, unit, note: note || '', series: series || null, missing: value == null });
+    // a row of the finger sensor: the value with its note, or "no reading" with the reason
+    const reading = (meta, key, label, value, unit, note, series) => (why ? push(meta, key, label, null, unit, why) : push(meta, key, label, value, unit, note, series));
     if (f) {
       const m = block(f, 'finger');
-      const q = f.quality_reported && has(f.quality) ? `signal quality ${f.quality.mean.toFixed(2)}` : '';
-      push(m, 'pulse', 'Pulse (fused)', has(f.pulse_bpm) ? fmt(f.pulse_bpm.mean) : null, 'bpm', [has(f.pulse_bpm) ? range(f.pulse_bpm) : '', q].filter(Boolean).join(', '), SERIES.pulse);
-      push(m, 'finger_1', 'Finger 1', has(f.finger_1_bpm) ? fmt(f.finger_1_bpm.mean) : null, 'bpm');
-      push(m, 'finger_2', 'Finger 2', has(f.finger_2_bpm) ? fmt(f.finger_2_bpm.mean) : null, 'bpm');
-      push(m, 'fingers_diff', 'Between the fingers', fmt(f.fingers_abs_diff_bpm), 'bpm', 'mean absolute difference');
+      const q = ok(f.quality) ? `signal quality ${f.quality.mean.toFixed(2)}` : '';
+      reading(m, 'pulse', 'Pulse (fused)', ok(f.pulse_bpm) ? fmt(f.pulse_bpm.mean) : null, 'bpm', [ok(f.pulse_bpm) ? range(f.pulse_bpm) : '', q].filter(Boolean).join(', '), SERIES.pulse);
+      reading(m, 'finger_1', 'Finger 1', ok(f.finger_1_bpm) ? fmt(f.finger_1_bpm.mean) : null, 'bpm');
+      reading(m, 'finger_2', 'Finger 2', ok(f.finger_2_bpm) ? fmt(f.finger_2_bpm.mean) : null, 'bpm');
+      reading(m, 'fingers_diff', 'Between the fingers', fmt(f.fingers_abs_diff_bpm), 'bpm', 'mean absolute difference');
       const p = f.presence_s;
       if (p) push(m, 'presence', 'Finger detection', fmt(p.active), 's', `measuring; checking for a finger ${fmt(p.probing) ?? 0} s, no finger ${fmt(p.idle) ?? 0} s`);
     }
-    if (b) push(block(b, 'breathing'), 'breathing', 'Breathing rate', has(b.rate_per_min) ? fmt(b.rate_per_min.mean) : null, 'per min', has(b.rate_per_min) ? range(b.rate_per_min) : '', SERIES.breathing);
+    if (b) reading(block(b, 'breathing'), 'breathing', 'Breathing rate', ok(b.rate_per_min) ? fmt(b.rate_per_min.mean) : null, 'per min', ok(b.rate_per_min) ? range(b.rate_per_min) : '', SERIES.breathing);
     if (h) {
       const m = block(h, 'hrv');
       const r = h.rmssd_ms;
-      push(m, 'rmssd', 'HRV (RMSSD)', has(r) ? fmt(r.mean) : null, 'ms', has(r) && isNum(r.first) && isNum(r.last) ? `${fmt(r.first)} → ${fmt(r.last)}, first to last` : '', SERIES.rmssd);
-      if (has(h.sdnn_ms)) push(m, 'sdnn', 'SDNN', fmt(h.sdnn_ms.mean), 'ms');
-      if (has(h.rmssd_vs_baseline)) push(m, 'vs_baseline', 'vs recent median', pct(h.rmssd_vs_baseline.mean), '%', VS_NOTE);
+      reading(m, 'rmssd', 'HRV (RMSSD)', ok(r) ? fmt(r.mean) : null, 'ms', ok(r) && isNum(r.first) && isNum(r.last) ? `${fmt(r.first)} → ${fmt(r.last)}, first to last` : '', SERIES.rmssd);
+      if (ok(h.sdnn_ms)) push(m, 'sdnn', 'SDNN', fmt(h.sdnn_ms.mean), 'ms');
+      if (ok(h.rmssd_vs_baseline)) push(m, 'vs_baseline', 'vs recent median', pct(h.rmssd_vs_baseline.mean), '%', VS_NOTE);
     }
     if (c) {
       const t = c.trust_score, l = c.trust_label_s;

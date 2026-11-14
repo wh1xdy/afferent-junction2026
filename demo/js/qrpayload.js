@@ -189,6 +189,7 @@
   const qz = (x, q) => (isNum(x) ? Math.round(x * q) : null);
   const dq = (x, q) => (x === null || x === undefined ? null : x / q);
   const qv = (x, q) => { const n = qz(x, q); return n === null || n <= 0 || n > VITAL_MAX ? null : n; };
+  const dv = (x, q) => (Number.isInteger(x) && x > 0 && x <= VITAL_MAX ? x / q : null);
   const intOrNull = x => (isNum(x) ? Math.round(x) : null);
   const ix = (list, v) => { const i = list.indexOf(v); return i < 0 ? null : i; };
   const at = (list, i) => (i === null || i === undefined ? null : list[i] === undefined ? fail('body_enum') : list[i]);
@@ -303,12 +304,14 @@
     if (b.has(17)) out.omitted = omitNames(arr(b.get(17), 3));
     if (b.has(18)) {
       const v = arr(b.get(18)), none = v.length === 0;
-      if (!none) arr(v, 2 + VITALS.length);
+      if (!none && (v.length !== 2 + VITALS.length || !Number.isInteger(v[0]) || v[0] < 0)) fail('body_shape');
       const days = none ? [] : arr(v[1], VITALS.length);
+      const rows = VITALS.map(([, q], i) => (none ? Array(8).fill(null) : arr(v[2 + i], 8).map(x => dv(x, q))));
+      const has = rows.map(r => r.some(x => x !== null));
       out.vitals = {
-        weekly: Object.fromEntries(VITALS.map(([k, q], i) => [k, none ? Array(8).fill(null) : arr(v[2 + i], 8).map(x => dq(x, q))])),
-        days: Object.fromEntries(VITALS.map(([k], i) => [k, none ? 0 : days[i]])),
-        simulated: Object.fromEntries(VITALS.map(([k], i) => [k, !none && !!(v[0] & (1 << i))])),
+        weekly: Object.fromEntries(VITALS.map(([k], i) => [k, rows[i]])),
+        days: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && Number.isInteger(days[i]) ? Math.min(56, Math.max(0, days[i])) : 0])),
+        simulated: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && !!(v[0] & (1 << i))])),
       };
     }
     if (out.safety.some(e => !e.tier)) fail('body_enum');
@@ -345,7 +348,7 @@
     const alnum = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const set = [...randomBytes(4)].map(b => alnum[b % 36]).join('');
     for (let n = 2; n <= MAX_PARTS; n++) {
-      const size = Math.ceil(data.length / n);
+      const size = 3 * Math.ceil(data.length / n / 3);
       if (size + `${PREFIX}/1/${n}/${set}:`.length > cap) continue;
       return Array.from({ length: n }, (_, i) => `${PREFIX}/${i + 1}/${n}/${set}:` + data.slice(i * size, (i + 1) * size));
     }
@@ -491,7 +494,7 @@
 
   const QR = {
     PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, VITALS, STATES, TIERS, SENSORS, FORBIDDEN,
-    encode, decode, pack, unpack, parse, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
+    encode, decode, pack, unpack, parse, chunk, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
     cbor: { encode: cborEncode, decode: cborDecode, Tag }, base45: { encode: b45encode, decode: b45decode },
     sign, isoDay, epochDay, cleanInitial,
   };

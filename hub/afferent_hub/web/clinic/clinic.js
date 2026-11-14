@@ -151,13 +151,21 @@
     }).catch(() => {});
   }
 
+  function refreshAnalytics(id) {
+    if (S.fixtures || !S.analytics[id]) return;
+    api('analytics', id).then((a) => {
+      S.analytics[id] = a;
+      if (S.route.name === 'patients' && selectedId() === id) renderDetail();
+    }).catch(() => {});
+  }
+
   const flashRow = (id) => view.querySelector(`.prow[data-id="${CSS.escape(id)}"]`)?.classList.add('flash');
 
   function onAnalytics(m) {
     const id = m.patient_id;
     const prevRow = S.list?.patients.find((p) => p.id === id);
     const prevState = prevRow?.state ?? S.analytics[id]?.state;
-    if (m.analytics) S.analytics[id] = m.analytics;
+    refreshAnalytics(id);
     if (m.row && S.list) {
       const i = S.list.patients.findIndex((p) => p.id === id);
       if (i >= 0) S.list.patients[i] = { ...m.row, flags: m.row.flags ?? S.list.patients[i].flags };

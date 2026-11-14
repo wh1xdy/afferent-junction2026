@@ -712,7 +712,8 @@ def test_physio_from_a_device_reaches_the_app_and_never_the_clinic(client):
         bedside.send_json({"type": "hello", "device": "unoq", "fw": "test"})
         bedside.send_json(physio)
         assert recv_until(app, "physio") == physio
-        state = client.get("/api/bedside/state").json()
+        hub = client.app.state.hub
+        state = hub.bedside.state
         assert state["physio"]["rmssd_ms"] == 51.3 and state["physio"]["source"] == "finger_ppg"
 
         class Switch:
@@ -727,19 +728,18 @@ def test_physio_from_a_device_reaches_the_app_and_never_the_clinic(client):
             async def stop(self):
                 return None
 
-        hub = client.app.state.hub
         hub.bedside.source = Switch()
         r = client.post("/api/patients/anna/privacy", json={"sensor": "pulse_stone", "on": False})
         assert r.status_code == 200 and r.json()["sensors"]["pulse_stone"] is False
         wait_for(lambda: Switch.calls == [False])
-        state = client.get("/api/bedside/state").json()
+        state = hub.bedside.state
         assert state["physio"] is None and state["pulse"]["bpm"] is None
 
         bedside.send_json(physio)
         bedside.send_json({"type": "pulse", "bpm": 72, "quality": 0.62, "contact": True, "source": "finger_ppg"})
         bedside.send_json({"type": "thermo", "temp_c": 20.5, "humidity_pct": 33})
         wait_for(lambda: client.get("/api/bedside/state").json()["thermo"]["temp_c"] == 20.5)
-        assert client.get("/api/bedside/state").json()["physio"] is None
+        assert hub.bedside.state["physio"] is None and hub.bedside.state["pulse"]["bpm"] is None
 
         r = client.post("/api/patients/anna/privacy", json={"sensor": "pulse_stone", "on": True})
         assert r.json()["sensors"]["pulse_stone"] is True
@@ -782,4 +782,4 @@ def test_other_patients_switch_does_not_touch_the_bound_device(client):
     assert Switch.calls == []
     with client.websocket_connect("/ws/bedside") as bedside:
         bedside.send_json({"type": "pulse", "bpm": 70, "quality": 0.8, "contact": True, "source": "finger_ppg"})
-        wait_for(lambda: client.get("/api/bedside/state").json()["pulse"]["bpm"] == 70)
+        wait_for(lambda: hub.bedside.state["pulse"]["bpm"] == 70)
