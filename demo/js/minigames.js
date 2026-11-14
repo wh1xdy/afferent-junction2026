@@ -1,5 +1,5 @@
 (() => {
-  const { clamp, lerp, ease, rgb, hex, mixc } = A;
+  const { clamp, lerp, ease, ema, rgb, hex, mixc } = A;
   const Au = A.Audio;
   const R = Math.random;
   const C = Object.fromEntries(Object.entries({
@@ -740,7 +740,7 @@
     },
   };
 
-  const BREATH_IN = 4, BREATH_CYCLE = 10, BREATH_ENGAGED = 0.35;
+  const BREATH_IN = 4, BREATH_CYCLE = 10, BREATH_ENGAGED = 0.35, BREATH_GUIDE = 60 / BREATH_CYCLE;
   const playLeft = () => A.session?.playLeft ? A.session.playLeft(A.now()) : Infinity;
 
   GAMES.breath = {
@@ -751,6 +751,15 @@
       const cycles = endless ? Infinity : clamp(Math.floor((playLeft() + 3 - 0.6) / BREATH_CYCLE), 1, 2);
       return base('breath', endless ? 999 : cycles * BREATH_CYCLE + 0.6, {
         cycles, b: 0, sync: 0, inF: 0, inH: 0, exF: 0, exR: 0, cyc: 0, cIn: 0, cHeld: 0,
+        fb: A.Breathing.track(BREATH_GUIDE), ringA: 0, ringNear: null, ringSolid: false,
+        // Ring around the guide: drawn only for a real, current reading from the finger clips, and only where body
+        // numbers may show during play (the "Signals during play" switch). It settles slowly and never follows a breath.
+        ring(dt) {
+          const v = A.config?.signalsOverlay ? this.fb.view() : null;
+          this.ringA = ema(this.ringA, v ? 1 : 0, dt, 0.8);
+          if (v) { this.ringSolid = v.state === 'reading'; if (v.near != null) this.ringNear = this.ringNear == null ? v.near : ema(this.ringNear, v.near, dt, 3); }
+          return this.ringA > 0.01 ? { a: this.ringA, near: this.ringNear ?? 0, solid: this.ringSolid } : null;
+        },
         engaged() { return this.inF > 0 && this.inH / this.inF >= BREATH_ENGAGED; },
         close(now) { if (this.engaged()) finish(this, now); else this.max = this.t; },
         update(dt, now) {
@@ -771,7 +780,9 @@
           }
           if (endless && !this.done && playLeft() <= 0.3) this.close(now);
           Au.padLevel(this.b);
-          A.session && (A.session.orb = { b: this.b, hold: holding ? 1 : 0, sync: this.sync, alpha: 1, inhale, cycle: c, cycles: this.cycles, phase: ct / BREATH_CYCLE, guide: c === 0 && inhale && !this.inH ? 1 : 0 });
+          this.fb.frame(now, A.Sensors.fingerFrame(now));
+          const ring = this.ring(dt);
+          A.session && (A.session.orb = { b: this.b, hold: holding ? 1 : 0, sync: this.sync, alpha: 1, inhale, cycle: c, cycles: this.cycles, phase: ct / BREATH_CYCLE, guide: c === 0 && inhale && !this.inH ? 1 : 0, ring });
         },
         auto() { const ct = (this.t - 0.3 + BREATH_CYCLE) % BREATH_CYCLE; this.autoHold = ct < BREATH_IN; },
         draw() {},

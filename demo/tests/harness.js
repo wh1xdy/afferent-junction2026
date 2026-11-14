@@ -1,5 +1,6 @@
 // Shared loader for the node tests: runs the plain browser scripts of demo/js in a vm context with a manual clock.
-// Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js).
+// Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js),
+// games (the real minigames.js instead of the stub tasks).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -20,7 +21,7 @@ const fakeFinger = () => {
   };
 };
 
-const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
+const load = ({ uuid = false, finger = false, vitals = false, games = false } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
   ctx.navigator = {};
@@ -33,7 +34,7 @@ const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
   run('util.js');
   let clock = 0;
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
-  for (const f of ['sensors.js', 'finger.js', 'input.js', 'record.js']) run(f);
+  for (const f of ['sensors.js', 'finger.js', 'input.js', 'breathing.js', 'record.js']) run(f);
   const noop = () => {};
   ctx.A.Audio = new Proxy({}, { get: () => noop });
   const game = id => ({ id, modes: [], make: () => ({ id, max: 12, t: 0, done: false, items: 0, errors: 0, update: noop, draw: noop, choices: [], trials: [], rewards: { rich: 0, lean: 0 }, counts: () => ({ rc: 0, ri: 0, lc: 0, li: 0 }) }) });
@@ -44,6 +45,7 @@ const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
     const pool = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode) && id !== last && (!w || (w[id] ?? 0) > 0));
     return { id: pool[0], weight: null };
   };
+  if (games) run('minigames.js');
   run('engine.js');
   if (vitals) run('vitals.js');
   return { A: ctx.A, tick: dt => { clock += dt; }, plugin };

@@ -294,8 +294,11 @@
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
     log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
-    show('closeBtn', false); show('simBadge', false); show('liveChip', false); cue('');
-    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) { A.lastVitals = r.vitals; A.lastVitalsAt = Date.now(); }
+    show('closeBtn', false); show('simBadge', false); show('liveChip', false); $('breathLine').classList.remove('on'); cue('');
+    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) {
+      A.lastVitals = r.vitals; A.lastVitalsAt = Date.now();
+      A.lastBreath = [...(r.tasks || [])].reverse().find(t => t.extra?.breathing)?.extra.breathing ?? null;
+    }
     if (S.camera()) S.stop();
     camGlyph();
     if (leaving || r.status === 'declined') return;
@@ -398,6 +401,9 @@
     const chip = A.config.signalsOverlay ? A.Vitals.chip(s, p) : null;
     if (chip) $('liveChip').textContent = chip;
     show('liveChip', !!chip);
+    const breath = A.config.signalsOverlay ? A.Vitals.breath(s, now) : null;
+    if (breath) { $('breathMain').textContent = breath[0]; $('breathSub').textContent = breath[1]; }
+    $('breathLine').classList.toggle('on', !!breath);
   }
 
   let last = A.now(), frame = 0, lastLive = 0;

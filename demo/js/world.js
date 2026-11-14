@@ -1128,6 +1128,17 @@
     const c = mixc(P.amber, P.aurora, 0.5 * st.ds.green);
     glow(ctx, x, y, R * 1.7, c, (0.25 + 0.35 * n0(o.hold, 0)) * o.alpha, 'soft');
     sprite(ctx, 'halo', c, x - R * 1.2, y - R * 1.2, R * 2.4, R * 2.4, (0.12 + 0.1 * n0(o.sync, 0)) * o.alpha, true);
+    // Measured breathing (finger sensor): dots while there is no rate yet, then dashes that close, warm and draw in as
+    // the measured pace nears the guide. The radius never follows the breath.
+    const f = o.ring, fa = f ? n0(f.a, 0) * o.alpha : 0;
+    if (fa <= 0.01) return;
+    const near = clamp(n0(f.near, 0), 0, 1), gap = 9 * u * (1 - near);
+    ctx.save();
+    ctx.strokeStyle = rgb(mixc(P.silver300, P.glow, f.solid ? near : 0), (f.solid ? 0.22 + 0.33 * near : 0.36) * fa);
+    ctx.lineWidth = (f.solid ? 1.6 : 2) * u; ctx.lineCap = 'round';
+    ctx.setLineDash(!f.solid ? [0.1, 7 * u] : gap > 0.5 ? [10 * u, gap] : []);
+    ctx.beginPath(); ctx.arc(x, y, (86 + (rm ? 0 : 20 * (1 - near))) * u, 0, 6.283); ctx.stroke();
+    ctx.restore();
   }
 
   function tapHint(ctx) {

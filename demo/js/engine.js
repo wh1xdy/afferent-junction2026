@@ -14,6 +14,7 @@
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
   const PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 106, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
+  const BREATH_RESULT_S = 8;
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
 
   A.makeVisual = (profile = 'live') => {
@@ -294,7 +295,11 @@
       closeTask(now, by) {
         const g = this.game, p = A.Sensors.pulse(now);
         const out = { completed_by: by, completed: g.done, items: g.items, errors: g.errors, sessionT0: this.t0 };
-        if (g.id === 'breath') out.breath_sync = g.sync;
+        if (g.id === 'breath') {
+          out.breath_sync = g.sync;
+          const breathing = g.fb?.result() ?? null;
+          if (breathing) { out.extra = { breathing }; this.breathResult = { ...breathing, until: now + BREATH_RESULT_S }; }
+        }
         if (g.id === 'fork') { this.forkRec = A.Record.fork(g); out.extra = { glows: g.glows, hard_sides: g.choices.map(c => c.hard_side) }; out.completed = g.done && this.forkRec.choices.every(c => c.completed); }
         if (g.id === 'lanterns') { this.lanternRec = A.Record.lanterns(g); out.extra = { rewards_rich: g.rewards.rich, rewards_lean: g.rewards.lean }; }
         const rec = this.track.finish(now, out, p);
@@ -444,7 +449,7 @@
         V.lanternBright = (1 + 0.5 * this.flameKick) * V.lanternGain;
         V.lanternRadius = 70 * V.lanternGain;
         V.orb.alpha = ema(V.orb.alpha, this.game?.id === 'breath' ? 1 : 0, dt, 0.5);
-        if (this.orb) { V.orb.b = this.orb.b; V.orb.hold = this.orb.hold; V.orb.sync = this.orb.sync; }
+        if (this.orb) { V.orb.b = this.orb.b; V.orb.hold = this.orb.hold; V.orb.sync = this.orb.sync; V.orb.ring = this.orb.ring ?? null; }
         V.stove = this.game?.id === 'breath' ? 0.3 + 0.4 * V.orb.b : ema(V.stove, MODES[this.mode]?.biome === 'sauna' ? 0.4 : 0, dt, 1);
 
         if (this.phase === 'fadein') {
