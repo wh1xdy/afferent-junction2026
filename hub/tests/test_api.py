@@ -206,6 +206,43 @@ def test_websocket_relay(client):
         assert recv_until(app, "profile")["profile"] == "bad_day"
 
 
+def test_weekly_checkin_flag(client):
+    with client.websocket_connect("/ws/clinic") as clinic, client.websocket_connect("/ws/app?patient=anna") as app:
+        assert clinic.receive_json()["type"] == "hello"
+        app.send_json({"type": "weekly_checkin", "patient_id": "anna", "answers": {"interest": 1, "down": 2, "self_harm": 0},
+                       "phq2": 3, "self_harm": 0, "t_iso": "2026-11-15T14:00:00+02:00"})
+        app.send_json({"type": "weekly_checkin", "patient_id": "anna", "answers": {"interest": 1, "down": 1, "self_harm": 1},
+                       "phq2": 2, "self_harm": 1, "t_iso": "2026-11-15T14:05:00+02:00"})
+        flag = recv_until(clinic, "crisis_flag")
+        assert flag["flag_type"] == "weekly_checkin" and flag["source"] == "weekly_checkin"
+        app.send_json({"type": "crisis", "patient_id": "anna", "source": "weekly_checkin",
+                       "t_iso": "2026-11-15T14:05:01+02:00"})
+        app.send_json({"type": "ping"})
+        recv_until(app, "pong")
+    rows = client.get("/api/patients").json()["patients"]
+    assert [f["type"] for f in next(p for p in rows if p["id"] == "anna")["flags"]] == ["weekly_checkin"]
+    checkins = client.get("/api/patients/anna").json()["checkins"]
+    assert [c["phq2"] for c in checkins] == [2, 3] and checkins[0]["self_harm"] == 1
+
+
+def test_streak_and_freezes():
+    from afferent_hub.views import streak
+
+    def run(statuses, declined=()):
+        sessions = [{"day_index": d, "status": s} for d, s in enumerate(statuses) if s]
+        daily = [{"day_index": d, "declined": True} for d in declined]
+        return streak(sessions, daily, len(statuses) - 1)
+
+    ok = "completed"
+    assert run([ok] * 6 + [None]) == {"streak": 6, "freezes": 0, "frozen_days": []}
+    assert run([ok] * 6 + [None, ok, None]) == {"streak": 1, "freezes": 0, "frozen_days": []}
+    assert run([ok] * 7 + [None, "fell_asleep", None])["streak"] == 8
+    assert run([ok] * 7 + [None, "fell_asleep", None])["frozen_days"] == [7]
+    assert run([ok] * 21 + [None])["freezes"] == 2
+    assert run([ok] * 3 + ["declined", None, ok, None], declined=[4])["streak"] == 4
+    assert run([ok] * 3 + [None, None, ok, None])["streak"] == 1
+
+
 def test_privacy(client):
     with client.websocket_connect("/ws/app?patient=anna") as app:
         r = client.post("/api/patients/anna/privacy", json={"sensor": "phone_camera", "on": False})
@@ -228,6 +265,7 @@ def test_patient_view_is_gentle(client):
     for phrase in FORBIDDEN:
         assert phrase not in text.lower()
     assert len(pv["what_helped"]) <= 3
+    assert isinstance(pv["streak"], int) and 0 <= pv["freezes"] <= 2
 
 
 def test_summary_and_config(client):

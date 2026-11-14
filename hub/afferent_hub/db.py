@@ -10,10 +10,11 @@ CREATE INDEX IF NOT EXISTS sessions_patient ON sessions (patient_id, day_index);
 CREATE TABLE IF NOT EXISTS daily (patient_id TEXT NOT NULL, day_index INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (patient_id, day_index));
 CREATE TABLE IF NOT EXISTS privacy (patient_id TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS flags (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT NOT NULL, json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT NOT NULL, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS analytics_cache (patient_id TEXT PRIMARY KEY, json TEXT NOT NULL);
 """
 
-TABLES = ("patients", "sessions", "daily", "privacy", "flags", "analytics_cache")
+TABLES = ("patients", "sessions", "daily", "privacy", "flags", "checkins", "analytics_cache")
 
 
 class Store:
@@ -115,6 +116,12 @@ class Store:
 
     def clear_flags(self, pid: str):
         self._write("DELETE FROM flags WHERE patient_id = ?", (pid,))
+
+    def checkins(self, pid: str) -> list[dict]:
+        return self._rows("SELECT json FROM checkins WHERE patient_id = ? ORDER BY id DESC", (pid,))
+
+    def add_checkin(self, pid: str, checkin: dict):
+        self._write("INSERT INTO checkins (patient_id, json) VALUES (?, ?)", (pid, json.dumps(checkin)))
 
     def analytics(self, pid: str) -> dict | None:
         return self._one("SELECT json FROM analytics_cache WHERE patient_id = ?", (pid,))
