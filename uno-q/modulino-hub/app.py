@@ -265,7 +265,8 @@ def period_loop(stopped):
 # picks up spikes of 800-4000 even without a finger, so finger 1 decides for both.
 PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 2000, 1500
 WARMUP_S = 4.0               # after switching on: no readings until the pulse has re-locked
-PRESENCE_RANGE = 600          # max 250 ms range in the look window above this = finger
+PRESENCE_RANGE = 800          # max 250 ms range in the look window above this = finger
+                              # (measured: no finger 90-445, finger ~1600-3000)
 LEAVE_AFTER_S = 5.0           # pulse quality below 0.3 this long = hand gone
 presence = {"auto": True, "mode": "active", "since": time.time(), "last_probe_range": None}
 
