@@ -183,8 +183,9 @@
 .offer-btns { display: flex; justify-content: flex-end; gap: 4px; }
 .end > .offer { position: absolute; left: 16px; right: 16px; top: 42%; z-index: 2; margin: 0; }
 
-.talk { z-index: 9; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); overflow: auto; overscroll-behavior: contain; animation: rise var(--af-dur-enter) var(--af-ease-in); }
-.talk-body { flex: 1; padding: calc(var(--safe-top) + 56px) 16px 16px; display: flex; flex-direction: column; }
+.talk { z-index: 9; padding-top: var(--af-top); background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); overflow: hidden; animation: rise var(--af-dur-enter) var(--af-ease-in); }
+.talk-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 48px 16px 16px; display: flex; flex-direction: column; }
+.talk-body > * { flex: none; }
 .talk-tile { width: 56px; height: 56px; margin: 0 8px; border-radius: 18px; }
 .talk h2 { text-wrap: balance; }
 .talk-tile svg { width: 20px; height: 32px; }
