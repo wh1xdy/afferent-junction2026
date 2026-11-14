@@ -210,8 +210,9 @@ Live demo: https://afferent-demo.david-noel-vinu.workers.dev
 Needs Python 3. Creates `hub/.venv` on first run and prints the LAN addresses for the phone.
 
 - Clinic dashboard: http://localhost:8000/clinic/
-- Game: http://localhost:8000/app/?input=auto&clock=morning
+- Game: http://localhost:8000/app/
 - Patient view: http://localhost:8000/app/patient.html?patient=anna
+- `?input=auto` (opt-in, never the default): autoplay story, only for unattended demos
 
 `./start.sh --help` lists the options. Reset the demo data with `curl -X POST localhost:8000/api/demo/reset`.
 
