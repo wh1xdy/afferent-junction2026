@@ -8,6 +8,7 @@ on the Jetson (persistent volume), and serves clinician / patient reports.
   GET  /summary?days=14                 all report numbers as JSON (also the LLM's only source)
   GET  /report/clinician?days=14        printable HTML for the doctor
   GET  /report/patient?days=7           plain-language HTML for the patient
+  GET  /fhir?days=14                    FHIR R4 Bundle (LOINC-coded vitals + PHQ-9) for a clinic record system
   POST /sessions                        body: exported expression session JSON (from the app)
   POST /phq9                            body: {"answers": [9 ints 0-3], "ts": optional unix time}
   POST /ask                             body: {"question": "...", "days": 14} -> grounded answer for the clinician
@@ -26,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 import demo
+import fhir
 import grounding
 import report
 from store import Store
@@ -134,6 +136,9 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"narrative failed: {e}", flush=True)
             return self._send(200, report.clinician(summ, narrative=narrative), "text/html")
+        if path == "/fhir":
+            body = json.dumps(fhir.bundle(self._store().summary(self._days(14))), indent=1)
+            return self._send(200, body, "application/fhir+json")
         if path == "/report/patient":
             return self._send(200, report.patient(self._store().summary(self._days(14))), "text/html")
         self._send(404, {"error": "not found"})

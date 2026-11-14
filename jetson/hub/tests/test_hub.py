@@ -182,5 +182,35 @@ class Grounding(unittest.TestCase):
         self.assertTrue(self.g.check(f"{q} [Q1].", self.facts)["grounded"])   # PHQ-9 bands are facts
 
 
+
+class FHIR(unittest.TestCase):
+    def test_bundle_structure_and_codes(self):
+        import fhir
+        s = Store()
+        fill(s, random.Random(6))
+        s.add_phq9([2, 2, 1, 2, 1, 1, 1, 0, 1], NOW - DAY)
+        b = fhir.bundle(s.summary(14, NOW))
+        self.assertEqual(b["resourceType"], "Bundle")
+        self.assertEqual(b["type"], "collection")
+        res = [e["resource"] for e in b["entry"]]
+        self.assertEqual(res[0]["resourceType"], "Patient")
+        refs = {e["fullUrl"] for e in b["entry"]}
+        codes = {}
+        for r in res:
+            if r["resourceType"] != "Observation":
+                continue
+            self.assertIn(r["subject"]["reference"], refs)          # every reference resolves in the bundle
+            c = r["code"]["coding"][0]["code"]
+            codes[c] = codes.get(c, 0) + 1
+        self.assertEqual(codes["40443-4"], 14)                       # resting HR, one per day
+        self.assertEqual(codes["9279-1"], 14)                        # respiratory rate
+        self.assertEqual(codes["hrv-rmssd"], 14)
+        phq = [r for r in res if r.get("code", {}).get("coding", [{}])[0].get("code") == "44261-6"]
+        self.assertEqual(phq[0]["valueInteger"], 11)
+        self.assertEqual(len(phq[0]["component"]), 9)
+        self.assertEqual(phq[0]["component"][8]["code"]["coding"][0]["code"], "44260-8")
+        self.assertIn("assess risk", phq[0]["note"][0]["text"])
+
+
 if __name__ == "__main__":
     unittest.main()

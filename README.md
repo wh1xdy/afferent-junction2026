@@ -143,6 +143,9 @@ finger is detected), takes expression sessions and PHQ-9 check-ins from the app,
   coverage, daily trends (resting pulse, HRV, breathing) with last-7-vs-previous-7 days, facial
   behaviour averages, and how every number is computed. No diagnosis.
 - `GET /report/patient?days=7` — the same week in plain words, with support lines if item 9 > 0.
+- `GET /fhir?days=14` — FHIR R4 Bundle for a clinic's record system: daily resting heart rate (LOINC
+  40443-4), respiratory rate (9279-1), HRV RMSSD (local code — no LOINC exists), PHQ-9 total (44261-6)
+  with the nine items as components and an item-9 risk note. Pseudonymous Patient, Device = finger clip.
 - `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
 
 From a laptop: `wendy net forward 8090:18090 --device <jetson>` → `http://localhost:8090/report/clinician`.
