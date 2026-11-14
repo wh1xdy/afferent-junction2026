@@ -18,6 +18,7 @@
     return { ...(P || MODE('flow', k)), m: P ? m : 'flow', k };
   };
   const BENCH = 60;
+  const ORBS = false; // ride orbs removed: none are drawn or collected
   const RIDE_HILLS = { calm: 1, flow: 1, wake: 2, fatigue: 2, rest: 1 };
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9, rest: 20 };
 
@@ -479,7 +480,7 @@
     };
 
     function collect(now, seg) {
-      if (!seg?.motes?.length) return;
+      if (!ORBS || !seg?.motes?.length) return;
       const [lx, ly] = lanternW(), r = AX.radius() * (st.state === 'ride' ? 1 : 1.6);
       for (const m of seg.motes) {
         if (m.got || m.missed) continue;
@@ -751,7 +752,7 @@
 
     function pose(now, dt) {
       const ground = !b.air && ['ride', 'arrive'].includes(st.state);
-      const crouchT = st.state === 'ready' ? 1 : (st.state === 'ride' && st.held) ? 1 : st.state === 'core' && st.kindleHeldNow ? 0.3 : 0;
+      const crouchT = 0; // the character no longer crouches when the screen is pressed
       st.crouch = rm() ? ema(st.crouch, crouchT, dt, 0.06) : ema(st.crouch, crouchT, dt, crouchT > st.crouch ? 0.03 : 0.05);
       const spreadT = (st.state === 'ride' || st.state === 'run') && !st.held ? (b.air ? 1 : 0.55 + 0.4 * st.speed01) : 0.1;
       st.spread = ema(st.spread, spreadT, dt, 0.08);
@@ -1181,7 +1182,7 @@
         env.glow(ctx, env.fx + 4 * u, fy, 9 * u, COL.glow, 0.25 * st.crouch);
       }
       for (const g of T.segs) {
-        if (!g.motes?.length || X(g.x1) < -40 || X(g.x0) > env.W + 40) continue;
+        if (!ORBS || !g.motes?.length || X(g.x1) < -40 || X(g.x0) > env.W + 40) continue;
         for (const m of g.motes) {
           if (m.got) {
             const p = clamp((now - m.got) / 0.25, 0, 1);

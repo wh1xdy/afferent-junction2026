@@ -61,7 +61,7 @@
       t0, night, auto, stage: !!opts.stage, profile, V, fromIdle, phase: 'fadein', phaseAt: t0, done: false, pw: 1,
       targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', candidate: null, candidateAt: 0,
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
-      slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
+      slots: { fork: null, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
@@ -344,8 +344,8 @@
         }
         if (!measure) {
           g.world = !!A.MINIGAMES[id].world;
-          if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) { g.cycles = 1; g.max = Math.min(g.max, 12); }
-          if (gameMode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) - (MEASURE_RIDE_S + 4 + (SEC_HILL[mode] || 4) + 3) * this.measuresPending(slot) - 8));
+          // Games always play to their end; the session clock only decides which game fits next, never cuts one short.
+          if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) g.cycles = 1;
         }
         g.bare ??= true;
         const kind = measure ? 'measurement' : 'adaptive', taskMode = measure ? 'measure' : gameMode, def = A.MINIGAMES[id];
