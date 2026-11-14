@@ -138,7 +138,7 @@
     const cs = [...(B.contrib || [])].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution)).slice(0, 5);
     if (!cs.length) return '';
     const max = Math.max(0.3, ...cs.map((c) => Math.abs(c.contribution)));
-    return `<section><div class="sect-h"><h2>Main drivers</h2>${info('Each signal\'s share of the index. Amber pushes it up, teal pulls it down.')}</div><div class="moved">${cs.map((c) => {
+    return `<section><div class="sect-h"><h2>Main drivers</h2>${info('Share of the index. Amber up, teal down.')}</div><div class="moved">${cs.map((c) => {
       const worse = c.contribution > 0;
       return `<div class="mrow"><span>${esc(FEAT[c.key]?.[0] || c.key)}</span><span class="mbar"><i class="${worse ? '' : 'better'}" style="width:${Math.max(4, (Math.abs(c.contribution) / max) * 100).toFixed(0)}%"></i></span><span class="mt num">${signed(c.contribution)}</span></div>`;
     }).join('')}</div></section>`;
@@ -146,7 +146,7 @@
 
   function phq(B) {
     const P = B.phq, H = P.history || [];
-    const head = `<div class="sect-h"><h2>PHQ-9</h2><span class="muted">severity bands</span>${info('Totals only. The item answers stay on the home hub. Bands are severity bands, not diagnoses.')}</div>`;
+    const head = `<div class="sect-h"><h2>PHQ-9</h2><span class="muted">severity bands</span>${info('Totals only. Bands are not diagnoses.')}</div>`;
     if (!H.length) return `<section>${head}<p class="muted">No check-in${P.overdue ? ' · <span class="overdue">Check-in overdue</span>' : ''}</p></section>`;
     const last = H[H.length - 1];
     const bars = H.map((h, i) => `<span class="${i === H.length - 1 ? 'last' : ''}" style="height:${Math.max(6, (h.total / 27) * 76).toFixed(0)}px" title="${esc(dayStr(B, h.day))}: ${h.total}"><em class="num">${h.total}</em></span>`).join('');
@@ -179,13 +179,13 @@
       const f = FEAT[k];
       return `<div class="mm"><div class="mm-h"><span>${esc(f[0])}</span>${EXPLORATORY.has(k) ? '<span class="xchip">exploratory</span>' : ''}<span class="mm-v num">${fmtV(k, vals[li])}<small> ${esc(f[1])}</small></span></div><div class="chart-wrap" id="mm-${k}"></div></div>`;
     }).join('');
-    return `<section><div class="sect-h"><h2>Measures, 8 weeks</h2><span class="muted">weekly medians</span>${info('Each line is the weekly median; the band is the usual range from the first two weeks after TMS. A week without data is a gap.')}</div><div class="mms">${cells}</div></section>`;
+    return `<section><div class="sect-h"><h2>Measures, 8 weeks</h2><span class="muted">weekly medians</span>${info('Band: usual range, weeks 1 to 2 after TMS.')}</div><div class="mms">${cells}</div></section>`;
   }
 
   const weekStart = (B, i) => Math.max(0, B.period.to_day - 55 + 7 * i);
 
   function signals(B) {
-    return `<section class="signals" aria-label="Signals"><div class="sect-h"><h2>Signals, 8 weeks</h2><span class="muted">finger sensor, weekly medians</span>${info('Pulse, breathing rate and HRV (RMSSD) from the finger sensor during play sessions: for each week the median of the session means. The pulse here is not the resting pulse under Measures, which is the bedside morning reading. Numbers only: no usual range, and not part of the early-warning index. A week without a reading is a gap.')}</div>${C.signals.weeklyHtml(B.vitals, (i) => tiny(B, weekStart(B, i)))}</section>`;
+    return `<section class="signals" aria-label="Signals"><div class="sect-h"><h2>Signals, 8 weeks</h2><span class="muted">finger sensor, weekly medians</span>${info('During play sessions. Not part of the index.')}</div>${C.signals.weeklyHtml(B.vitals, (i) => tiny(B, weekStart(B, i)))}</section>`;
   }
 
   function facts(B) {
@@ -226,7 +226,7 @@
       </div>
       ${safetyBanner(B)}
       ${stateBanner(B)}
-      <section><div class="sect-h chart-h"><div><h2>Early-warning index ${info('Weighted mean of personal z-scores; 0 is this person\'s usual. Weekly medians from the patient\'s phone.')}</h2><p class="muted">8 weeks, weekly</p></div><span class="r kv"><span class="v num">${num(B.composite.value)}</span><span class="trend num">${icon(tIcon)}${signed(trend)} in 7 d</span></span></div><div class="chart-wrap" id="cchart"></div></section>
+      <section><div class="sect-h chart-h"><div><h2>Early-warning index ${info('Weighted mean of personal z-scores; 0 is this person\'s usual.')}</h2><p class="muted">8 weeks, weekly</p></div><span class="r kv"><span class="v num">${num(B.composite.value)}</span><span class="trend num">${icon(tIcon)}${signed(trend)} in 7 d</span></span></div><div class="chart-wrap" id="cchart"></div></section>
       ${drivers(B)}
       ${phq(B)}
       ${measures(B)}

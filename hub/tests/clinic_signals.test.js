@@ -150,7 +150,7 @@ function loadPage(extra = []) {
   assert.ok(!sig.includes('sim-badge'), 'measured rows carry no badge, though the demo code as a whole is simulated');
   assert.ok(page.includes('Simulated'), 'the code of a simulated patient stays marked');
   checkWording(visible(sig), 'imported, measured');
-  assert.ok(sig.includes('from the finger sensor during play sessions'));
+  assert.ok(sig.includes('During play sessions'));
   for (const w of ['sitting', 'lying', 'at the patient', 'resting pulse from']) assert.ok(!sig.toLowerCase().includes(w), w);
   const iMeasures = page.indexOf('Measures, 8 weeks'), iSig = page.indexOf('<section class="signals"'), iFacts = page.indexOf('Mornings lit');
   assert.ok(iMeasures > 0 && iSig > iMeasures && iFacts > iSig, 'Signals sits between the measures and the facts');
@@ -201,6 +201,16 @@ function loadPage(extra = []) {
   assert.strictEqual(old.status, 'ok');
   const oldPage = show({ cti: old.cti, fp: old.fingerprint, iat: old.iat, exp: old.exp, scanned_iso: new Date(NOW).toISOString(), body: old.body });
   assert.ok(section(oldPage).includes('Not in this export') && oldPage.includes('Measures, 8 weeks'));
+}
+
+{
+  const EXPLAINING = ['Each person is compared only with their own first two weeks after TMS', 'Afferent suggests', 'the clinician decides', 'All patients on this hub are simulated',
+    'Not live data', 'Research prototype', 'Not for clinical use', 'Sorted by need', 'Light suits office daylight', 'Back to the seeded patients', 'run day by day through the same engine',
+    'Kept in this browser only', 'One export a day', 'This code carries no', 'Support for monitoring and follow-up', 'Ask the patient about the answers', 'Follow your clinic protocol'];
+  for (const f of fs.readdirSync(WEB).filter((x) => /\.(js|html)$/.test(x))) {
+    const text = read(WEB, f).toLowerCase();
+    for (const e of EXPLAINING) assert.ok(!text.includes(e.toLowerCase()), `${f}: ${e}`);
+  }
 }
 
 console.log('clinic_signals: ok');

@@ -8,7 +8,7 @@
   const when = (x) => { const d = asDate(x); return `${day(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const icon = (n, cls = '') => `<span class="ms ${cls}" aria-hidden="true">${n}</span>`;
   const info = (t) => `<button class="info" type="button" aria-label="${esc(t)}" data-tip="${esc(t)}">${icon('info')}</button>`;
-  const TRUST_INFO = 'Afferent checks that a code is unchanged and comes from this phone. It cannot check who the patient is or that the data are true.';
+  const TRUST_INFO = 'Compare with the patient\'s screen. Checks the phone, not the person.';
 
   let db = null;
   const keys = new Map(), imports = new Map();
@@ -117,11 +117,10 @@
       <div class="scan-stage">
         <div class="scan-mirror"><video playsinline muted></video><canvas class="scan-freeze" hidden></canvas><svg class="scan-outline" preserveAspectRatio="xMidYMid slice"></svg></div>
         <div class="scan-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="scan-nocam" hidden>${icon('photo_camera')}<p>Camera needs the dashboard opened at localhost or over https.</p></div>
+        <div class="scan-nocam" hidden>${icon('photo_camera')}<p>Camera needs localhost or https</p></div>
         <span class="scan-pill num" hidden></span>
       </div>
       <div class="scan-card" hidden></div>
-      <p class="scan-hint">Hold the code about 20 cm from the camera.</p>
       <div class="scan-alt"><button class="btn text" data-qr="wedge">${icon('keyboard')}Use a scanner</button><button class="btn text" data-qr="image">${icon('image')}Open image</button><span class="scan-ready" hidden>Ready for the scanner</span></div>
     </div>
     <textarea class="scan-wedge" aria-label="Scanner input" autocomplete="off" spellcheck="false"></textarea>
@@ -129,7 +128,7 @@
   document.body.appendChild(el);
   const $ = (s) => el.querySelector(s);
   const video = $('video'), freeze = $('.scan-freeze'), outline = $('.scan-outline'), stage = $('.scan-stage'), card = $('.scan-card');
-  const pill = $('.scan-pill'), nocam = $('.scan-nocam'), hint = $('.scan-hint'), wedge = $('.scan-wedge'), file = $('.scan-file'), ready = $('.scan-ready');
+  const pill = $('.scan-pill'), nocam = $('.scan-nocam'), wedge = $('.scan-wedge'), file = $('.scan-file'), ready = $('.scan-ready');
   const work = document.createElement('canvas');
 
   let stream = null, live = false, timer = 0, busy = false, processing = false, lastText = '', lastAt = 0, returnFocus = null;
@@ -212,7 +211,6 @@
     live = false;
     clearTimeout(timer);
     stage.hidden = true;
-    hint.hidden = true;
     card.innerHTML = html;
     card.hidden = false;
     (card.querySelector('input') || card.querySelector('.btn.filled') || card.querySelector('button'))?.focus();
@@ -221,7 +219,6 @@
     card.hidden = true;
     card.innerHTML = '';
     stage.hidden = false;
-    hint.hidden = false;
   }
   const errorCard = (ic, text, buttons) => showCard(`<div class="scard" data-kind="error">${icon(ic)}<p class="scard-t">${esc(text)}</p><div class="dactions">${buttons}</div></div>`);
   const btnAgain = `<button class="btn filled" data-qr="again">${icon('qr_code_scanner')}Scan again</button>`;
@@ -267,7 +264,6 @@
     showCard(`<div class="scard" data-kind="key">${icon('key')}
       <h3>New phone ${info(TRUST_INFO)}</h3>
       <div class="fp num" aria-label="${esc([...r.fp.replace(/ /g, '')].join(' '))}">${esc(r.fp)}</div>
-      <p>Check that the patient's screen shows the same code. From now on, codes from this phone will be recognised.</p>
       <label class="field"><span>Label</span><input id="scan-label" value="${esc(pre)}" maxlength="40" required autocomplete="off"></label>
       ${recs.length ? `<label class="field"><span>Same patient as</span><select id="scan-rec"><option value="">None</option>${recs.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</select></label>` : ''}
       <div class="dactions"><button class="btn text" data-qr="again">Cancel</button><button class="btn filled" data-qr="trust">Import</button></div></div>`);

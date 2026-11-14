@@ -28,12 +28,11 @@
       <h1 class="page-title">Settings</h1>
       <div class="settings">
         <div><div class="group-h">Appearance</div><div class="group">
-          <div class="li">${icon('contrast')}<span><b>Theme</b><small>Light suits office daylight</small></span><span class="segmented" role="radiogroup" aria-label="Theme">${opt('light', 'Light', 'light_mode')}${opt('dark', 'Dark', 'dark_mode')}${opt('system', 'System', 'devices')}</span></div>
+          <div class="li">${icon('contrast')}<span><b>Theme</b></span><span class="segmented" role="radiogroup" aria-label="Theme">${opt('light', 'Light', 'light_mode')}${opt('dark', 'Dark', 'dark_mode')}${opt('system', 'System', 'devices')}</span></div>
         </div></div>
         <div><div class="group-h">Demo</div><div class="group">
-          <div class="li">${icon('history')}<span><b>Reset demo data</b><small>Back to the seeded patients</small></span><button class="btn text small" data-action="reset">Reset</button></div>
+          <div class="li">${icon('history')}<span><b>Reset demo data</b></span><button class="btn text small" data-action="reset">Reset</button></div>
         </div></div>
-        <p class="dp-foot">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
       </div>
     </div></section>`;
   };
@@ -43,8 +42,8 @@
 
   V.validation = function (S) {
     const v = S.validation;
-    if (!v) return '<section class="page"><div class="loading">Loading validation</div></section>';
-    if (v.status === 'computing') return '<section class="page"><div class="loading">Validation is computing on the hub, about a minute after start</div></section>';
+    if (!v) return '<section class="page"><div class="loading">Loading</div></section>';
+    if (v.status === 'computing') return '<section class="page"><div class="loading">Computing</div></section>';
     const r = v.relapse, st = v.stable, b = v.bandit;
     const iqr = (o) => (o?.iqr ? `IQR ${dnum(o.iqr[0])} to ${dnum(o.iqr[1])}` : '');
     const best = esc(TASK[b.true_best.task_id] || b.true_best.task_id);
@@ -66,20 +65,18 @@
     const ticks = [0, 7, 14, 21, 28, 35, 42].filter((t) => t <= tmax);
     const timingHtml = `<div class="trange">${timing.map(([l, o, c]) => `<div class="tr-row" data-tip="${esc(`${l}: median ${dnum(o.median)} days after onset, IQR ${dnum(o.iqr[0])} to ${dnum(o.iqr[1])}`)}"><span>${l}</span><span class="tr-track"><i style="left:${(o.iqr[0] / tmax) * 100}%;width:${(Math.max(0.3, o.iqr[1] - o.iqr[0]) / tmax) * 100}%;--c:${c}"></i><b style="left:${(o.median / tmax) * 100}%;--c:${c}"></b></span><span class="tr-v num">${dnum(o.median)} d</span></div>`).join('')}
       <div class="tr-row tr-axis"><span></span><span class="tr-track">${ticks.map((t) => `<em style="left:${(t / tmax) * 100}%">${t}</em>`).join('')}</span><span></span></div></div>`;
-    const panel = (cls, h, sub, body, foot) => `<div class="panel ${cls}"><h2>${h}</h2>${sub ? `<p class="sub">${sub}</p>` : ''}${body}${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
+    const panel = (cls, h, body, foot) => `<div class="panel ${cls}"><h2>${h}</h2>${body}${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
     const leg = (c, l) => `<span class="legend"><i style="--c:${c}"></i>${l}</span>`;
     const line = C.css('--c-line'), teal = C.css('--c-stable');
     return `<section class="page"><div class="page-inner">
       <h1 class="page-title">Validation</h1>
-      <p class="page-sub">${v.n_seeds} simulated relapse patients and ${st.patients ?? v.n_seeds} stable controls, run day by day through the same engine as the patient list.</p>
       <div class="badges"><span class="sim-badge">Simulated</span>${v.untuned ? '<span class="sim-badge">Untuned</span>' : ''}<span class="sim-badge">Not clinically validated</span></div>
       <div class="vkpis">${tiles}</div>
       <div class="grid2">
-        ${panel('wide', 'Early-warning index, one example', 'A relapse patient against a stable control', '<div id="v-ex"></div>', leg(line, 'Relapse') + leg(teal, 'Stable control'))}
-        ${panel('', 'Time from onset to each suggestion', 'Median and interquartile range across seeds, days', timingHtml, 'Mood alone: the same rule on the mood lantern only, with its threshold raised until false alarms match.')}
-        ${panel('', 'How fast it learns what helps', `Probability that ${best} helps most, by session`, '<div id="v-bandit"></div>', '')}
+        ${panel('wide', 'Early-warning index, one example', '<div id="v-ex"></div>', leg(line, 'Relapse') + leg(teal, 'Stable control'))}
+        ${panel('', `Days from onset to each suggestion ${info('Median and IQR across seeds. Mood alone: the same rule on the mood lantern only, at equal false alarms.')}`, timingHtml, '')}
+        ${panel('', `Probability that ${best} helps most`, '<div id="v-bandit"></div>', '')}
       </div>
-      <p class="list-foot">${esc(v.disclaimer || '')}</p>
     </div></section>`;
   };
 
