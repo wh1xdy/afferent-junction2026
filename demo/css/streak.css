@@ -7,16 +7,17 @@
 .morning-mark .chip {
   pointer-events: auto; display: inline-flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px 0 18px;
   border-radius: 22px; text-decoration: none; color: var(--af-birch);
-  background: color-mix(in srgb, #3E5478 52%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+  background: var(--af-glass);
+  box-shadow: var(--af-glass-edge), var(--af-lift-2);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
 }
 .morning-mark .chip:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
 .morning-mark .laminate { width: 30px; height: 25px; flex: none; }
-.morning-mark .n { font: 300 28px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; }
-.morning-mark .u { font: 500 13px/16px var(--af-font-ui); letter-spacing: 0.2px; color: color-mix(in srgb, var(--af-birch) 88%, transparent); }
+.morning-mark .n { font: 300 28px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; text-shadow: 0 0 18px color-mix(in srgb, var(--af-honey) 22%, transparent); }
+.morning-mark .u { font: 600 11px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: color-mix(in srgb, var(--af-birch) 78%, transparent); }
 .morning-mark .bye {
-  margin: 0; font: 300 19px/26px var(--af-font-brand); color: var(--af-frost);
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--af-fjord) 80%, transparent);
+  margin: 0; font: 300 19px/26px var(--af-font-brand); color: var(--af-frost); letter-spacing: 0.01em;
+  text-shadow: var(--af-text-lift);
 }
 
 .end-count { margin: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; color: var(--md-sys-color-on-surface); }
