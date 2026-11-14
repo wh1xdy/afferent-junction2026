@@ -223,7 +223,7 @@
 
   const setup = (offer, open) => {
     $('voiceSetupBtn').classList.toggle('hidden', !offer || open);
-    $('voiceSetupBtn').setAttribute('aria-expanded', String(!!open));
+    $('voiceSetupBtn').ariaExpanded = String(!!open);
     $('voiceKeyForm').classList.toggle('hidden', !open);
   };
   $('voiceSetupBtn').onclick = () => { setup(true, true); $('voiceUrl').focus({ preventScroll: true }); };
