@@ -28,7 +28,7 @@
   const rows = now => {
     const r = S.roomFrame(now);
     if (!r) return A.Hub?.connected ? [{ icon: 'home', label: 'Room', value: null, lines: ['No reading from the bedside unit right now'] }] : [];
-    const lines = ['degrees Celsius', r.humidity == null ? null : `Humidity ${pct(r.humidity)}`, r.source === 'simulated' ? 'Simulated' : 'Bedside unit, via the home hub'];
+    const lines = ['degrees Celsius', r.humidity == null ? null : `Humidity ${pct(r.humidity)}`, r.source === 'simulated' ? 'Simulated' : 'Bedside unit, via the hub'];
     return [{ icon: 'home', label: 'Room', value: c1(r.celsius), lines: lines.filter(Boolean) }];
   };
 

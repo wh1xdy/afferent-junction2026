@@ -94,7 +94,7 @@ const tests = {
     A.Hub.connected = true;
     assert.deepStrictEqual(groupOf(A), { title: 'Your room', rows: [{ icon: 'home', label: 'Room', value: null, lines: ['No reading from the bedside unit right now'] }] });
     S.feedRoom(room());
-    assert.deepStrictEqual(groupOf(A).rows, [{ icon: 'home', label: 'Room', value: '21.5', lines: ['degrees Celsius', 'Humidity 40 %', 'Bedside unit, via the home hub'] }]);
+    assert.deepStrictEqual(groupOf(A).rows, [{ icon: 'home', label: 'Room', value: '21.5', lines: ['degrees Celsius', 'Humidity 40 %', 'Bedside unit, via the hub'] }]);
     assert.deepStrictEqual(A.Vitals.model(A.now()).rows[0].label, 'Pulse', 'the finger rows are untouched');
     const subset = fs.readFileSync(path.join(JS, '..', 'fonts', 'icon-names.txt'), 'utf8').split(',').map(x => x.trim());
     assert.ok(subset.includes('home') && subset.includes('bedtime'));
