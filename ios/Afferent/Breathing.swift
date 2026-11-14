@@ -1,12 +1,13 @@
 import Foundation
 
 /// Breathing rate from TrueDepth head tracking: each breath moves the head/face by a few
-/// millimetres (distance to the phone and up/down). Dominant frequency in 6-36 breaths/min
-/// over the last 30 s, from whichever axis has the cleaner signal. Experimental: validate
+/// millimetres (distance to the phone and up/down). Dominant frequency in 4-36 breaths/min
+/// over the last 40 s, from whichever axis has the cleaner signal. Weak on its own; the
+/// heart-rate rhythm from the finger sensors is preferred when available. Experimental: validate
 /// with paced breathing (e.g. 6/min = 5 s in, 5 s out).
 enum BreathingMath {
-    static let band = (lo: 0.1, hi: 0.6)          // Hz = 6-36 breaths/min
-    static let windowS = 30.0, minWindowS = 20.0
+    static let band = (lo: 0.07, hi: 0.6)         // Hz = 4-36 breaths/min (6/min paced breathing is inside)
+    static let windowS = 40.0, minWindowS = 25.0
 
     struct Reading: Equatable { var perMinute: Int; var snr: Double; var amplitudeMM: Double }
 
@@ -32,11 +33,15 @@ enum BreathingMath {
             let a = span > 0 ? min(max((g - ts[j]) / span, 0), 1) : 0
             y[i] = xs[j] + (xs[j + 1] - xs[j]) * a
         }
-        let n = Double(y.count)
-        let mt = grid.reduce(0, +) / n, my = y.reduce(0, +) / n
-        let vt = grid.reduce(0) { $0 + ($1 - mt) * ($1 - mt) }
-        let slope = zip(grid, y).reduce(0) { $0 + ($1.0 - mt) * ($1.1 - my) } / max(vt, 1e-9)
-        for i in y.indices { y[i] -= my + slope * (grid[i] - mt) }
+        // high-pass: subtract a 20 s moving average. A straight-line detrend left the head's slow
+        // posture drift (13 mm over 35 s, measured) in the band and won over the 1-2 mm breaths.
+        let k = Int(20 * fs)
+        var pre = [Double](repeating: 0, count: y.count + 1)
+        for i in y.indices { pre[i + 1] = pre[i] + y[i] }
+        y = y.indices.map { i in
+            let a = max(0, i - k / 2), b = min(y.count, i + k / 2 + 1)
+            return y[i] - (pre[b] - pre[a]) / Double(b - a)
+        }
         let amp = y.map(abs).sorted()[Int(Double(y.count) * 0.9)] * 2 * 1000      // ~peak-to-peak, mm
         for i in y.indices { y[i] *= 0.5 - 0.5 * cos(2 * Double.pi * Double(i) / Double(y.count - 1)) }
         var freqs: [Double] = [], power: [Double] = []
@@ -46,10 +51,21 @@ enum BreathingMath {
             for i in y.indices { let w = 2 * Double.pi * f * Double(i) / fs; re += y[i] * cos(w); im -= y[i] * sin(w) }
             freqs.append(f); power.append(re * re + im * im); f += 0.005
         }
-        guard let k = power.indices.max(by: { power[$0] < power[$1] }) else { return nil }
-        let f0 = freqs[k]
+        guard let kmax = power.indices.max(by: { power[$0] < power[$1] }),
+              kmax > 1, kmax < power.count - 2 else { return nil }   // peak at the band edge = drift
+        let f0 = freqs[kmax]
         var sig = 0.0, rest = 0.0
         for (fi, p) in zip(freqs, power) { if abs(fi - f0) <= 0.03 { sig += p } else { rest += p } }
         return Reading(perMinute: Int((f0 * 60).rounded()), snr: 10 * log10(sig / (rest + 1e-12)), amplitudeMM: amp)
     }
+}
+
+/// Which breathing reading to show: the heart-rate rhythm from the finger sensors (UNO Q,
+/// sent with a positive signal only) or head motion from TrueDepth when its signal is clear.
+enum BreathingSource: String { case heartRhythm = "heart rhythm", headMotion = "head motion" }
+
+func clearestBreathing(finger: Int?, head: BreathingMath.Reading?) -> (perMinute: Int, source: BreathingSource)? {
+    if let f = finger, f > 0 { return (f, .heartRhythm) }
+    if let h = head, h.snr > 0 { return (h.perMinute, .headMotion) }
+    return nil
 }

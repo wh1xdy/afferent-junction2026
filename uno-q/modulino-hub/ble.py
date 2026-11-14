@@ -6,7 +6,8 @@ pulse live:
   0x2A37 Heart Rate Measurement  notify/read  [flags=0x00 (uint8 BPM, no contact bits), bpm]
   0x2A38 Body Sensor Location    read         0x03 = finger
 The standard service carries the fused reading of both sensors. Each sensor is on a custom service:
-  AFF0 / AFF1  notify/read  [bpm finger 1, bpm finger 2]  (0 = no reading)
+  AFF0 / AFF1  notify/read  [bpm finger 1, bpm finger 2, breaths/min]  (0 = no reading)
+  breaths/min comes from the heart-rate rhythm (respiratory sinus arrhythmia)
 Runs its own asyncio loop in a thread; if Bluetooth isn't available the hub keeps working.
 """
 import asyncio
@@ -29,6 +30,7 @@ class HeartRateBroadcaster:
         self._loop = asyncio.new_event_loop()
         self._server = None
         self._bpm = [0, 0]
+        self._breath = 0
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -52,7 +54,7 @@ class HeartRateBroadcaster:
                                             bytearray([3]), GATTAttributePermissions.readable)
         await server.add_new_service(AFF_SVC)
         await server.add_new_characteristic(AFF_SVC, AFF_BOTH, P.notify | P.read,
-                                            bytearray([0, 0]), GATTAttributePermissions.readable)
+                                            bytearray([0, 0, 0]), GATTAttributePermissions.readable)
         await server.start()
         self._server = server
         self.status = "advertising"
@@ -70,10 +72,16 @@ class HeartRateBroadcaster:
         self._bpm[finger] = max(0, min(255, int(bpm)))
         self._notify()
 
+    def update_breathing(self, per_minute: int):
+        v = max(0, min(255, int(per_minute)))
+        if v != self._breath:
+            self._breath = v
+            self._notify()
+
     def _notify(self, hrm=None):
         if self._server is None:
             return
-        both = bytearray(self._bpm)
+        both = bytearray(self._bpm + [self._breath])
 
         def _push():
             try:

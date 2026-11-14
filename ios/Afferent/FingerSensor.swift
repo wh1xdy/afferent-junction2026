@@ -11,6 +11,7 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
     @Published var state: State = .off
     @Published var bpm: Int?
     @Published var sensors: [Int?] = [nil, nil]   // per sensor, detail only
+    @Published var breathsPerMinute: Int?          // from the heart-rate rhythm on the UNO Q
     @Published var name: String?
     @Published var lastUpdate: Date?
     @Published var sensorsUpdate: Date?
@@ -32,6 +33,11 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
     var freshBpm: Int? {
         guard let bpm, let t = lastUpdate, Date().timeIntervalSince(t) < 5 else { return nil }
         return bpm
+    }
+
+    var freshBreathing: Int? {
+        guard let t = sensorsUpdate, Date().timeIntervalSince(t) < 10 else { return nil }
+        return breathsPerMinute
     }
 
     var freshSensors: [Int?] {
@@ -100,6 +106,7 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
             guard let d = ch.value, d.count >= 2 else { return }
             let b = [UInt8](d)
             sensors = [b[0] > 0 ? Int(b[0]) : nil, b[1] > 0 ? Int(b[1]) : nil]
+            if b.count >= 3 { breathsPerMinute = b[2] > 0 ? Int(b[2]) : nil }
             sensorsUpdate = Date()
             return
         }
