@@ -381,8 +381,8 @@
       finish(st.mode === 'session' ? 'cancel' : 'close');
     }, true);
 
-    // offered once the first-run cards (onboarding, a check-in) and any session are out of the way
-    const busy = () => phone.classList.contains('onboarding') || phone.classList.contains('card-open') || !!A.session || !!st;
+    // offered once the first-run cards (onboarding, the lantern explainer, a check-in) and any session are out of the way
+    const busy = () => phone.classList.contains('onboarding') || phone.classList.contains('card-open') || !!phone.querySelector('.ci:not(.hidden)') || !!A.session || !!st;
     let tries = 0;
     const later = () => setTimeout(() => { if (++tries > 40) return; if (busy()) later(); else offer(); }, T.OFFER_MS);
     later();
