@@ -179,6 +179,15 @@
   const col = (c, g, a = 1, haze = 0) => rgb(grade(c, g, haze), a);
   const off = f => S.worldX * f * (f === 1 ? 1 : pm);
   const sx = wx => fx + wx - S.worldX;
+  const ART = A.Art;
+  const art = (n, x, y, w, h, g, a = 1, lt = 1) => ART.draw(ctxRef, n, x, y, w, h, satOf(g), Math.min(1, lightOf(g) * lt), a);
+  function strip(n, f, bottom, h, g, a = 1, lt = 1, gap = 0.985) {
+    if (!ART.has(n)) return false;
+    const w = h * ART.aspect(n), span = w * gap, o = off(f);
+    for (let x = -(((o % span) + span) % span); x < W; x += span) art(n, x, bottom - h, w, h, g, a, lt);
+    return true;
+  }
+  const at = (wx, f = 1) => fx + (wx - S.worldX) * f;
 
   function sprite(ctx, name, c, x, y, w, h, a, add) {
     if (a <= 0.003) return;
@@ -247,6 +256,7 @@
   const RINGC = { yellow: mixc(P.gold, P.amber, 0.5), blue: P.ice, green: P.aurora, dawn: P.glow };
   function ring(a, g) { st.rings.push({ t: n0(S.t, 0), a, c: RINGC[g] || P.glow }); }
 
+  const CLOUDS = [['sky_dawn_cloud_1', 0.07, 1.5, 1, 0.3, 0.72], ['sky_dawn_cloud_2', 0.24, 1.0, 0.7, 0.75, 0.55], ['sky_dawn_cloud_3', 0.42, 0.7, 0.5, 0.45, 0.4]];
   let skyTop, skyMid, skyBot;
   function sky(ctx) {
     const d = st.ds, dl = n0(S.daylight, 0), dawn = d.dawn, nd = I.night ? dawn : 0, md = I.night ? 0 : dawn;
@@ -270,6 +280,14 @@
     const ex = n0(S.exposure, 1);
     if (ex < 1 && md < 0.99) { ctx.fillStyle = rgb(P.night950, Math.min(0.5, (1 - ex) * 1.6) * (1 - md)); ctx.fillRect(0, 0, W, hy + 6); }
     if (d.yellow > 0.06 && dawn < 0.99) sprite(ctx, 'soft', P.amber2, -W * 0.5, hy - H * 0.13, W * 2, H * 0.26, 0.2 * d.yellow * (1 - dawn) * (1 - 0.7 * st.heavy), true);
+    if (md > 0.02) {
+      const o = off(LAYER.aurora) + n0(S.t, 0) * 2 * u;
+      for (const [n, yk, wk, sp, ph, al] of CLOUDS) {
+        if (!ART.has(n)) continue;
+        const w = W * wk, span = W + w * 1.6, x = ((ph * span - o * sp) % span + span) % span - w * 0.8;
+        art(n, x, hy * yk, w, w / ART.aspect(n), 'dawn', md * al, 1);
+      }
+    }
     if (md > 0.01 || st.sun > 0.01) {
       const p = Math.max(md, st.sun);
       glow(ctx, W * 0.72, hy, W * 0.9, P.coralSoft, 0.3 * p, 'soft');
@@ -360,7 +378,11 @@
     }
     ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(auroraC, -q, 0, w * q, h * q);
-    ctx.globalCompositeOperation = 'source-over';
+    if (ART.has('sky_aurora')) {
+      const aw = W * 1.9, ah = aw / ART.aspect('sky_aurora'), span = aw * 1.25;
+      for (let ax = -((((o + t * 4) % span) + span) % span) - aw * 0.2; ax < W; ax += span) ART.draw(ctx, 'sky_aurora', ax, H * 0.08 + Math.sin(t * 0.07) * H * 0.01, aw, ah, sg, 1, 0.42 * a * (0.2 + 0.8 * sg) * (0.85 + 0.15 * Math.sin(t * 0.5)));
+    }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
 
   function sun(ctx) {
@@ -392,6 +414,7 @@
   }
 
   function mountains(ctx) {
+    if (strip('far_mountains', LAYER.far, hy + 3 * u, H * 0.085, 'blue', 0.62, 0.72)) return;
     const top = col(P.silver100, 'blue', 1, 0.35), mid = col(P.mountain, 'blue', 1, 0.5), bot = col(P.mountain2, 'blue', 1, 0.6);
     ridge(ctx, hy + 2, H * 0.15, LAYER.far, 3, true, 6 * u, vgrad(ctx, 'mt' + top + mid + bot + H, hy - H * 0.13, hy, [[0, top], [0.35, mid], [1, bot]]));
     const t2 = col(P.mountain2, 'blue', 1, 0.42), b2 = col(P.night600, 'blue', 1, 0.45);
@@ -399,6 +422,7 @@
   }
 
   function islands(ctx) {
+    if (strip('far_islands', LAYER.islands, hy + H * 0.008, H * 0.05, 'blue', 0.92, 0.9)) { lighthouse(ctx); return; }
     const o = off(LAYER.islands), span = 3120 * u, fill = col(P.spruce, 'green', 1, 0.45);
     ctx.fillStyle = fill; ctx.beginPath();
     for (const is of ISLANDS) {
@@ -418,21 +442,29 @@
 
   function lighthouse(ctx) {
     const x = W * 0.84 - off(LAYER.islands) * 0.08, base = hy + 1, h = H * 0.06, wb = h * 0.2, wt = h * 0.13, t = n0(S.t, 0);
+    const vis = 1 - st.focus, ga = ctx.globalAlpha;
+    let lampY = base - h - h * 0.05;
+    if (ART.has('lighthouse')) {
+      if (vis <= 0.01) return;
+      const lh = H * 0.075, lw = lh * ART.aspect('lighthouse');
+      art('lighthouse', x - lw * 0.495, base + lh * 0.04 - lh, lw, lh, 'yellow', 0.9 * vis, 0.85);
+      lampY = base + lh * 0.04 - lh * 0.87;
+      ctx.globalAlpha = ga * vis;
+    } else {
     ctx.fillStyle = col(P.spruce, 'green', 1, 0.4);
     ctx.beginPath(); ctx.moveTo(x - h * 0.9, base); ctx.bezierCurveTo(x - h * 0.4, base - h * 0.3, x + h * 0.4, base - h * 0.32, x + h * 1.1, base); ctx.fill();
-    const vis = 1 - st.focus;
     if (vis <= 0.01) return;
-    const ga = ctx.globalAlpha;
     ctx.globalAlpha = ga * vis;
     ctx.fillStyle = col(P.silver100, 'base', 1, 0.2);
     ctx.beginPath(); ctx.moveTo(x - wb / 2, base - h * 0.15); ctx.lineTo(x - wt / 2, base - h); ctx.lineTo(x + wt / 2, base - h); ctx.lineTo(x + wb / 2, base - h * 0.15); ctx.fill();
     ctx.fillStyle = col(P.slate, 'blue', 1, 0.2);
     for (let i = 0; i < 2; i++) ctx.fillRect(x - wb * 0.47 + i * h * 0.02, base - h * (0.38 + i * 0.3), wb * 0.94 - i * h * 0.04, h * 0.09);
     ctx.fillRect(x - wt * 0.7, base - h - h * 0.12, wt * 1.4, h * 0.04);
+    }
     const day = Math.max(st.ds.dawn, st.sun, ease(n0(S.sweep, 0))), beam = n0(S.beam, 0) * (1 - day), lamp = clamp(0.35 + beam, 0, 1) * (1 - 0.7 * day);
-    glow(ctx, x, base - h - h * 0.05, h * 0.5 * (0.6 + lamp), P.flame, 0.7 * lamp);
+    glow(ctx, x, lampY, h * 0.5 * (0.6 + lamp), P.flame, 0.7 * lamp);
     if (beam > 0.02) {
-      ctx.save(); ctx.translate(x, base - h - h * 0.05); ctx.globalCompositeOperation = 'lighter';
+      ctx.save(); ctx.translate(x, lampY); ctx.globalCompositeOperation = 'lighter';
       const ang = Math.PI + Math.sin(t * (rm ? 0.4 : 0.8)) * 0.5;
       ctx.rotate(ang); ctx.globalAlpha = ga * vis * 0.55 * beam;
       ctx.drawImage(tint('beam', P.flame), 0, -H * 0.07, W * 1.1, H * 0.14);
@@ -442,7 +474,7 @@
   }
 
   function sea(ctx) {
-    const top = col(mixc(HAZE, P.sea, 0.5), 'blue', 1, 0.15), bot = col(P.seaDeep, 'blue');
+    const top = col(mixc(mixc(HAZE, P.sea, 0.5), P.dawnSky, 0.5 * st.ds.dawn), 'blue', 1, 0.15), bot = col(mixc(P.seaDeep, P.sea, 0.5 * st.ds.dawn), 'blue');
     ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H, hy, gy, [[0, top], [1, bot]]);
     ctx.fillRect(0, hy, W, gy - hy + 2);
     const t = n0(S.t, 0), o = off(LAYER.islands), c = grade(P.silver200, 'blue');
@@ -461,6 +493,7 @@
   }
 
   function midHills(ctx) {
+    if (strip('mid_hills_spruce', LAYER.mid, gy + 8 * u, H * 0.13, 'green', 1, 0.82)) return;
     const c1 = col(P.spruce, 'green', 1, 0.3), c2 = col(P.night700, 'blue', 1, 0.55);
     const base = hy + H * 0.1, f = LAYER.mid, o = off(f), sc = 1 / u, step = 6 * u;
     const yAt = x => { const q = (x + o) * sc; return base - H * 0.05 * (0.25 + 0.75 * noise(q * 0.006 + 41)) - H * 0.02 * noise(q * 0.02 + 7); };
@@ -484,7 +517,7 @@
   }
 
   function fog(ctx, near) {
-    const d = clamp(n0(S.fog, 0.4), 0, 1.4);
+    const d = clamp(n0(S.fog, 0.4), 0, 1.4) * (1 - 0.6 * st.ds.dawn);
     if (d <= 0.01) return;
     const t = n0(S.t, 0), drift = n0(S.fogDrift, 1) * (rm ? 0.4 : 1), f = near ? LAYER.fogNear : LAYER.fogFar;
     const c = grade(mixc(P.silver300, P.glow, 0.15 * st.ds.yellow), 'blue');
@@ -531,6 +564,31 @@
   const groundAt = type => GROUND[type] || GROUND.shore;
   const gyAt = wx => gy + 3 * u * noise(wx * 0.012) - 2 * u;
 
+  const GTOP = { forest: 0.36, shore: 0.16, sauna: 0.06, harbour: 0.03, lake: 0.03 }, GF = 60, PW = 560;
+  function groundArt(ctx, c) {
+    const n = 'ground_' + c.type;
+    if (!ART.has(n)) return false;
+    const dpr = Math.min(1.5, Math.abs(ctx.getTransform().a) || 1), top = GTOP[c.type] || 0;
+    const gh = (H - gy + 8 * u) / (1 - top), f = GF, key = `g:${c.type}:${Math.round(gh)}:${dpr}`;
+    if (!ART.has(key)) {
+      ART.drop(`g:${c.type}:`);
+      const cw = (PW + 2 * GF) * dpr, th = gh * dpr;
+      ART.bake(key, n, cw, th, (x, src, w, h) => {
+        const tw = th * w / h;
+        for (let xx = -tw * 0.13; xx < cw; xx += tw * 0.985) x.drawImage(src, xx, 0, tw, th);
+        ART.feather(x, cw, th, GF / (PW + 2 * GF));
+      });
+    }
+    const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, y = gy - 3 * u - gh * top;
+    for (let i = 0; i < k; i++) {
+      const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f;
+      if (x > W || x + w < 0) continue;
+      if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8); ctx.restore(); }
+      else art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8);
+    }
+    return true;
+  }
+
   function ground(ctx) {
     const vs = visible(), step = 8 * u, cs = chunks();
     const g = ctx.createLinearGradient(0, 0, W, 0), cache = {};
@@ -550,10 +608,12 @@
     for (let x = -step; x <= W + step; x += step) ctx.lineTo(x, gyAt(S.worldX + x - fx));
     ctx.lineTo(W + step, H); ctx.closePath();
     ctx.fillStyle = g; ctx.fill();
+    const painted = new Set();
+    for (const c of vs) if (groundArt(ctx, c)) painted.add(c);
     ctx.fillStyle = vgrad(ctx, 'gshade' + H, gy, H, [[0, 'rgba(10,16,40,0)'], [0.2, 'rgba(10,16,40,0.18)'], [1, 'rgba(6,8,20,0.62)']]);
     ctx.fillRect(0, gy - 4 * u, W, H - gy + 4 * u);
     const o = S.worldX, dc = grade(P.silver050, 'base'), sh = grade(P.night600, 'blue');
-    for (let i = 0; i < 5; i++) {
+    if (painted.size < vs.length) for (let i = 0; i < 5; i++) {
       const y = gy + (H - gy) * (0.16 + i * 0.17), amp = (3 + i * 2) * u, f = 1 + i * 0.12;
       ctx.beginPath();
       for (let x = -step; x <= W + step; x += step * 2) { const q = (x + o * f) / u; const yy = y - amp * noise(q * 0.008 + i * 13); x === -step ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
@@ -561,14 +621,21 @@
       ctx.lineTo(W + step, y + 14 * u); ctx.lineTo(-step, y + 14 * u); ctx.closePath();
       ctx.fillStyle = rgb(sh, 0.07); ctx.fill();
     }
-    ctx.strokeStyle = col(P.silver050, 'base', 0.22); ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let x = -step; x <= W + step; x += step) { const y = gyAt(S.worldX + x - fx); x === -step ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
-    ctx.stroke();
+    if (!painted.size) {
+      ctx.strokeStyle = col(P.silver050, 'base', 0.22); ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = -step; x <= W + step; x += step) { const y = gyAt(S.worldX + x - fx); x === -step ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
     const t = n0(S.t, 0);
     for (const c of vs) {
       const x0 = Math.max(0, sx(c.x0)), x1 = Math.min(W, sx(c.x1));
       if (x1 <= x0) continue;
+      if (painted.has(c)) {
+        const ig = c.type === 'lake' ? n0(S.iceGlow, 0) : 0, w = x1 - x0;
+        if (ig > 0.01) sprite(ctx, 'soft', P.ice, x0 - w * 0.1, gy - (H - gy) * 0.2, w * 1.2, (H - gy) * 1.4, 0.35 * ig, true);
+        continue;
+      }
       if (c.type === 'harbour' || c.type === 'lake') {
         const cl = grade(c.type === 'lake' ? P.silver050 : P.silver200, 'blue');
         ctx.fillStyle = rgb(cl);
@@ -625,10 +692,30 @@
     ctx.globalAlpha = 1;
   }
 
+  function prop(n, wx, f, h, g, lt = 1, sink = 0.04) {
+    if (!ART.has(n)) return false;
+    const w = h * ART.aspect(n), x = at(wx, f) - w / 2;
+    if (x > W + 20 || x + w < -20) return true;
+    return art(n, x, gy + h * sink - h, w, h, g, 1, lt);
+  }
+  function backProps(c) {
+    const m = (c.x0 + c.x1) / 2, cw = c.x1 - c.x0;
+    if (c.type === 'harbour') prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
+    if (c.type === 'shore' && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
+      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = gy + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
+      glow(ctxRef, lx, ly, lh * 0.12, P.flame, 0.6 * on); glow(ctxRef, lx, ly, lh * 0.035, P.daylight, 0.8 * on);
+    }
+    if (c.type === 'sauna') prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
+    if (c.type === 'forest' && ART.has('mid_birch_grove')) prop('mid_birch_grove', m, 0.9, 300 * u, 'yellow', 0.82, 0.05);
+  }
+
   function props(ctx, back) {
     for (const c of visible()) {
-      if (c.type === 'forest') birches(ctx, c, back);
-      if (back) { if (c.type === 'lake') lakeShore(ctx, c); continue; }
+      if (c.type === 'forest') {
+        if (!ART.has('mid_birch_grove')) birches(ctx, c, back);
+        else if (!back) prop('birch_cluster', c.x0 + 70, 1, H * 0.31, 'yellow', 0.95, 0.05);
+      }
+      if (back) { if (c.type === 'lake') lakeShore(ctx, c); backProps(c); continue; }
       if (c.type === 'harbour') pier(ctx, c);
       if (c.type === 'sauna') hut(ctx, c);
       if (c.type === 'shore') shore(ctx, c);
@@ -731,10 +818,15 @@
     const x = sx(c.x0 + (c.x1 - c.x0) * 0.74), w = 96 * u, h = 52 * u, y = gy - h, t = n0(S.t, 0), stove = n0(S.stove, 0);
     if (x < -160 || x > W + 160) return;
     const lit = 0.55 + 0.45 * stove, flick = 0.9 + 0.1 * noise(t * 4.5);
+    let smx = x + w * 0.26, smy = y - 34 * u;
     glow(ctx, x - w * 0.22, y + h * 0.42, 90 * u * (0.8 + 0.4 * stove), P.amber, 0.22 * lit * flick, 'soft');
     if (A.Art.has('sauna_hut')) {
-      const ww = 140 * u, hh = ww / A.Art.aspect('sauna_hut');
-      A.Art.draw(ctx, 'sauna_hut', x - ww / 2, gy - hh + 6 * u, ww, hh, satOf('yellow'), Math.min(1, lightOf('yellow')), 1);
+      const ww = 175 * u, hh = ww / A.Art.aspect('sauna_hut'), y0 = gy - hh + 10 * u;
+      A.Art.draw(ctx, 'sauna_hut', x - ww / 2, y0, ww, hh, satOf('yellow'), Math.min(1, lightOf('yellow')), 1);
+      const wx = x - ww / 2 + ww * 0.68, wy = y0 + hh * 0.45;
+      smx = x - ww / 2 + ww * 0.295; smy = y0 + hh * 0.04;
+      glow(ctx, wx, wy, 26 * u, P.glow, 0.55 * lit * flick);
+      glow(ctx, wx, wy, 7 * u, P.daylight, 0.6 * lit * flick);
     } else {
       ctx.fillStyle = col(P.hut, 'yellow'); ctx.fillRect(x - w / 2, y, w, h);
       ctx.fillStyle = col(P.night900, 'base', 0.28);
@@ -755,7 +847,7 @@
     const sc = grade(P.silver300, 'base');
     for (let i = 0; i < 6; i++) {
       const p = ((t * (rm ? 0.08 : 0.16) + i / 6) % 1);
-      sprite(ctx, 'soft', sc, x + w * 0.26 + p * 26 * u + Math.sin(t * 0.7 + i) * 4 * u - (6 + p * 18) * u, y - 34 * u - p * 70 * u - (6 + p * 18) * u, 2 * (6 + p * 18) * u, 2 * (6 + p * 18) * u, 0.32 * (1 - p) * Math.min(1, p * 5), false);
+      sprite(ctx, 'soft', sc, smx + p * 26 * u + Math.sin(t * 0.7 + i) * 4 * u - (6 + p * 18) * u, smy - p * 70 * u - (6 + p * 18) * u, 2 * (6 + p * 18) * u, 2 * (6 + p * 18) * u, 0.32 * (1 - p) * Math.min(1, p * 5), false);
     }
   }
 
@@ -785,12 +877,28 @@
     st.fig = { k, walk, ph, bob, breath, swing, hx, hy: hy2 };
     st.lx = fx + k * (hx + Math.sin(swing) * 8);
     st.ly = gy + 1 + k * (-bob + hy2 + Math.cos(swing) * 8);
+    const sp = figSprite();
+    if (sp) {
+      const [n, ax, , lx, ly] = sp, fh = H * FIG_H, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = gy + 3 * u - fh - bob * k;
+      st.fig.sp = { n, x0, y0, fw, fh };
+      st.lx = x0 + fw * lx + Math.sin(swing) * 1.5 * u;
+      st.ly = y0 + fh * ly;
+    }
   }
+  const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4] };
+  const figSprite = () => { const s = st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
 
   function figure(ctx) {
     const F = st.fig, { k, walk, ph, bob, breath } = F, t = n0(S.t, 0), sway = rm ? 0.3 : 1;
     const bright = n0(S.lanternBright, 1), warm = mixc(P.glow, P.amber, 0.3);
     sprite(ctx, 'soft', P.night950, fx - 16 * k, gy - 2 * k, 32 * k, 7 * k, 0.6, false);
+    if (F.sp) {
+      const { n, x0, y0, fw, fh } = F.sp, lean = walk * 0.025 * Math.sin(ph * 2) * sway, sq = 1 + 0.012 * breath;
+      ctx.save(); ctx.translate(fx, y0 + fh); ctx.rotate(lean); ctx.scale(1, sq); ctx.translate(-fx, -(y0 + fh));
+      ART.draw(ctx, n, x0, y0, fw, fh, Math.max(0.3, satOf('yellow')), Math.min(1, lerp(0.62, 1, Math.max(st.ds.dawn, 0.5 * n0(S.daylight, 0))) + 0.1 * bright), 1);
+      ctx.restore();
+      return;
+    }
     ctx.save(); ctx.translate(fx, gy + 1); ctx.scale(k, k); ctx.translate(0, -bob);
     const body = rgb(mixc(grade(P.cloak, 'base'), P.violet700, 0.6)), rim = rgb(mixc(warm, P.flame, 0.3), Math.min(1, 0.75 * bright));
     const legA = Math.sin(ph) * 0.5 * walk;
@@ -840,6 +948,12 @@
     const F = st.fig, k = F.k, t = n0(S.t, 0), x = st.lx, y = st.ly;
     const f = st.flare, fl = (0.88 + 0.12 * noise(t * (rm ? 2 : 7)) + 0.05 * noise(t * 19)) * n0(S.flame, 1) * (1 + 1.4 * f), br = n0(S.lanternBright, 1);
     const hx = fx + k * F.hx, hy2 = gy + 1 + k * (F.hy - F.bob);
+    if (F.sp) {
+      glow(ctx, x, y, 5 * k * fl, P.daylight, 0.85 * br);
+      glow(ctx, x, y, 22 * k * fl, P.glow, 0.55 * br);
+      for (const sp of S.sparks || []) { const age = t - sp.born; if (age >= 0 && age <= 1) glow(ctx, x + sp.dx * age * 34, y + sp.dy * age * 40 - age * 10, 2.4 * k, P.flame, 1 - age); }
+      return;
+    }
     ctx.strokeStyle = rgb(P.night950, 0.9); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, hy2); ctx.lineTo(x, y - 3.5 * k); ctx.stroke();
     ctx.save(); ctx.translate(x, y); ctx.rotate(F.swing);
     ctx.fillStyle = rgb(P.night950); ctx.fillRect(-2.6 * k, -3.6 * k, 5.2 * k, 1.4 * k); ctx.fillRect(-2.1 * k, 3.4 * k, 4.2 * k, 1.2 * k);
@@ -915,7 +1029,29 @@
     }
   }
 
+  function foreArt() {
+    if (!ART.has('fg_reeds') && !ART.has('fg_rocks')) return false;
+    const o = off(LAYER.fore), span = 1500 * u, t = n0(S.t, 0), sw = rm ? 0.3 : 1;
+    const items = [['fg_reeds', 0, 300, 0.1, 'green'], ['fg_rocks', 520, 230, 0.12, 'blue'], ['fg_reeds', 900, 240, 0.12, 'green'], ['fg_rocks', 1180, 170, 0.18, 'blue']];
+    for (const [n, px, pw, sink, g] of items) {
+      if (!ART.has(n)) continue;
+      const w = pw * u, h = w / ART.aspect(n), x = ((px * u - o) % span + span) % span - 300 * u;
+      if (x > W || x + w < 0) continue;
+      art(n, x + (n === 'fg_reeds' ? Math.sin(t * 0.6 + px) * 2 * u * sw : 0), H - h * (1 - sink), w, h, g, 1, 0.42);
+    }
+    if (ART.has('fg_branch')) for (const c of visible()) {
+      if (c.type !== 'forest' && c.type !== 'sauna') continue;
+      const w = 150 * u, h = w / ART.aspect('fg_branch'), x = at(c.x0 + 140, LAYER.fore);
+      if (x > W + w || x < -w) continue;
+      ctxRef.save(); ctxRef.translate(x, -14 * u); ctxRef.rotate(Math.sin(t * 0.45 + c.seed) * 0.025 * sw);
+      art('fg_branch', -w * 0.1, 0, w, h, 'green', 0.9, 0.5);
+      ctxRef.restore();
+    }
+    return true;
+  }
+
   function foreground(ctx) {
+    if (foreArt()) return;
     const o = off(LAYER.fore), span = 3600 * u, t = n0(S.t, 0), c = col(mixc(P.night950, P.night800, 0.4), 'base', 1), rimc = col(P.silver200, 'base', 0.28);
     ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineCap = 'round';
     for (const td of TUFTS) {

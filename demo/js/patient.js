@@ -443,6 +443,15 @@
       if (!W) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       V.worldX = sx;
+      const bg = A.Art?.image?.('bg_patient');
+      if (bg) {
+        const k = Math.max(W / bg.width, H * 1.08 / bg.height), w = bg.width * k, h = bg.height * k;
+        ctx.drawImage(bg, (W - w) / 2, -Math.min(h - H, scroll * 0.08), w, h);
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, `rgba(7,10,20,${0.66 - 0.12 * warmth})`); g.addColorStop(0.55, `rgba(7,10,20,${0.54 - 0.12 * warmth})`); g.addColorStop(1, 'rgba(7,10,20,0.72)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        return;
+      }
       if (ok) {
         try { A.World.draw(ctx, Math.round(W * 1.3), Math.round(H * 1.13), V); return; } catch { ok = false; }
       }
