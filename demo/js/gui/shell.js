@@ -24,7 +24,7 @@
   const GROUPS = [
     { title: 'Sensors', hint: 'Only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
-      { icon: 'ecg_heart', label: 'Pulse stone', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Finger sensor', supId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
       { icon: 'lightbulb', label: 'Bedside light', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'sensor_occupied', label: 'Presence sensor', sw: 'data-sensor="presence"' },
@@ -48,12 +48,14 @@
     ] },
     { title: 'Help', rows: [
       { icon: 'info', label: 'How it works', attrs: 'data-open="info"' },
+      { icon: 'ecg_heart', label: 'Your signals', attrs: 'data-open="signals"' },
       { glyph: G.lantern(null), label: 'The lanterns', attrs: 'data-anchor' },
       { glyph: G.laminate(), label: 'Your mornings', href: 'patient.html', id: 'weekBtn' },
     ] },
   ];
   const DEV = { id: 'devGroup', title: 'Developer', rows: [
     { icon: 'code', label: 'Simulated sensors', sw: 'id="simSw"' },
+    { icon: 'vital_signs', label: 'Signals during play', sw: 'id="sigSw"' },
     { icon: 'touch_app', label: 'Input', val: '', attrs: 'data-dev="input"' },
     { icon: 'schedule', label: 'Clock', val: '', attrs: 'data-dev="clock"' },
     { icon: 'routine', label: 'Session', val: '', attrs: 'data-dev="stage"' },
@@ -214,7 +216,7 @@
   const layers = () => {
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      const open = ['hubDialog', 'info', 'crisis', 'settings'].map($).find(el => el && !el.classList.contains('hidden'));
+      const open = ['hubDialog', 'info', 'signals', 'crisis', 'settings'].map($).find(el => el && !el.classList.contains('hidden'));
       if (open) { e.preventDefault(); open.querySelector('[data-close]')?.click(); }
     });
   };
@@ -230,7 +232,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals'].includes(id)) return;
       if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
       else delete el.dataset.scheme;
     }, true);
