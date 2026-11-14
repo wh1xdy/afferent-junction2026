@@ -201,6 +201,17 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 `npm run open:android` opens the project in Android Studio instead.
 
+### Real sensors in the app
+
+The two finger clips on the UNO Q feed the app with pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
+
+- Phone, direct: the `AfferentFinger` plugin reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading).
+- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone and the clinic view.
+
+Rules: a reading counts for 3 s, quality is never invented, real and simulated are never mixed inside a session, and anything simulated is marked in `simulated_fields`. For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`; the clinic view shows them under Signals.
+
+Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)
