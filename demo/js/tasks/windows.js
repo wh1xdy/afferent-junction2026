@@ -47,6 +47,8 @@
           if (!t) return;
           t.off = now; this.cur = null;
           if (t.kind === 'go' && t.rt === null) sfx('windows_miss');
+          const b = this.b, W = b && this.win(t.w, b);
+          if (W && t.kind === 'go' && t.rt === null) J.verdict('miss', W.x + W.w / 2, W.y + W.h / 2, Math.max(W.w, W.h) * 0.6);
           this.sync();
         },
 
@@ -72,12 +74,14 @@
           if (c.kind === 'go') {
             c.rt = Math.max(0, t - c.on);
             this.warmAt[c.w] = J.at;
+            if (W) J.verdict('right', W.x + W.w / 2, W.y + W.h / 2, Math.max(W.w, W.h) * 0.6);
             if (W) { fx.burst(W.x + W.w / 2, W.y + W.h / 2, 10, C.glow, 150 * W.U, { kind: 'spark', size: [4 * W.U, 1] }); J.bloom(W.x + W.w / 2, W.y + W.h / 2, W.w * 1.4, C.warm, 0.35, 0.12, 0.4); }
             hap('hit'); sfx('windows_hit', { piano: [3 + (this.items % 5), 0.12] });
             J.border(this.i / this.trials.length);
             this.close(t);
           } else {
             this.frostAt[c.w] = J.at;
+            if (W) J.verdict('wrong', W.x + W.w / 2, W.y + W.h / 2, Math.max(W.w, W.h) * 0.6);
             if (W) fx.snow(W.x + W.w / 2, W.y + W.h * 0.3, 8);
             hap('miss'); sfx('windows_frost');
           }
