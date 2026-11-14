@@ -8,7 +8,7 @@ Conventions:
 - Day model: `day_index` = days since the patient's TMS end date (`tms_end_date`, day 0). The hub's `now_day` for a patient = (hub local date - `tms_end_date`) in days. The demo seeds every patient so that `now_day = 56`: synthetic history covers days 0 to 55 (complete days), and today (day 56) is where live sessions land.
 - Several sessions on one day: analytics uses the last session of that day with `status` in `completed`, `partial`, `fell_asleep` (and `core.rt.valid` for the reaction-time feature). Repeated live demo runs therefore overwrite "today" instead of stacking days.
 - Everything simulated carries `simulated: true`. Every screen that shows simulated data shows the word `SIMULATED` (dashboard: a small badge per patient and on charts; app: a chip on the debug panel and patient view).
-- Claims: "supportive", "maintenance", "early warning", "suggests". Never "treats", "prevents relapse", "diagnoses", "detects emotions", "HRV", "measures alertness", "clinically validated". Facial data is eye openness, PERCLOS, blink rate and head pitch, never emotion.
+- Claims: "supportive", "maintenance", "early warning", "suggests". Never "treats", "prevents relapse", "diagnoses", "detects emotions", "measures alertness", "clinically validated". HRV values (RMSSD, SDNN) are shown as measured numbers with source and unit; never called a stress level, strain, or used for a diagnosis or a treatment decision (Decisions I53; section 3.5). Facial data is eye openness, PERCLOS, blink rate and head pitch, never emotion.
 
 ## 1. Running
 
@@ -20,7 +20,7 @@ Conventions:
 |---|---|---|
 | `AFFERENT_PORT` | `8000` | HTTP and WebSocket port |
 | `AFFERENT_DB` | `hub/data/afferent.db` | SQLite file (gitignored) |
-| `AFFERENT_BEDSIDE` | `sim` | `sim` (hardware simulator), `serial:/dev/ttyACM0` (UNO Q over USB), `ws` (device connects to `/ws/bedside` itself, no simulator), `off` |
+| `AFFERENT_BEDSIDE` | `sim` | `sim` (hardware simulator), `unoq:<base url>` (UNO Q over HTTP, for example `unoq:http://127.0.0.1:18081` behind `wendy net forward 18081:18080 --device <uno-q>`; needs the wendy CLI and Alex's org login on the hub host; `./start.sh --unoq URL`; section 3.5), `serial:/dev/ttyACM0` (UNO Q over USB serial; not implemented by current hardware, section 4), `ws` (device connects to `/ws/bedside` itself, no simulator), `off` |
 | `AFFERENT_SIM_PULSE` | `0` | `1` makes the bedside simulator also stream pulse. Off by default, so the phone's own vitals simulator (profiles, sliders) stays in control |
 | `AFFERENT_OLLAMA_URL` | `http://127.0.0.1:11434` | Local Ollama for Gemma |
 | `AFFERENT_GEMMA_MODEL` | unset | Force a model name; otherwise the first installed model whose name starts with `gemma3n`, then `gemma3`, then `gemma` |
@@ -178,8 +178,24 @@ Body: `{"profile": "good_day" | "bad_day" | "live", "patient_id": "anna"}`. Send
  "pulse": {"bpm": null, "quality": 0, "contact": false, "source": null},
  "presence": {"in_bed": true, "since_iso": "2026-11-14T23:24:00+02:00", "motion_events_tonight": 14},
  "thermo": {"temp_c": 20.8, "humidity_pct": 31},
+ "physio": null,
  "camera_on": false}
 ```
+
+- `source` is the name of the running bedside source: `simulator`, `unoq_http` (UNO Q over HTTP, `AFFERENT_BEDSIDE=unoq:<base url>`), `unoq` (USB serial) or `ws`. `simulated` is true only for the simulator.
+- `pulse.source` is `ky039`, `finger_ppg`, `simulated` or `null`.
+- `physio` is the last physio object from the bedside source (section 3.5), or `null` when the source gives none (simulator, serial, `ws` without a `physio` message) or has not delivered one yet. With `unoq_http` it looks like this:
+
+```json
+{"source": "finger_ppg", "transport": "hub_http", "simulated": false,
+ "pulse_bpm": 72, "quality": 0.62, "quality_reported": true, "contact": true,
+ "finger_bpm": [72, 74], "finger_sources": [0, 1],
+ "breathing_per_min": 12, "breathing_snr_db": 4.1,
+ "rmssd_ms": 41.5, "sdnn_ms": 46.0, "rmssd_vs_baseline": -0.08, "rmssd_baseline_ms": 45.1,
+ "presence": "active", "age_s": 0.4}
+```
+
+The numbers in this example show the shape only; they are not a measurement.
 
 ### POST /api/bedside/light
 
@@ -257,10 +273,24 @@ The hub also accepts the v2 form of `session_end` (document spread at top level)
  "pulse_bpm": 74.1, "pulse_quality": 0.9, "pulse_source": "simulated",
  "eye_openness": 0.58, "perclos": 0.21, "blink": false, "head_pitch_deg": -8.4, "face_tracked": true,
  "arousal": 0.62, "fatigue": 0.18, "ambient_light": 0.22,
+ "physio": null, "camera_pulse": null,
  "profile": "live", "simulated": true}
 ```
 
 `phase` is one of `fadein`, `rest`, `checkin`, `rt`, `walk`, `game`, `dawn`, `end`, `asleep`.
+
+`pulse_bpm`, `pulse_quality` and `pulse_source` describe the pulse the game uses (`ky039`, `finger_ppg`, `rppg`, `simulated` or `null`). `physio` and `camera_pulse` carry the sensor readings themselves, whether or not the game uses them; both are `null` when the phone has no such reading (section 3.5 has every field and the rules):
+
+```json
+{"physio": {"source": "finger_ppg", "transport": "ble", "simulated": false,
+            "pulse_bpm": 72, "quality": null, "quality_reported": false, "contact": true,
+            "finger_bpm": [72, 74], "breathing_per_min": 12,
+            "rmssd_ms": 41, "sdnn_ms": null, "rmssd_vs_baseline": null,
+            "presence": null, "age_s": 0.6, "link": "connected"},
+ "camera_pulse": {"source": "rppg", "bpm": 74.5, "trust_score": 82, "trust_label": "reliable", "age_s": 0.9}}
+```
+
+The numbers in this example show the shape only; they are not a measurement.
 
 Hub to phone:
 
@@ -269,7 +299,8 @@ Hub to phone:
 | `config` | see below | after `hello`, after every `session_end` ack |
 | `ack` | `session_id`, `ok`, `duplicate`, `day_index`, `error` | after `session_end` |
 | `ack` | `checkin_id`, `ok`, `duplicate`, `error` | after `checkin` (`ok: false` with `error` on a schema error or unknown patient) |
-| `pulse` | `bpm`, `quality` (0 to 1), `contact`, `source` (`ky039`, `simulated`) | 1 Hz from the bedside unit (only when it really has a pulse or `AFFERENT_SIM_PULSE=1`) |
+| `pulse` | `bpm`, `quality` (0 to 1), `contact`, `source` (`ky039`, `finger_ppg`, `simulated`) | 1 Hz from the bedside unit (only when it really has a pulse or `AFFERENT_SIM_PULSE=1`). A `pulse` without one of these three sources is dropped by the phone, never relabelled |
+| `physio` | the physio object (section 3.5) | 1 Hz from the bedside unit when the source provides it (`unoq_http`); not sent while the patient's `pulse_stone` switch is off |
 | `knob` | `level` (0 to 100) or `press: true` | knob events |
 | `profile` | `profile` (`good_day`, `bad_day`, `live`) | `POST /api/demo/profile` |
 | `privacy` | `privacy` object as in `GET /api/patients/{id}` | after a change from any client |
@@ -306,11 +337,13 @@ Hub to dashboard:
 |---|---|---|
 | `hello` | `now_day`, `patients` (same list as `GET /api/patients`) | on connect |
 | `session_started` | `patient_id`, `session_id`, `profile`, `simulated`, `t_iso` | phone `session_start` |
-| `live` | the phone's `live_metrics` fields (with `patient_id`) | relayed at 2 Hz |
+| `live` | the phone's `live_metrics` fields (with `patient_id`), including `physio` and `camera_pulse` | relayed at 2 Hz |
 | `mode`, `game`, `task_end`, `core_trial`, `mood` | relayed phone messages, plus `patient_id` | live panel |
 | `session_added` | `patient_id`, `session_id`, `day_index`, `status`, `profile`, `simulated`, `pre_post`, `rt_median_ms`, `mood_start`, `mood_end` | stored |
 | `analytics_updated` | `patient_id`, `row` (one `patients[]` row), `analytics` (full analytics object) | after recompute |
-| `bedside_state` | the `GET /api/bedside/state` object | on every change, max 4 Hz |
+| `bedside_state` | the `GET /api/bedside/state` object (with `physio` and `patient_id`, the patient bound to the bedside unit) | on every change, max 4 Hz |
+| `physio` | the physio object (section 3.5) | raw bedside event next to `bedside_state`, 1 Hz when the source provides it |
+| `pulse` | `bpm`, `quality`, `contact`, `source` (`ky039`, `finger_ppg`, `simulated`) | raw bedside event next to `bedside_state`, 1 Hz while the bedside unit has a pulse |
 | `pose` | `patient_id`, `keypoints`, `trunk_angle_deg`, `quality`, `simulated` | relayed from `/ws/bedside` (stick figure) |
 | `crisis_flag` | `patient_id`, `flag_type`, `source`, `t_iso`, plus `checkin_id`, `screen`, `label` on safety flags | phone `crisis` or a check-in with a safety tier |
 | `checkin_added` | `patient_id`, `checkin_id`, `status`, `phq9_total` | a new check-in was stored (the dashboard refetches the detail) |
@@ -331,7 +364,8 @@ Device to hub:
 | type | fields |
 |---|---|
 | `hello` | `device` (`unoq`, `simulator`, `jetson_pose`), `fw` |
-| `pulse` | `bpm` (number or null), `quality` (0 to 1), `contact` (bool), `source` (`ky039` or `simulated`) |
+| `pulse` | `bpm` (number or null), `quality` (0 to 1), `contact` (bool), `source` (`ky039`, `finger_ppg` or `simulated`) |
+| `physio` | the physio object (section 3.5); the hub stores the last one in `bedside_state.physio` and relays it to the phone and the dashboard |
 | `knob` | `level` (0 to 100) or `press: true` |
 | `presence` | `in_bed` (bool), `motion` (bool) |
 | `thermo` | `temp_c`, `humidity_pct` |
@@ -347,7 +381,117 @@ Hub to device: `light` (`rgb`, `level`, `fade_ms`, `reason`) and `camera` (`on`)
 - No session running: the day schedule in `design/tokens.json` (`bedside.day_schedule`) sets the idle light by local hour, only while `presence.in_bed` is true; otherwise off.
 - After a session ends with `fell_asleep`, the light stays off until morning.
 
+What the current hardware does with this (Decisions I13, I53; Alex A6, A12):
+
+- "level 0 to 100" is the hub-side scale. The UNO Q knob is a relative count (`knob.position`, unbounded); the hub maps a change of the count to the level by a fixed step. Counts per turn are not measured (A12), so no turn-to-level ratio is claimed.
+- The HTTP source (`unoq_http`) forwards knob turns only, never presses.
+- The light is one KY-016, a small indicator LED on D9 to D11. It has no fade: `fade_ms` is ignored on this path, the hub scales the RGB value by `level` and sends at most a few `POST /led` calls per second (the call goes through the Arduino Bridge). It does not light a room and no text may say it does.
+
+### 3.5 Sensor data (I53)
+
+Decisions I53 (Alex and David, 2026-11-14) makes the physiological data of the UNO Q finger sensor first-class data in the app: fused finger pulse, pulse per finger, breathing rate, HRV (RMSSD, plus SDNN and the value against the wearer's own baseline where the HTTP path gives them), the finger-detection state, and the phone camera pulse with its trust score. This section is the contract for it. Every number in the examples of this file and in `fixtures/session_finger_example.json` shows the shape only and is never a measurement.
+
+#### Two paths, one object
+
+| | Path | Needs | Gives |
+|---|---|---|---|
+| 1 (primary) | UNO Q Bluetooth LE to the phone: Capacitor plugin `AfferentFinger`, then `demo/js/finger.js`, then `A.Sensors` | No network. The UNO Q advertises as `Afferent Finger` | Fused pulse, pulse per finger, breathing rate, RMSSD; quality and finger detection only with AFF1 v2 |
+| 2 (second) | UNO Q HTTP to the hub: `AFFERENT_BEDSIDE=unoq:<base url>`, source `unoq_http` (section 5.5) | The UNO Q HTTP API is published only on the Wendy Net mesh (port 18080). The hub host needs the wendy CLI, Alex's org login and `wendy net forward <local>:18080 --device <uno-q>`; a direct connection to the device port is refused | Everything of path 1 plus quality, SDNN, RMSSD against the wearer's own baseline, breathing SNR, finger detection, knob turns, thermo, and the KY-016 through `POST /led` |
+
+Both paths produce the same physio object, so the game, the recorder, the phone screens and the clinic view have one shape and one set of rules.
+
+#### Bluetooth GATT (UNO Q, `uno-q/modulino-hub/ble.py`)
+
+| Service | Characteristic | Props | Bytes | Meaning |
+|---|---|---|---|---|
+| `180D` Heart Rate | `2A37` Heart Rate Measurement | notify, read | `[flags, bpm]`, flags `0x00` (uint8 bpm) | The fused finger pulse (both sensors, one value). Notified only while a finger is detected; the characteristic keeps its last value, so a read alone says nothing about age |
+| `AFF0` (custom, primary) | `AFF1` v1 | notify, read | 4 bytes `[f1, f2, breaths/min, RMSSD ms]` | Pulse of finger 1 and finger 2 in bpm, breathing rate, RMSSD rounded to whole ms. `0` = no reading |
+| `AFF0` | `AFF1` v2 | notify, read | 6 bytes: v1 plus `quality_pct`, `presence_code` | `quality_pct` 0 to 100, `255` = not available. `presence_code`: `1` idle, `2` probing, `3` active, `0` unknown |
+
+- A client reads the length: 4 bytes is v1, 6 or more is v2 (later bytes are ignored). A v1 client reading a v2 value uses the first 4 bytes and keeps working.
+- With v1 there is no quality and no finger-detection state on this path: `quality` is `null`, `quality_reported` is `false`, `presence` is `null`.
+- The firmware on the UNO Q today sends v1. v2 ships with the next deploy of `uno-q/modulino-hub`; until then the phone shows and records the finger data, and the game does not use that pulse (rule 2 below).
+
+#### Capacitor plugin `AfferentFinger` (`ios/App/App`)
+
+Methods `start`, `stop`, `status`. Events `state` (the Bluetooth link changed; the values of `link` below) and `reading` (one decoded notification of `2A37` or `AFF1`). `demo/js/finger.js` is the only caller; it turns the events into the physio object and feeds the fused pulse into the stone slot with `A.Sensors.feedPulse` (never `setPulse`), labelled `finger_ppg`. The plugin is in the iOS app only; in a browser `link` is `unsupported`. The native app `ios/Afferent` holds the same Bluetooth connection while it is open, and a second central at the same time is untested (Alex A8), so one of the two apps runs at a time.
+
+#### The physio object
+
+The hub WebSocket message `physio` (to the phone, to the dashboard and from a device on `/ws/bedside`), the key `physio` in `GET /api/bedside/state` and `bedside_state`, and the key `physio` in the phone's `live_metrics` and the relayed `live`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `source` | `finger_ppg` or `simulated` | What produced the values |
+| `transport` | `ble` or `hub_http` | Path 1 or path 2 |
+| `simulated` | bool | true exactly when `source` is `simulated`; the screen then shows the Simulated badge |
+| `pulse_bpm` | number or null | Fused finger pulse, beats per minute |
+| `quality` | number or null, 0 to 1 | Signal quality from the sensor (rhythm strength); null when not reported, never filled in by a receiver |
+| `quality_reported` | bool | false when the sensor sent no quality (AFF1 v1) |
+| `contact` | bool or null | A finger is on the sensor; null when unknown |
+| `finger_bpm` | `[number or null, number or null]` | Finger 1 and finger 2, beats per minute |
+| `breathing_per_min` | number or null | Breaths per minute, derived on the sensor from the heart-rate rhythm |
+| `rmssd_ms` | number or null | HRV: RMSSD over the last 60 s, ms |
+| `sdnn_ms` | number or null | HRV: SDNN over the same window, ms. HTTP only, null over Bluetooth |
+| `rmssd_vs_baseline` | number or null | RMSSD relative to the wearer's own median on the sensor, as a fraction (`-0.3` is 30% below). HTTP only, null over Bluetooth |
+| `presence` | `idle`, `probing`, `active` or null | Finger detection of the sensor: LEDs off, checking for a finger, measuring. Never bed presence |
+| `age_s` | number or null | Age of the newest value in the object when it was sent, seconds |
+
+Optional extras: the hub adds `finger_sources` (`[int]`, which fingers went into the fused value), `breathing_snr_db` and `rmssd_baseline_ms`; the phone adds `link` (`off`, `unauthorized`, `unsupported`, `scanning`, `connecting`, `connected`, `unavailable`). Receivers ignore keys they do not know.
+
+#### The camera pulse object
+
+The key `camera_pulse` in `live_metrics` and the relayed `live`; `null` when the phone camera gives no pulse:
+
+```json
+{"source": "rppg", "bpm": 74.5, "trust_score": 82, "trust_label": "reliable", "age_s": 0.9}
+```
+
+`bpm` number or null; `trust_score` integer 0 to 100 or null; `trust_label` `reliable`, `uncertain`, `unreliable` or null; `age_s` number or null. The slot, the recording, the phone row and the clinic row exist and are tested with a fake producer; the native producer (`AfferentPulse`) is not on this branch yet.
+
+#### Rules (every consumer)
+
+1. A value counts only if it is at most 3 s old. Older values are shown as "no current reading" and are not recorded as a reading. The clinic view allows 5 s, because its data crosses the relay first.
+2. A finger pulse drives the game only with `quality_reported` true and `quality` at least 0.3 (Alex A7: below 0.3 the reading is unreliable even when bpm is not null). Without a reported quality it is shown and recorded, and never drives the game or a task's `helped` flag. Quality is never invented.
+3. The pulse of one session is all real or all simulated, fixed at session start. No mixing and no silent switch (Decisions I5).
+4. A pulse without a known source is dropped, never relabelled.
+5. `presence` is the sensor's finger detection. The sensor LEDs stay off until a finger is detected, so "no reading" is the normal state when nobody wears the clip. It says nothing about a bed.
+6. `POST /presence?auto=0` is not sent at session start: it switches the finger detection off and with it the contact signal.
+
+#### In the session document
+
+`signal.pulse_source` and `vitals.pulse_source` gain `finger_ppg` (`ky039` stays for stored rows). `vitals` gains five optional blocks, each `null` or absent when the sensor gave nothing (`session.v3.schema.json`, `SessionSchema.md`):
+
+| Block | Holds |
+|---|---|
+| `vitals.finger` | `source`, `transport`, `quality_reported`, `seconds`, and statistics (mean, min, max, first, last, samples) of `pulse_bpm`, `quality`, `finger_1_bpm`, `finger_2_bpm`; `fingers_abs_diff_bpm`; `presence_s` (seconds idle, probing, active, or null) |
+| `vitals.breathing` | `source`, `method` (`pulse_rhythm`), statistics of `rate_per_min` |
+| `vitals.hrv` | `source`, `window_s` (60), statistics of `rmssd_ms`, and of `sdnn_ms` and `rmssd_vs_baseline` (both null over Bluetooth) |
+| `vitals.camera_pulse` | `source` (`rppg`), statistics of `pulse_bpm` and `trust_score`, `trust_label_s` (seconds per label) |
+| `vitals.series` | One point every 5 s: `t_s`, `pulse_bpm`, `breathing_per_min`, `rmssd_ms` (same length, at most 240 points) |
+
+A block whose values are simulated says so: `source: "simulated"` in `finger`, `breathing` and `hrv`, and its dotted name (`vitals.finger`, ...) in `simulated_fields`. `fixtures/session_finger_example.json` has all five blocks, all simulated. `hub/tests/test_session_js_contract.py` validates a document built by the real JS recorder (`demo/tests/emit_session.js`) against the schema.
+
+The compact session rows of `GET /api/patients/{id}` (`sessions[]`) gain `vitals`, `pulse_source` and `simulated_fields`, so the clinic view can show the last session's sensor summary.
+
+#### The `pulse_stone` switch
+
+It covers the whole finger sensor (pulse, breathing rate, HRV). Off: the phone stops Bluetooth and drops finger data; the hub drops `pulse` and `physio` from the bedside unit; on the HTTP path the finger sensors are powered down. Nothing of the finger sensor is shown, recorded or relayed while it is off. The camera pulse is governed by `phone_camera`, not by this switch.
+
+#### Wording
+
+- Phone, outside play only (the "Your signals" sheet from the start screen and Settings): calm, plain numbers with their unit. Nothing about the body during play (`design/vitals-ux.md`); an in-play overlay exists only behind a Developer switch, default off.
+- Clinic view, section "Signals": every value with its source, unit and age. Source texts: "finger sensor (PPG), Bluetooth via the phone", "finger sensor (PPG), hub HTTP", "phone camera (rPPG)". Simulated values carry the Simulated badge and never the word live.
+- HRV is "HRV (RMSSD)" in the clinic view and plain words for the patient (the privacy row of the pulse stone says "beat-to-beat variation"). It is a measured number. It is never called a stress level or strain and never used for a diagnosis or a treatment decision.
+- Monitoring and follow-up support, never a diagnosis.
+
+#### Unchanged
+
+The composite and the CUSUM (section 5.1), `daily.v1`, `morning_pulse_bpm` (stays `null` for the live bound patient, Decisions X31 and I12) and the patient view (`GET /api/patients/{id}/patient-view`: still no pulse numbers) do not read any of this. Emotion and facial-expression labels are not part of I53 (Decisions X2 stays).
+
 ## 4. Bedside serial protocol (UNO Q <-> hub)
+
+Not implemented by current hardware: the UNO Q never prints these lines (Alex A13). Kept for the simulator and the pty test. (Decisions I13.) The real UNO Q is reached over Bluetooth from the phone or over HTTP from the hub, section 3.5.
 
 USB serial, 115200 baud, 8N1, ASCII lines ending in `\n` (accept `\r\n`). Fields separated by one space, decimal point `.`. Lines starting with `#` are logs and ignored. Unknown lines are ignored.
 
@@ -480,7 +624,7 @@ class BedsideSource(Protocol):
     async def send(self, msg: dict) -> None        # msg is a hub-to-device JSON message
     async def stop(self) -> None
     connected: bool
-    name: str                                      # "simulator" | "unoq" | "ws"
+    name: str                                      # "simulator" | "unoq" | "unoq_http" | "ws"
 
 # simulator.py
 class BedsideSimulator(BedsideSource):
@@ -490,7 +634,14 @@ class BedsideSimulator(BedsideSource):
 # unoq.py
 class UnoQSerial(BedsideSource):
     def __init__(self, port: str, baud: int = 115200): ...
+
+# unoq_http.py
+class UnoQHttp(BedsideSource):                     # name = "unoq_http", AFFERENT_BEDSIDE=unoq:<base url>
+    def set_session_active(self, active: bool) -> None    # optional hook
+    async def set_enabled(self, on: bool) -> None         # optional hook: the patient's pulse_stone switch
 ```
+
+- `UnoQHttp` polls `GET <base url>/state` at 1 Hz and emits the existing `pulse`, `knob` (turns only) and `thermo` events plus one `physio` event per poll (section 3.5). `send` turns a `light` message into `POST /led` (section 3.4). It mutes the heartbeat beep (`POST /heartbeat?on=0`). `set_enabled(False)` stops the events and powers the finger sensors down (Decisions I14); `set_enabled(True)` resumes. Both hooks are optional on a `BedsideSource`: the controller calls them only when the source has them.
 
 - The simulator produces its events as protocol lines and runs them through `parse_line`, so the parser is exercised. Realistic streams: presence in bed in the evening and night with motion bursts, thermo every 60 s (19 to 22 C), occasional knob turns, pulse only when `pulse=True` (around 66 bpm, quality 0.85 to 0.95, contact during sessions and a 30 s morning reading). It echoes `light` commands into its state (the dashboard's bedside panel shows it).
 - `UnoQSerial` reads lines in a thread (pyserial) and reconnects every 2 s when unplugged; `connected` reflects it.
@@ -541,6 +692,7 @@ The game is plain scripts sharing the global `A` (see `demo/js/util.js`). New mo
 
 - `demo/js/hub.js` (game agent): `A.Hub.connect({patientId, url})`, `A.Hub.send(msg)`, `A.Hub.on(type, fn)`, `A.Hub.connected`, `A.Hub.config` (last `config`). URL resolution: `?hub=` query (http base, e.g. `http://192.168.8.10:8000`), then `?ws=` (v2, full ws URL), then localStorage `afferent.hub`, then the page origin when it is served over http(s) from the hub, else offline. WebSocket path `/ws/app`. Outbox for `session_end` in localStorage `afferent.outbox`.
 - `demo/js/sensors.js` (game agent): `A.Sensors` with `start(source)` where source is `arkit`, `mediapipe` or `simulated`, and `read()` returning `{t, eye_openness, blink_l, blink_r, tracked, head_pitch_deg, ambient_light, quality}`. ARKit: the `AfferentEyes` plugin `eyes` event gains `pitch_deg` (from the face anchor transform, positive chin up) and `ambient` (ARKit `lightEstimate.ambientIntensity / 2000`, clamped to 1); until Romain ships that, these are `null`. The simulator honours the profiles.
+- `demo/js/finger.js` (Decisions I53): the only caller of the `AfferentFinger` plugin. It builds the physio object of section 3.5 from the Bluetooth readings (or takes the hub's `physio` message), feeds the fused pulse into the stone slot with `A.Sensors.feedPulse` labelled `finger_ppg`, and hands the finger frame to the recorder, the "Your signals" sheet and `live_metrics.physio`.
 - `demo/js/patient.js` (patient agent) reads `GET /api/patients/{id}/patient-view` through the same URL resolution, falls back to `contracts/fixtures/patient_view_anna.json` copied as `demo/js/patient_fallback.json` when offline, and labels simulated data.
 
 Demo profiles (applied at Begin and on a `profile` message, visibly different within 10 s; real use is `live`):

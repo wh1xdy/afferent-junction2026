@@ -337,10 +337,12 @@
         "pulse_source": {
           "enum": [
             "ky039",
+            "finger_ppg",
             "rppg",
             "simulated",
             null
-          ]
+          ],
+          "description": "Source of the pulse the game used. finger_ppg is the bedside finger sensor (UNO Q, over Bluetooth to the phone or over the hub HTTP source); ky039 is kept for stored rows only (I11). One session's pulse is all real or all simulated (I53)."
         },
         "pulse_quality_mean": {
           "$ref": "#/$defs/quality"
@@ -1127,10 +1129,361 @@
         "pulse_source": {
           "enum": [
             "ky039",
+            "finger_ppg",
             "rppg",
             "simulated",
             null
           ]
+        },
+        "finger": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_finger"
+            }
+          ],
+          "description": "Finger sensor summary over the session, or null"
+        },
+        "breathing": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_breathing"
+            }
+          ],
+          "description": "Breathing rate summary, or null"
+        },
+        "hrv": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_hrv"
+            }
+          ],
+          "description": "Heart rate variability summary, or null"
+        },
+        "camera_pulse": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_camera_pulse"
+            }
+          ],
+          "description": "Phone camera pulse summary, or null"
+        },
+        "series": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_series"
+            }
+          ],
+          "description": "Down-sampled time series for the clinic view, or null"
+        }
+      },
+      "description": "Session-level vitals. The four pulse_* keys describe the pulse the game used. finger, breathing, hrv, camera_pulse and series are optional sensor blocks (I53): absent or null when the sensor gave nothing; each names its own source. None of them enters the composite, daily.v1 or the patient view."
+    },
+    "stat": {
+      "type": "object",
+      "description": "Summary of one value over the session, computed over the 1 Hz ticks that had a current reading (at most 3 s old). The five numbers are null when samples is 0.",
+      "required": [
+        "mean",
+        "min",
+        "max",
+        "first",
+        "last",
+        "samples"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mean": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "min": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "max": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "first": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "last": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Ticks with a current reading"
+        }
+      }
+    },
+    "vitals_finger": {
+      "type": "object",
+      "description": "Finger sensor (two PPG clips on the UNO Q) over the session. Measured numbers with their source. presence_s is finger detection, never bed presence.",
+      "required": [
+        "source",
+        "transport",
+        "quality_reported",
+        "seconds",
+        "pulse_bpm",
+        "quality",
+        "finger_1_bpm",
+        "finger_2_bpm",
+        "fingers_abs_diff_bpm",
+        "presence_s"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "finger_ppg",
+            "simulated"
+          ]
+        },
+        "transport": {
+          "enum": [
+            "ble",
+            "hub_http"
+          ],
+          "description": "ble: Bluetooth from the sensor to the phone. hub_http: the hub polled the sensor over HTTP and relayed it."
+        },
+        "quality_reported": {
+          "type": "boolean",
+          "description": "false when the sensor firmware sends no quality byte; such readings are recorded but never drive the game or the helped flag"
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1 Hz ticks in the session"
+        },
+        "pulse_bpm": {
+          "$ref": "#/$defs/stat",
+          "description": "Fused finger pulse, beats per minute"
+        },
+        "quality": {
+          "$ref": "#/$defs/stat",
+          "description": "Signal quality 0 to 1 as reported by the sensor; below 0.3 is unreliable. samples is 0 when quality_reported is false"
+        },
+        "finger_1_bpm": {
+          "$ref": "#/$defs/stat",
+          "description": "Finger 1 pulse, beats per minute"
+        },
+        "finger_2_bpm": {
+          "$ref": "#/$defs/stat",
+          "description": "Finger 2 pulse, beats per minute"
+        },
+        "fingers_abs_diff_bpm": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Mean absolute difference between the two fingers on ticks where both read; null when they never both read"
+        },
+        "presence_s": {
+          "description": "Seconds per finger-detection state; null when the transport does not report presence",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "idle",
+                "probing",
+                "active"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "idle": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "probing": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "active": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "vitals_breathing": {
+      "type": "object",
+      "description": "Breaths per minute derived on the sensor from the heart-rate rhythm. A measured number with its source.",
+      "required": [
+        "source",
+        "method",
+        "rate_per_min"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "finger_ppg",
+            "simulated"
+          ]
+        },
+        "method": {
+          "const": "pulse_rhythm"
+        },
+        "rate_per_min": {
+          "$ref": "#/$defs/stat",
+          "description": "Breaths per minute"
+        }
+      }
+    },
+    "vitals_hrv": {
+      "type": "object",
+      "description": "Heart rate variability from the finger sensor over a 60 s window. A measured number, never a stress level, not part of the composite.",
+      "required": [
+        "source",
+        "window_s",
+        "rmssd_ms",
+        "sdnn_ms",
+        "rmssd_vs_baseline"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "finger_ppg",
+            "simulated"
+          ]
+        },
+        "window_s": {
+          "const": 60
+        },
+        "rmssd_ms": {
+          "$ref": "#/$defs/stat",
+          "description": "RMSSD in ms"
+        },
+        "sdnn_ms": {
+          "description": "SDNN in ms; null over Bluetooth (the HTTP path only)",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/stat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rmssd_vs_baseline": {
+          "description": "RMSSD relative to the wearer's own median on the sensor, as a fraction (-0.3 is 30% below); null over Bluetooth (the HTTP path only)",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/stat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "vitals_camera_pulse": {
+      "type": "object",
+      "description": "Pulse from the phone camera (rPPG) with its trust score, recorded next to the pulse the game used.",
+      "required": [
+        "source",
+        "pulse_bpm",
+        "trust_score",
+        "trust_label_s"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "rppg"
+        },
+        "pulse_bpm": {
+          "$ref": "#/$defs/stat",
+          "description": "Camera pulse, beats per minute"
+        },
+        "trust_score": {
+          "$ref": "#/$defs/stat",
+          "description": "Trust score 0 to 100"
+        },
+        "trust_label_s": {
+          "type": "object",
+          "description": "Seconds per trust label",
+          "required": [
+            "reliable",
+            "uncertain",
+            "unreliable"
+          ],
+          "properties": {
+            "reliable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "uncertain": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unreliable": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "vitals_series": {
+      "type": "object",
+      "description": "One point every 5 s for the clinic view. The four arrays have the same length (checked by the contract tests; the schema cannot express it).",
+      "required": [
+        "step_s",
+        "t_s",
+        "pulse_bpm",
+        "breathing_per_min",
+        "rmssd_ms"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "step_s": {
+          "const": 5
+        },
+        "t_s": {
+          "type": "array",
+          "maxItems": 240,
+          "items": {
+            "type": "number"
+          },
+          "description": "Seconds from session start"
+        },
+        "pulse_bpm": {
+          "type": "array",
+          "maxItems": 240,
+          "items": {
+            "$ref": "#/$defs/num_or_null"
+          }
+        },
+        "breathing_per_min": {
+          "type": "array",
+          "maxItems": 240,
+          "items": {
+            "$ref": "#/$defs/num_or_null"
+          }
+        },
+        "rmssd_ms": {
+          "type": "array",
+          "maxItems": 240,
+          "items": {
+            "$ref": "#/$defs/num_or_null"
+          }
         }
       }
     },

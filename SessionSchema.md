@@ -53,7 +53,7 @@ Fork and Two lanterns are skipped (never replaced) when the director is in rest 
 | `duration_ms` | int | |
 | `sharing` | enum | `summary`, `nothing_tonight`, `paused` |
 | `sensors` | object | Switch state at start: `phone_camera`, `pulse_stone`, `bedside_camera`, `bedside_light`, `presence`, `phone_motion` |
-| `signal` | object | `pulse_source` (`ky039`, `rppg`, `simulated`, null), `pulse_quality_mean`, `eyes_source`, `face_tracked_ratio`, `ambient_light` (0 to 1, camera exposure proxy), `dark_room` (ambient < 0.15), `pulse_implausible` (any sample outside 40 to 150 bpm) |
+| `signal` | object | `pulse_source` (`ky039`, `finger_ppg`, `rppg`, `simulated`, null; `finger_ppg` is the bedside finger sensor, `ky039` stays for stored rows; one session's pulse is all real or all simulated), `pulse_quality_mean`, `eyes_source`, `face_tracked_ratio`, `ambient_light` (0 to 1, camera exposure proxy), `dark_room` (ambient < 0.15), `pulse_implausible` (any sample outside 40 to 150 bpm) |
 
 ### core
 
@@ -122,7 +122,38 @@ Counts: `rich_correct` (rich larger, tapped rich), `rich_incorrect` (rich larger
 
 ### vitals, context
 
-`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source`. `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level`.
+`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` (the pulse the game used; same enum as `signal.pulse_source`). `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level`.
+
+#### Sensor blocks in vitals (Decisions I53)
+
+Five optional blocks hold what the finger sensor and the phone camera measured during the session. Each is `null` or absent when the sensor gave nothing; sessions without them stay valid. A statistic (`stat`) is `{mean, min, max, first, last, samples}` over the 1 Hz ticks that had a current reading (at most 3 s old); the five numbers are `null` when `samples` is 0. Example with all five blocks (simulated, a shape example and never a measurement): `contracts/fixtures/session_finger_example.json`. Transport, live objects and rules: `contracts/api.md` section 3.5.
+
+| Field | Unit | Description |
+|---|---|---|
+| `vitals.finger.source` | | `finger_ppg` (the UNO Q finger sensor) or `simulated` |
+| `vitals.finger.transport` | | `ble` (Bluetooth to the phone) or `hub_http` (the hub polled the sensor over HTTP) |
+| `vitals.finger.quality_reported` | bool | false when the sensor firmware sends no quality byte; such readings are recorded but never drive the game or the `helped` flag |
+| `vitals.finger.seconds` | s | 1 Hz ticks in the session |
+| `vitals.finger.pulse_bpm` | bpm, stat | Fused finger pulse (both fingers, one value) |
+| `vitals.finger.quality` | 0 to 1, stat | Signal quality from the sensor; below 0.3 is unreliable. `samples` is 0 when `quality_reported` is false |
+| `vitals.finger.finger_1_bpm`, `finger_2_bpm` | bpm, stat | Pulse per finger |
+| `vitals.finger.fingers_abs_diff_bpm` | bpm | Mean absolute difference between the two fingers on ticks where both read; null when they never both read |
+| `vitals.finger.presence_s` | s | `{idle, probing, active}`: seconds per finger-detection state of the sensor (LEDs off, checking for a finger, measuring); null when the transport does not report it. Finger detection, never bed presence |
+| `vitals.breathing.source`, `method` | | `finger_ppg` or `simulated`; `pulse_rhythm` (derived on the sensor from the heart-rate rhythm) |
+| `vitals.breathing.rate_per_min` | per min, stat | Breaths per minute |
+| `vitals.hrv.source`, `window_s` | | `finger_ppg` or `simulated`; 60 |
+| `vitals.hrv.rmssd_ms` | ms, stat | RMSSD over the last 60 s |
+| `vitals.hrv.sdnn_ms` | ms, stat or null | SDNN over the same window; null over Bluetooth (HTTP path only) |
+| `vitals.hrv.rmssd_vs_baseline` | fraction, stat or null | RMSSD relative to the wearer's own median on the sensor (-0.3 is 30% below); null over Bluetooth (HTTP path only) |
+| `vitals.camera_pulse.source` | | `rppg` (the phone camera) |
+| `vitals.camera_pulse.pulse_bpm` | bpm, stat | Camera pulse |
+| `vitals.camera_pulse.trust_score` | 0 to 100, stat | Trust score of the camera pulse |
+| `vitals.camera_pulse.trust_label_s` | s | `{reliable, uncertain, unreliable}`: seconds per trust label |
+| `vitals.series` | | One point every 5 s for the clinic view: `step_s` (5), `t_s`, `pulse_bpm`, `breathing_per_min`, `rmssd_ms`; four arrays of the same length, at most 240 points, `null` where there was no current reading |
+
+- HRV is a measured number. It is never called a stress level, it is not part of the composite, and it is never the basis of a diagnosis or a treatment decision.
+- A simulated block has `source: "simulated"` (finger, breathing, hrv) and its dotted name (`vitals.finger`, ...) in `simulated_fields`. A real finger session has `signal.pulse_source: "finger_ppg"` and no pulse entry in `simulated_fields`; one session's pulse is all real or all simulated.
+- None of these blocks is read by the analytics engine, `daily.v1` or the patient view.
 
 ## 4. How the hub uses it
 
