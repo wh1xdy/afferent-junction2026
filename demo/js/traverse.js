@@ -284,7 +284,9 @@
     function placeMotes(seg, gp) {
       if (!seg.P || seg.P.m === 'rest' || seg.kind !== 'hill' || seg.fell || seg.gully) return;
       seg.motes = seg.motes || [];
-      const P = seg.P, n = P.motes, path = gp.path, lantern = 20;
+      // the rider never launches, so orbs sit on the ground path only (skip the ghost's air arc and a landing margin after it)
+      let lastAir = -Infinity;
+      const P = seg.P, n = P.motes, lantern = 20, path = gp.path.filter(p => { if (p[2]) { lastAir = p[0]; return false; } return p[0] - lastAir > 60; }).map(p => [p[0], T.h(p[0]), false]);
       if (path.length < 4) return;
       const along = [0];
       for (let i = 1; i < path.length; i++) along.push(along[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
@@ -873,7 +875,12 @@
         } else {
           st.plan.hills = Math.max(0, (p.hills ?? 1) - free.length);
           for (const g of free) g.free = false;
-          if (st.plan.hills === 0) { const g = free[free.length - 1]; g.approach = true; g.b1 = BENCH; g.high = false; }
+          if (st.plan.hills === 0) {
+            const g = free[free.length - 1], h0 = (g.motes || []).map(m => T.h(m.x));
+            g.approach = true; g.b1 = BENCH; g.high = false;
+            // raising the hill's end lifts the ground under its orbs; move them with it so riding still collects them
+            (g.motes || []).forEach((m, i) => { m.y += T.h(m.x) - h0[i]; });
+          }
         }
         gen(b.x + 1400);
       },
@@ -1229,7 +1236,6 @@
       }
       if (s.auto) return;
       let fa = 0, press = 0;
-      if (s.phase === 'fadein' && now - s.phaseAt > 1 && !A.Input.holding()) { fa = 0.8; press = 1; }
       if (s.phase === 'rest' && !A.Input.holding()) { fa = 0.7; press = 1; }
       if (st.state === 'ready' && s.phase === 'walk' && now >= st.readyFrom) { fa = 0.8; press = 0.5 + 0.5 * Math.sin(PI * clamp((now - st.readyFrom) / 0.9, 0, 1)); }
       if (st.state === 'ride' && (st.tut || st.noTouchHills >= 2) && now - st.lastInput > 0.6 && !b.air) {

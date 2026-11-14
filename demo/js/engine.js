@@ -526,7 +526,7 @@
 
         if (this.phase === 'fadein') {
           V.black = this.fromIdle ? 0.35 * Math.sin(Math.PI * clamp(t / 2, 0, 1)) : 1 - clamp(t / 2, 0, 1);
-          if (t >= 2) { this.core.restStart = now; this.stage ? this.finishCore(now) : forced() === 'reaction' ? this.startRt(now) : this.startRest(); }
+          if (t >= 2) { this.core.restStart = this.core.restEnd = now; this.stage ? this.finishCore(now) : this.startRt(now); }
           return;
         }
         if (this.phase === 'rest') { this.updateRest(now, dt, p, f); return; }
