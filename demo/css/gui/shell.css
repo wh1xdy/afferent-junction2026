@@ -89,6 +89,11 @@
 .kindle-ring .tip { fill: var(--k); opacity: 0; }
 .kindle-core { display: grid; place-items: center; transform: scale(calc(1 + var(--p) * 0.16)); transition: transform var(--af-dur-state) var(--af-ease-std), filter var(--af-dur-state) var(--af-ease-std); }
 .kindle-core svg { width: 26px; height: 34px; display: block; }
+/* The live heartbeat (heartbeat.js): with a real pulse the flame and its halo beat at it; without one they only breathe. */
+.kindle.beating { animation: none; box-shadow: var(--af-glass-edge), var(--af-lift-2), 0 0 calc(var(--beat, 0) * 34px) calc(var(--beat, 0) * 8px) color-mix(in srgb, var(--af-honey) calc(var(--beat, 0) * 45%), transparent); }
+.kindle.beating .kindle-halo { animation: none; transform: scale(calc(0.95 + var(--beat, 0) * 0.22)); opacity: calc(var(--af-glow-strength) * (0.6 + var(--beat, 0) * 0.6)); }
+.kindle.beating .kindle-core { transition: none; transform: scale(calc(1 + var(--p) * 0.16 + var(--beat, 0) * 0.3)); filter: drop-shadow(0 0 calc(4px + var(--beat, 0) * 16px) color-mix(in srgb, var(--af-honey) 90%, transparent)); }
+:root[data-motion="reduced"] .kindle.beating .kindle-halo, :root[data-motion="reduced"] .kindle.beating .kindle-core { transform: none; }
 .kindle.holding .kindle-core { filter: drop-shadow(0 0 calc(var(--p) * 10px) color-mix(in srgb, var(--af-honey) 80%, transparent)); }
 .kindle.lit .kindle-core { transform: scale(1.22); filter: drop-shadow(0 0 12px var(--af-honey)); }
 .kindle.lit .kindle-halo { animation: none; transform: scale(1.25); }
