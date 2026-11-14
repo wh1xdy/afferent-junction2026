@@ -196,7 +196,7 @@
 
   let st = null, timer = 0, drawn = '', told = '';
 
-  const buzz = () => { try { if (A.J?.hap) A.J.hap('success'); else navigator.vibrate?.([12, 60, 22]); } catch {} };
+  const buzz = () => { A.Haptics?.play('success'); };
 
   const sensorSwitch = name => {
     const sw = document.querySelector(`[data-sensor="${name}"]`);
