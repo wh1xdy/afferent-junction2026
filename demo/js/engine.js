@@ -74,7 +74,7 @@
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
       slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
-      core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
+      core: { trials: [], trial: null, falseStarts: 0, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [], pulseFromMs: null },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
@@ -202,8 +202,13 @@
       coreTap(at) {
         const tr = this.core.trial;
         if (this.phase !== 'rt' || !tr) return;
-        if (tr.onset === null) { const ok = at - tr.start >= 0.25; RP().early?.(this, tr, at, !ok); if (ok) this.resolveTrial(at, (at - tr.start - tr.fp) * 1000); return; }
-        this.resolveTrial(at, (at - tr.onset) * 1000);
+        const rt = tr.onset === null ? null : (at - tr.onset) * 1000;
+        if (rt === null || rt < 150) {
+          RP().early?.(this, tr, at, at - (tr.earlyAt ?? -9) < 0.25);
+          this.core.falseStarts++; Object.assign(tr, { start: at, fp: 1 + R() * 1.5, onset: null, autoAt: null, earlyAt: at });
+          return;
+        }
+        this.resolveTrial(at, rt);
       },
 
       resolveTrial(now, rt) {
@@ -231,7 +236,7 @@
             ambient_light: c.ambient.length ? r3(med(c.ambient)) : null,
           },
           mood_start: this.moodStart ?? null, mood_start_ms: this.moodStartMs ?? null,
-          rt: { ...A.Record.rtStats(c.trials), stimulus: RP().stimulus ?? null },
+          rt: { ...A.Record.rtStats(c.trials, c.falseStarts), stimulus: RP().stimulus ?? null },
         };
       },
 
@@ -644,7 +649,7 @@
           this.closedRun = Eyes.closed ? this.closedRun + dt : 0;
           if (this.night && this.closedRun >= 30) { this.fallAsleep(now); return; }
         }
-        if (forced() === 'reaction' && this.phase === 'walk' && now > (this.holdUntil || 0) + 1) { Object.assign(this.core, { trials: [], trial: null }); this.startRt(now); return; }
+        if (forced() === 'reaction' && this.phase === 'walk' && now > (this.holdUntil || 0) + 1) { Object.assign(this.core, { trials: [], trial: null, falseStarts: 0 }); this.startRt(now); return; }
         if (this.phase === 'walk' && this.T.arrived()) this.startGame(now);
         if (this.phase === 'walk' && this.T.atSummit()) this.startDawn(now);
         if (this.phase === 'game') {

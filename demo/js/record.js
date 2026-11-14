@@ -29,14 +29,14 @@
     return den ? num / den * 60 : null;
   };
 
-  const rtStats = trials => {
+  const rtStats = (trials, falseStarts = 0) => {
     const taps = trials.filter(t => t.rt_ms !== null && t.rt_ms >= 150).map(t => t.rt_ms);
     return {
       trials,
       median_ms: taps.length ? Math.round(median(taps)) : null,
       iqr_ms: taps.length >= 2 ? Math.round(quantile(taps, 0.75) - quantile(taps, 0.25)) : null,
       lapses: trials.filter(t => t.outcome === 'lapse' || t.outcome === 'miss').length,
-      anticipations: trials.filter(t => t.outcome === 'anticipation').length,
+      anticipations: trials.filter(t => t.outcome === 'anticipation').length + falseStarts,
       hits: trials.filter(t => t.outcome === 'hit').length,
       valid: trials.length === 5 && taps.length >= 3,
     };
