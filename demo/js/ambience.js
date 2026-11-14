@@ -409,7 +409,7 @@
       this.s.frozen = true;
       this.preload(['sfx_flame_whoosh', 'sfx_mote_gleam', 'sfx_ui_tap_wood', 'sfx_ui_tap_soft', 'sfx_step_snow', 'sfx_ski_swish', 'sfx_land_snow']);
       setTimeout(safe(() => { if (this.s?.t0 === t) { this.play('sfx_flame_whoosh', { dB: -12, fixed: true }); this.lantern(); } }), 600);
-      (window.requestIdleCallback || setTimeout)(safe(() => this.preload(Object.keys(this.fam).filter(k => k.startsWith('sfx_')))), 4000);
+      setTimeout(safe(() => this.preload(Object.keys(this.fam).filter(k => k.startsWith('sfx_')))), 4000);
     },
     async preload(names) {
       await this.load();
