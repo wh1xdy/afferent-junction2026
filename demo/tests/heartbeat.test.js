@@ -336,7 +336,7 @@ const tests = {
     assert.ok(on.calls.every(c => c.strength > 0 && c.strength <= 0.6), 'soft');
     assert.strictEqual(felt(calm(), { config: { heartTouch: false } }).calls.length, 0, 'switched off');
     assert.strictEqual(felt(calm({ mode: 'flow', gameMode: 'flow', game: { id: 'threads' } })).calls.length, 0, 'not in other games');
-    assert.strictEqual(felt(null).calls.length, 0, 'not on the home screen');
+    assert.ok(felt(null).calls.every(c => c.strength === 0.4), 'on the home screen only the softer touch (test q)');
     assert.strictEqual(felt(calm({ game: { id: 'breath' }, orb: { inhale: true } })).calls.length, 0, 'not while the guide ticks the inhale');
     assert.ok(felt(calm({ game: { id: 'breath' }, orb: { inhale: false } })).calls.length >= 11, 'on the exhale');
     assert.strictEqual(felt(calm(), { other: true }).calls.length, 0, 'never on top of another vibration');
@@ -397,6 +397,97 @@ const tests = {
     const [r0, b0] = peak(false), [r1, b1] = peak(true);
     assert.ok(r0 > 0.08 && r1 < 1e-9, `radius ${r0} / ${r1}`);
     assert.ok(Math.abs(b1 / b0 - 0.5) < 0.05, `brightness ${b0} / ${b1}`);
+  },
+
+  'q: the start screen touch: very soft, at each real beat, only while the start screen is plain, gone within a second of the reading'() {
+    // A page of fake elements with just enough of querySelector for heartbeat.js: #id, .class, [attr="v"], [attr] and :not(...).
+    const fakeDoc = () => {
+      const els = [], doc = { hidden: false, activeElement: null, els };
+      const one = (el, part) => {
+        const toks = part.match(/:not\(([^)]*)\)|#[\w-]+|\.[\w-]+|\[[^\]]+\]/g) || [];
+        return toks.every(t => t.startsWith(':not(') ? !one(el, t.slice(5, -1)) : t[0] === '#' ? el.id === t.slice(1) : t[0] === '.' ? el.cls.includes(t.slice(1))
+          : (([, k, v]) => v === undefined ? k in el.attrs : el.attrs[k] === v.replace(/"/g, ''))(t.slice(1, -1).match(/^([\w-]+)(?:=(.*))?$/)));
+      };
+      doc.querySelector = sel => els.find(el => sel.split(',').some(p => one(el, p.trim()))) || null;
+      doc.add = (id, cls = [], attrs = {}) => { const el = { id, cls, attrs }; els.push(el); return el; };
+      // the start screen as index.html has it, everything over it closed
+      doc.add('phone'); doc.add('start', ['screen', 'start', 'fade']); doc.add('begin', ['kindle', 'state']);
+      doc.add('settings', ['screen', 'settings', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
+      doc.add('info', ['layer', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
+      doc.add('ci', ['ci', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
+      doc.add('pauseMenu', ['pause-menu', 'hidden'], { role: 'menu' });
+      return doc;
+    };
+    const el = (doc, id) => doc.els.find(e => e.id === id);
+    const home = ({ config = {}, vibration = true, doc = fakeDoc(), bpm = 72, seconds = 10, feed = true, during } = {}) => {
+      const t = load(), calls = [];
+      Object.assign(t.A.config, config);
+      t.ctx.document = doc;
+      t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push({ ...o, at: t.A.now() }) } } };
+      if (!vibration) t.A.Haptics.setEnabled(false);
+      connect(t.A);
+      steps(t, seconds, { second: i => { if (feed) clips(t.A, {}, bpm); during?.(i, t); } });
+      return { calls, lubs: t.A.Heartbeat.st.lubs, t };
+    };
+
+    const on = home();
+    assert.ok(on.calls.length >= 11 && on.calls.length === on.lubs, `one lub-dub per real beat: ${on.calls.length}/${on.lubs}`);
+    assert.ok(on.calls.every(c => c.strength === 0.4), `soft: ${on.calls.map(c => c.strength)}`);
+    assert.ok(on.calls.every(c => c.strength < 0.6), 'softer than in a session');
+    assert.ok(home({ config: { reducedMotion: true } }).calls.length >= 11, 'reduced motion keeps it: touch, not motion');
+    assert.ok(on.calls.slice(1).every((c, i) => c.at - on.calls[i].at > 0.6), 'never two in one beat');
+
+    // never without a real reading
+    assert.strictEqual(home({ feed: false }).calls.length, 0, 'no reading');
+    const sim = home({ feed: false, during: (i, t) => { t.A.Sensors.feedFingerHub(hubFrame({ simulated: true })); } });
+    assert.strictEqual(sim.calls.length, 0, 'a simulated pulse');
+    assert.strictEqual(home({ config: { heartTouch: false } }).calls.length, 0, 'Heartbeat touch off');
+    assert.strictEqual(home({ vibration: false }).calls.length, 0, 'Vibration off');
+
+    // paused while anything is over the start screen, back once it is plain again
+    const paused = (name, set) => {
+      const doc = fakeDoc(), r = home({ doc, seconds: 15, during: i => { if (i === 0) set(doc, true); if (i === 10) set(doc, false); } });
+      const during = r.calls.filter(c => c.at < 10).length, after = r.calls.filter(c => c.at >= 10.05).length;
+      assert.strictEqual(during, 0, `nothing while ${name}`);
+      assert.ok(after >= 4, `back after ${name}: ${after}`);
+    };
+    const toggle = (id, cls, flip = false) => (doc, on) => { const c = el(doc, id).cls; if (on !== flip) c.push(cls); else c.splice(c.indexOf(cls), 1); };
+    paused('holding to kindle', toggle('begin', 'holding'));
+    paused('the kindle lit', toggle('begin', 'lit'));
+    paused('a sheet is open', toggle('info', 'hidden', true));
+    paused('Settings is open', toggle('settings', 'hidden', true));
+    paused('the check-in is open', toggle('ci', 'hidden', true));
+    paused('a menu is open', toggle('pauseMenu', 'hidden', true));
+    paused('a card is open', toggle('phone', 'card-open'));
+    paused('the start screen is off', toggle('start', 'off'));
+    paused('the QR sheet is open', (doc, on) => { if (on) doc.add('qrSheet', ['qx', 'qs-root']); else doc.els.splice(doc.els.findIndex(e => e.id === 'qrSheet'), 1); });
+    paused('in the background', (doc, on) => { doc.hidden = on; });
+    paused('a text field has focus', (doc, on) => { doc.activeElement = on ? { tagName: 'INPUT', type: 'text' } : null; });
+    assert.ok(home({ during: (i, t) => { t.ctx.document.activeElement = { tagName: 'INPUT', type: 'checkbox' }; } }).calls.length >= 11, 'a switch with focus is not a text field');
+
+    // a racing pulse: every other beat
+    const fast = home({ bpm: 146 });
+    assert.ok(fast.lubs > 20 && Math.abs(fast.calls.length - fast.lubs / 2) <= 1, `every other beat above 140: ${fast.calls.length}/${fast.lubs}`);
+
+    // the reading goes (finger out of the clip, the clips disconnected, or a low quality): no touch from a second later
+    for (const [name, lose] of [
+      ['finger out', t => t.A.Sensors.feedFingerBle(aff({ presence: 'absent' }))],
+      ['disconnected', t => t.A.Sensors.setFingerLink('disconnected')],
+      ['low quality', t => t.A.Sensors.feedFingerBle(aff({ quality: 0.1 }))],
+    ]) {
+      const t = load(), calls = [];
+      t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(t.A.now()) } } };
+      connect(t.A);
+      steps(t, 8, { second: () => clips(t.A) });
+      assert.ok(calls.length >= 8, name);
+      const lost = t.A.now();
+      lose(t);
+      steps(t, 8);
+      assert.strictEqual(calls.filter(at => at > lost + 1).length, 0, `${name}: nothing a second after the reading went`);
+    }
+
+    // the router is untouched: the heart keeps its own lane
+    assert.strictEqual(on.t.A.Haptics.GAP.heart, 0.25);
   },
 };
 

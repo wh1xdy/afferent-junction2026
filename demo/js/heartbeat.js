@@ -12,10 +12,14 @@
 // pace nears the guide and as RMSSD rises above this session's own start value, never against a fixed number, and the
 // flame steadies as the pulse falls below the session's start. The finger sensor's breathing value covers its last 40 s,
 // so it is smoothed slowly and treated as a pace. Visual only: no numbers, no words, nothing recorded, nothing sent.
-// A soft heartbeat vibration (Settings, "Heartbeat touch") plays with a real pulse in calm moments only.
+// A soft heartbeat vibration (Settings, "Heartbeat touch") plays with a real pulse in calm moments, and very softly on the
+// plain start screen while nothing is over it (homeTouch below).
 (() => {
   const { clamp, ema, median } = A;
   const MIN_QUALITY = 0.3, GUIDE = 6, LOST_S = 3, START_N = 5, GREET_S = 5, SWELL_S = 2.6, OTHER_HAP_S = 0.3;
+  // The start screen's touch, a share of the session's (the router plays the heart at 0.6 * this: 0.4, at night 0.3),
+  // and above FAST_BPM only every other beat, so a racing pulse never turns into a buzz.
+  const HOME_TOUCH = 2 / 3, FAST_BPM = 140;
   const RATE_TAU = 8, RMSSD_TAU = 8, PULSE_TAU = 6, GLOW_TAU = 2.5, HRV_SPAN = 0.3, SETTLE_SPAN = 6, BREATHE_S = 10;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
@@ -56,14 +60,30 @@
   // Every other vibration of the app; the heartbeat keeps out of their way.
   A.bus.on('haptic', () => { if (!st.own) st.otherHapAt = A.now(); });
   // One heartbeat, the "heart" word of the haptics router (haptics.js): AfferentHaptics.beat, one pattern on iOS and on
-  // Android so the two halves never drift apart; a short soft lub-dub where the plugin is missing.
-  const vibrate = () => { st.own = true; try { A.Haptics?.play('heart'); } catch {} st.own = false; };
+  // Android so the two halves never drift apart (a lub and a quieter dub); a short soft lub-dub where the plugin is missing.
+  // k is its strength against the session's.
+  const vibrate = k => { st.own = true; try { A.Haptics?.play('heart', k); } catch {} st.own = false; };
+
+  // The plain start screen: nothing over it (a sheet, a page, a menu, the check-in, the QR sheets, onboarding, the clip
+  // check), the kindle neither held nor lit (its own swell plays then), no text field in use, the app in front. Read from
+  // the page at each beat, so no other file has to report it, and the touch comes back by itself once it is plain again.
+  const BUSY = ['#start.off', '#phone.card-open', '[aria-modal="true"]:not(.hidden):not([hidden])', '[role="menu"]:not(.hidden):not([hidden])',
+    '.ci:not(.hidden)', '.qx', '#begin.holding', '#begin.lit'].join(', ');
+  const NOT_TEXT = /^(checkbox|radio|range|button|submit|reset|color|file|image|hidden)$/i;
+  const typing = el => !!el && (el.isContentEditable || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !NOT_TEXT.test(el.type || '')));
+  const plainHome = () => {
+    const d = typeof document !== 'undefined' ? document : null;
+    if (!d) return true;
+    if (d.hidden || typing(d.activeElement)) return false;
+    try { return !d.querySelector?.(BUSY); } catch { return false; }
+  };
+  const homeTouch = () => !A.session && plainHome() && !(st.bpm > FAST_BPM && st.lubs % 2);
 
   const sample = (list, x) => { if (x != null && list.length < START_N) list.push(x); return list.length >= START_N ? median(list) : null; };
   const follow = (cur, x, dt, tau) => x == null ? null : cur == null ? x : ema(cur, x, dt, tau);
 
   const Heartbeat = A.Heartbeat = {
-    st, lubDub, simulation, calmMoment, GUIDE,
+    st, lubDub, simulation, calmMoment, plainHome, GUIDE, HOME_TOUCH, FAST_BPM,
 
     // Once a frame, in a session (engine.js) or on the home screen (main.js, s = null). Returns whether a beat landed now.
     step(now, dt, s = null) {
@@ -121,7 +141,11 @@
       live.beat = st.real; live.calm = calm && target != null;
       live.level = target == null ? null : calm ? st.glow : 0;
 
-      if (lub && st.real && calm && A.config?.heartTouch !== false && now - st.otherHapAt > OTHER_HAP_S && !(s.game?.id === 'breath' && s.orb?.inhale !== false)) vibrate();
+      // The touch: one lub-dub per real beat, never a simulated one; in a session in calm moments (in the breathing task on the
+      // exhale), on the start screen very softly while it is plain. Gated by "Heartbeat touch" here and "Vibration" in the router.
+      if (lub && st.real && A.config?.heartTouch !== false && now - st.otherHapAt > OTHER_HAP_S) {
+        if (s ? calm && !(s.game?.id === 'breath' && s.orb?.inhale !== false) : homeTouch()) vibrate(s ? 1 : HOME_TOUCH);
+      }
       return { lub, beating: st.bpm != null };
     },
 

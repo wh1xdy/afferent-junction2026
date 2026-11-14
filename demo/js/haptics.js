@@ -17,7 +17,8 @@
 //   success   the kindle's reward           a round, a pair or a pour done; the lantern lit
 //   complete  a fuller success that builds  the end of a game, the dawn
 //   rhythm    a soft round beat             count-ins and the beats of rhythm games
-//   heart     a lub-dub                     the live heartbeat (heartbeat.js), through AfferentHaptics.beat
+//   heart     a lub-dub                     the live heartbeat (heartbeat.js), through AfferentHaptics.beat; also very
+//                                           softly on the plain start screen
 // Continuous: hold (the kindle's swell), drag (a soft hum that follows progress while pulling or pouring),
 // breath (a slow swell over the inhale, a fade over the exhale, timed by the breath guide).
 // Calm mode and night play softer and rounder, wake and fatigue a little crisper, reduced motion softer and fewer.
@@ -112,7 +113,8 @@
     if (b === 'afferent') {
       const P = own();
       if (name === 'heart') {
-        // The heartbeat's own pattern, as heartbeat.js tuned it (0.6; it only plays in calm moments), softer at night.
+        // The heartbeat's own pattern, as heartbeat.js tuned it: 0.6 in calm moments of a session, k = 2/3 of that (0.4) on
+        // the start screen, softer at night. Reduced motion does not silence it: it is touch, not motion.
         // It refuses during a hold or a breath, and then nothing plays.
         if (typeof P.beat === 'function') quiet(P.beat({ strength: Math.round(clamp(0.6 * k * (c.night ? 0.75 : 1), 0.1, 0.8) * 100) / 100 }));
         else capPlay(name, gain);
