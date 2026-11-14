@@ -175,8 +175,8 @@ curl -H "Authorization: Bearer $PATIENT" -d '{"answers":[1,0,2,1,0,0,1,0,0]}' lo
 ```
 
 APIs take `Authorization: Bearer <token>`. Only the two HTML reports also take `?token=`: the hub answers
-with a cookie (12 h, report pages only, not the token itself) and redirects to the same URL without the
-token. Missing or wrong token → 401. `/health` answers `{"ok": true}` to anyone, collector details with
+with a cookie (report pages only, not the token itself; it carries a signed expiry, so the hub itself
+refuses it after 12 h) and redirects to the same URL without the token. Missing or wrong token → 401. `/health` answers `{"ok": true}` to anyone, collector details with
 the token. The hub speaks plain HTTP, so keep it on the mesh / a `wendy net forward`.
 
 `?demo=1` (synthetic 14-day patient, built in memory per request) needs no token, is read-only and never
@@ -188,16 +188,39 @@ reports (printed too, and without the "printed by the patient" line), `"simulate
 a day ahead of the hub's clock; milliseconds, strings and far-future times get a 400. `NaN`, `Infinity`
 and `1e999` are not JSON here (400). In a session, `summary` / `cameraPulse` / `breathing` must be objects
 and `events` a list of objects (400 otherwise); a single metric that is not a number is stored as missing.
-PHQ-9 answers are nine integers 0–3. Entries an older hub stored with an unreadable timestamp are left
+A session the app marks as simulated (`simulated: true`, or a non-empty `simulated_fields`) is refused (400):
+the hub keeps measurements only. PHQ-9 answers are nine integers 0–3. Entries an older hub stored with an unreadable timestamp are left
 out of the numbers and counted in `summary.unreadable`; the handover report says so, and item 9 above 0
 in such an entry is still raised. Anything else that fails inside the hub is answered with a 500 and one
 log line (route, exception class, file:line — never the request's contents).
 
-**Collector** — every 5 s the hub reads the UNO Q's `/state` (`store_state()` in `app.py`). While
-`finger.two_hearts` is true (the two clips are on two different people, the Heart Duel party game) only
-the room temperature is stored: that pulse, HRV and breathing are not the patient's. The skipped polls are
-counted in `collector.skipped_two_people` (`/health` with the token). Firmware without the flag is stored
-as before.
+**Collector** — every 5 s the hub reads the UNO Q's `/state` (`store_state()` in `app.py`) and stores
+only what was measured on the patient just now; the rest stays missing (never 0):
+
+- pulse: presence `active`, `finger.quality` reported and at least 0.3, newest beat behind it at most 3 s
+  old. A pulse with lower or no reported quality is counted in `collector.skipped_low_quality`, an old
+  one in `collector.skipped_stale`, and neither is stored.
+- HRV (RMSSD) and breathing rate: only after 6 s of presence `active`. The UNO Q keeps the last values in
+  `/state` while idle and while a new wearing warms up; those are not stored again.
+- while `finger.two_hearts` is true (the two clips are on two different people, the Heart Duel party
+  game) nothing from the fingers is stored (`collector.skipped_two_people`). Firmware without the flag is
+  stored as before.
+- room temperature: at most 30 s old.
+
+Ages compare the UNO Q's clock with itself (`now` or `beat.t` in the document), never with the Jetson's.
+Finger readings are stored with source `finger_ppg`, the demo patient's with `simulated`. A `/state`
+answer of the wrong shape or a failing write is one line in `collector.error`; the next poll still runs.
+The counters show in `/health` with the token. These rules have run in tests only, not against the UNO Q.
+
+**Days** — a "day" in the reports is the 24 hours ending at the time of day the report is made (UTC),
+named by the date it ends on. The handover report says so, and each FHIR Observation's `effectivePeriod`
+is exactly those 24 hours (`from_ts` / `to_ts` in `/summary`), not the calendar day.
+
+**Copied by `hub/afferent_hub`** — `store.py`, `fhir.py`, `report.py`, `grounding.py` and
+`tests/test_hub.py` are copied there file by file and loaded by path. They import nothing else from this
+folder, `report.clinician(summary, patient_label, narrative)` is kept as the old name of
+`report.handover()` (same document; a `narrative` is accepted and not shown, because the report states
+that its summary is a fixed template), and `tests/test_hub.py` loads the four files the way that hub does.
 
 Tests: `cd jetson/hub && python3 -m unittest discover tests -v`.
 
@@ -210,7 +233,8 @@ no judgement words). About 2 ms on a laptop (not yet timed on the Jetson).
 **No chatbot** — there is no `POST /ask` any more (404), and the container no longer starts `llama-server`:
 the image is `python:3.12-slim` + zeroconf and carries no model. That drops the Qwen2.5-3B file (2.10 GB)
 and the llama.cpp base image (292 MB compressed for arm64) from the image, and at run time the loaded
-model and the 4 of 6 CPU cores it was given. The new image has not been built or measured yet.
+model and the 4 of 6 CPU cores it was given. The new image, built for arm64 on a Mac (not on the Jetson):
+224 MB unpacked, 48.5 MB compressed; started there with an old two-token volume and with an empty one.
 `grounding.py` stays in the hub as a module: the report uses `summary_text()`, and its other public
 functions (`ask`, `check`, `build_facts`, `facts_text`, `direction_problem`, `safety_note`, `EVALUATIVE`)
 are unchanged for code that imports it, but nothing in the hub reaches `ask()`.
