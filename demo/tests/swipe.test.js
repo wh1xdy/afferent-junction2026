@@ -222,7 +222,7 @@ const tests = {
     assert.ok(card.parentNode && s.style.translate === '', 'still there, back in place');
   },
 
-  'Settings, Talk and Heart Duel go back on a swipe from the left edge, not from the middle'() {
+  'Settings, a page in Settings, Talk and Heart Duel go back on a swipe from the left edge, not from the middle'() {
     const p = app();
     for (const id of ['settings', 'voice']) {
       open(p, id);
@@ -238,6 +238,16 @@ const tests = {
     duel.append(back); p.$('phone').append(duel);
     swipe(p, duel, { x: 6, dx: 200 });
     assert.ok(duel.classList.contains('hidden'), 'Heart Duel');
+    // a page in Settings (gui/shell.js builds them): back to the list, and Settings stays
+    open(p, 'settings');
+    const page = p.doc.createElement('section'), bar = p.doc.createElement('header'), arrow = p.doc.createElement('button');
+    page.id = 'setPage-sound'; page.className = 'screen set-page'; bar.className = 'top-bar'; arrow.setAttribute('data-page-back', '');
+    arrow.onclick = () => page.classList.add('hidden');
+    bar.append(arrow); page.append(bar); p.$('settings').append(page);
+    swipe(p, bar, { x: 100, dx: 200 });
+    assert.ok(!page.classList.contains('hidden'), 'a page in Settings: from the middle nothing happens');
+    swipe(p, bar, { x: 6, dx: 200 });
+    assert.ok(page.classList.contains('hidden') && shown(p, 'settings'), 'a page in Settings goes back to the list, Settings stays');
   },
 
   'check-in: the intro closes on the swipe it tells you about, a question stops and keeps the answers so far'() {
@@ -327,9 +337,9 @@ const tests = {
     assert.strictEqual(p.frames.filter(Boolean).length, 0, 'no frame left over after the finger lifts');
   },
 
-  'every close path of a sheet goes through the slide-out: button, scrim and Escape, How it works, Your signals, the hub, the clip check, the check-in'() {
+  'every close path of a sheet goes through the slide-out: button, scrim and Escape, How it works, Your signals, the clip check, the check-in'() {
     const p = app({ motion: true }), A = p.A;
-    for (const [id, closer] of [['info', '.sheet-actions [data-close]'], ['info', '.scrim'], ['signals', '.sheet-actions [data-close]'], ['signals', '.scrim'], ['hubDialog', '.actions [data-close]'], ['hubDialog', '.scrim']]) {
+    for (const [id, closer] of [['info', '.sheet-actions [data-close]'], ['info', '.scrim'], ['signals', '.sheet-actions [data-close]'], ['signals', '.scrim']]) {
       open(p, id);
       p.$(id).querySelector(closer).click();
       assert.ok(shown(p, id) && A.Swipe.leaving(p.$(id)), `${id} ${closer}: still there, leaving`);

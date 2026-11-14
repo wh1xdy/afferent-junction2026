@@ -37,12 +37,12 @@
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
     ] },
     { page: 'sensors', id: 'sensorsGroup', title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
-      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
-      { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
+      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
       { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
-      { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
+      { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
     { page: 'sensors', title: 'While you play', rows: [
       { icon: 'vital_signs', label: 'Live vitals', sup: 'Your pulse and breathing in a corner, and why the games change', sw: 'id="vitalsSw"' },

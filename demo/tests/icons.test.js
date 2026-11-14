@@ -61,6 +61,18 @@ const tests = {
     assert.deepStrictEqual([...new Set(missing)], []);
   },
 
+  'Settings: every category on the list and every row on its pages has an icon from the subset'() {
+    const shell = read('js/gui/shell.js');
+    const pages = shell.slice(shell.indexOf('const PAGES = ['), shell.indexOf('];', shell.indexOf('const PAGES = [')));
+    const cats = [...pages.matchAll(/\{ id: '(\w+)', icon: '(\w+)'/g)].map(m => [m[1], m[2]]);
+    assert.ok(cats.length >= 5 && cats.length <= 7, `${cats.length} categories`);
+    for (const [id, icon] of cats) assert.ok(SUBSET.has(icon), `${id}: ${icon}`);
+    const rows = [...shell.slice(shell.indexOf('const GROUPS = ['), shell.indexOf('const PAGES = [')).matchAll(/\bicon: '(\w+)'/g)].map(m => m[1]);
+    assert.ok(rows.length > 20, `${rows.length} row icons`);
+    assert.deepStrictEqual(rows.filter(n => !SUBSET.has(n)), []);
+    for (const n of ['chevron_right', 'arrow_back']) assert.ok(SUBSET.has(n), n);
+  },
+
   'Export to your clinic: the clinic dashboard row has a real icon'() {
     const row = read('js/gui/shell.js').match(/\{ icon: '(\w+)', label: 'Clinic dashboard'/);
     assert.ok(row, 'Clinic dashboard row');
