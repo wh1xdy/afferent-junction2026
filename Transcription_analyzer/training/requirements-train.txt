@@ -1,0 +1,9 @@
+# QLoRA training deps — pin loosely, re-pin after the first successful run.
+transformers>=4.51.0
+peft>=0.15.0
+trl>=0.19.0
+datasets>=3.5.0
+bitsandbytes>=0.45.0
+accelerate>=1.6.0
+sentencepiece>=0.2.0
+pyyaml>=6.0

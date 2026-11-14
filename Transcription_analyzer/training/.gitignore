@@ -1,0 +1,6 @@
+verda/config.env
+data/
+work_dirs/
+cache/
+__pycache__/
+.pytest_cache/
