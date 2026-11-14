@@ -662,7 +662,11 @@
         },
         "weight_used": {
           "$ref": "#/$defs/num_or_null",
-          "description": "Bandit weight of this task id in its mode when it was picked; null for measurement tasks or no config"
+          "description": "Bandit weight of this task id in its mode when it was picked; null for measurement tasks or no config. Selection no longer reads it (randomised rotation, see assign_p)"
+        },
+        "assign_p": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Probability with which the randomised rotation assigned this task among the eligible tasks of its mode; null for measurement tasks and forced tasks"
         },
         "t_start_ms": {
           "type": "integer"

@@ -590,6 +590,24 @@
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
 
+  const WAY = Array.from({ length: 40 }, (_, i) => { const r = rng(2000 + i); return { j: r() - 0.5, s: 0.8 + 0.4 * r(), lean: (r() - 0.5) * 0.25 }; });
+  function waymarks(ctx) {
+    if (A.session) return;
+    const n = Math.min(40, n0(A.BA?.marks?.(), 0) | 0);
+    if (!n) return;
+    const dark = col(mixc(P.dusk, P.night700, 0.5), 'base'), lit = col(mixc(P.silver050, P.silver200, 0.3), 'base', 0.95), glow = tint('glow', P.ember);
+    for (let i = 0; i < n; i++) {
+      const w = WAY[i], k = i / 39, x = W * (0.56 + 0.42 * k) + w.j * 6 * u, y = gy - (12 + 34 * Math.pow(k, 1.15) + (i % 2 ? 3 : 0)) * u, s = 1.5 * w.s * u * (1 - 0.3 * k);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(w.lean);
+      for (const [dy, rx, ry] of [[0, 4.2, 1.9], [-3.1, 3.2, 1.6], [-5.7, 2.1, 1.3]]) {
+        ctx.fillStyle = dark; ctx.beginPath(); ctx.ellipse(0, dy * s, rx * s, ry * s, 0, 0, 6.283); ctx.fill();
+        ctx.fillStyle = lit; ctx.beginPath(); ctx.ellipse(-0.4 * s, (dy - 0.6) * s, rx * 0.7 * s, ry * 0.45 * s, 0, 0, 6.283); ctx.fill();
+      }
+      ctx.restore();
+      if (i === n - 1) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35; ctx.drawImage(glow, x - 9 * s, y - 15 * s, 18 * s, 18 * s); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
+    }
+  }
+
   function sea(ctx) {
     const top = col(mixc(mixc(HAZE, P.sea, 0.5), P.dawnSky, 0.5 * st.ds.dawn), 'blue', 1, 0.15), bot = col(mixc(P.seaDeep, P.sea, 0.5 * st.ds.dawn), 'blue');
     ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H, hy, gy, [[0, top], [1, bot]]);
@@ -1278,6 +1296,7 @@
     const env = travEnv(ctx);
     if (env) A.Traverse.cur?.drawBack?.(ctx, env);
     ground(ctx);
+    waymarks(ctx);
     footprints(ctx);
     props(ctx, false);
     landmarkLights(ctx);

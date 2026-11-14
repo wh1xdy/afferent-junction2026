@@ -88,7 +88,7 @@
       const m = this.meta, dir = DIRECTION[m.mode], pr = pulseResponse(this.pulse, dir, m.mode), tm = x => Math.round((x - out.sessionT0) * 1000);
       const longs = A.Eyes.log.filter(c => c.t >= this.t0 && c.t <= now + 0.01 && c.dur > 0.5).length;
       const rec = {
-        id: m.id, slot: m.slot, kind: m.kind, mode: m.mode, director_mode: m.director_mode, intensity: m.intensity, weight_used: m.weight_used,
+        id: m.id, slot: m.slot, kind: m.kind, mode: m.mode, director_mode: m.director_mode, intensity: m.intensity, weight_used: m.weight_used, assign_p: m.assign_p ?? null,
         t_start_ms: tm(this.t0), duration_ms: Math.round((now - this.t0) * 1000), completed_by: out.completed_by, completed: out.completed,
         items: out.items, errors: out.errors, intended_direction: dir, pulse: pr.pulse, pulse_samples: this.pulse.length, helped: pr.helped,
         head_pitch_start_deg: r1(this.pitch0), head_pitch_delta_deg: this.pitch0 === null ? null : r1(this.pitch1 - this.pitch0),

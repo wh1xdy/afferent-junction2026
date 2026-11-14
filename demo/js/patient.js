@@ -126,7 +126,6 @@
     renderLifetime();
     renderWeek();
     renderStrata();
-    renderHelped(view?.what_helped || []);
     renderToday(t);
     renderSharing();
     renderSensors();
@@ -221,9 +220,8 @@
     });
   }
 
-  const moodOf = d => d.state === 'lit' && d.mood >= 1 && d.mood <= 5 ? Math.round(d.mood) : null;
   const dayLight = d => {
-    const m = moodOf(d), fill = d.state === 'lit' ? (d.today ? '#F2C230' : m ? token(`--af-mood-${m}`) || d.colour : '#FFD58A') : null;
+    const fill = d.state === 'lit' ? (d.today ? '#F2C230' : '#FFD58A') : null;
     return el('span', { class: `light s-${d.state}${d.today ? ' today' : ''}`, style: fill ? `--fill:${fill}` : null, 'aria-hidden': 'true' });
   };
 

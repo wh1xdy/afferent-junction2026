@@ -40,9 +40,12 @@ const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
   ctx.A.MINIGAMES = { breath: { ...game('breath'), modes: ['calm', 'rest'], world: true }, loyly: { ...game('loyly'), modes: ['calm'] }, threads: { ...game('threads'), modes: ['flow'] }, constellation: { ...game('constellation'), modes: ['flow'] }, fireflies: { ...game('fireflies'), modes: ['wake'] }, beacon: { ...game('beacon'), modes: ['wake', 'fatigue'] }, bells: { ...game('bells'), modes: ['wake', 'fatigue'] }, shutters: { ...game('shutters'), modes: ['fatigue'] } };
   ctx.A.MEASURES = { fork: game('fork'), lanterns: game('lanterns') };
   ctx.A.makeCheckin = () => ({ t: 0, done: false, update: noop, auto(dt, now) { this.done = true; this.finishedAt = now; this.choice = 3; this.decisionMs = 900; } });
-  ctx.A.pickGame = (mode, last, w) => {
-    const pool = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode) && id !== last && (!w || (w[id] ?? 0) > 0));
-    return { id: pool[0], weight: null };
+  ctx.A.pickGame = (mode, last, played) => {
+    const all = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode));
+    let pool = all.filter(id => id !== last && !played?.has(id));
+    if (!pool.length) pool = all.filter(id => id !== last);
+    if (!pool.length) pool = all;
+    return { id: pool[0], p: 1 / pool.length };
   };
   run('traverse.js');
   run('engine.js');

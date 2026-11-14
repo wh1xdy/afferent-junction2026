@@ -32,7 +32,6 @@
       const x = S.sess;
       if (!x || !core?.rt) return;
       x.coreRt = core.rt;
-      x.mood = core.mood_start ?? null;
       if (x.credit && core.rt.valid && core.rt.median_ms != null) S.data.rt = [...S.data.rt, core.rt.median_ms].slice(-14);
     },
 
@@ -41,16 +40,12 @@
     checkAssist() {
       const x = S.sess, why = [];
       if (!x) return false;
-      if (x.mood === 1) why.push('mood_1');
-      else {
-        if (x.mood === 2) why.push('mood_2');
-        const rt = x.coreRt, hist = S.data.rt.slice(0, -1);
-        if (rt?.lapses >= 2) why.push('rt_lapses');
-        else if (rt?.median_ms != null && hist.length >= 5 && rt.median_ms >= 1.25 * A.median(hist)) why.push('rt_slow');
-        if (x.fatS >= 20) why.push('fatigue');
-        if (x.lastDrop) why.push('skill_drop');
-        if (why.length < 2) why.length = 0;
-      }
+      const rt = x.coreRt, hist = S.data.rt.slice(0, -1);
+      if (rt?.lapses >= 2) why.push('rt_lapses');
+      else if (rt?.median_ms != null && hist.length >= 5 && rt.median_ms >= 1.25 * A.median(hist)) why.push('rt_slow');
+      if (x.fatS >= 20) why.push('fatigue');
+      if (x.lastDrop) why.push('skill_drop');
+      if (why.length < 2) why.length = 0;
       x.assist = why.length > 0;
       if (x.assist) x.reasons = [...new Set([...x.reasons, ...why])];
       return x.assist;

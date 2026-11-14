@@ -34,8 +34,8 @@
     down(u, v, now) {
       if (this.choice !== null || v < 0.15 || v > 0.88) return;
       this.choice = this.slot(u) + 1; this.pickedAt = now; this.decisionMs = Math.round(this.t * 1000);
-      Au.piano(2 + this.choice, 0.14);
-      A.session?.kick(0.25 + 0.1 * this.choice);
+      Au.piano(5, 0.14);
+      A.session?.kindleFrom?.(this.choice - 1, now);
     },
     auto(dt, now) {
       if (this.t < this.autoAt || this.choice !== null) return;
