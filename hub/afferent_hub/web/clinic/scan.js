@@ -224,8 +224,29 @@
   const btnAgain = `<button class="btn filled" data-qr="again">${icon('qr_code_scanner')}Rescan</button>`;
   const btnClose = `<button class="btn filled" data-qr="close">Close</button>`;
 
+  // "Show to my doctor" shows a link to the patient's dashboard: the relay (/d/<id>#key, unlocked in the browser)
+  // or the patient's home hub (/shared/<id>, same network only). Nothing to import from it: it is opened.
+  // Signed AF1 codes made before that (printed ones last 30 days) still import below.
+  const dashLink = (text) => {
+    const t = C.qr.clean(text).trim();
+    if (!/^https?:\/\//i.test(t)) return null;
+    try {
+      const u = new URL(t);
+      return /^\/(d|shared)\/[A-Za-z0-9_-]{16,}\/?$/.test(u.pathname) ? u : null;
+    } catch { return null; }
+  };
+  function linkCard(u) {
+    pill.hidden = true;
+    showCard(`<div class="scard" data-kind="link">${icon('insights')}<p class="scard-t">Dashboard link</p>
+      <p>Open the link from the patient's code.</p>
+      <p class="scard-host num">${esc(u.host)}</p>
+      <div class="dactions"><button class="btn text" data-qr="again">Rescan</button><a class="btn filled" data-qr="close" href="${esc(u.href)}" target="_blank" rel="noopener noreferrer">Open</a></div></div>`);
+  }
+
   let held = null;
   async function handle(text) {
+    const link = dashLink(text);
+    if (link) return linkCard(link);
     const c = parts.add(C.qr.clean(text));
     if (c.status === 'part') {
       pill.textContent = `${c.have}/${c.n}`;

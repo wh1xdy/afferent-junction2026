@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .api.routes import public as public_router
 from .api.routes import router as api_router
 from .service import VERSION, Hub, HubError
 from .settings import HUB, ROOT, Settings
@@ -49,6 +50,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"error": code, "detail": str(e.detail)}, status_code=e.status_code)
 
     app.include_router(api_router)
+    app.include_router(public_router)
     app.include_router(team_router)
     app.include_router(ws_router)
 
