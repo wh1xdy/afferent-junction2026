@@ -5,25 +5,12 @@
   const DEMO = { bite: 0.8, press: 1.0, auto: 1.08 };
   const STEP = [5, 6, 7, 8, 9];
   const FISH = 'task_reaction_light_fish', SPLASH = 'task_reaction_splash_sheet';
-  const CREAM = mixc(C.silver100, C.glow, 0.35), LINE = C.silver200, WOOD = C.woodD;
+  const CREAM = mixc(C.silver050, C.glow, 0.2), CAP = mixc(C.coralSoft, C.amberDeep, 0.25), LINE = C.silver100, INK = C.night900;
+  const ROD = mixc(C.woodL, C.amber, 0.22), CORK = mixc(C.peach, C.woodL, 0.45);
+  const DEEP = mixc(C.night700, C.tealDeep, 0.3), SHALLOW = mixc(C.night500, C.teal, 0.32), RIM = mixc(C.silver100, C.sky, 0.3);
   const GRADES = [[300, 'Very fast'], [400, 'Fast'], [600, 'Good'], [Infinity, 'Steady']];
   const grade = ms => GRADES.find(([max]) => ms <= max)[1];
 
-  const sheet = (r, stops) => {
-    const c = document.createElement('canvas'); c.width = c.height = 2 * r;
-    const x = c.getContext('2d'), g = x.createRadialGradient(r, r, 0, r, r, r);
-    for (const [t, col] of stops) g.addColorStop(t, col);
-    x.fillStyle = g; x.fillRect(0, 0, 2 * r, 2 * r);
-    return c;
-  };
-  const PLATE = sheet(128, [[0, rgb(C.night950, 0.9)], [0.5, rgb(C.night950, 0.86)], [0.75, rgb(C.night950, 0.4)], [1, rgb(C.night950, 0)]]);
-  const BITE = sheet(128, [[0, rgb(C.silver050)], [0.22, rgb(C.flame)], [0.45, rgb(C.flame, 0.92)], [0.7, rgb(C.flame, 0.32)], [1, rgb(C.flame, 0)]]);
-  const img = (ctx, c, x, y, r, a = 1, sx = 1, sy = 1) => {
-    if (a <= 0.003) return;
-    const ga = ctx.globalAlpha; ctx.globalAlpha = ga * Math.min(1, a);
-    ctx.drawImage(c, x - r * sx, y - r * sy, 2 * r * sx, 2 * r * sy);
-    ctx.globalAlpha = ga;
-  };
 
   const hooks = () => A.World?.hooks || {};
   const geo = () => {
@@ -43,7 +30,7 @@
       B = s.bite = {
         key: s.phaseAt, t0: J.at, last: J.at, tr: null, fl: { m: 'none', t: 0 }, hit: -9, yank: -9, whip: -9, twitch: -9, dip: -9,
         fish: [], rip: [], beads: [], demo: 0, ghostPress: -9, ghostA: 0, touched: false, catches: 0, ph: R() * TAU,
-        doneAt: null, payAt: null, ignited: false, gathered: false, released: false, judge: null,
+        doneAt: null, payAt: null, glowA: 0, ignited: false, gathered: false, released: false, judge: null,
       };
     }
     return B;
@@ -58,7 +45,7 @@
     B.fl = { m: 'none', t: at };
     B.hit = at; B.yank = at; B.whip = at;
     J.hitstop(null, 50);
-    J.bloom(g.x, g.y, g.S * 0.16, C.flame, 0.5, 0.12, 0.3);
+    J.bloom(g.x, g.y, g.S * 0.14, C.glow, 0.28, 0.12, 0.35);
     ripple(B, g.x, g.y, 10 * U, 46 * U, 0.6, 0.5);
     ripple(B, g.x, g.y, 6 * U, 30 * U, 0.7, 0.35);
     B.rip[B.rip.length - 1].t += 0.12;
@@ -128,6 +115,8 @@
     B.rip = B.rip.filter(r => at - r.t < r.dur);
     const ghostOn = !B.touched && B.catches === 0 && B.demo >= 1 && at - B.t0 > 0.35 && B.doneAt == null;
     B.ghostA = ema(B.ghostA, ghostOn ? 0.62 : 0, dt, ghostOn ? 0.18 : 0.08);
+    const biting = B.fl.m === 'bite';
+    B.glowA = ema(B.glowA, biting ? 1 : 0, dt, biting ? 0.06 : 0.16);
 
     let ang = POSE;
     if (!rm) {
@@ -154,21 +143,96 @@
     if (!B.released) hooks().lanternPose?.(ang);
   };
 
+  const rodOf = g => {
+    const r = A.World?.lanternRod?.();
+    return r && r[4] > 0.05 ? r : null;
+  };
+  const tipOf = (B, g, at, rm) => {
+    const r = rodOf(g), sh = B.fl.m === 'bite' && !rm ? 1.2 * g.U * Math.sin(TAU * 2 * (at - B.fl.t)) : 0;
+    return r ? [r[2] + sh, r[3]] : [g.lx + sh, g.ly - 7 * g.U];
+  };
+  const STEM = 10.5;
+  const bitePos = (B, g, at, rm) => [g.x, g.y + 4 * g.U + (rm ? 0 : 1.4 * g.U * Math.sin(TAU * 2.4 * (at - B.fl.t)))];
+
+  const drawRod = (ctx, B, g, at, rm) => {
+    const r = rodOf(g);
+    if (!r) return;
+    const [hx, hy, tx, ty, pole] = r, U = g.U, dx = tx - hx, dy = ty - hy, len = Math.hypot(dx, dy) || 1;
+    const b0 = hx - dx / len * 7 * U, b1 = hy - dy / len * 7 * U;
+    let nx = -dy / len, ny = dx / len;
+    if (ny < 0) { nx = -nx; ny = -ny; }
+    const pull = B.glowA * (0.07 + (rm ? 0 : 0.025 * Math.sin(TAU * 2 * (at - B.fl.t))));
+    const k = len * (0.035 + pull), cx = (b0 + tx) / 2 + nx * k, cy = (b1 + ty) / 2 + ny * k;
+    const pt = (u, o = 0) => [(1 - u) ** 2 * b0 + 2 * (1 - u) * u * cx + u * u * tx + nx * o, (1 - u) ** 2 * b1 + 2 * (1 - u) * u * cy + u * u * ty + ny * o];
+    const seg = (u0, u1, w, c, o = 0) => {
+      ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath();
+      for (let i = 0; i <= 4; i++) { const [x, y] = pt(lerp(u0, u1, i / 4), o); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.stroke();
+    };
+    const N = 8, w = u => lerp(3.4, 1.2, u) * U;
+    ctx.save(); ctx.globalAlpha *= pole; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 0; i < N; i++) seg(i / N, (i + 1) / N, w(i / N) + 2 * U, rgb(INK, 0.6));
+    for (let i = 0; i < N; i++) seg(i / N, (i + 1) / N, w(i / N), rgb(i < 3 ? CORK : ROD));
+    seg(0.36, 1, 0.8 * U, rgb(C.silver200, 0.55), -0.6 * U);
+    const [rx, ry] = pt(0.2, 3 * U);
+    J.disc(ctx, rx, ry, 2.6 * U, INK, 0.85);
+    J.disc(ctx, rx, ry, 1.5 * U, C.silver400);
+    J.disc(ctx, tx, ty, 1.4 * U, C.silver100);
+    ctx.restore();
+  };
+
+  const strokeLine = (ctx, U, a, path) => {
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = rgb(INK, 0.38 * a); ctx.lineWidth = 2.6 * U; path(); ctx.stroke();
+    ctx.strokeStyle = rgb(LINE, a); ctx.lineWidth = Math.max(1, 1.05 * U); path(); ctx.stroke();
+  };
+
   const drawLine = (ctx, B, g, at, rm) => {
-    const tip = [g.lx + (B.fl.m === 'bite' && !rm ? 1.6 * g.U * Math.sin(TAU * 2 * (at - B.fl.t)) : 0), g.ly - 7 * g.U];
-    let end = null, sag = 14 * g.U, a = 0.5;
+    const tip = tipOf(B, g, at, rm), U = g.U;
+    let end = null, sag = 14 * U, a = 0.85;
     const fp = floatPos(B, g, at, rm);
-    if (B.fl.m === 'bite') { end = [g.x, g.y + 5 * g.U]; sag = 1.5 * g.U; a = 0.62; }
-    else if (fp) { end = fp; if (B.fl.m === 'cast') sag *= clamp((at - B.fl.t) / 0.3, 0, 1); }
+    if (B.fl.m === 'bite') { const [x, y] = bitePos(B, g, at, rm); end = [x, y - STEM * U]; sag = 1.5 * U; a = 0.95; }
+    else if (fp) { end = [fp[0], fp[1] - STEM * U]; if (B.fl.m === 'cast') sag *= clamp((at - B.fl.t) / 0.3, 0, 1); }
     else {
       const p = (at - B.yank) / 0.28;
-      if (p >= 0 && p < 1) { const u = E.outSoft(p); end = [lerp(g.x, tip[0] + 6 * g.U, u), lerp(g.y, tip[1] + 10 * g.U, u)]; sag = -10 * g.U * (1 - u); a = 0.6 * (1 - u); }
+      if (p >= 0 && p < 1) { const u = E.outSoft(p); end = [lerp(g.x, tip[0] + 6 * U, u), lerp(g.y, tip[1] + 10 * U, u)]; sag = -10 * U * (1 - u); a = 0.85 * (1 - u); }
     }
     if (!end) return;
-    ctx.strokeStyle = rgb(LINE, a); ctx.lineWidth = Math.max(1, 0.9 * g.U); ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(tip[0], tip[1]);
-    ctx.quadraticCurveTo((tip[0] + end[0]) / 2, Math.max(tip[1], end[1]) + sag, end[0], end[1]);
-    ctx.stroke();
+    strokeLine(ctx, U, a, () => { ctx.beginPath(); ctx.moveTo(tip[0], tip[1]); ctx.quadraticCurveTo((tip[0] + end[0]) / 2, Math.max(tip[1], end[1]) + sag, end[0], end[1]); });
+  };
+
+  const holeY = g => g.y + 2 * g.U;
+  const holePath = (ctx, g, grow = 0) => { ctx.beginPath(); ctx.ellipse(g.x, holeY(g), 50 * g.U + grow, 15 * g.U + grow, 0, 0, TAU); };
+  const drawHole = (ctx, B, g, at, rm, a) => {
+    if (a <= 0.01) return;
+    const U = g.U, y = holeY(g), rx = 50 * U, ry = 15 * U;
+    ctx.save(); ctx.globalAlpha *= a;
+    J.sprite(ctx, 'soft', INK, g.x, y + 4 * U, rx * 1.3, 0.3, false, 1, 0.42);
+    ctx.fillStyle = rgb(RIM, 0.92); holePath(ctx, g, 3 * U); ctx.fill();
+    holePath(ctx, g); ctx.clip();
+    const gr = ctx.createLinearGradient(0, y - ry, 0, y + ry);
+    gr.addColorStop(0, rgb(DEEP)); gr.addColorStop(1, rgb(SHALLOW));
+    ctx.fillStyle = gr; ctx.fillRect(g.x - rx, y - ry, 2 * rx, 2 * ry);
+    ctx.fillStyle = rgb(INK, 0.4); ctx.beginPath(); ctx.ellipse(g.x, y - ry * 0.75, rx * 1.05, ry * 0.6, 0, 0, TAU); ctx.fill();
+    J.sprite(ctx, 'soft', C.amber, g.x, y + 2 * U, rx * 0.95, 0.4 * B.glowA, true, 1, 0.5);
+    for (const r of B.rip) {
+      const p = clamp((at - r.t) / r.dur, 0, 1);
+      if (p <= 0) continue;
+      const rr = rm ? r.r1 * 0.7 : lerp(r.r0, r.r1, E.outSoft(p));
+      ctx.strokeStyle = rgb(C.silver100, r.a * 1.3 * (1 - p) * (rm ? Math.sin(Math.PI * p) : 1)); ctx.lineWidth = Math.max(1, 1.1 * U);
+      ctx.beginPath(); ctx.ellipse(r.x, r.y + 2 * U, rr, rr * 0.3, 0, 0, TAU); ctx.stroke();
+    }
+    if (!rm && B.glowA > 0.01) {
+      for (let i = 0; i < 3; i++) {
+        const p = ((at - B.fl.t) / 0.9 + i / 3) % 1, rr = lerp(8, 44, E.outSoft(p)) * U;
+        ctx.strokeStyle = rgb(C.glow, 0.5 * (1 - p) * B.glowA); ctx.lineWidth = Math.max(1, 1.2 * U);
+        ctx.beginPath(); ctx.ellipse(g.x, y + 1 * U, rr, rr * 0.3, 0, 0, TAU); ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.save(); ctx.globalAlpha *= a;
+    ctx.strokeStyle = rgb(INK, 0.45); ctx.lineWidth = Math.max(1, 1.2 * U); holePath(ctx, g); ctx.stroke();
+    ctx.restore();
   };
 
   const floatPos = (B, g, at, rm) => {
@@ -190,22 +254,26 @@
     return null;
   };
 
-  const drawFloat = (ctx, x, y, U, a) => {
+  const drawFloat = (ctx, x, y, U, a, lit = 0, water = null) => {
     if (a <= 0.01) return;
-    const r = 7.5 * U, wl = y + r * 0.35;
+    const r = 6 * U, wl = water ?? y + r * 0.35, sy = y - r - 4 * U;
     ctx.save();
     ctx.globalAlpha *= a;
-    ctx.beginPath(); ctx.rect(x - r * 2, y - r * 3, r * 4, r * 3 + (wl - y)); ctx.clip();
-    ctx.fillStyle = rgb(CREAM); ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
-    ctx.fillStyle = rgb(WOOD); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI); ctx.fill();
-    ctx.fillStyle = rgb(C.night950, 0.25); ctx.beginPath(); ctx.arc(x + r * 0.25, y, r * 0.85, -1.2, 1.6); ctx.fill();
+    ctx.beginPath(); ctx.rect(x - r * 4, sy - r * 4, r * 8, wl - sy + r * 4); ctx.clip();
+    ctx.strokeStyle = rgb(INK, 0.8); ctx.lineWidth = 1.6 * U; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x, sy); ctx.stroke();
+    J.disc(ctx, x, y, r + 1.3 * U, INK, 0.7);
+    J.disc(ctx, x, y, r, CREAM);
+    ctx.fillStyle = rgb(CAP); ctx.beginPath(); ctx.arc(x, y, r, Math.PI, TAU); ctx.fill();
+    ctx.fillStyle = rgb(INK, 0.2); ctx.beginPath(); ctx.arc(x + r * 0.3, y, r * 0.8, -1.2, 1.6); ctx.fill();
+    J.disc(ctx, x - r * 0.35, y - r * 0.45, 1.3 * U, C.silver050, 0.8);
+    J.sprite(ctx, 'glow', C.amber, x, sy, (6 + 6 * lit) * U, 0.35 + 0.2 * lit, true);
+    J.disc(ctx, x, sy, (1.8 + 0.6 * lit) * U, mixc(C.gold, C.daylight, lit));
     ctx.restore();
+    if (wl > y + r) return;
     ctx.save(); ctx.globalAlpha *= a;
-    J.sprite(ctx, 'glow', C.amber, x, y - r * 1.15, 9 * U, 0.55, true);
-    J.disc(ctx, x, y - r * 1.15, 2.4 * U, C.gold);
-    J.disc(ctx, x - 0.6 * U, y - r * 1.3, 0.9 * U, C.silver050, 0.9);
-    ctx.strokeStyle = rgb(C.silver300, 0.4); ctx.lineWidth = Math.max(1, 0.9 * U);
-    ctx.beginPath(); ctx.ellipse(x, wl, r * 1.5, r * 0.32, 0, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = rgb(RIM, 0.55); ctx.lineWidth = Math.max(1, 0.9 * U);
+    ctx.beginPath(); ctx.ellipse(x, wl, r * 1.6, r * 0.34, 0, 0, TAU); ctx.stroke();
     ctx.restore();
   };
 
@@ -227,26 +295,20 @@
   const drawSplash = (ctx, g, t, rm) => {
     if (t < 0 || t > 0.42) return;
     const U = g.U;
-    const sq = rm ? 1 : 1 + 0.6 * E.outSoft(clamp(t / 0.25, 0, 1));
-    const ga = rm ? 1 - t / 0.42 : 1 - clamp(t / 0.25, 0, 1);
-    const [sx, sy] = J.squash(t, 0.85, 0.25);
-    img(ctx, BITE, g.x, g.y, g.S * 0.09 * sq, ga, sx, sy);
-    J.sprite(ctx, 'glow', C.silver050, g.x, g.y, g.S * 0.05, 0.9 * ga, true);
-    if (rm) return;
-    if (t > 0.28) return;
+    const sq = rm ? 1 : 1 + 0.5 * E.outSoft(clamp(t / 0.25, 0, 1));
+    const ga = rm ? 1 - t / 0.42 : 1 - E.inOut(clamp(t / 0.42, 0, 1));
+    J.sprite(ctx, 'soft', C.glow, g.x, g.y, g.S * 0.1 * sq, 0.3 * ga, true, 1, 0.6);
+    if (rm || t > 0.28) return;
     const f = t < 0.1 ? 1 : 2, fa = t < 0.16 ? 1 : 1 - (t - 0.16) / 0.12;
     if (A.Art?.has(SPLASH)) {
       const fw = g.S * 0.26, fh = fw / (A.Art.aspect(SPLASH) / 4), y0 = g.y - fh * 0.82;
       ctx.save(); ctx.beginPath(); ctx.rect(g.x - fw / 2, y0, fw, fh); ctx.clip();
-      ctx.globalCompositeOperation = 'lighter';
-      A.Art.draw(ctx, SPLASH, g.x - fw / 2 - f * fw, y0, fw * 4, fh, 1, 1, 0.75 * fa);
+      A.Art.draw(ctx, SPLASH, g.x - fw / 2 - f * fw, y0, fw * 4, fh, 1, 1, 0.85 * fa);
       ctx.restore();
     } else {
       const k = E.outSoft(clamp(t / 0.2, 0, 1));
-      ctx.strokeStyle = rgb(C.silver100, 0.7 * fa); ctx.lineWidth = 2 * U; ctx.lineCap = 'round';
-      ctx.beginPath();
-      for (let i = 0; i < 7; i++) { const dx = (i - 3) * 6 * U; ctx.moveTo(g.x + dx * 0.8, g.y); ctx.lineTo(g.x + dx * (1 + 0.6 * k), g.y - (14 + 10 * (1 - Math.abs(i - 3) / 3)) * U * k); }
-      ctx.stroke();
+      const path = () => { ctx.beginPath(); for (let i = 0; i < 7; i++) { const dx = (i - 3) * 6 * U; ctx.moveTo(g.x + dx * 0.8, g.y); ctx.lineTo(g.x + dx * (1 + 0.6 * k), g.y - (14 + 10 * (1 - Math.abs(i - 3) / 3)) * U * k); } };
+      strokeLine(ctx, U, 0.8 * fa, path);
     }
   };
 
@@ -374,27 +436,21 @@
       tick(s, B, g);
       const pt = B.payAt == null ? -1 : at - B.payAt;
       const plate = clamp((at - B.t0) / 0.4, 0, 1) * (pt < 0 ? 1 : 1 - clamp((pt - 0.4) / 0.5, 0, 1));
-      img(ctx, PLATE, g.x, g.y, g.S * 0.15, plate, 1.3, 0.92);
-
-      for (const r of B.rip) {
-        const p = clamp((at - r.t) / r.dur, 0, 1);
-        if (p <= 0) continue;
-        const rr = rm ? r.r1 * 0.7 : lerp(r.r0, r.r1, E.outSoft(p));
-        ctx.strokeStyle = rgb(C.silver200, r.a * (1 - p) * (rm ? Math.sin(Math.PI * p) : 1)); ctx.lineWidth = Math.max(1, 1.1 * U);
-        ctx.beginPath(); ctx.ellipse(r.x, r.y + 2 * U, rr, rr * 0.3, 0, 0, TAU); ctx.stroke();
-      }
-
+      const wl = g.y + 2.1 * U, gA = B.glowA * (rm ? 1 : 0.9 + 0.1 * Math.sin(TAU * 1.8 * (at - B.fl.t)));
+      if (gA > 0.005) { J.light(g.x, g.y, g.S * 0.34, C.amber, 0.12 * gA); J.light(g.x, g.y - 6 * U, g.S * 0.12, C.glow, 0.1 * gA); }
+      drawHole(ctx, B, g, at, rm, plate);
+      drawRod(ctx, B, g, at, rm);
       drawLine(ctx, B, g, at, rm);
       const fp = floatPos(B, g, at, rm);
       if (fp) {
         const t = at - B.fl.t;
         const a = B.fl.m === 'cast' && rm ? clamp(t / 0.25, 0, 1) : B.fl.m === 'reel' ? 1 - clamp((t - 0.15) / 0.15, 0, 1) * (rm ? 1 : 0.7) : 1;
-        drawFloat(ctx, fp[0], fp[1], U, a * plate);
+        drawFloat(ctx, fp[0], fp[1], U, a * plate, 0, wl);
       }
-      if (B.fl.m === 'bite') img(ctx, BITE, g.x, g.y, g.S * 0.09);
+      if (B.fl.m === 'bite') { const [x, y] = bitePos(B, g, at, rm); drawFloat(ctx, x, y, U, plate, gA, wl); }
       if (B.fl.m === 'sink') {
         const p = clamp((at - B.fl.t) / 0.45, 0, 1);
-        img(ctx, BITE, g.x, g.y + (rm ? 0 : 7 * U * E.inOut(p)), g.S * 0.09 * (1 - 0.3 * p), 1 - E.outSoft(p), 1, rm ? 1 : 1 - 0.4 * p);
+        drawFloat(ctx, g.x, g.y + 4 * U + (rm ? 0 : 9 * U * E.inOut(p)), U, plate * (1 - E.outSoft(p)), gA, wl);
       }
       drawSplash(ctx, g, at - B.hit, rm);
 
