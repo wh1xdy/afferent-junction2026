@@ -62,6 +62,7 @@ From `design/integration-plan.md` section 4 (integration debate, round 3, ruled 
 | I50 | Contract text fixes | `api.md:400` drop the session fallback for morning pulse; `api.md:411` and X17: CUSUM k 0.35 and the raised MAD floors (`STATUS.md:68,128`); `daily.v1` "visits" wording | Leaving stale text for judges | Judges who read contracts reward honesty | X17 text |
 | I51 | Integration order | P0 hotfix on main first (I32, I33 hide, I35). Then, once D8 says the other sessions are idle, one integration on `minigames`: main merged in, I29, the ios-merge fold (I8, I10, I23 to I28), game and hub fixes; hub tests, e2e 13/13 and the game A10 gate; one push with David's go, main briefly frozen | Several pushes; touching a tree another session works in | Memory rule: one update per batch; main moved during the debate | none |
 | I52 | Web fallback | L1-web as in 2.1, labelled; no camera claim | Pretending the web build senses on stage | Secure-context rule for the camera | none |
+| I53 | UNO Q transport | Wendy Net over Bluetooth, run by WendyOS on the UNO Q; `contracts/api.md` section 4 superseded for the UNO Q, kept for the simulator and as a fallback; on a WendyOS Jetson our hub joins Wendy Net natively; how the Mac joins or forwards is Alex A2, what our hub needs to participate is A16; no code change | USB serial lines to the hub or Jetson as the UNO Q contract | David's fact (2026-11-14); the team code agrees (`T:README.md:3,12,74-75,85-86`; `TA:jetson/hub/app.py:3,43-62` at `4d738e8`) | #24 (UNO Q part), I13 |
 
 ## v3 decisions (overnight build)
 

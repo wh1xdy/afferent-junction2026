@@ -20,7 +20,7 @@ Conventions:
 |---|---|---|
 | `AFFERENT_PORT` | `8000` | HTTP and WebSocket port |
 | `AFFERENT_DB` | `hub/data/afferent.db` | SQLite file (gitignored) |
-| `AFFERENT_BEDSIDE` | `sim` | `sim` (hardware simulator), `serial:/dev/ttyACM0` (UNO Q over USB), `ws` (device connects to `/ws/bedside` itself, no simulator), `off` |
+| `AFFERENT_BEDSIDE` | `sim` | `sim` (hardware simulator), `serial:/dev/ttyACM0` (bedside device over USB, section 4; not the UNO Q transport, see I53), `ws` (device connects to `/ws/bedside` itself, no simulator), `off` |
 | `AFFERENT_SIM_PULSE` | `0` | `1` makes the bedside simulator also stream pulse. Off by default, so the phone's own vitals simulator (profiles, sliders) stays in control |
 | `AFFERENT_OLLAMA_URL` | `http://127.0.0.1:11434` | Local Ollama for Gemma |
 | `AFFERENT_GEMMA_MODEL` | unset | Force a model name; otherwise the first installed model whose name starts with `gemma3n`, then `gemma3`, then `gemma` |
@@ -352,6 +352,8 @@ Hub to device: `light` (`rgb`, `level`, `fade_ms`, `reason`) and `camera` (`on`)
 - After a session ends with `fell_asleep`, the light stays off until morning.
 
 ## 4. Bedside serial protocol (UNO Q <-> hub)
+
+Status: superseded for the UNO Q (Decisions I53). The UNO Q talks Wendy Net over Bluetooth, run by WendyOS (David, 2026-11-14; team README "Two WendyOS boards working together over Wendy Net", `wendy net configure ... --ble=true`). Its app speaks HTTP on the Wendy mesh, not these lines. This section stays as the format of the hardware simulator and the `serial:` source, and as a fallback for a bedside device on USB. No code changed.
 
 USB serial, 115200 baud, 8N1, ASCII lines ending in `\n` (accept `\r\n`). Fields separated by one space, decimal point `.`. Lines starting with `#` are logs and ignored. Unknown lines are ignored.
 

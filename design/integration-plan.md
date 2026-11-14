@@ -70,6 +70,8 @@ State of the trees when this was written (checked, not assumed):
 
 Network: which device provides it is David's fact (D6). If any Jetson joins, it must be 5 GHz (`T:jetson/presence/TESTING.md:18`). Venue Wi-Fi is not used (client isolation, `T:README.md:99`; #24).
 
+UNO Q reach (I53): the UNO Q talks Wendy Net over Bluetooth, run by WendyOS (David; `T:README.md:3,12,74-75`). On a WendyOS Jetson our hub would join Wendy Net natively, as a mesh app that finds the UNO Q by mDNS like the team's `jetson/hub` (`TA:jetson/hub/wendy.json:6-12`; `TA:jetson/hub/app.py:43-62`); what that takes for our hub is Alex A16. On David's Mac (I1, not a WendyOS device) the team docs name three options, none documented for the UNO Q: (a) `wendy net forward <local>:<host port> --device <board>`, shown only for Jetson apps (`T:README.md:52,86`; `TA:README.md:151`); (b) the "USB via Mac" link in the diagram, no steps (`T:README.md:12`); (c) the Mac as a participant via `wendy net configure --participate=true ...`, shown only for the boards (`T:README.md:74-75`). Which one works is Alex A2. L1 uses none of them. (`TA:` lines in this paragraph and in I53 are at `4d738e8`.)
+
 ### 2.2 Product topology (after the hackathon)
 
 | Part | Where | Status |
@@ -93,9 +95,9 @@ Status values: works (built and tested), untested (built, never run on the real 
 | K4 | Phone camera to eyes, PERCLOS, head pitch | In-process, VisionEyes (ours, 9c84517) | David (agents) | Untested on a device (D3) | K5 preset, labelled |
 | K5 | Dashboard preset to phone | `POST /api/demo/profile` then WS `profile` then `setProfile` mid-session (`clinic.js:271-277`, `service.py:435-439`, `main.js:342`) | David (agents) | Works in code. Untested: whether `bad_day` moves the eyes while the real camera supplies them, and whether its fog and exposure change is acceptable on stage (rehearsal) | Video only |
 | K6 | Hub summary | In-process: Template, or Gemma via Ollama | David | Template works. Gemma blocked on D4 | Template, chip "Template" |
-| K7 | UNO Q to hub: finger pulse, knob, light | HTTP `/state`, `/led`, `/heartbeat`, `/presence`, `/sensor` on modulino-hub (container :8080, mesh host 18080, `T:uno-q/modulino-hub/app.py:507-531`) | Adapter builder: Vlad V5; device: Alex | Blocked on Alex A2 (reachability), A3 (beep) | Hub bedside simulator, labelled |
+| K7 | UNO Q to hub: finger pulse, knob, light | HTTP `/state`, `/led`, `/heartbeat`, `/presence`, `/sensor` on modulino-hub (container :8080, mesh host 18080, `T:uno-q/modulino-hub/app.py:507-531`), over Wendy Net (Bluetooth via WendyOS, I53) | Adapter builder: Vlad V5; device: Alex | Blocked on Alex A2 (how the Mac joins or forwards into Wendy Net), A3 (beep) | Hub bedside simulator, labelled |
 | K8 | UNO Q to phone: finger pulse | BLE 2A37 (`[0x00, bpm]`, 1 Hz, last value kept, `T:app.py:250-262`) | Alex (device), David (bridge) | Blocked on A2 = none, A3, A8, then our side-by-side device test; needs a row reversing #24 | None (no finger on stage) |
-| K9 | UNO Q USB serial (`contracts/api.md` section 4) | Serial `V/K/P/I/T` lines | Alex | Not implemented by current hardware: no `Serial` in the sketch, MCU held by arduino-bridge (I13); A13 low priority | K7 |
+| K9 | UNO Q USB serial (`contracts/api.md` section 4) | Serial `V/K/P/I/T` lines | Alex | Superseded for the UNO Q by Wendy Net (I53); section 4 kept for the simulator and as a fallback. No `Serial` in the sketch, MCU held by arduino-bridge | K7 |
 | K10 | Hub to bedside light (KY-016) | HTTP `POST /led` with `ms=0` (500 ms default reverts to auto = off) | Alex (device), adapter per V5 | Blocked on A2, A6 | In-game dawn plus the phone `#led` panel (`main.js:300-313`); no room claim |
 | K11 | Presence to hub | HTTP `:8090/summary` | Vlad (service), agents (adapter) | Cut for the demo (I41); later blocked on V3, V6 | Seeded SIMULATED history |
 | K12 | Presence to UNO Q buzzes | Team `HUB_URL` | Vlad | Not ours; V4 decides the stage-quiet item | Board unpowered during our slot |
@@ -123,7 +125,7 @@ Each row is ready to paste into `Decisions.md` (same columns as the v3 table). I
 | I10 | Decision ID collision | At the fold, ios-merge X37 and X38 become X44 and X45; minigames X37 to X43 keep their numbers | Renumbering minigames | `im:Decisions.md:49-50` vs `mg:Decisions.md:49-55`; minigames rows are already referenced in its code and docs | ios-merge X37, X38 IDs |
 | I11 | Finger pulse source enum | `finger_ppg`, added only together with the first producer; `ky039` kept for stored rows only | `finger`, `pulsesensor`, the part name | A source class stays true for any clip; X31 needs bedside finger kept apart from camera; David Q3 | none |
 | I12 | Finger pulse path | Nothing built before Alex answers. Then: (a) A2 reachable offline and A3 beep mutable: one hub HTTP `BedsideSource` (pulse, knob, light; posts `/heartbeat?on=0` and `/presence?auto=0` at session start); (b) A2 none, beep off by firmware default, A8 BLE free, our side-by-side device test passes: phone 2A37 plugin from FingerSensor, plus a new row reversing #24; (c) otherwise none. Every path: stone slot via `feedPulse` (never `setPulse`), true source label (fix the forced `ky039` and the invented `quality ?? 0.5` in `sensors.js:142`), 2A37 only, a value counts only if its notification is at most 3 s old, beep off or the finger stays out of the session. Purpose: in-session director only; the live bound patient's `morning_pulse_bpm` stays null | Phone BLE first; finger into the rPPG slot | `sensors.js:141-151`; `T:sketch.ino:51,157` (beep default on); vitals-ux M10, X31; David Q10 | #24 only if branch (b) |
-| I13 | `contracts/api.md` section 4 (USB serial) | Marked "not implemented by current hardware" until Alex A13; in 3.4, "level 0 to 100" is the hub-side scale and the device mapping is a relative delta (`knob.position` is an unbounded int16, `T:sketch.ino:29,172,192`) | Retiring section 4 now | Deciding for Alex otherwise; David Q1 | none |
+| I13 | `contracts/api.md` section 4 (USB serial) | Superseded for the UNO Q by Wendy Net (I53), kept for the simulator and as a fallback; in 3.4, "level 0 to 100" is the hub-side scale and the device mapping is a relative delta (`knob.position` is an unbounded int16, `T:sketch.ino:29,172,192`) | Retiring section 4 now | Deciding for Alex otherwise; David Q1 | none |
 | I14 | `pulse_stone` semantics | Off means the receiver drops the data (phone `pulse()` gate, `sensors.js:150`; hub drop with the first hub producer). Patient text "not recorded"; "off" only on an HTTP path that sends `/presence?auto=0` then `/sensor?ch=0&on=0` and `ch=1` (the presence loop re-powers within about 9 s otherwise, `T:app.py:319-356`) | `pulse_stone` drives `POST /sensor` alone | Code; David Q5 | none |
 | I15 | Knob | Not used on stage. Turn sets `dawn_level` (fix #26 text to match `controller.py:197-206`, `main.js:314-319,341`). Press acts only while `bedside_camera` is true (`controller.py:189-196` flips the camera with no consent check today) | Press toggles the camera unconditionally | Consent; true for every answer | #26 text |
 | I16 | Bedside light without a link | In-game dawn plus the existing phone `#led` panel; no "room wakes" claim; nothing built before Alex A6; a `/clinic/` tile "Bedside light (simulated)" only if David asks after a "no reachable lamp" answer | Second-screen lamp, phone border glow, a tile now | Hard rule; M1, M2 (no glow during measurement) | none |
@@ -163,6 +165,7 @@ Each row is ready to paste into `Decisions.md` (same columns as the v3 table). I
 | I50 | Contract text fixes | `api.md:400` drop the session fallback for morning pulse; `api.md:411` and X17: CUSUM k 0.35 and the raised MAD floors (`STATUS.md:68,128`); `daily.v1` "visits" wording | Leaving stale text for judges | Judges who read contracts reward honesty | X17 text |
 | I51 | Integration order | P0 hotfix on main first (I32, I33 hide, I35). Then, once D8 says the other sessions are idle, one integration on `minigames`: main merged in, I29, the ios-merge fold (I8, I10, I23 to I28), game and hub fixes; hub tests, e2e 13/13 and the game A10 gate; one push with David's go, main briefly frozen | Several pushes; touching a tree another session works in | Memory rule: one update per batch; main moved during the debate | none |
 | I52 | Web fallback | L1-web as in 2.1, labelled; no camera claim | Pretending the web build senses on stage | Secure-context rule for the camera | none |
+| I53 | UNO Q transport | Wendy Net over Bluetooth, run by WendyOS on the UNO Q; section 4 superseded for the UNO Q, kept for the simulator and as a fallback; on a WendyOS Jetson our hub joins Wendy Net natively; Mac path is A2, hub participation is A16; no code change | USB serial lines as the UNO Q contract | David's fact (2026-11-14); `T:README.md:3,12,74-75,85-86`; `TA:jetson/hub/app.py:3,43-62` | #24 (UNO Q part), I13 |
 
 ## 5. Questions per teammate (paste one block per person)
 
@@ -216,7 +219,7 @@ D10. Do you confirm the I-rows in design/integration-plan.md section 4, or which
 ```
 Hi Alex, a few one-line questions so we only build what matches your hardware:
 A1. Are you wh1xdy, the author of uno-q/, jetson/vision/, jetson/hub/, ios/ and hardware/? If not, who is?
-A2. From David's MacBook (not a Wendy device) on our own hotspot, what exact command makes GET /state and POST /led on the UNO Q answer: direct host:18080, wendy net forward, or your "USB via Mac" relay? Does it need internet or an org invite?
+A2. The UNO Q talks Wendy Net over Bluetooth (David). From David's MacBook (not a WendyOS device) on our own hotspot, what exact command makes GET /state and POST /led on the UNO Q answer: wendy net forward <local>:18080 --device <uno-q>, your "USB via Mac" relay (which steps?), the Mac joining with wendy net configure --participate=true, or direct host:18080? Which port, 8080 or 18080? Does it need internet or an org invite?
 A3. Can the demo build boot with heartbeat_sound off (and without the 1760 Hz startup beep and 1200 Hz press click)? If not, may our hub POST /heartbeat?on=0?
 A4. During our slot, does jetson/vision run and reach the UNO Q (a press arms the person alarm, a turn moves the YOLO confidence)? Can it be off for our slot?
 A5. During our slot, can any device other than the Jetson reach jetson/vision /stream or /rppg/frame?
@@ -227,11 +230,10 @@ A9. Is an IR bed-presence sensor planned, yes or no?
 A10. Is jetson/hub at the demo? Does its POST /phq9 take any entry other than ?demo=1, and does its report (with the "screening" footer) appear in any slide or the submission text?
 A11. Do you play the patient on stage (Decisions #39)?
 A12. (low) How many knob.position counts make one full turn?
-A13. (low) Will the UNO Q ever print the V/K/P/I/T serial lines from our api.md section 4?
 ```
 
 Follow-up, only if A2 = no path and A3 = beep can be off: "When can the UNO Q sit next to the demo iPhone for one 2A37 test with the front camera running?"
-Post-demo: "Could the UNO Q Linux side host our hub, and could Ollama run on the demo Jetson?" (A14); "Did you compare FacePulse with PulseCamera on the same face and light, and what was the error?" (A15).
+Post-demo: "Could the UNO Q Linux side host our hub, and could Ollama run on the demo Jetson?" (A14); "Did you compare FacePulse with PulseCamera on the same face and light, and what was the error?" (A15); "What must our hub do to be a Wendy Net participant on the Jetson: is a mesh `wendy.json` plus an mDNS browse for role=modulino-hub, as in your jetson/hub, enough?" (A16).
 
 | Q | Answer | What we do |
 |---|---|---|
@@ -258,7 +260,7 @@ Post-demo: "Could the UNO Q Linux side host our hub, and could Ollama run on the
 | A10 | Yes | Team ruling on one PHQ-9 flow and one claims list before any recording (T1) |
 | A11 | No | Whoever plays the patient gets the two eye rehearsals |
 | A12 | Any number | Sets the relative-delta step only |
-| A13 | No or no answer | Section 4 stays marked (I13) |
+| A13 | Dropped: answered by David (I53) | Section 4 superseded for the UNO Q, kept for the simulator and as a fallback |
 
 ### 5.3 Vlad
 
@@ -433,7 +435,7 @@ Always simulated and labelled: Anna's days 0-55, the roster, presence, sleep, st
 
 | Question | Disposition |
 |---|---|
-| David 1 (api.md section 4) | Decided: I13 |
+| David 1 (api.md section 4) | Decided: I13, superseded for the UNO Q by I53 |
 | David 2 (where the hub runs) | Decided: I1; Mac's reach into Wendy Net is Alex A2 |
 | David 3 (finger source value) | Decided: I11 |
 | David 4 (breathing field) | Decided: no (I7) |
@@ -449,7 +451,7 @@ Always simulated and labelled: Anna's days 0-55, the roster, presence, sleep, st
 | Romain 3 (port 8000) | Question R2 |
 | Romain 4 (POC runs at the demo) | Question R2 |
 | Alex 1 (identity) | Question A1 |
-| Alex 2 (serial lines) | Question A13 (low) |
+| Alex 2 (serial lines) | Answered by David: Wendy Net over Bluetooth (I53) |
 | Alex 3 (reach :18080 from a non-Wendy laptop) | Question A2 |
 | Alex 4 (8080 or 18080) | Merged into A2 |
 | Alex 5 (USB serial while arduino-bridge holds the MCU) | Answered by code (no `Serial` in the sketch); relay option inside A2 |

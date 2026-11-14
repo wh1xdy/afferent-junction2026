@@ -18,7 +18,7 @@ Owner names follow `ours:STATUS.md:26-31` (David, Romain, Alex, Vlad). Git autho
 |---|---|---|
 | Bedside source selection | `AFFERENT_BEDSIDE` = `sim`, `serial:<port>`, `ws`, `off` | `ours:contracts/api.md:23`; `ours:hub/afferent_hub/service.py:47-55` |
 | `BedsideSource` protocol | `start(on_event)`, `send(msg)`, `stop()`, `connected`, `name` | `ours:hub/afferent_hub/bedside/source.py:6-14` |
-| Serial transport | USB serial 115200 8N1, ASCII lines | `ours:contracts/api.md:350-352`; `ours:hub/afferent_hub/bedside/unoq.py:15,74` |
+| Serial transport | USB serial 115200 8N1, ASCII lines. Superseded for the UNO Q by Wendy Net (I53); kept for the simulator and as a fallback | `ours:contracts/api.md:350-352`; `ours:hub/afferent_hub/bedside/unoq.py:15,74` |
 | Device to hub lines | `V`, `K turn <0-100>`, `K press`, `P <bpm> <quality> <contact>`, `I <in_bed> <motion>`, `T <temp_c> <humidity_pct>` | `ours:contracts/api.md:354-363`; `ours:hub/afferent_hub/bedside/protocol.py:9-32` |
 | Hub to device lines | `L r g b level fade_ms`, `C 0/1`, `S` | `ours:contracts/api.md:365-371`; `ours:hub/afferent_hub/bedside/protocol.py:45-56` |
 | `/ws/bedside` JSON | Same events as JSON, plus `pose` with 10 named keypoints, normalised 0-1 | `ours:contracts/api.md:325-340`; `ours:hub/afferent_hub/service.py:607-621` |
@@ -52,6 +52,7 @@ Owner names follow `ours:STATUS.md:26-31` (David, Romain, Alex, Vlad). Git autho
 | mDNS | zeroconf IPv4 | `modulino-hub._http._tcp.local.`, TXT role=modulino-hub, path=/state, port 8080 | `T:uno-q/modulino-hub/app.py:561-574` |
 | BLE "Afferent Finger" | GATT via BlueZ | 0x180D/0x2A37 `[0x00, fused bpm]`; 0x2A38 = 0x03; AFF0/AFF1 `[bpm1, bpm2, breaths/min]`, 0 = none | `T:uno-q/modulino-hub/ble.py:3-10,19-24,51-57,72-98`; `T:uno-q/modulino-hub/app.py:253,260` |
 | Reachability | Wendy Net only | "reachable only inside Wendy Net"; "Hackathon Wi-Fi isolates clients" | `T:README.md:85-86,99` |
+| Wendy Net link | Bluetooth, run by WendyOS (David, 2026-11-14) | Boards enrolled in one Wendy Cloud org, `wendy net configure --participate=true --ethernet=true --infrastructure-wifi=true --ble=true`; the diagram shows "Wendy Net (BLE / USB via Mac)". Peers find the UNO Q by mDNS role=modulino-hub and use the advertised address and port (`jetson/vision`, and `jetson/hub` on branch Alex) | `T:README.md:3,12,74-75`; `T:jetson/vision/hub.py:46-71`; `TA:jetson/hub/app.py:3,43-62` (`TA:` = `junction/Alex` `4d738e8`, not merged into main) |
 
 Values in `/state` used below:
 
@@ -85,7 +86,7 @@ Values in `/state` used below:
 
 ### 2.3 Where our assumptions disagree with their code
 
-1. Transport. Ours is USB serial lines (`ours:contracts/api.md:350`; `ours:STATUS.md:109`). Theirs is RouterBridge plus HTTP on the Wendy mesh plus BLE (`T:uno-q/modulino-hub/sketch/sketch.ino:3-18`; `T:uno-q/modulino-hub/wendy.json:13-28`).
+1. Transport. Answered (I53): the UNO Q uses Wendy Net over Bluetooth, run by WendyOS (David), and serves HTTP on the Wendy mesh (`T:README.md:3,12,74-75`; `T:uno-q/modulino-hub/wendy.json:13-28`). Our USB serial lines (`ours:contracts/api.md:350`; `ours:STATUS.md:109`) are superseded for the UNO Q and kept for the simulator and as a fallback. Inside the board it is RouterBridge from the STM32 to Linux (`T:uno-q/modulino-hub/sketch/sketch.ino:3-18`).
 2. Pulse sensor. Ours is a KY-039 (`ours:contracts/api.md:361`; `ours:contracts/daily.v1.schema.json:37`; `ours:STATUS.md:30`). Theirs is two PulseSensors (`T:uno-q/modulino-hub/sketch/sketch.ino:1,33`; `T:README.md:58`).
 3. Bed presence. Ours is an IR sensor (`ours:contracts/api.md:362`; `ours:STATUS.md:30`). Theirs has none, and their "presence" means a finger in the clip (`T:uno-q/modulino-hub/app.py:263-273`).
 4. Knob. Ours is 0-100 (`ours:contracts/api.md:359`). Theirs is a raw `int(position)` (`T:uno-q/modulino-hub/app.py:47`).
@@ -96,8 +97,8 @@ Values in `/state` used below:
 
 ### 2.4 Do not build yet (UNO Q)
 
-- No new serial firmware lines, no change to `parse_line` or `format_line`, and no `UnoQSerial` changes. The transport is not chosen (Alex Q2, David Q1).
-- No HTTP-polling `BedsideSource` for `/state`. Reachability from our hub host and the port (8080 vs 18080) are unknown (Alex Q3, Q4).
+- No new serial firmware lines, no change to `parse_line` or `format_line`, and no `UnoQSerial` changes. The UNO Q transport is Wendy Net (I53), so the serial path is not extended.
+- No HTTP-polling `BedsideSource` for `/state`. How our hub host joins Wendy Net or forwards into it, and the port (8080 vs 18080), are unknown (Alex Q3, Q4, Q18, Q19).
 - No BLE central in the hub or the app.
 - No knob scaling, no contact rule, no quality mapping, no LED level/fade mapping (Alex Q6, Q8, Q9, Q11).
 - No `pulsesensor` (or other) enum value and no breathing field in the contracts (David Q3, Q4).
@@ -231,7 +232,7 @@ Do not build: no pose relay, no port change (Romain Q2, Q3).
 | Hackathon Wi-Fi isolates clients | `T:README.md:99` |
 | Our docs mention Gemma "on the Jetson" | `ours:STATUS.md:62` |
 
-Where our hub process runs at the demo (laptop or Jetson), and whether that host is a Wendy Net participant, is not in any file. Every adapter above depends on it (David Q2).
+Where our hub process runs at the demo (laptop or Jetson), and whether that host is a Wendy Net participant, is not in any file. Every adapter above depends on it (David Q2). The UNO Q side is answered: Wendy Net over Bluetooth via WendyOS (I53). A hub on a WendyOS Jetson would join Wendy Net the way the team's `jetson/hub` does (a mesh network entitlement and an mDNS browse, `TA:jetson/hub/wendy.json:6-12`; `TA:jetson/hub/app.py:43-62`). For a non-WendyOS laptop the team docs show only `wendy net forward <local>:<host port> --device <board>` for Jetson apps (`T:README.md:52,86`; `TA:README.md:151`) and "USB via Mac" without steps (`T:README.md:12`); nothing documents either for the UNO Q (Alex Q3, Q18).
 
 ## 8. Matches as-is
 
@@ -241,7 +242,7 @@ None on the wire. No team service speaks any of our formats, and none of our cod
 
 ### David
 
-1. Do we keep `contracts/api.md` section 4 (USB serial) as the UNO Q contract, or replace it with the team's HTTP `/state` or BLE?
+1. Answered (I53): section 4 is superseded for the UNO Q by Wendy Net; it stays for the simulator and as a fallback.
 2. Where does `afferent_hub` run at the demo (laptop or Jetson), and is that host a Wendy Net participant?
 3. If the UNO Q finger pulse reaches the hub, what `source` value should it carry, since `ky039` is wrong (`ours:contracts/session.v3.schema.json:280-287`)?
 4. Do we want a breathing-rate field in session v3 at all (team `breathing.per_minute`)?
@@ -263,10 +264,10 @@ None on the wire. No team service speaks any of our formats, and none of our cod
 ### Alex (please confirm first)
 
 1. Are you wh1xdy, the author of `uno-q/`, `jetson/vision/` and `ios/`?
-2. Will the UNO Q ever print our serial lines (`V/K/P/I/T`), or is HTTP/BLE final?
+2. Answered by David (I53): the UNO Q uses Wendy Net over Bluetooth via WendyOS; no serial lines.
 3. From a non-Wendy laptop on the venue network, can `http://<uno-q>:18080/state` be reached without `wendy net forward`?
-4. Which port does a Wendy Net peer actually reach: 8080 (mDNS, `app.py:569`) or 18080 (`wendy.json:19`, `README.md:90`)?
-5. Is the UNO Q's USB serial usable by a laptop while the Wendy app holds the MCU via arduino-bridge?
+4. Which port does a Wendy Net peer actually reach: 8080 (mDNS, `app.py:569`) or 18080 (`wendy.json:19`, `README.md:90`)? The team's own peers use the mDNS-advertised address and port (`T:jetson/vision/hub.py:59-66`).
+5. Moot for the UNO Q after I53; only relevant if the USB fallback is ever used.
 6. What is the min and max of `knob.position`?
 7. Can a knob press and release happen between two 0.25 s polls without showing in `/state`?
 8. What does `finger.quality` mean in plain terms, and what value means "trust this BPM"?
@@ -279,6 +280,8 @@ None on the wire. No team service speaks any of our formats, and none of our cod
 15. Is there an IR bed-presence sensor anywhere in the hardware plan, yes or no?
 16. Is the C920 always `/dev/video0` and the Arduino camera always `/dev/video2` on the demo Jetson?
 17. Do `jetson/vision` and `jetson/presence` run on the same Jetson at the same time?
+18. How does a non-WendyOS laptop (David's Mac) join Wendy Net or forward into it: does `wendy net forward <local>:18080 --device <uno-q>` work for the UNO Q, can a Mac run `wendy net configure --participate=true`, or what are the steps of the "USB via Mac" relay (`README.md:12`)? Does it need internet or an org invite?
+19. What must our hub do to be a Wendy Net participant on the Jetson: is a `wendy.json` with a `"mode": "mesh"` network entitlement plus an mDNS browse for role=modulino-hub, as in your `jetson/hub`, enough?
 
 ### Vlad (please confirm first)
 
