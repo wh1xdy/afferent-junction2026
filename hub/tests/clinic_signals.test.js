@@ -1,6 +1,7 @@
 // Run: node hub/tests/clinic_signals.test.js
 // The Signals section of the clinic view (Decisions I53, contracts/api.md section 3.5): labels, units, source texts,
 // staleness, the Simulated badge and the wording rules. The physio and camera objects below are test input, not measurements.
+// Sections 3 and 4: the weekly finger sensor and face numbers of a code the patient handed over, in the imported view.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -326,6 +327,226 @@ function loadPage() {
   const page = read(WEB, 'index.html');
   const order = ['charts.js', 'signals.js', 'views.js', 'clinic.js'].map((f) => page.indexOf(`<script src="${f}"></script>`));
   assert.ok(order.every((i) => i > 0) && order.join() === [...order].sort((a, b) => a - b).join(), 'script order');
+}
+
+// 3. The numbers of a patient code ("Show to my doctor"): weekly medians, one tile each, with unit, source and the
+//    Simulated badge. Finger sensor numbers under Signals, face numbers under Face. A week without a reading is null.
+const INTERPRETING = /\b(stress\w*|strain\w*|screening|treat\w*|normal|abnormal|elevated|reduced|worse\w*|better|improv\w*|declin\w*|risk\w*|healthy|unhealthy|good|bad|poor|high|higher|low|lower|usual|anxi\w*|calm\w*|relax\w*|tense|depress\w*|mood|warning|alarm\w*|concern\w*)\b/;
+const FEELINGS = /\b(happ\w*|sad\w*|joy\w*|emotion\w*|affect\w*|nervous\w*|friendly|engag\w*|attenti\w*|bored\w*|tired\w*|express\w*|flat)\b/;
+function checkCodeWording(html, what) {
+  const low = html.replace(/<[^>]*>/g, ' ').toLowerCase();
+  for (const re of [INTERPRETING, FEELINGS]) { const hit = re.exec(low); assert.ok(!hit, `${what}: "${hit && hit[0]}"`); }
+  assert.strictEqual(count(low, 'diagnos'), count(low, 'not a diagnosis'), `${what}: "diagnos" outside "not a diagnosis"`);
+  for (const w of ['live', 'current', 'now', 'ago', 'streaming']) assert.ok(!new RegExp(`\\b${w}\\b`).test(low), `${what}: the word ${w}`);
+  assert.ok(!html.includes(String.fromCharCode(0x2014)), `${what}: em dash`);
+  assert.ok(!/undefined|NaN|\[object/.test(html), `${what}: unformatted value`);
+}
+const WEEKLY_FOOT = 'Handed over by the patient in this code: weekly medians with their source. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.';
+const FACE_FOOT = 'Handed over by the patient in this code: weekly medians from the phone camera, named by what the face did. Camera images and face meshes never leave the phone. Support for monitoring and follow-up, not a diagnosis. Not part of the index.';
+const measured = () => ({
+  weekly: { pulse_bpm: [null, null, 71.2, 69.8, null, 72.4, 70.1, 68.9], breathing_per_min: [null, null, 12.4, 11.9, null, 13.1, 12.2, 11.6], rmssd_ms: [null, null, 41.5, 38.2, null, 44.9, null, null] },
+  days: { pulse_bpm: 21, breathing_per_min: 21, rmssd_ms: 1 },
+  simulated: { pulse_bpm: false, breathing_per_min: false, rmssd_ms: false },
+});
+const NO_VITALS = { weekly: { pulse_bpm: Array(8).fill(null), breathing_per_min: Array(8).fill(null), rmssd_ms: Array(8).fill(null) },
+  days: { pulse_bpm: 0, breathing_per_min: 0, rmssd_ms: 0 }, simulated: { pulse_bpm: false, breathing_per_min: false, rmssd_ms: false } };
+const FKEYS = ['smile_share', 'blinks_per_min', 'gaze_away_share'];
+const faceMeasured = () => ({
+  weekly: { smile_share: [null, 0.12, 0.18, 0, null, 0.21, 0.15, 0.09], blinks_per_min: [null, 14, 17, 12, null, 19, 16, 15], gaze_away_share: [null, 0.08, 0.11, 0.05, null, 0.06, null, null],
+    micro_per_min: [null, 2.4, 3.1, 1.8, null, 2.2, 2.9, 2.5], breathing_per_min: [null, 13.2, 12.8, 14.1, null, 12.5, 13.4, 12.9] },
+  days: { smile_share: 19, blinks_per_min: 19, gaze_away_share: 1, micro_per_min: 19, breathing_per_min: 12 },
+  simulated: { smile_share: false, blinks_per_min: false, gaze_away_share: false, micro_per_min: false, breathing_per_min: false },
+});
+const NO_FACE = { weekly: Object.fromEntries(FKEYS.map((k) => [k, Array(8).fill(null)])), days: Object.fromEntries(FKEYS.map((k) => [k, 0])), simulated: Object.fromEntries(FKEYS.map((k) => [k, false])) };
+{
+  const rows = Sg.weeklyRows(measured());
+  const r = byKey(rows);
+  same(rows.map((x) => [x.key, x.label, x.unit]), [['pulse_bpm', 'Pulse, finger sensor', 'bpm'], ['breathing_per_min', 'Breathing rate', 'per min'], ['rmssd_ms', 'HRV (RMSSD)', 'ms']]);
+  same([r.pulse_bpm.value, r.pulse_bpm.week, r.pulse_bpm.days], ['68.9', 7, 21]);
+  same([r.breathing_per_min.value, r.breathing_per_min.week], ['11.6', 7]);
+  // the newest week that has a value, when the last weeks have none
+  same([r.rmssd_ms.value, r.rmssd_ms.week, r.rmssd_ms.days], ['44.9', 5, 1]);
+  same(r.rmssd_ms.weeks, [null, null, 41.5, 38.2, null, 44.9, null, null]);
+  assert.ok(rows.every((x) => x.simulated === false && x.missing === false && x.source === 'finger sensor (PPG)'));
+
+  // a code made before the block existed, and odd input: no rows
+  for (const none of [undefined, null, 'x', 7]) same(Sg.weeklyRows(none), []);
+  // a block without a reading: three rows, all missing; 0 and junk are missing too, never a value
+  for (const empty of [NO_VITALS, {}, { weekly: {} }, { weekly: { pulse_bpm: [0, 0, 0, 0, 0, 0, 0, 0], breathing_per_min: ['12', NaN, -4], rmssd_ms: 'x' }, days: { pulse_bpm: 9 }, simulated: { pulse_bpm: true } }]) {
+    const e = Sg.weeklyRows(empty);
+    assert.strictEqual(e.length, 3);
+    assert.ok(e.every((x) => x.missing && x.value === 'no reading' && x.week === null && x.days === null && x.simulated === false && x.weeks.every((w) => w === null)));
+  }
+
+  // the badge follows the row, not the code
+  const sim = measured();
+  sim.simulated.rmssd_ms = true;
+  const sr = byKey(Sg.weeklyRows(sim));
+  same([sr.pulse_bpm.simulated, sr.rmssd_ms.simulated, sr.rmssd_ms.source, sr.pulse_bpm.source], [false, true, 'simulator', 'finger sensor (PPG)']);
+
+  const labels = [];
+  const html = Sg.weeklyHtml(measured(), (i) => { labels.push(i); return `W${i}`; });
+  for (const s of ['Pulse, finger sensor', '68.9<small> bpm</small>', 'Breathing rate', '11.6<small> per min</small>', 'HRV (RMSSD)', '44.9<small> ms</small>',
+    'finger sensor (PPG)', 'week from W7', 'week from W5', '21 days with a reading', '1 day with a reading', 'session mean, clips on during play',
+    'id="sig-pulse_bpm"', 'id="sig-breathing_per_min"', 'id="sig-rmssd_ms"', WEEKLY_FOOT]) assert.ok(html.includes(s), s);
+  same(labels, [7, 7, 5]);
+  assert.ok(!html.includes('sim-badge') && !html.includes('no reading'));
+  // neither posture nor place is recorded with the clips, so neither is stated
+  for (const w of ['sitting', 'lying', 'home', 'resting']) assert.ok(!html.toLowerCase().includes(w), w);
+  checkCodeWording(html, 'weekly, measured');
+
+  const simHtml = Sg.weeklyHtml(sim, (i) => `W${i}`);
+  assert.strictEqual(count(simHtml, '<span class="sim-badge small">Simulated</span>'), 1);
+  assert.ok(simHtml.includes('simulator'));
+  checkCodeWording(simHtml, 'weekly, simulated');
+
+  // one number without a reading next to two with: its tile says so and gets no chart
+  const part = measured();
+  part.weekly.rmssd_ms = Array(8).fill(null);
+  const partHtml = Sg.weeklyHtml(part, (i) => `W${i}`);
+  assert.ok(partHtml.includes('no reading') && !partHtml.includes('id="sig-rmssd_ms"') && partHtml.includes('id="sig-pulse_bpm"'));
+  assert.strictEqual(count(partHtml, 'class="mm sig-mm none"'), 1);
+
+  const notCarried = Sg.weeklyHtml(undefined);
+  assert.ok(notCarried.includes('This code carries no finger sensor numbers'));
+  const noWeeks = Sg.weeklyHtml(NO_VITALS);
+  assert.ok(noWeeks.includes('No finger sensor reading in these 8 weeks.'));
+  for (const h of [notCarried, noWeeks]) { assert.ok(!h.includes('chart-wrap') && !h.includes('<small>')); checkCodeWording(h, 'weekly, none'); }
+}
+
+// face numbers: plain names, a share in percent, 0 is a value, a week without a reading is null
+{
+  const rows = Sg.faceRows(faceMeasured());
+  const r = byKey(rows);
+  same(rows.map((x) => [x.key, x.label, x.unit]), [['smile_share', 'Smiling', '% of the time'], ['blinks_per_min', 'Blinks', 'per min'], ['gaze_away_share', 'Looking away', '% of the time']]);
+  same([r.smile_share.value, r.smile_share.week, r.smile_share.days], ['9', 7, 19]);
+  same([r.blinks_per_min.value, r.blinks_per_min.week], ['15', 7]);
+  same([r.gaze_away_share.value, r.gaze_away_share.week, r.gaze_away_share.days], ['6', 5, 1]);
+  same(r.smile_share.weeks, [null, 0.12, 0.18, 0, null, 0.21, 0.15, 0.09]);
+  assert.strictEqual(r.smile_share.fmt(0), '0');
+  assert.ok(rows.every((x) => x.simulated === false && x.missing === false && x.source === 'phone camera (TrueDepth face tracking)'));
+  // only what the code carries: brief facial movements and the camera breathing rate stay on the hub
+  assert.ok(!rows.some((x) => x.key === 'micro_per_min' || x.key === 'breathing_per_min'));
+
+  const zero = byKey(Sg.faceRows({ weekly: { smile_share: Array(8).fill(0) }, days: { smile_share: 40 }, simulated: {} }));
+  same([zero.smile_share.value, zero.smile_share.missing, zero.smile_share.week], ['0', false, 7]);
+
+  for (const none of [undefined, 'x', 7]) same(Sg.faceRows(none), []);
+  for (const empty of [NO_FACE, {}, { weekly: {} }, { weekly: { smile_share: [-0.1, 1.2, '0.2', NaN], blinks_per_min: [-1], gaze_away_share: 'x' }, days: { smile_share: 9 }, simulated: { smile_share: true } }]) {
+    const e = Sg.faceRows(empty);
+    assert.strictEqual(e.length, 3);
+    assert.ok(e.every((x) => x.missing && x.value === 'no reading' && x.week === null && x.days === null && x.simulated === false && x.weeks.every((w) => w === null)));
+  }
+
+  const sim = faceMeasured();
+  sim.simulated.blinks_per_min = true;
+  const sr = byKey(Sg.faceRows(sim));
+  same([sr.smile_share.simulated, sr.blinks_per_min.simulated, sr.blinks_per_min.source], [false, true, 'simulator']);
+
+  const html = Sg.faceHtml(faceMeasured(), (i) => `W${i}`);
+  for (const s of ['Smiling', '9<small> % of the time</small>', 'Blinks', '15<small> per min</small>', 'Looking away', '6<small> % of the time</small>',
+    'phone camera (TrueDepth face tracking)', 'week from W7', 'week from W5', '19 days with a reading', '1 day with a reading', 'share of the seconds with the face in view',
+    'gaze more than 25° off the screen', 'id="face-smile_share"', 'id="face-blinks_per_min"', 'id="face-gaze_away_share"', FACE_FOOT]) assert.ok(html.includes(s), s);
+  assert.ok(!html.includes('sim-badge') && !html.includes('no reading') && !html.includes('id="sig-'));
+  checkCodeWording(html, 'face, measured');
+  const simHtml = Sg.faceHtml(sim, (i) => `W${i}`);
+  assert.strictEqual(count(simHtml, '<span class="sim-badge small">Simulated</span>'), 1);
+  checkCodeWording(simHtml, 'face, simulated');
+
+  const notCarried = Sg.faceHtml(undefined);
+  assert.ok(notCarried.includes('This code carries no face numbers. It was made before the app added them.'));
+  const leftOut = Sg.faceHtml(null);
+  assert.ok(leftOut.includes('This code was full, so the face numbers were left out. Everything else is in it.'));
+  const noWeeks = Sg.faceHtml(NO_FACE);
+  assert.ok(noWeeks.includes('No face reading in these 8 weeks.'));
+  for (const h of [notCarried, leftOut, noWeeks]) { assert.ok(!h.includes('chart-wrap') && !h.includes('<small>')); checkCodeWording(h, 'face, none'); }
+}
+
+// 4. The imported view: a code made by the phone codec, decoded like the dashboard does, and shown.
+{
+  const QR = require(path.join(ROOT, 'demo', 'js', 'qrpayload.js'));
+  const key = QR.newKey();
+  const scan = (change, maxChars) => {
+    const j = json('qr_body_anna.json');
+    for (const [k, v] of Object.entries(change)) { if (v === undefined) delete j[k]; else j[k] = v; }
+    const d = QR.decode(QR.encode(j, { key, now: NOW, maxChars }).text, { now: NOW });
+    assert.strictEqual(d.status, 'ok');
+    return { cti: d.cti, fp: d.fingerprint, iat: d.iat, exp: d.exp, scanned_iso: new Date(NOW).toISOString(), body: d.body };
+  };
+  const ctx = { Math, JSON, Number, String, Array, Object, Date, console };
+  ctx.window = ctx;
+  ctx.document = { documentElement: {}, getElementById: () => null };
+  ctx.getComputedStyle = () => ({ getPropertyValue: () => '#123456' });
+  vm.createContext(ctx);
+  for (const f of ['charts.js', 'signals.js', 'views.js']) vm.runInContext(read(WEB, f), ctx);
+  const C = ctx.C;
+  const imports = new Map();
+  C.codes = { all: () => [...imports.values()], get: (cti) => imports.get(cti), label: () => 'Patient TEST', key: () => null };
+  C.scanFmt = { day: () => '15 Nov', when: () => '15 Nov 10:12' };
+  C.qr = { FEATURES: QR.FEATURES.map((f) => f[0]) };
+  vm.runInContext(read(WEB, 'imported.js'), ctx);
+  const V = C.views;
+  const show = (imp) => { imports.set(imp.cti, imp); return V.imported({}, imp.cti); };
+  const section = (page, label) => { const m = new RegExp(`<section class="signals" aria-label="${label}">[\\s\\S]*?</section>`).exec(page); assert.ok(m, `${label} section`); return m[0]; };
+  const visible = (s) => s.replace(/aria-label="[^"]*"/g, '').replace(/data-tip="[^"]*"/g, '');
+
+  const imp = scan({ vitals: measured(), face: faceMeasured() });
+  const page = show(imp);
+  const sig = section(page, 'Signals');
+  for (const s of ['<h2>Signals, 8 weeks</h2>', 'finger sensor, weekly medians', 'Pulse, finger sensor', '68.9<small> bpm</small>', 'Breathing rate', '11.6<small> per min</small>',
+    'HRV (RMSSD)', '44.9<small> ms</small>', 'finger sensor (PPG)', '21 days with a reading', 'id="sig-pulse_bpm"', WEEKLY_FOOT]) assert.ok(sig.includes(s), s);
+  assert.ok(!sig.includes('sim-badge'), 'measured rows carry no badge, though the demo code as a whole is simulated');
+  checkCodeWording(visible(sig), 'imported, signals');
+  const fc = section(page, 'Face');
+  for (const s of ['<h2>Face, 8 weeks</h2>', 'phone camera, weekly medians', 'Smiling', '9<small> % of the time</small>', 'Blinks', '15<small> per min</small>',
+    'Looking away', '6<small> % of the time</small>', 'phone camera (TrueDepth face tracking)', '19 days with a reading', 'id="face-smile_share"', FACE_FOOT]) assert.ok(fc.includes(s), s);
+  assert.ok(!fc.includes('sim-badge'));
+  checkCodeWording(visible(fc), 'imported, face');
+  const tip = /data-tip="([^"]*)"/.exec(fc)[1].toLowerCase();
+  assert.ok(tip.includes('named by what the face did') && !FEELINGS.test(tip) && !/\b(mood|anxi\w*|calm\w*|depress\w*|stress\w*)\b/.test(tip), tip);
+  assert.ok(page.includes('Simulated'), 'the code of a simulated patient stays marked');
+  const iMeasures = page.indexOf('Measures, 8 weeks'), iSig = page.indexOf('aria-label="Signals"'), iFace = page.indexOf('aria-label="Face"'), iFacts = page.indexOf('Mornings lit');
+  assert.ok(iMeasures > 0 && iSig > iMeasures && iFace > iSig && iFacts > iFace, 'Signals and Face sit between the measures and the facts');
+  assert.ok(page.includes('Not live data.'));
+  // the numbers are not a tenth feature: no tile among the measures and no usual range
+  assert.strictEqual(count(page, 'id="mm-'), 9);
+
+  const charts = [];
+  ctx.document.getElementById = (id) => ({ id });
+  C.seriesChart = (el, o) => charts.push({ id: el.id, o });
+  V.drawImported({}, imp.cti);
+  const drawn = Object.fromEntries(charts.filter((c) => c.id.startsWith('sig-') || c.id.startsWith('face-')).map((c) => [c.id, c.o]));
+  same(Object.keys(drawn), ['sig-pulse_bpm', 'sig-breathing_per_min', 'sig-rmssd_ms', 'face-smile_share', 'face-blinks_per_min', 'face-gaze_away_share']);
+  same(drawn['sig-pulse_bpm'].values, [null, null, 71.2, 69.8, null, 72.4, 70.1, 68.9]);
+  same(drawn['face-smile_share'].values, [null, 0.12, 0.18, 0, null, 0.21, 0.15, 0.09]);
+  same(drawn['face-gaze_away_share'].values, [null, 0.08, 0.11, 0.05, null, 0.06, null, null]);
+  for (const o of Object.values(drawn)) assert.ok(o.band == null && o.mid == null && o.threshold == null && o.connect === false && o.dots === true, 'numbers only: no range, no line across a gap, a dot per week with a value');
+  assert.ok(drawn['sig-pulse_bpm'].tip(7).includes('68.9 bpm') && drawn['sig-pulse_bpm'].tip(0).includes('no value'));
+  assert.ok(drawn['face-smile_share'].tip(7).includes('9 % of the time') && drawn['face-smile_share'].tip(3).includes('0 % of the time') && drawn['face-smile_share'].tip(0).includes('no value'));
+  assert.ok(drawn['face-blinks_per_min'].tip(6).includes('16 per min'));
+
+  const sim = faceMeasured();
+  sim.simulated = Object.fromEntries(Object.keys(sim.simulated).map((k) => [k, true]));
+  assert.strictEqual(count(section(show(scan({ face: sim })), 'Face'), '<span class="sim-badge small">Simulated</span>'), 3);
+  const empty = section(show(scan({ vitals: NO_VITALS })), 'Face');
+  assert.ok(empty.includes('No face reading in these 8 weeks.') && !empty.includes('chart-wrap'));
+  const before = show(scan({ vitals: undefined, face: undefined }));
+  assert.ok(section(before, 'Signals').includes('This code carries no finger sensor numbers') && section(before, 'Face').includes('This code carries no face numbers'));
+  // a full code: the face numbers went first, everything else is there
+  const full = scan({ vitals: measured(), face: faceMeasured() }, QR.encode({ ...json('qr_body_anna.json'), vitals: measured(), face: faceMeasured() }, { key, now: NOW }).chars - 20);
+  assert.strictEqual(full.body.face, null);
+  const fullPage = show(full);
+  assert.ok(section(fullPage, 'Face').includes('This code was full, so the face numbers were left out.') && section(fullPage, 'Signals').includes('68.9<small> bpm</small>'));
+  charts.length = 0;
+  V.drawImported({}, full.cti);
+  assert.ok(!charts.some((c) => c.id.startsWith('face-')));
+
+  // a code from the encoder before this change (frozen fixture) is shown the same way
+  const frozen = json('qr_code_before_vitals.json');
+  const old = QR.decode(frozen.text, { now: frozen.now_ms });
+  assert.strictEqual(old.status, 'ok');
+  const oldPage = show({ cti: old.cti, fp: old.fingerprint, iat: old.iat, exp: old.exp, scanned_iso: new Date(NOW).toISOString(), body: old.body });
+  assert.ok(section(oldPage, 'Signals').includes('This code carries no finger sensor numbers') && section(oldPage, 'Face').includes('This code carries no face numbers') && oldPage.includes('Measures, 8 weeks'));
 }
 
 console.log('clinic_signals: ok');

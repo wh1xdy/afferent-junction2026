@@ -322,5 +322,117 @@
   "presence": true,
   "phone_presence": true,
   "phone_motion": true
+ },
+ "vitals": {
+  "weekly": {
+   "pulse_bpm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "breathing_per_min": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "rmssd_ms": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  "days": {
+   "pulse_bpm": 0,
+   "breathing_per_min": 0,
+   "rmssd_ms": 0
+  },
+  "simulated": {
+   "pulse_bpm": false,
+   "breathing_per_min": false,
+   "rmssd_ms": false
+  }
+ },
+ "face": {
+  "weekly": {
+   "smile_share": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "blinks_per_min": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "gaze_away_share": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "micro_per_min": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "breathing_per_min": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  "days": {
+   "smile_share": 0,
+   "blinks_per_min": 0,
+   "gaze_away_share": 0,
+   "micro_per_min": 0,
+   "breathing_per_min": 0
+  },
+  "simulated": {
+   "smile_share": false,
+   "blinks_per_min": false,
+   "gaze_away_share": false,
+   "micro_per_min": false,
+   "breathing_per_min": false
+  }
  }
 }

@@ -21,7 +21,7 @@
   const HDR_PUB = -65537;
   const CLAIM_BODY = -65601;
   const CAPS = { phq: 8, safety: 8, talk: 10 };
-  const SHRINK = [{}, { talk: 5 }, { talk: 5, phq: 4 }];
+  const SHRINK = [{}, { face: 0 }, { face: 0, talk: 5 }, { face: 0, talk: 5, phq: 4 }];
   const OMIT = ['safety_entries', 'talk_requests', 'phq_totals'];
   const omitNames = o => Object.fromEntries(OMIT.map((k, i) => [k, o[i]]));
 
@@ -30,6 +30,9 @@
     ['morning_pulse', 10], ['home_only_days', 10], ['upright_frac', 100], ['reward_bias', 100],
   ];
   const FKEYS = FEATURES.map(f => f[0]);
+  const VITALS = [['pulse_bpm', 10], ['breathing_per_min', 10], ['rmssd_ms', 10]];
+  const VITAL_MAX = 65535;
+  const FACE = [['smile_share', 100, 1], ['blinks_per_min', 1, 254], ['gaze_away_share', 100, 1]];
   const STATES = ['stable', 'watch', 'check_in', 'booster'];
   const CONFIDENCE = ['low', 'medium', 'high'];
   const BANDS = ['minimal', 'mild', 'moderate', 'moderately_severe', 'severe'];
@@ -186,6 +189,10 @@
   const isNum = x => typeof x === 'number' && Number.isFinite(x);
   const qz = (x, q) => (isNum(x) ? Math.round(x * q) : null);
   const dq = (x, q) => (x === null || x === undefined ? null : x / q);
+  const qv = (x, q) => { const n = qz(x, q); return n === null || n <= 0 || n > VITAL_MAX ? null : n; };
+  const dv = (x, q) => (Number.isInteger(x) && x > 0 && x <= VITAL_MAX ? x / q : null);
+  const qf = (x, q, max) => (isNum(x) && x >= 0 && x <= max ? Math.round(x * q) + 1 : 0);
+  const df = (b, q, max) => (b > 0 && (b - 1) / q <= max ? (b - 1) / q : null);
   const intOrNull = x => (isNum(x) ? Math.round(x) : null);
   const ix = (list, v) => { const i = list.indexOf(v); return i < 0 ? null : i; };
   const at = (list, i) => (i === null || i === undefined ? null : list[i] === undefined ? fail('body_enum') : list[i]);
@@ -253,6 +260,26 @@
     if (ini) body.set(2, ini);
     const om = OMIT.map(k => intOrNull(omitted[k]) ?? 0);
     if (om.some(Boolean)) body.set(17, om);
+    const vit = j.vitals;
+    if (vit && typeof vit === 'object') {
+      const rows = VITALS.map(([k, q]) => Array.from({ length: 8 }, (_, i) => qv(((vit.weekly || {})[k] || [])[i], q)));
+      const has = rows.map(r => r.some(x => x !== null));
+      body.set(18, !has.some(Boolean) ? [] : [
+        VITALS.reduce((m, [k], i) => m | (has[i] && (vit.simulated || {})[k] ? 1 << i : 0), 0),
+        VITALS.map(([k], i) => (has[i] ? Math.min(56, Math.max(0, intOrNull((vit.days || {})[k]) ?? 0)) : 0)),
+        ...rows,
+      ]);
+    }
+    const fc = j.face;
+    if (fc && typeof fc === 'object') {
+      const rows = FACE.map(([k, q, max]) => Uint8Array.from({ length: 8 }, (_, i) => qf(((fc.weekly || {})[k] || [])[i], q, max)));
+      const has = rows.map(r => r.some(Boolean));
+      body.set(19, !has.some(Boolean) ? [] : caps.face === 0 ? false : [
+        FACE.reduce((m, [k], i) => m | (has[i] && (fc.simulated || {})[k] ? 1 << i : 0), 0),
+        Uint8Array.from(FACE.map(([k], i) => (has[i] ? Math.min(56, Math.max(0, intOrNull((fc.days || {})[k]) ?? 0)) : 0))),
+        ...rows,
+      ]);
+    }
     return body;
   }
 
@@ -288,6 +315,32 @@
     };
     if (b.has(2)) out.ini = b.get(2);
     if (b.has(17)) out.omitted = omitNames(arr(b.get(17), 3));
+    if (b.has(18)) {
+      const v = arr(b.get(18)), none = v.length === 0;
+      if (!none && (v.length !== 2 + VITALS.length || !Number.isInteger(v[0]) || v[0] < 0)) fail('body_shape');
+      const days = none ? [] : arr(v[1], VITALS.length);
+      const rows = VITALS.map(([, q], i) => (none ? Array(8).fill(null) : arr(v[2 + i], 8).map(x => dv(x, q))));
+      const has = rows.map(r => r.some(x => x !== null));
+      out.vitals = {
+        weekly: Object.fromEntries(VITALS.map(([k], i) => [k, rows[i]])),
+        days: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && Number.isInteger(days[i]) ? Math.min(56, Math.max(0, days[i])) : 0])),
+        simulated: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && !!(v[0] & (1 << i))])),
+      };
+    }
+    if (b.get(19) === false) out.face = null;
+    else if (b.has(19)) {
+      const v = arr(b.get(19)), none = v.length === 0;
+      const bytes = (x, n) => (x instanceof Uint8Array && x.length === n ? x : fail('body_shape'));
+      if (!none && (v.length !== 2 + FACE.length || !Number.isInteger(v[0]) || v[0] < 0)) fail('body_shape');
+      const days = none ? [] : bytes(v[1], FACE.length);
+      const rows = FACE.map(([, q, max], i) => (none ? Array(8).fill(null) : [...bytes(v[2 + i], 8)].map(x => df(x, q, max))));
+      const has = rows.map(r => r.some(x => x !== null));
+      out.face = {
+        weekly: Object.fromEntries(FACE.map(([k], i) => [k, rows[i]])),
+        days: Object.fromEntries(FACE.map(([k], i) => [k, has[i] ? Math.min(56, days[i]) : 0])),
+        simulated: Object.fromEntries(FACE.map(([k], i) => [k, has[i] && !!(v[0] & (1 << i))])),
+      };
+    }
     if (out.safety.some(e => !e.tier)) fail('body_enum');
     return out;
   }
@@ -353,7 +406,7 @@
     return {
       text: whole ? text : null, parts, ecl, versions: parts.map(p => matrix(p, ecl).version),
       chars: text.length, shrink: level, fingerprint: fingerprint(key.public), iat, exp, cti: hex(cti),
-      omitted: o ? omitNames(o) : null, paper,
+      omitted: o ? omitNames(o) : null, faceLeftOut: body.get(19) === false, paper,
     };
   }
 
@@ -467,7 +520,7 @@
   const cachedBody = () => idbDo('afferent-qr', 'body', 'readonly', s => s.get('body')).then(x => x || null);
 
   const QR = {
-    PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, STATES, TIERS, SENSORS, FORBIDDEN,
+    PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, VITALS, FACE, STATES, TIERS, SENSORS, FORBIDDEN,
     encode, decode, pack, unpack, parse, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
     cbor: { encode: cborEncode, decode: cborDecode, Tag }, base45: { encode: b45encode, decode: b45decode },
     sign, isoDay, epochDay, cleanInitial,

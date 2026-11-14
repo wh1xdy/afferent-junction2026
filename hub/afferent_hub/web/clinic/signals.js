@@ -1,4 +1,5 @@
-// Signals section of the patient detail (Decisions I53, contracts/api.md section 3.5).
+// Signals section of the patient detail (Decisions I53, contracts/api.md section 3.5), and the weekly finger sensor
+// and face numbers of a code the patient handed over (weeklyRows, weeklyHtml, faceRows, faceHtml; imported view).
 // Pure functions on window.C: no DOM access, so hub/tests/clinic_signals.test.js runs them in a node vm.
 (() => {
   const C = (window.C = window.C || {});
@@ -12,6 +13,7 @@
     finger: 'finger sensor (PPG)',
     camera: 'phone camera (rPPG)',
     simulated: 'simulator',
+    face: 'phone camera (TrueDepth face tracking)',
   };
   const PRESENCE = { idle: 'no finger', probing: 'checking for a finger', active: 'measuring' };
   const LINK = {
@@ -22,6 +24,28 @@
   // The sensor keeps one running median of its last 10 minutes of RMSSD readings, whoever wore the clip
   // (uno-q/modulino-hub/app.py update_hrv). It is not a baseline kept per person, so it is not called one.
   const VS_NOTE = 'RMSSD against the sensor’s median of its last 10 minutes of readings; not kept per person';
+  const WEEKS = 8;
+  // The numbers of a patient code (demo/js/qrpayload.js VITALS, map key 18): key, label, unit, what the number is.
+  const WEEKLY = [
+    ['pulse_bpm', 'Pulse, finger sensor', 'bpm', 'session mean, clips on during play'],
+    ['breathing_per_min', 'Breathing rate', 'per min', 'from the pulse rhythm'],
+    ['rmssd_ms', 'HRV (RMSSD)', 'ms', '60 s windows'],
+  ];
+  const NOT_CARRIED = 'This code carries no finger sensor numbers. It was made before the app added them.';
+  const NO_WEEKS = 'No finger sensor reading in these 8 weeks.';
+  const WEEKLY_FOOT = 'Handed over by the patient in this code: weekly medians with their source. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.';
+  // The face numbers of a patient code (demo/js/qrpayload.js FACE, map key 19). Each is named by what the face did,
+  // never by a feeling. A share is 0 to 1 and shown in percent; 0 is a value, a week without a reading is null.
+  const FACE_WEEKLY = [
+    ['smile_share', 'Smiling', '% of the time', 'share of the seconds with the face in view'],
+    ['blinks_per_min', 'Blinks', 'per min', 'per minute with the face in view'],
+    ['gaze_away_share', 'Looking away', '% of the time', 'gaze more than 25° off the screen'],
+  ];
+  const SHARES = new Set(['smile_share', 'gaze_away_share']);
+  const FACE_NOT_CARRIED = 'This code carries no face numbers. It was made before the app added them.';
+  const FACE_LEFT_OUT = 'This code was full, so the face numbers were left out. Everything else is in it.';
+  const FACE_NO_WEEKS = 'No face reading in these 8 weeks.';
+  const FACE_FOOT = 'Handed over by the patient in this code: weekly medians from the phone camera, named by what the face did. Camera images and face meshes never leave the phone. Support for monitoring and follow-up, not a diagnosis. Not part of the index.';
 
   const esc = (s) => C.esc(s);
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -156,5 +180,61 @@
     return out.join('');
   }
 
-  C.signals = { liveRows, sessionRows, html, STALE_S };
+  // One row per number of a handed-over code. `ok(x, key)` says which stored numbers are values; anything else, and a
+  // week without a reading, is null, never 0. `week` is the newest week that has a value.
+  function codeRows(spec, block, ok, fmt, source) {
+    if (!block || typeof block !== 'object') return [];
+    return spec.map(([key, label, unit, note]) => {
+      const raw = block.weekly && block.weekly[key];
+      const weeks = Array.from({ length: WEEKS }, (_, i) => (Array.isArray(raw) && isNum(raw[i]) && ok(raw[i], key) ? raw[i] : null));
+      let week = WEEKS - 1;
+      while (week >= 0 && weeks[week] === null) week--;
+      const missing = week < 0;
+      const simulated = !missing && !!block.simulated && block.simulated[key] === true;
+      const days = !missing && block.days && isNum(block.days[key]) && block.days[key] > 0 ? block.days[key] : null;
+      return { key, label, unit, note, weeks, week: missing ? null : week, value: missing ? NO_READING : fmt(weeks[week], key), missing, days, simulated,
+        source: simulated ? SOURCE.simulated : source, fmt: (x) => fmt(x, key) };
+    });
+  }
+
+  // `weekLabel(i)` names week i by its first day; the page draws the charts into #<prefix><key>.
+  function codeHtml(rows, weekLabel, prefix, foot) {
+    const cells = rows.map((r) => {
+      const meta = r.missing ? [] : [r.source, `week from ${weekLabel(r.week)}`, r.days ? `${r.days} ${r.days === 1 ? 'day' : 'days'} with a reading` : '', r.note];
+      return `<div class="mm sig-mm${r.missing ? ' none' : ''}" data-key="${esc(r.key)}">
+        <div class="mm-h"><span>${esc(r.label)}</span><span class="mm-v num">${esc(r.value)}${r.missing ? '' : `<small> ${esc(r.unit)}</small>`}</span></div>
+        <div class="sig-s">${meta.filter(Boolean).map(esc).join(' · ')}${badge(r.simulated)}</div>
+        ${r.missing ? '' : `<div class="chart-wrap" id="${prefix}${esc(r.key)}"></div>`}</div>`;
+    }).join('');
+    return `<div class="mms">${cells}</div><p class="sig-foot">${esc(foot)}</p>`;
+  }
+  const empty = (text) => `<p class="sig-empty muted">${esc(text)}</p>`;
+
+  // `vitals` is the block of a decoded code, or nothing for a code made before the block existed.
+  function weeklyRows(vitals) {
+    return codeRows(WEEKLY, vitals, (x) => x > 0, (x) => x.toFixed(1), SOURCE.finger);
+  }
+
+  function weeklyHtml(vitals, weekLabel = () => '') {
+    const rows = weeklyRows(vitals);
+    if (!rows.length) return empty(NOT_CARRIED);
+    if (rows.every((r) => r.missing)) return empty(NO_WEEKS);
+    return codeHtml(rows, weekLabel, 'sig-', WEEKLY_FOOT);
+  }
+
+  // `face` is the block of a decoded code; null when the encoder left it out because the code was full.
+  function faceRows(face) {
+    return codeRows(FACE_WEEKLY, face, (x, k) => x >= 0 && (!SHARES.has(k) || x <= 1),
+      (x, k) => String(Math.round(SHARES.has(k) ? x * 100 : x)), SOURCE.face);
+  }
+
+  function faceHtml(face, weekLabel = () => '') {
+    if (face === null) return empty(FACE_LEFT_OUT);
+    const rows = faceRows(face);
+    if (!rows.length) return empty(FACE_NOT_CARRIED);
+    if (rows.every((r) => r.missing)) return empty(FACE_NO_WEEKS);
+    return codeHtml(rows, weekLabel, 'face-', FACE_FOOT);
+  }
+
+  C.signals = { liveRows, sessionRows, html, weeklyRows, weeklyHtml, faceRows, faceHtml, STALE_S };
 })();

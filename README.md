@@ -212,6 +212,18 @@ Rules: a reading counts for 3 s, quality is never invented, real and simulated a
 
 Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
 
+### Sensor and face numbers in the handover code
+
+The code ("Show to my doctor", `demo/js/qrpayload.js`) is built on the patient's own hub (`hub/afferent_hub/qr.py`, `GET /api/patients/{pid}/qr-body`) from the stored session documents; the phone signs it and shows or prints it. For its 8 weeks it carries weekly medians: per day the last played session with a usable value, per week the median, as for the other measures.
+
+- Finger clips (`vitals_block`, map key 18): pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms). The recorder (`demo/js/record.js`) keeps a finger reading only when its reported quality is 0.3 or more; a weaker stretch is a gap. A session counts only when its finger block reports quality, that quality never fell below 0.3, and it has at least 10 s of readings. The pulse is the session mean of the fused finger pulse during play. It is not `morning_pulse`, the bedside morning reading of `daily.v1`.
+- Face (`face_block`, map key 19), from the `vitals.face` block of a session: smiling (share of the time), blinks per minute and looking away (share of the time). Each is named by what the face did. A session counts when it has at least 30 tracked seconds. The hub also computes brief facial movements per minute and the breathing rate from the camera; they are not in the code, because at the largest values it has room for three face numbers (see size).
+- A week without a usable reading has no value: null, never 0 (a share of 0 is a value). Simulated sessions are used only when there is no measured one, and the number is then marked simulated.
+- Camera frames, images, face meshes and raw blendshape streams never leave the phone. Face numbers reach the hub only inside the session document at the end of a session, never in a live message, and they reach the clinic through this code. Not closed yet: the clinic page's patient detail reads the stored sessions from the hub, and `compact_session` in `hub/afferent_hub/views.py` passes the whole `vitals` block through, so `vitals.face` has to be dropped there once phones send it.
+- The version stays 1. A code made before keys 18 and 19 still decodes; the clinic says it carries no finger sensor or face numbers. A code made after decodes in an older reader, which ignores both keys. New numbers go into new keys, never into `FEATURES`, whose fixed lengths older readers check.
+- Size: the worst case (every list at its cap, every number at its largest) is one code of about 1110 of 1134 characters, version 22, with no shrinking; the finger numbers take about 130 characters and the face numbers about 50. A code that is over the cap anyway leaves the face numbers out first and says so, then cuts talk requests and PHQ totals as before; safety answers are never dropped. `node demo/tests/qrpayload.test.js` prints the numbers.
+- The sheet on the phone says which numbers the code holds; the printed page lists them under the code.
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)
