@@ -43,7 +43,7 @@
   // a fast drag over many cells or a run of taps stays a texture, never a buzz.
   const GAP = { tap: 0.05, tick: 0.055, impact: 0.08, reward: 0.2, rhythm: 0.1, heart: 0.25 };
   const BURST = 8, BURST_S = 0.5, KEY = 'afferent.haptics';
-  // The heart's strength at k = 1 (AfferentHaptics.beat: lub 0.55, dub 0.32 of it): a session's Soft beat.
+  // The heart's strength at k = 1 (AfferentHaptics.beat: lub 0.9, dub 0.6 of it): a session's Soft beat.
   const HEART = 0.6;
   const q = x => Math.round(x * 20) / 20;
   const rm = () => !!A.config?.reducedMotion;

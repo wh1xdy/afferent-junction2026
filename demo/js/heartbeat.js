@@ -19,9 +19,9 @@
   const MIN_QUALITY = 0.3, GUIDE = 6, LOST_S = 3, START_N = 5, GREET_S = 5, SWELL_S = 2.6, OTHER_HAP_S = 0.3;
   // "Heartbeat touch" in Settings (A.config.heartLevel, main.js): the strength of AfferentHaptics.beat on the start screen
   // and in a session, each level one step of 0.2 above the last, the start screen one step below a session. Strong is the
-  // plugin's full beat (lub 0.55, dub 0.32): clearly felt, still one low soft thud and a quieter one, never a buzz.
+  // plugin's full beat (lub 0.9, dub 0.6): clearly felt, still one low soft thud and a quieter one, never a buzz.
   // The router makes each a quarter softer at night. Above FAST_BPM only every other beat is felt.
-  const LEVELS = { off: null, soft: { home: 0.4, session: 0.6 }, medium: { home: 0.6, session: 0.8 }, strong: { home: 0.8, session: 1 } };
+  const LEVELS = { off: null, soft: { home: 0.55, session: 0.75 }, medium: { home: 0.75, session: 0.9 }, strong: { home: 0.95, session: 1 } };
   const FAST_BPM = 140;
   const level = () => LEVELS[A.config?.heartLevel] === undefined ? LEVELS.soft : LEVELS[A.config.heartLevel];
   const RATE_TAU = 8, RMSSD_TAU = 8, PULSE_TAU = 6, GLOW_TAU = 2.5, HRV_SPAN = 0.3, SETTLE_SPAN = 6, BREATHE_S = 10;
