@@ -30,6 +30,10 @@
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
+    { title: 'Before a session', rows: [
+      { icon: 'back_hand', label: 'Check the finger clips', sup: 'Not checked yet', supId: 'clipState', attrs: 'id="clipCheckRow"', chevron: true },
+      { icon: 'checklist', label: 'Ask before each session', sup: 'Only when the clips give no pulse yet', sw: 'id="clipAskSw"' },
+    ] },
     { title: 'Together', rows: [
       { icon: 'favorite', label: 'Heart Duel', sup: 'Two people, one clip each. A game outside your sessions, nothing is saved', attrs: 'data-duel', chevron: true },
     ] },
@@ -133,7 +137,10 @@
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
     const hint = () => { const l = $('beginLabel'); l.classList.remove('nudge'); void l.offsetWidth; l.classList.add('nudge'); };
-    A.bus.on('home', () => { cancelAnimationFrame(raf); lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); });
+    const unlit = () => { cancelAnimationFrame(raf); lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); };
+    A.bus.on('home', unlit);
+    // the clip check (clipcheck.js) was closed without beginning
+    A.bus.on('unkindle', unlit);
   };
 
   const MOODS = [['#34476E', 0.35], ['#5A7CA6', 0.5], ['#A9A79A', 0.65], ['#E8B867', 0.82], ['#FFCB5C', 1]];
