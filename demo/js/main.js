@@ -21,7 +21,7 @@
     sharing: saved.sharing || 'summary',
     simulator: saved.simulator ?? true,
     quietNight: saved.quietNight ?? true,
-    weeklyCheckin: saved.weeklyCheckin ?? true,
+    checkin: saved.checkin ?? true,
   };
   const S = A.Sensors;
   const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
@@ -116,10 +116,10 @@
     $('decline').textContent = night() ? 'Not tonight' : 'Not today';
     $('crisisLead').textContent = `If ${night() ? 'tonight' : 'today'} is heavy, you do not have to carry it alone.`;
     $('end').classList.toggle('night', night());
-    weeklyPill();
+    A.Checkin.refresh();
   };
 
-  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings', 'weekly'];
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings'];
   const show = (id, on) => {
     $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
     if (CARDS.includes(id)) {
@@ -128,56 +128,20 @@
     }
   };
   const crisis = source => {
-    $('selfHarmNote').classList.toggle('hidden', source !== 'weekly_checkin');
     show('crisis', true);
     A.bus.emit('ws', { type: 'crisis', patient_id: A.config.patientId, ...(A.session?.rec?.session_id ? { session_id: A.session.rec.session_id } : {}), source, t_iso: A.Record.isoLocal(new Date()) });
     log('crisis card opened (' + source + ')');
   };
-  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : b.dataset.open === 'weekly' ? openWeekly() : show(b.dataset.open, true));
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => show(b.dataset.close, false));
   A.bus.on('crisisOffer', () => { show('offer', true); log('talk offer shown (lowest lantern twice)'); });
   $('offerYes').onclick = () => { show('offer', false); crisis('mood'); };
   $('offerNo').onclick = () => { show('offer', false); log('talk offer declined'); };
 
-  const weeklyKey = 'afferent.weekly.' + A.config.patientId;
-  const WEEKLY_ITEMS = [['interest', 'Little interest or pleasure in doing things'], ['down', 'Feeling down, depressed or hopeless'], ['self_harm', 'Thoughts that you would be better off dead, or of hurting yourself']];
-  const WEEKLY_OPTS = ['Not at all', 'Several days', 'More than half the days', 'Nearly every day'];
-  let weeklyAnswers = {};
-  const weeklyDue = () => {
-    if (!A.config.weeklyCheckin || night()) return false;
-    if (q.get('weekly') === '1') return true;
-    const w = store.get(weeklyKey);
-    return !w || Date.now() - (w.done || 0) > 7 * 864e5 && Date.now() > (w.snooze || 0);
-  };
-  const weeklyPill = () => show('weeklyBtn', weeklyDue() && !A.session);
-  WEEKLY_ITEMS.forEach(([key, text]) => {
-    const f = document.createElement('fieldset');
-    f.className = 'item';
-    f.innerHTML = `<legend>${text}</legend><div class="opts" role="radiogroup">${WEEKLY_OPTS.map((o, i) => `<button type="button" role="radio" aria-checked="false" data-v="${i}">${o}</button>`).join('')}</div>`;
-    f.querySelectorAll('button').forEach(b => b.onclick = () => {
-      weeklyAnswers[key] = Number(b.dataset.v);
-      f.querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', String(x === b)));
-      $('weeklyDone').disabled = Object.keys(weeklyAnswers).length < WEEKLY_ITEMS.length;
-    });
-    $('weeklyItems').append(f);
-  });
-  const openWeekly = () => {
-    weeklyAnswers = {};
-    document.querySelectorAll('#weeklyItems button').forEach(b => b.setAttribute('aria-checked', 'false'));
-    $('weeklyDone').disabled = true;
-    show('weekly', true);
-  };
-  $('weeklyLater').onclick = () => { store.set(weeklyKey, { ...store.get(weeklyKey), snooze: Date.now() + 864e5 }); show('weekly', false); weeklyPill(); };
-  $('weeklyDone').onclick = () => {
-    const a = { ...weeklyAnswers };
-    store.set(weeklyKey, { done: Date.now() });
-    A.bus.emit('ws', { type: 'weekly_checkin', patient_id: A.config.patientId, answers: a, phq2: a.interest + a.down, self_harm: a.self_harm, t_iso: A.Record.isoLocal(new Date()) });
-    log(`weekly check-in sent (two items ${a.interest + a.down} of 6, third item ${a.self_harm})`);
-    show('weekly', false); weeklyPill();
-    if (a.self_harm > 0) crisis('weekly_checkin');
-  };
+  A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
+  A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, weeklyCheckin: A.config.weeklyCheckin, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -190,7 +154,7 @@
     $('motionSw').checked = A.config.reducedMotion;
     $('soundSw').checked = ui.sound;
     $('quietSw').checked = A.config.quietNight;
-    $('weeklySw').checked = A.config.weeklyCheckin;
+    $('checkinSw').checked = A.config.checkin;
     camGlyph();
   };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
@@ -209,7 +173,7 @@
   $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; saveSettings(); };
   $('soundSw').onchange = e => setSound(e.target.checked);
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; setDawn(A.config.dawnLevel); saveSettings(); };
-  $('weeklySw').onchange = e => { A.config.weeklyCheckin = e.target.checked; saveSettings(); weeklyPill(); };
+  $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
@@ -243,7 +207,7 @@
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();
-    show('start', false); show('end', false); show('closeBtn', true); show('weeklyBtn', false);
+    show('start', false); show('end', false); show('closeBtn', true); show('checkinBtn', false);
     resetEnd();
     $('json').textContent = '';
     timeline = [];
@@ -281,7 +245,7 @@
     fadeCurtain(1, 1.2, () => {
       A.session = null;
       idle = A.makeVisual(ui.profile); idle.black = 0;
-      resetEnd(); camGlyph(); weeklyPill();
+      resetEnd(); camGlyph(); A.Checkin.refresh();
       show('start', true);
       fadeCurtain(0, 1.8, () => { leaving = false; });
     });

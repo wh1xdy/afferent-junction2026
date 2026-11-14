@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/game-ui.css">
   <link rel="stylesheet" href="css/flow-ui.css">
+  <link rel="stylesheet" href="css/checkin.css">
   <link rel="stylesheet" href="css/streak.css">
 </head>
 <body>
@@ -49,7 +50,7 @@
             <svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>
           </button>
         </div>
-        <button id="weeklyBtn" class="weekly hidden" data-open="weekly">Weekly check-in</button>
+        <button id="checkinBtn" class="checkin-pill hidden" type="button">Check-in</button>
         <div class="choices">
           <button id="begin" class="primary">Begin</button>
           <button id="decline" class="primary">Not tonight</button>
@@ -80,11 +81,11 @@
 
       <div id="crisis" class="card hidden">
         <p id="crisisLead" class="lead">If today is heavy, you do not have to carry it alone.</p>
-        <p id="selfHarmNote" class="note hidden">Your clinic will see this on the next working day. If you need someone now, call 112 or MIELI.</p>
-        <a class="primary contact" href="tel:0900000000"><span>Your clinic</span><small>09 000 0000 (demo placeholder)</small></a>
         <a class="primary contact" href="tel:112"><span>Emergency</span><small>112</small></a>
-        <a class="primary contact" href="tel:0925250111"><span>MIELI Crisis Helpline (24 h)</span><small>09 2525 0111</small></a>
-        <p class="small">Afferent is not an emergency service and is not watched around the clock. Your clinic sees a note on the next working day.</p>
+        <a class="primary contact" href="tel:0925250111"><span>MIELI Crisis Helpline, in Finnish, 24 h</span><small>09 2525 0111</small></a>
+        <a class="primary contact" href="tel:116117"><span>Medical Helpline, 24 h</span><small>116117</small></a>
+        <a class="primary contact" href="tel:0900000000"><span>Your clinic, office hours</span><small>09 000 0000 (demo placeholder)</small></a>
+        <p class="small">Afferent is not an emergency service and is not watched around the clock.</p>
         <button class="primary quiet" data-close="crisis">Close</button>
       </div>
 
@@ -98,6 +99,7 @@
           <dt>Breathing</dt><dd>hold while the circle grows, let go while it shrinks (Space works too)</dd>
           <dt>Adaptive</dt><dd>high pulse brings calm tasks, low pulse brings lively ones; eyes that keep closing bring a gentle wake-up in the morning and rest at night</dd>
         </dl>
+        <button id="anchorBtn" class="primary quiet" type="button">The lanterns</button>
         <button class="primary quiet" data-close="info">Close</button>
       </div>
 
@@ -120,7 +122,7 @@
         <div class="toggles">
           <label class="toggle sep"><span>Sound</span><input type="checkbox" id="soundSw"><i></i></label>
           <label class="toggle"><span>Quiet night (light at most 25%)</span><input type="checkbox" id="quietSw"><i></i></label>
-          <label class="toggle"><span>Weekly check-in</span><input type="checkbox" id="weeklySw"><i></i></label>
+          <label class="toggle"><span>Check-in</span><input type="checkbox" id="checkinSw"><i></i></label>
           <label class="toggle"><span>Reduced motion</span><input type="checkbox" id="motionSw"><i></i></label>
         </div>
         <p class="small">Only numbers leave the phone, never camera images.</p>
@@ -131,13 +133,6 @@
           <p id="hubState" class="small">Hub: offline</p>
         </details>
         <button class="primary quiet" data-close="settings">Close</button>
-      </div>
-
-      <div id="weekly" class="card hidden" role="dialog" aria-labelledby="weeklyLead">
-        <p id="weeklyLead" class="lead">Weekly check-in</p>
-        <p class="small">Over the last week, how often have you been bothered by:</p>
-        <div id="weeklyItems" class="items"></div>
-        <div class="weekly-btns"><button id="weeklyLater" class="primary quiet" type="button">Later</button><button id="weeklyDone" class="primary" type="button" disabled>Done</button></div>
       </div>
     </section>
 
@@ -194,6 +189,7 @@
   <script src="js/record.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/perf.js"></script>
+  <script src="js/checkin.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>
