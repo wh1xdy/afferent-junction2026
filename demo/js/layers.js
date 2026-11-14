@@ -16,7 +16,19 @@
     return reach >= H - 0.5;
   };
 
-  const api = { DEPTH, MID_H, layout, covered };
+  const ART = {
+    far_mountains: { anchor: 'horizon', density: 2.03, base: 1, dy: 3 },
+    far_islands: { anchor: 'horizon', density: 2.79, base: 1, dy: 6.75 },
+    mid_hills_spruce: { anchor: 'mid', density: 1.97, base: 1, dy: 8, fill: true },
+    ground_forest: { anchor: 'ground', base: 0.36 },
+    ground_shore: { anchor: 'ground', base: 0.16 },
+    ground_sauna: { anchor: 'ground', base: 0.06 },
+    ground_harbour: { anchor: 'ground', base: 0.03 },
+    ground_lake: { anchor: 'ground', base: 0.03 },
+  };
+  const spec = (name, meta = {}) => ({ density: null, base: 1, dy: 0, tile: false, fill: false, ...ART[name], ...meta });
+
+  const api = { DEPTH, MID_H, ART, spec, layout, covered };
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root && root.A) root.A.Layers = api;
 })(typeof window !== 'undefined' ? window : globalThis);

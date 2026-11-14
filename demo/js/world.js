@@ -124,7 +124,7 @@
   const MQ = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let sized = { W: 0, H: 0 }, vign = null, darkC = null, darkX = null, grainPat = null, borderC = null, auroraC = null, auroraX = null;
   const n0 = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
-  const { layout, MID_H } = A.Layers;
+  const { layout } = A.Layers;
 
   function newState() {
     const N = 120;
@@ -193,11 +193,14 @@
   const ART_V3 = new URLSearchParams(location.search).get('art') === 'v3';
   const ART = { ...A.Art, has: n => A.Art.has(n) && (ART_V3 || n === 'sky_aurora' || A.Art.has('figure_ride')) };
   const art = (n, x, y, w, h, g, a = 1, lt = 1) => ART.draw(ctxRef, n, x, y, w, h, satOf(g), Math.min(1, lightOf(g) * lt), a);
-  function strip(n, f, bottom, h, g, a = 1, lt = 1, gap = 0.985) {
-    if (!ART.has(n)) return false;
-    const w = h * ART.aspect(n), span = w * gap, o = off(f);
-    for (let x = -(((o % span) + span) % span); x < W; x += span) art(n, x, bottom - h, w, h, g, a, lt);
-    return true;
+  const specOf = n => A.Layers.spec(n, A.Art.meta?.(n));
+  function strip(n, f, anchor, g, a = 1, lt = 1) {
+    if (!ART.has(n)) return null;
+    const sp = specOf(n), sz = A.Art.size(n), h = sz.h / sp.density * u, w = h * sz.w / sz.h, span = w * (sp.tile ? 1 : 0.985), o = off(f);
+    const top = anchor + sp.dy * u - sp.base * h;
+    for (let x = -(((o % span) + span) % span); x < W; x += span) art(n, x, top, w + (sp.tile ? 0.75 : 0), h, g, a, lt);
+    if (sp.fill && top + h < H) { const c = stripBase(n, g, lt); if (c) { ctxRef.fillStyle = rgb(c); ctxRef.fillRect(0, top + h - 2 * u, W, H - top - h + 2 * u); } }
+    return { top, bottom: top + h };
   }
   const at = (wx, f = 1) => fx + (wx - S.worldX) * f;
   const bases = new Map();
@@ -488,7 +491,7 @@
   }
 
   function mountains(ctx) {
-    if (strip('far_mountains', LAYER.far, hy + 3 * u, H * 0.085, 'blue', 0.62, 0.72)) return;
+    if (strip('far_mountains', LAYER.far, hy, 'blue', 0.62, 0.72)) return;
     const FELLS = [[H * 0.1, LAYER.far, 3, P.silver100, P.silver300, 0.62], [H * 0.07, LAYER.far * 1.6, 8, P.silver300, P.mountain, 0.42], [H * 0.04, LAYER.far * 2.3, 13, P.mountain, P.mountain2, 0.26]];
     const rim = I.night ? 0 : 0.8 * st.sun;
     FELLS.forEach(([amp, f, seed, c0, c1, hz], i) => {
@@ -522,7 +525,7 @@
   }
 
   function islands(ctx) {
-    if (strip('far_islands', LAYER.islands, hy + H * 0.008, H * 0.05, 'blue', 0.92, 0.9)) { lighthouse(ctx); return; }
+    if (strip('far_islands', LAYER.islands, hy, 'blue', 0.92, 0.9)) { lighthouse(ctx); return; }
     const o = off(LAYER.islands), span = 3120 * u, fill = col(P.spruce, 'green', 1, 0.45), humps = [];
     ctx.fillStyle = fill; ctx.beginPath();
     for (const is of ISLANDS) {
@@ -649,11 +652,7 @@
   }
 
   function midHills(ctx) {
-    if (strip('mid_hills_spruce', LAYER.mid, my + 8 * u, H * MID_H, 'green', 1, 0.82)) {
-      const c = stripBase('mid_hills_spruce', 'green', 0.82);
-      if (c) { ctx.fillStyle = rgb(c); ctx.fillRect(0, my + 6 * u, W, H - my); }
-      return;
-    }
+    if (strip('mid_hills_spruce', LAYER.mid, my, 'green', 1, 0.82)) return;
     const c1 = col(mixc(P.snow, P.frost, 0.4), 'blue', 1, 0.22), c2 = col(mixc(P.dusk, P.kaamos, 0.4), 'blue', 1, 0.3), tc = col(mixc(P.spruce, P.night800, 0.35), 'green', 1, 0.28);
     const base = my - H * 0.12, f = LAYER.mid, o = off(f), sc = 1 / u, step = 6 * u;
     const yAt = x => { const q = (x + o) * sc; return base - H * 0.05 * (0.25 + 0.75 * noise(q * 0.006 + 41)) - H * 0.02 * noise(q * 0.02 + 7); };
@@ -718,7 +717,8 @@
   }
 
   const chunks = () => (Array.isArray(S.chunks) && S.chunks.length ? S.chunks : [{ type: 'harbour', x0: -700, x1: 420, seed: 1 }]);
-  const visible = () => chunks().filter(c => sx(c.x1) > -160 && sx(c.x0) < W + 160);
+  const visible = (m = 160) => chunks().filter(c => sx(c.x1) > -m && sx(c.x0) < W + m);
+  const every = (c, k, at = 0) => ((c.n || 0) % k) === at;
   const GROUND = {
     harbour: [() => mixc(P.seaDeep, P.sea, 0.35), 'blue'], forest: [() => mixc(P.snow, P.moss, 0.12), 'green'],
     lake: [() => mixc(P.ice, P.silver200, 0.35), 'blue'], sauna: [() => mixc(P.snow, P.bark, 0.5), 'yellow'], shore: [() => mixc(P.snow, P.peach, 0.45 * st.ds.dawn), 'base'],
@@ -728,42 +728,58 @@
   const gyAt = wx => gy - terr(wx) + 3 * u * noise(wx * 0.012) - 2 * u;
   const terrAt = x => terr(S.worldX + x - fx);
 
-  const GTOP = { forest: 0.36, shore: 0.16, sauna: 0.06, harbour: 0.03, lake: 0.03 }, GF = 60, PW = 560;
-  function groundArt(ctx, c) {
-    const n = 'ground_' + c.type;
-    if (!ART.has(n)) return false;
-    const dpr = Math.min(1.5, Math.abs(ctx.getTransform().a) || 1), top = GTOP[c.type] || 0;
-    const gh = (H - gy + 8 * u) / (1 - top), f = GF, key = `g:${c.type}:${Math.round(gh)}:${dpr}`;
+  const GF = 60, PW = 560;
+  function groundBake(ctx, type) {
+    const n = 'ground_' + type;
+    if (!ART.has(n)) return null;
+    const dpr = Math.min(1.5, (ctx.canvas?.width || W) / W || 1), sp = specOf(n), top = sp.base, sz = A.Art.size(n);
+    const gh = sp.density ? sz.h / sp.density * u : (H * 0.18 + 8 * u) / (1 - top), key = `g:${type}:${Math.round(gh)}:${dpr.toFixed(2)}`;
     if (!ART.has(key)) {
-      ART.drop(`g:${c.type}:`);
+      ART.drop(`g:${type}:`);
       const cw = (PW + 2 * GF) * dpr, th = gh * dpr;
       ART.bake(key, n, cw, th, (x, src, w, h) => {
         const tw = th * w / h;
-        for (let xx = -tw * 0.13; xx < cw; xx += tw * 0.985) x.drawImage(src, xx, 0, tw, th);
+        for (let xx = -tw * 0.13; xx < cw; xx += tw * (sp.tile ? 1 : 0.985)) x.drawImage(src, xx, 0, tw, th);
         ART.feather(x, cw, th, GF / (PW + 2 * GF));
       });
     }
-    const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, y = gy - 3 * u - gh * top;
+    return { key, gh, y: gy - 3 * u - gh * top, g: groundAt(type)[1] };
+  }
+
+  function groundArt(ctx, c) {
+    const cur = groundBake(ctx, c.type);
+    if (!cur) return false;
+    const from = c.from ? groundBake(ctx, c.from) : null;
+    const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, f = GF;
     const bent = typeof S.terrain === 'function', SW = 16 * u;
     for (let i = 0; i < k; i++) {
-      const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f;
+      const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f, flip = (c.seed + i) % 2;
       if (x > W || x + w < 0) continue;
-      const piece = () => {
-        if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8); ctx.restore(); }
-        else art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8);
+      const piece = (L, a, s0 = x, s1 = x + w) => {
+        if (a <= 0.003) return;
+        const u0 = clamp((flip ? x + w - s1 : s0 - x) / w, 0, 1), u1 = clamp((flip ? x + w - s0 : s1 - x) / w, 0, 1);
+        if (flip) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); }
+        ART.slice(ctx, L.key, u0, u1, x, L.y, w, L.gh, satOf(L.g), Math.min(1, lightOf(L.g) * 0.8), a);
+        if (flip) ctx.restore();
       };
-      if (!bent) { piece(); continue; }
-      const a0 = Math.max(x, -SW), a1 = Math.min(x + w, W + SW);
-      for (let x0 = Math.floor(a0 / SW) * SW; x0 < a1; x0 += SW) {
-        const d0 = -terr(S.worldX + x0 - fx), d1 = -terr(S.worldX + x0 + SW - fx), kk = (d1 - d0) / SW;
-        ctx.save(); ctx.beginPath(); ctx.rect(x0, -H, SW + 0.75, 3 * H); ctx.clip();
-        ctx.transform(1, kk, 0, 1, 0, d0 - kk * x0);
-        piece();
+      if (!bent && !from) { piece(cur, 1); continue; }
+      const m = ctx.getTransform(), ma = m.a || 1, D = Math.max(4, Math.round(SW * ma)), toX = dv => (dv - m.e) / ma;
+      const v0 = Math.floor((Math.max(x, -SW) * ma + m.e) / D) * D, v1 = Math.min(x + w, W + SW) * ma + m.e;
+      for (let dv = v0; dv < v1; dv += D) {
+        const x0 = toX(dv), x1 = toX(dv + D);
+        const d0 = bent ? -terr(S.worldX + x0 - fx) : 0, d1 = bent ? -terr(S.worldX + x1 - fx) : 0, kk = (d1 - d0) / (x1 - x0);
+        const q = from ? ease(clamp((S.worldX + (x0 + x1) / 2 - fx - c.x0) / (c.x1 - c.x0), 0, 1)) : 1;
+        const s0 = Math.max(x0, x), s1 = Math.min(x1, x + w);
+        if (s1 <= s0) continue;
+        ctx.save(); ctx.transform(1, kk, 0, 1, 0, d0 - kk * x0);
+        if (from) piece(from, 1, s0, s1);
+        piece(cur, q, s0, s1);
         ctx.restore();
       }
     }
     return true;
   }
+
 
   function ground(ctx) {
     const vs = visible(), step = 8 * u, cs = chunks();
@@ -776,8 +792,9 @@
       if (k < 0) k = wx < cs[0].x0 ? 0 : cs.length - 1;
       const c = cs[k], blend = 70;
       let cc = cOf(c);
-      if (wx - c.x0 < blend && k > 0) cc = mixc(cOf(cs[k - 1]), cc, 0.5 + 0.5 * (wx - c.x0) / blend);
-      else if (c.x1 - wx < blend && k < cs.length - 1) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
+      if (c.from) cc = mixc(cOf({ type: c.from }), cc, ease((wx - c.x0) / (c.x1 - c.x0)));
+      else if (wx - c.x0 < blend && k > 0) cc = mixc(cOf(cs[k - 1]), cc, 0.5 + 0.5 * (wx - c.x0) / blend);
+      else if (c.x1 - wx < blend && k < cs.length - 1 && !cs[k + 1].from) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
       g.addColorStop(i / 16, rgb(cc));
     }
     ctx.beginPath(); ctx.moveTo(-step, H + 2);
@@ -894,24 +911,24 @@
   }
   function backProps(c) {
     const m = (c.x0 + c.x1) / 2, cw = c.x1 - c.x0;
-    if (c.type === 'harbour') prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
-    if (c.type === 'shore' && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
+    if (c.type === 'harbour' && every(c, 3)) prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
+    if (c.type === 'shore' && every(c, 4) && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
       const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = my + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
       glow(ctxRef, lx, ly, lh * 0.12, P.flame, 0.6 * on); glow(ctxRef, lx, ly, lh * 0.035, P.daylight, 0.8 * on);
     }
-    if (c.type === 'sauna') prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
-    if (c.type === 'forest' && ART.has('mid_birch_grove')) prop('mid_birch_grove', m, 0.9, 300 * u, 'yellow', 0.82, 0.05);
+    if (c.type === 'sauna' && every(c, 2)) prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
+    if (c.type === 'forest' && every(c, 3) && ART.has('mid_birch_grove')) prop('mid_birch_grove', m, 0.9, 300 * u, 'yellow', 0.82, 0.05);
   }
 
   function props(ctx, back) {
-    for (const c of visible()) {
+    for (const c of visible(W)) {
       if (c.type === 'forest') {
         if (!ART.has('mid_birch_grove')) birches(ctx, c, back);
-        else if (!back) prop('birch_cluster', c.x0 + 70, 1, H * 0.31, 'yellow', 0.95, 0.05);
+        else if (!back && every(c, 2, 1)) prop('birch_cluster', c.x0 + 70, 1, H * 0.31, 'yellow', 0.95, 0.05);
       }
       if (back) { if (c.type === 'lake') lakeShore(ctx, c); backProps(c); continue; }
-      if (c.type === 'harbour') pier(ctx, c);
-      if (c.type === 'sauna') hut(ctx, c);
+      if (c.type === 'harbour' && every(c, 3)) pier(ctx, c);
+      if (c.type === 'sauna' && every(c, 4)) hut(ctx, c);
       if (c.type === 'shore') shore(ctx, c);
     }
   }
@@ -1189,8 +1206,9 @@
     const gyL = gyAt(S.worldX), airK = clamp(1 - (gyL - y) / (180 * u), 0, 1);
     sprite(ctx, 'soft', warm, x - pr, gyL - pr * 0.17, 2 * pr, pr * 0.44, 0.42 * br * fl * airK, true);
     if (f > 0.01) glow(ctx, x, y, H * 0.2, mixc(P.glow, P.amber, 0.3), 0.34 * f, 'soft');
-    const under = chunkAtX(S.worldX)?.type;
-    if (under === 'harbour' || under === 'lake') sprite(ctx, 'soft', P.glow, x - R * 0.25, gyL, R * 0.5, R * 1.6, 0.25 * br * fl * airK, true);
+    const ch = chunkAtX(S.worldX), wet = t => (t === 'harbour' || t === 'lake' ? 1 : 0);
+    const wk = !ch ? 0 : ch.from ? lerp(wet(ch.from), wet(ch.type), ease((S.worldX - ch.x0) / (ch.x1 - ch.x0))) : wet(ch.type);
+    if (wk > 0.01) sprite(ctx, 'soft', P.glow, x - R * 0.25, gyL, R * 0.5, R * 1.6, 0.25 * br * fl * airK * wk, true);
   }
   const chunkAtX = wx => chunks().find(c => wx >= c.x0 && wx < c.x1);
 
