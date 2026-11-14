@@ -22,6 +22,38 @@ def test_off_by_default():
     assert DataSink.from_config(Config(data_manager_url="off"), lambda: "x") is None
 
 
+def test_a_video_file_is_never_pushed():
+    # a replayed recording gets synthetic "now + frame/fps" timestamps: its minutes are not a
+    # measurement of the patient now, whoever is in the clip
+    url = "http://10.99.0.2:8100"
+    assert DataSink.from_config(Config(data_manager_url=url, camera="auto"), lambda: "x") is not None
+    assert DataSink.from_config(Config(data_manager_url=url, camera="/dev/video0"), lambda: "x") is not None
+    assert DataSink.from_config(Config(data_manager_url=url, camera="/recordings/clip.mp4"),
+                                lambda: "x") is None
+
+
+def test_offline_cli_never_pushes(monkeypatch, tmp_path):
+    # `python -m afferent.cli process-video` on the device runs with the app's env
+    # (wendy.json sets DATA_MANAGER_URL): the processor it builds must not get a data sink
+    import pytest
+    from afferent import cli
+    seen = {}
+
+    class Proc:
+        def __init__(self, cfg, storage):
+            seen["sink"] = DataSink.from_config(cfg, lambda: "x")
+
+        def attach_models(self):
+            raise RuntimeError("stop here")
+
+    monkeypatch.setenv("DATA_MANAGER_URL", "http://10.99.0.2:8100")
+    monkeypatch.setattr(cli, "FrameProcessor", Proc)
+    monkeypatch.setattr(cli, "GuidedSession", lambda p: None)
+    with pytest.raises(RuntimeError):
+        cli.process_video(str(tmp_path / "clip.mp4"), str(tmp_path / "o.db"))
+    assert seen["sink"] is None
+
+
 def _angles(trunk, head_trunk):
     # what geometry.compute_frame_angles returns (other angles irrelevant here)
     return {"trunk_inclination": trunk, "head_trunk_angle": head_trunk,

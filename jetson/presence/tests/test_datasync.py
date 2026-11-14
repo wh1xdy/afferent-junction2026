@@ -92,6 +92,24 @@ class Sync(unittest.TestCase):
         s2.update(p, g, T0 + 3700)
         self.assertTrue(any(x["id"] == f"home-{int(T0)}" and x["end"] is None for x in c2.sent))
 
+    def test_restart_after_leaving_closes_the_home_interval_again(self):
+        # the closed home interval sits in the client's memory queue until it is delivered; a
+        # restart (power cut, redeploy, data manager down meanwhile) loses it. The data manager
+        # then keeps home-<start> open for good and counts it as time at home every day.
+        p, g, c, s = setup()
+        t = T0
+        tick(p, g, s, t, True)
+        last_seen = t
+        while p.state == "home":
+            t += STEP
+            tick(p, g, s, t, False)
+        saved = s.to_dict()                       # what app.save() stores next to the trackers
+        c2 = FakeClient()                         # restart: the first client's queue is gone
+        s2 = PresenceSync(c2)
+        s2.restore(p, saved)
+        s2.update(p, g, t + STEP)
+        self.assertEqual(c2.last("presence.home", f"home-{int(T0)}")["end"], last_seen)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -235,6 +235,41 @@ class ClientRobustness(unittest.TestCase):
             st.close()
             d.cleanup()
 
+    def test_an_answer_that_is_not_the_data_manager_keeps_the_queue_and_the_sender(self):
+        # 200 with a body that is not a JSON object (a captive portal, a stray mDNS advert, a
+        # proxy page): the batch was not confirmed, so it stays queued, and the sender goes on
+        from http.server import BaseHTTPRequestHandler
+        bodies = [b"<html>hello</html>", b"[]", b'"ok"']
+
+        class Odd(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                body = bodies[0]
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Odd)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            c = DataManagerClient("t", url=f"http://127.0.0.1:{server.server_address[1]}",
+                                  flush_every_s=3600)
+            c.sample("env.co2_ppm", 600)
+            c.interval("presence.home", start=1794642860, id="home-1")
+            while bodies:
+                self.assertFalse(c._send_once(), bodies[0])        # never raises out of the loop
+                self.assertEqual((len(c._samples), len(c._events)), (1, 1), bodies[0])
+                self.assertEqual(c.dropped, 0)
+                self.assertIsNotNone(c.last_error)
+                bodies.pop(0)
+            c._stop.set()
+        finally:
+            server.shutdown()
+
 
 if __name__ == "__main__":
     unittest.main()

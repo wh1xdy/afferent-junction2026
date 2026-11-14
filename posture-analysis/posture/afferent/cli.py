@@ -25,6 +25,7 @@ def process_video(path: str, db_path: str, enroll_seconds: float = 20.0,
                   pose_mode: str | None = None) -> dict:
     cfg = Config.from_env()
     cfg.db_path = db_path
+    cfg.camera = path          # the frame source is this file: a replay, never pushed (datasink)
     if pose_mode:
         cfg.pose_mode = pose_mode
     storage = Storage(db_path, site=cfg.site)

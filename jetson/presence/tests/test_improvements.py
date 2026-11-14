@@ -154,6 +154,13 @@ class Profiles(unittest.TestCase):
         self.assertFalse(a.gcfg.phones_only)
         a.apply_profile("home")
 
+    def test_sim_mode_sends_nothing_to_the_data_manager(self):
+        # SIM=1 runs on the real Jetson next to the real data manager (README: "SIM=1 wendy run"):
+        # a simulated phone's home periods and outings must never be stored as the patient's
+        self.assertFalse(self.app.dm.enabled)
+        self.assertFalse(self.app.dm.interval("presence.home", start=T0, id="home-1"))
+        self.assertEqual(self.app.dm.status()["queued_events"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
