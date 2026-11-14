@@ -14,8 +14,6 @@
   const ROUTE_KEY = 'afferent.audio.route';
   const safe = f => (...a) => { try { return f(...a); } catch (e) { console.warn('music', e); } };
 
-  let fmts = null;
-  const formats = () => fmts ||= new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? ['m4a', 'ogg'] : ['ogg', 'm4a'];
   const hold = (p, t) => {
     if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t);
     else { const v = p.value; p.cancelScheduledValues(t); p.setValueAtTime(v, t); }
@@ -99,19 +97,17 @@
       if (this.buf[key]) return this.buf[key];
       if (t.failed) return null;
       t.p ||= (async () => {
-        for (const ext of formats()) {
-          const file = t.files?.[ext];
-          if (!file) continue;
-          try {
-            const r = await fetch('audio/music/' + file);
-            if (!r.ok) continue;
+        const file = t.files?.m4a;
+        if (file) try {
+          const r = await fetch('audio/music/' + file);
+          if (r.ok) {
             const data = await r.arrayBuffer();
             const buf = await new Promise((ok, no) => this.ctx.decodeAudioData(data, ok, no));
             this.buf[key] = buf;
             this.missing = this.missing.filter(x => x !== key);
             return buf;
-          } catch {}
-        }
+          }
+        } catch {}
         t.failed = true;
         if (!this.missing.includes(key)) this.missing.push(key);
         return null;
