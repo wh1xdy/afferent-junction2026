@@ -156,11 +156,13 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   ctx.A.MINIGAMES = { breath: { ...game('breath'), modes: ['calm', 'rest'], world: true }, loyly: { ...game('loyly'), modes: ['calm'] }, threads: { ...game('threads'), modes: ['flow'] }, constellation: { ...game('constellation'), modes: ['flow'] }, fireflies: { ...game('fireflies'), modes: ['wake'] }, beacon: { ...game('beacon'), modes: ['wake', 'fatigue'] }, bells: { ...game('bells'), modes: ['wake', 'fatigue'] }, shutters: { ...game('shutters'), modes: ['fatigue'] } };
   ctx.A.MEASURES = { fork: game('fork'), lanterns: game('lanterns') };
   ctx.A.makeCheckin = () => ({ t: 0, done: false, update: noop, auto(dt, now) { this.done = true; this.finishedAt = now; this.choice = 3; this.decisionMs = 900; } });
-  ctx.A.pickGame = (mode, last, played) => {
+  ctx.A.pickGame = (mode, last, played, prefer) => {
     const all = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode));
     let pool = all.filter(id => id !== last && !played?.has(id));
     if (!pool.length) pool = all.filter(id => id !== last);
     if (!pool.length) pool = all;
+    const liked = prefer?.length ? pool.filter(id => prefer.includes(id)) : [];
+    if (liked.length) pool = liked;
     return { id: pool[0], p: 1 / pool.length };
   };
   if (games) for (const f of ['juice.js', 'skill.js', 'minigames.js', 'tasks/breath.js']) run(f);

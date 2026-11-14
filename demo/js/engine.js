@@ -17,6 +17,16 @@
   const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8, SPARK_S = 0.7, SPARK_C = hex('#FFD9A0');
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
+  // The state behind the mode. Arousal is (pulse - rest pulse) / 10: up at +8 bpm, low at -3 bpm, near rest within 5 bpm.
+  // A raised pulse is stress or energy; only HRV (RMSSD) and the breathing pace, each against this person's own values
+  // while their pulse was near rest, tell the two apart. Stressed: RMSSD at 80% of that or less, or breathing 3 a minute
+  // faster or more. Energised: RMSSD at 90% or more and breathing at most 1.5 a minute faster, both measured; once
+  // energised it holds until a stress sign. Between the bands, or with one of the two missing, the pulse alone decides,
+  // as it did before HRV was read. The own values need 5 one-second readings near rest; at most 60 are kept.
+  const UP_A = 0.8, LOW_A = -0.3, NEAR_A = 0.5, BASE_N = 5, BASE_MAX = 60;
+  const RMSSD_STRESS = 0.8, RMSSD_STEADY = 0.9, BREATH_STRESS = 3, BREATH_STEADY = 1.5;
+  const CALMING = ['breath'];
+  const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const RP = () => A.PRESENT?.reaction || {};
   const hold = g => clamp(g.outro ?? 0.7, 0.7, 2.2);
   const forced = () => { const f = A.config?.forceTask; return f && (f === 'reaction' || A.MINIGAMES?.[f] || A.MEASURES?.[f]) ? f : null; };
@@ -59,7 +69,8 @@
 
     const s = {
       t0, night, auto, stage: !!opts.stage, profile, V, fromIdle, phase: 'fadein', phaseAt: t0, done: false, pw: 1,
-      targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', candidate: null, candidateAt: 0,
+      targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', state: null, candidate: null, candidateAt: 0,
+      pulseNow: null, phys: null, physAt: 0, base: { rmssd: [], breathing: [] },
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
       slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
@@ -231,9 +242,11 @@
         this.restPitch = this.coreRec.rest?.head_pitch_deg ?? null;
         const live = A.Sensors.pulse(now).bpm, startPulse = this.coreRec.rest?.pulse_bpm ?? (plausible(live) ? live : null);
         this.a = startPulse == null ? 0 : (startPulse - this.rest) / 10;
+        this.pulseNow = startPulse;
         this.fat = this.fatigueInput();
         if (!this.stage) this.playS = clamp(SESSION_PLAY_END_S - (now - this.t0), PLAY_MIN_S, PLAY_S);
-        this.setMode(now, this.classify());
+        const first = this.assess();
+        this.setMode(now, first.mode, first);
         c.trial = null;
         RP().done?.(this, now);
         this.coreHoldUntil = now + clamp(RP().outro || 0, 0, 2.2);
@@ -245,13 +258,67 @@
 
       fatigueInput() { return clamp(Eyes.perclos() * 2 + Eyes.longClosures() * 0.12, 0, 1); },
 
-      classify() {
-        const tired = this.mode === 'rest' || this.mode === 'fatigue' ? FAT_EXIT : FAT_ENTER;
-        if (this.fat >= tired) return this.night ? 'rest' : 'fatigue';
-        if (this.a >= 0.8) return 'calm';
-        if (this.a <= -0.3) return this.night ? 'flow' : 'wake';
-        return 'flow';
+      // HRV and breathing from the finger clips right now, as the breathing task reads them (breathing.js): never a
+      // simulated frame or one of a session locked to the simulator, nothing older than 3 s, signal quality reported
+      // and at least 0.3. null where there is no such reading.
+      physioNow(now) {
+        const B = A.Breathing, f = B ? B.current(now) : null;
+        if (!B || !B.real(f)) return null;
+        const rmssd = pos(f.rmssd_ms), breathing = pos(f.breathing_per_min);
+        return rmssd == null && breathing == null ? null : { rmssd, breathing };
       },
+
+      // Once a second: the current HRV and breathing, and, while the pulse is near this person's rest pulse and the
+      // eyes show no tiredness, the same numbers as this session's own values to compare with.
+      sense(now, p) {
+        if (now < this.physAt) return;
+        this.physAt = now + 1;
+        const r = this.phys = this.physioNow(now);
+        const near = plausible(p.bpm) && Math.abs(p.bpm - this.rest) / 10 < NEAR_A && this.fat < FAT_EXIT;
+        if (!r || !near) return;
+        for (const k of ['rmssd', 'breathing']) if (r[k] != null && this.base[k].length < BASE_MAX) this.base[k].push(r[k]);
+      },
+
+      // The numbers a reading is made from. Ratios and differences are against this person's own values; null where a
+      // number or its own value is missing.
+      signals() {
+        const own = xs => xs.length >= BASE_N ? median(xs) : null, r = this.phys;
+        const rmssd = r?.rmssd ?? null, breathing = r?.breathing ?? null, rb = own(this.base.rmssd), bb = own(this.base.breathing);
+        return {
+          pulse_bpm: this.pulseNow == null ? null : r1(this.pulseNow), pulse_rest_bpm: this.rest,
+          rmssd_ms: r1(rmssd), rmssd_own_ms: r1(rb), rmssd_ratio: rmssd != null && rb ? r3(rmssd / rb) : null,
+          breathing_per_min: r1(breathing), breathing_own_per_min: r1(bb), breathing_delta: breathing != null && bb != null ? r1(breathing - bb) : null,
+        };
+      },
+
+      // What the signals say: a state, the mode it asks for, what it rests on (eyes, hrv, pulse, none) and why.
+      assess() {
+        const sig = this.signals(), a = this.a, n = this.night, why = [];
+        const out = (state, mode, basis) => ({ state, mode, basis, reasons: why, signals: sig });
+        const byPulse = () => a >= UP_A ? 'calm' : a <= LOW_A ? (n ? 'flow' : 'wake') : 'flow';
+        if (this.fat >= (this.mode === 'rest' || this.mode === 'fatigue' ? FAT_EXIT : FAT_ENTER)) { why.push('eyes_tired'); return out('tired', n ? 'rest' : 'fatigue', 'eyes'); }
+        if (sig.pulse_bpm == null) {
+          why.push('no_pulse');
+          // No pulse now: nothing new to go on, so the last reading holds, as the arousal does.
+          if (this.state && this.state !== 'tired' && this.state !== 'unknown') return out(this.state, this.mode, 'none');
+          return out('unknown', byPulse(), 'none');
+        }
+        if (a <= LOW_A) { why.push('pulse_low'); return out('low', byPulse(), 'pulse'); }
+        if (a < UP_A) { why.push('pulse_steady'); return out('steady', 'flow', 'pulse'); }
+        why.push('pulse_up');
+        const r = sig.rmssd_ratio, d = sig.breathing_delta;
+        if (r == null && d == null) { why.push('no_hrv'); return out('pulse_up', 'calm', 'pulse'); }
+        const down = r != null && r <= RMSSD_STRESS, fast = d != null && d >= BREATH_STRESS;
+        if (down) why.push('rmssd_down');
+        if (fast) why.push('breathing_fast');
+        if (down || fast) return out('stressed', 'calm', 'hrv');
+        const held = this.state === 'energised';
+        if (r != null && d != null && (held || (r >= RMSSD_STEADY && d <= BREATH_STEADY))) { why.push('rmssd_steady', 'breathing_calm'); return out('energised', 'flow', 'hrv'); }
+        why.push(r == null || d == null ? 'hrv_partial' : 'hrv_between');
+        return out('pulse_up', 'calm', 'hrv');
+      },
+
+      classify() { return this.assess().mode; },
 
       modeLight(mode) {
         const [c, l] = MODES[mode].light;
@@ -260,14 +327,19 @@
         return [mode === 'calm' ? c : MODES.flow.light[0], Math.min(l, NIGHT_MODE_CAP)];
       },
 
-      setMode(now, mode) {
-        const from = this.transitions.length ? this.mode : null;
-        this.transitions.push({ t_ms: this.tm(now), from, to: mode, arousal: r3(this.a), fatigue: r3(this.fat) });
-        this.mode = mode; this.reading = mode; this.candidate = null;
-        const [c, l] = this.modeLight(mode);
-        this.light(c, l, 2000, 'mode');
-        A.bus.emit('mode', mode);
-        this.ws({ type: 'mode', mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now) });
+      // A new mode, or a new state in the same mode (steady to energised in flow, say): either changes the games.
+      // Each one is kept as a transition with the state, what it rested on, why, and the numbers it was read from.
+      setMode(now, mode, r = this.assess()) {
+        const from = this.transitions.length ? this.mode : null, moved = from !== mode;
+        const why = { state: r.state, basis: r.basis, reasons: [...r.reasons], signals: { ...r.signals } };
+        this.transitions.push({ t_ms: this.tm(now), from, to: mode, arousal: r3(this.a), fatigue: r3(this.fat), ...why });
+        this.mode = mode; this.state = r.state; this.reading = mode; this.candidate = null;
+        if (moved) {
+          const [c, l] = this.modeLight(mode);
+          this.light(c, l, 2000, 'mode');
+          A.bus.emit('mode', mode);
+        }
+        this.ws({ type: 'mode', mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now), ...why });
       },
 
       intensity(mode) {
@@ -277,8 +349,15 @@
 
       measuresPending(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).length; },
 
+      // Stressed: the breathing game first. Energised: puzzles (A.PUZZLES, minigames.js). Otherwise any game of the mode.
+      prefer(mode) {
+        if (mode === 'calm' && this.state === 'stressed') return CALMING;
+        if (mode === 'flow' && this.state === 'energised') return A.PUZZLES || null;
+        return null;
+      },
+
       pick(mode) {
-        const { id, p } = A.pickGame(mode, this.lastGame, this.played);
+        const { id, p } = A.pickGame(mode, this.lastGame, this.played, this.prefer(mode));
         return { id, p: r3(p) };
       },
 
@@ -303,7 +382,8 @@
 
       planTask(now) {
         let slot = ++this.slot;
-        if (this.night && this.mode !== 'rest' && this.classify() === 'rest') this.setMode(now, 'rest');
+        const read = this.night && this.mode !== 'rest' ? this.assess() : null;
+        if (read?.mode === 'rest') this.setMode(now, 'rest', read);
         const mode = this.mode;
         this.story('start', slot, now);
         const force = forced(), forceMeasure = force && A.MEASURES[force] ? force : null, forceGame = force && A.MINIGAMES[force] ? force : null;
@@ -433,13 +513,17 @@
       },
 
       director(now, dt, p) {
-        if (plausible(p.bpm)) this.a = ema(this.a, (p.bpm - this.rest) / 10, dt, 3);
+        const live = plausible(p.bpm);
+        this.pulseNow = live ? p.bpm : null;
+        if (live) this.a = ema(this.a, (p.bpm - this.rest) / 10, dt, 3);
         this.fat = ema(this.fat, this.fatigueInput(), dt, 2);
         A.Skill?.tick(this.fat, dt);
-        this.reading = this.classify();
-        if (this.reading !== this.mode) {
-          if (this.candidate !== this.reading) { this.candidate = this.reading; this.candidateAt = now; }
-          if (now - this.candidateAt >= 3) this.setMode(now, this.reading);
+        const r = this.assess(), next = `${r.mode}:${r.state}`;
+        this.reading = r.mode;
+        // A new mode or state holds for 3 s before it is taken, so the games do not flip back and forth.
+        if (next !== `${this.mode}:${this.state}`) {
+          if (this.candidate !== next) { this.candidate = next; this.candidateAt = now; }
+          if (now - this.candidateAt >= 3) this.setMode(now, r.mode, r);
         } else this.candidate = null;
         this.modeSeconds[this.mode] += dt;
         this.perclosSum += Eyes.perclos(); this.perclosN++;
@@ -517,6 +601,7 @@
         Sim.step(dt, this, now);
         const p = A.Sensors.pulse(now), f = A.Sensors.last;
         if (this.phase !== 'fadein') this.sample(now, dt, p, f);
+        this.sense(now, p);
         if (this.auto) this.T.auto(dt);
         if (this.phase !== 'asleep') this.T.update(now, dt);
 

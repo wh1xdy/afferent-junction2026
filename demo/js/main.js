@@ -24,6 +24,7 @@
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
     signalsOverlay: saved.signalsOverlay ?? false,
+    liveVitals: saved.liveVitals ?? true,
     breathFeedback: saved.breathFeedback ?? true,
     heartTouch: saved.heartTouch ?? true,
     forceTask: q.get('task') || null,
@@ -168,7 +169,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -183,6 +184,7 @@
     $('quietSw').checked = A.config.quietNight;
     $('checkinSw').checked = A.config.checkin;
     $('sigSw').checked = A.config.signalsOverlay;
+    $('vitalsSw').checked = A.config.liveVitals;
     $('breathSw').checked = A.config.breathFeedback;
     $('beatSw').checked = A.config.heartTouch;
     camGlyph();
@@ -208,6 +210,7 @@
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
+  $('vitalsSw').onchange = e => { A.config.liveVitals = e.target.checked; saveSettings(); };
   $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
   $('beatSw').onchange = e => { A.config.heartTouch = e.target.checked; saveSettings(); };
 
@@ -438,7 +441,8 @@
     drawTimeline();
     const sim = !!s && !s.done && (p.source === 'simulated' || S.eyesSource() === 'simulated' || s.auto || s.profile !== 'live');
     show('simBadge', sim);
-    const chip = A.config.signalsOverlay ? A.Vitals.chip(s, p) : null;
+    A.LiveVitals.render(s, now);
+    const chip = A.config.signalsOverlay && !A.LiveVitals.chipOn ? A.Vitals.chip(s, p) : null;
     if (chip) $('liveChip').textContent = chip;
     show('liveChip', !!chip);
     const breath = A.Vitals.breath(s, now);

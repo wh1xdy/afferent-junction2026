@@ -11,11 +11,11 @@
   // value whose notification is older than 3 s. null means no real reading: no sensor, stale, simulated, no finger
   // in the clip, zeros only, or a signal quality that is below 0.3 or not reported (the rule of the game pulse).
   // Over the hub the frame also says how old the heartbeats behind it are; older than 3 s is not a current reading.
+  // real(f) is that rule on its own, for the other numbers of the frame (the game's HRV, engine.js).
+  const real = f => !!f && f.source === 'finger_ppg' && !f.simulated && (f.presence == null || f.presence === 'active')
+    && !!f.quality_reported && f.quality != null && f.quality >= MIN_QUALITY && !(f.transport === 'hub_http' && f.age_s >= FRESH_S);
   const reading = f => {
-    if (!f || f.source !== 'finger_ppg' || f.simulated) return null;
-    if (f.presence != null && f.presence !== 'active') return null;
-    if (!f.quality_reported || f.quality == null || f.quality < MIN_QUALITY) return null;
-    if (f.transport === 'hub_http' && f.age_s >= FRESH_S) return null;
+    if (!real(f)) return null;
     const rate = pos(f.breathing_per_min), pulse = pos(f.pulse_bpm);
     return rate == null && pulse == null ? null : { rate, pulse };
   };
@@ -79,5 +79,5 @@
     },
   });
 
-  A.Breathing = { WINDOW_S, reading, current, closeness, enough, ends, track };
+  A.Breathing = { WINDOW_S, real, reading, current, closeness, enough, ends, track };
 })();
