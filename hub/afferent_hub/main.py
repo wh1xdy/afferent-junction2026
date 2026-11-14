@@ -11,6 +11,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api.routes import router as api_router
 from .service import VERSION, Hub, HubError
 from .settings import HUB, ROOT, Settings
+from .team_adapters import Team
+from .team_adapters.routes import router as team_router
 from .ws.routes import router as ws_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -24,9 +26,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.hub = Hub(settings)
+        app.state.team = Team(settings)
         await app.state.hub.start()
         yield
         await app.state.hub.stop()
+        app.state.team.close()
 
     app = FastAPI(title="Afferent hub", version=VERSION, lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -45,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"error": code, "detail": str(e.detail)}, status_code=e.status_code)
 
     app.include_router(api_router)
+    app.include_router(team_router)
     app.include_router(ws_router)
 
     @app.get("/", include_in_schema=False)
