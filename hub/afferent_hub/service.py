@@ -125,7 +125,10 @@ class Hub:
         return p
 
     def privacy(self, pid: str) -> dict:
-        return self.store.privacy(pid) or copy.deepcopy(views.DEFAULT_PRIVACY)
+        privacy = self.store.privacy(pid) or copy.deepcopy(views.DEFAULT_PRIVACY)
+        # `presence` is bed presence and no bed sensor exists: a row stored before that stays off too.
+        privacy.setdefault("sensors", {})["presence"] = False
+        return privacy
 
     def seed(self, seed: int) -> list[str]:
         roster = modules.fn["demo_roster"](seed=seed)

@@ -53,9 +53,9 @@
 		<string>_androidtvremote2._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Afferent reads only whether your eyes are closed. Camera frames never leave the phone.</string>
+	<string>Afferent reads eye openness, blinks, head tilt and how bright it is, as numbers. Camera frames never leave the phone.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Afferent talks to your bedside unit on your home network. With Home and visitors on, it also checks that your home devices (TV, speakers, printer) are on the same Wi-Fi.</string>
+	<string>Afferent talks to your Afferent hub on your home network. With Home and visitors on, it also checks that your home devices (TV, speakers, printer) are on the same Wi-Fi.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

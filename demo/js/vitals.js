@@ -4,17 +4,17 @@
   const DASH = '–', MIN_QUALITY = 0.3;
   const int = x => x == null ? null : String(Math.round(x));
 
-  const PRESENCE = { idle: 'Resting. Place a finger in the clip to start.', probing: 'Looking for your finger', active: 'Measuring' };
+  const PRESENCE = { idle: 'Resting. Place a finger in each of the two clips to start.', probing: 'Looking for your finger', active: 'Measuring' };
   const LINK = {
     scanning: 'Looking for the finger sensor', connecting: 'Looking for the finger sensor',
     unauthorized: 'Bluetooth is off for Afferent in Settings', off: 'Not connected',
   };
-  const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in the clip to start.';
+  const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in each of the two clips to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
-  const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', rppg: 'Camera', simulated: SIM };
+  const SOURCE = { finger_ppg: 'Finger sensor', rppg: 'Camera', simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
   const NO_QUALITY = 'This sensor version does not report signal quality, so its pulse is not shown or used.';
-  const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
+  const CHIP = { finger_ppg: 'finger sensor', rppg: 'camera' };
   const BREATH_WAIT = 'Takes about half a minute of steady signal', BREATH_LAG = 'From your heart rhythm, about half a minute behind';
   const BREATH_SPAN = `Covers the task and the ${A.Breathing.WINDOW_S} seconds before it`;
 

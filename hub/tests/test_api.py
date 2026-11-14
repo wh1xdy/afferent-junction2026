@@ -1,12 +1,16 @@
 import asyncio
+import copy
 import json
 import uuid
 from pathlib import Path
 
+from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
 
 from afferent_hub.bedside.protocol import format_line, parse_line
 from afferent_hub.bedside.simulator import BedsideSimulator
+from afferent_hub.main import create_app
+from afferent_hub.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 FIX = ROOT / "contracts" / "fixtures"
@@ -340,6 +344,49 @@ def test_privacy(client):
     assert r.json()["sharing"] == "paused"
     assert client.get("/api/patients/anna").json()["privacy"]["sharing"] == "paused"
     assert client.post("/api/patients/anna/privacy", json={"sensor": "nope", "on": True}).status_code == 400
+
+def test_no_bed_sensor_is_claimed(client):
+    privacy = client.get("/api/patients/anna").json()["privacy"]
+    assert privacy["sensors"]["presence"] is False
+    assert client.post("/api/patients/anna/privacy", json={"sensor": "presence", "on": True}).status_code == 400
+    assert client.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+    view = client.get("/api/patients/anna/patient-view").json()
+    rows = {s["id"]: s for s in view["privacy"]["sensors"]}
+    assert "presence" not in rows
+    assert rows["bedside_light"]["shares"] == "Nothing. It is one small LED on the bedside unit and only receives colours."
+    shown = [t for s in rows.values() for t in (s["label"], s["shares"])] + view["clinic_sees"]
+    for text in shown:
+        low = text.lower().replace("no bed sensor", "")
+        for claim in ("bed sensor", "bed presence", "time in bed", "lamp", "room"):
+            assert claim not in low, text
+    fixture = load("patient_view_anna.json")
+    assert view["privacy"]["sensors"] == fixture["privacy"]["sensors"] and view["clinic_sees"] == fixture["clinic_sees"]
+
+def test_bed_presence_stored_on_stays_off(tmp_path):
+    settings = dict(db=str(tmp_path / "t.db"), bedside="ws", validation=False)
+    with TestClient(create_app(Settings(**settings))) as c:
+        old = copy.deepcopy(c.app.state.hub.store.privacy("anna"))
+        old["sensors"]["presence"] = True
+        c.app.state.hub.store.put_privacy("anna", old)
+    with TestClient(create_app(Settings(**settings))) as c:
+        assert c.app.state.hub.store.privacy("anna")["sensors"]["presence"] is True
+        assert c.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+        with c.websocket_connect("/ws/app?patient=anna") as app:
+            app.send_json({"type": "hello", "device_id": "t", "app_version": "t", "patient_id": "anna", "role": "game"})
+            assert recv_until(app, "config")["privacy"]["sensors"]["presence"] is False
+            r = c.post("/api/patients/anna/privacy", json={"sensor": "phone_camera", "on": False})
+            assert r.status_code == 200 and r.json()["sensors"]["presence"] is False
+            assert recv_until(app, "privacy")["privacy"]["sensors"]["presence"] is False
+        assert c.app.state.hub.store.privacy("anna")["sensors"]["presence"] is False, "the next change writes it back"
+        assert c.post("/api/patients/anna/privacy", json={"sensor": "presence", "on": True}).status_code == 400
+        assert c.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+
+def test_no_example_or_seeded_session_has_bed_presence_on(client):
+    for name in ("session_example.json", "session_finger_example.json"):
+        assert load(name)["sensors"]["presence"] is False, name
+    store = client.app.state.hub.store
+    switches = [s["sensors"] for p in store.patients() for s in store.sessions(p["id"]) if "sensors" in s]
+    assert switches and all(sw["presence"] is False for sw in switches)
 
 def test_patient_view_is_gentle(client):
     pv = client.get("/api/patients/anna/patient-view").json()

@@ -319,7 +319,7 @@
   "pulse_stone": true,
   "bedside_camera": false,
   "bedside_light": true,
-  "presence": true,
+  "presence": false,
   "phone_presence": true,
   "phone_motion": true
  },

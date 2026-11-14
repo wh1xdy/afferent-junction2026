@@ -80,7 +80,7 @@
       setPhase(p) { this.phase = p; this.phaseAt = A.now(); A.bus.emit('segment', p); },
       light(rgbHex, level, fade_ms, reason) {
         if (this.night && A.config.quietNight !== false) level = Math.min(level, QUIET_CAP);
-        this.lastLightLevel = level;
+        if (A.config.sensors.bedside_light && A.Hub?.connected) this.lastLightLevel = level;
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
         if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },
@@ -185,7 +185,7 @@
           rest: {
             duration_ms: Math.round(restS * 1000), pulse_bpm: r1(med(c.pulse)), pulse_quality: pq === null ? null : r3(pq),
             blink_rate_per_min: c.open.length ? r1(c.blinks / restS * 60) : null, blink_count: c.open.length ? c.blinks : null,
-            blink_quality: c.open.length ? r3(0.6 * trackedRatio) : null,
+            blink_quality: c.open.length ? trackedRatio : null,
             eye_openness: c.open.length ? r3(med(c.open)) : null, eye_quality: c.open.length ? trackedRatio : null, eyes_tracked_ratio: trackedRatio,
             head_pitch_deg: r1(med(c.pitch)), head_pitch_quality: c.pitch.length ? q(c.pitch.length, c.frames) : null,
             ambient_light: c.ambient.length ? r3(med(c.ambient)) : null,
