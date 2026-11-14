@@ -249,9 +249,13 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
         last_locked[c] = now
         with lock:
             # a measurement for the guard: the rhythm behind these beats (this finger's own, or
-            # both fingers' together) is clear enough for the data manager
-            clear = max(q, fused.get("quality") or 0) >= data_manager_push.MIN_QUALITY
-            shown = finger_guards[c].offer(bpm, now, clear) or 0
+            # both fingers' together) is clear enough for the data manager. A finger left out of
+            # the fused pulse (judge_clips) shows no number: the fused rhythm is the other's.
+            if clip_state[c]["trusted"]:
+                clear = max(q, fused.get("quality") or 0) >= data_manager_push.MIN_QUALITY
+                shown = finger_guards[c].offer(bpm, now, clear) or 0
+            else:
+                shown = 0
         if shown or sent_bpm[c]:            # a held value: the byte says "no reading" once
             sent_bpm[c] = shown
             ble.update_finger(c, shown)
@@ -315,6 +319,155 @@ def fused_period(curves, qualities):
         return None, 0.0
     wsum = sum(q for q in qualities if q > 0) or 1.0
     return lag, max(acc[lag] / wsum, 0.0)
+
+
+# ── which clip to trust ──────────────────────────────────────────────────────────────
+# Seen on Alex's phone (2026-11-14, new printed case): clip 1 showed a false 131-139 BPM (light
+# into the clip or a bad seat), clip 2 a plausible 87-99. The combined rhythm averaged clip 2's
+# clean curve with clip 1's noise, so the fused quality fell to 0.08-0.35, mostly below the 0.3
+# the app and the data manager need, and no pulse went out; clip 2 alone gave 87 at 0.63. A
+# weighted average of two curves is never clearer than the clearer one, so a noisy clip only
+# ever drags the good one down. Each clip is therefore judged on its own every second:
+#   clean = a real rhythm peak inside 0.33-1.6 s (rhythm_peak's edge rule), quality >= 0.5,
+#           a pulse swing of at least CLIP_MIN_AMP, samples not stuck at the rails, DC on scale,
+#           and the clip's own beat detector following that rhythm (most of its last locked
+#           intervals within 20 % of the period), all of it for CLIP_CLEAN_S seconds in a row
+#           with a period that stays within 12 %. Noise with a periodic part (light, a loose
+#           seat) can reach a rhythm quality of 0.4 at 135 BPM, but its period wanders and the
+#           detector on it fires off the rhythm every few seconds: that is what tells it from a
+#           second person's pulse. A clip stops being clean at once.
+# One clean clip next to one that is not: only the clean one is trusted. The fused rhythm, the
+# fused pulse and its quality then come from that clip alone, and the other is named in /state
+# finger.untrusted (AFF1 flag bits 1-2, its BPM byte 0). Both clean: both trusted, as before (the
+# same rhythm is fused, two different rhythms are two people). Neither clean: both used, as
+# before (two weak curves of one heart still add up).
+CLIP_CLEAN_Q = 0.5            # rhythm quality of a clean clip. A finger on its own: 0.6-0.9 (data
+                              # manager, 2026-11-14; clip 2 alone 0.63); the false rhythm: ~0.4
+CLIP_MIN_AMP = 200            # p5-p95 of the detrended signal (raw counts): a pulse, not the
+                              # noise of an empty clip (measured: empty ~50-150, finger 1500-3000)
+CLIP_RAIL_LO, CLIP_RAIL_HI = 200, 13500   # beyond these the amplifier is saturated
+CLIP_MAX_RAILED = 0.05        # more than 5 % of the samples at a rail = saturated
+CLIP_DC_LO, CLIP_DC_HI = 1000, 14500      # mean outside this = off scale (amp stuck, sensor off)
+CLIP_BEATS_N = 8              # the last this many locked intervals of the clip's own detector...
+CLIP_BEATS_S = 8.0            # ...from the last this many seconds
+CLIP_BEATS_MIN = 4            # fewer intervals than this: not (yet) clean
+CLIP_BEATS_ON = 0.75          # at least this share within CLIP_BEATS_TOL of the period (6 of 8)
+CLIP_BEATS_TOL = 0.2
+CLIP_CLEAN_S = 3              # seconds in a row a clip must pass before it counts as clean
+CLIP_STEADY = 0.12            # ...with its period within 12 % (max/min) over those seconds
+
+
+def clip_signal(ch=0, window_ms=6000):
+    """Amplitude, saturation and DC level of one finger over the same 6 s as autocorr().
+    amplitude = p5-p95 of the signal minus its 1 s moving mean; railed = share of samples at a
+    rail; dc = mean. None when there are too few samples."""
+    pts = list(ppgs[ch])
+    if len(pts) < 150:
+        return None
+    t_end = pts[-1][0]
+    v = [p[1] for p in pts if p[0] >= t_end - window_ms]
+    n = len(v)
+    half = max(1, int((n - 1) / (window_ms / 1000)) // 2)
+    cs = [0]
+    for x in v:
+        cs.append(cs[-1] + x)
+    hp = sorted(v[i] - (cs[min(n, i + half + 1)] - cs[max(0, i - half)]) / (min(n, i + half + 1) - max(0, i - half))
+                for i in range(n))
+    railed = sum(1 for x in v if x < CLIP_RAIL_LO or x > CLIP_RAIL_HI) / n
+    return {"amplitude": round(hp[int(0.95 * (n - 1))] - hp[int(0.05 * (n - 1))]),
+            "railed": round(railed, 2), "dc": round(sum(v) / n)}
+
+
+def clip_beats(ch, period_ms):
+    """Share of one finger's last locked beat intervals that follow its own rhythm, or None when
+    it has fewer than CLIP_BEATS_MIN of them."""
+    b = list(beats[ch])
+    if not b or not period_ms:
+        return None
+    ibis = [i for t, i in b if t >= b[-1][0] - CLIP_BEATS_S * 1000 and i > 0][-CLIP_BEATS_N:]
+    if len(ibis) < CLIP_BEATS_MIN:
+        return None
+    return round(sum(1 for i in ibis if abs(i - period_ms) <= CLIP_BEATS_TOL * period_ms) / len(ibis), 2)
+
+
+def clip_clean(period, sig, beats_on=None):
+    """(clean, reason): is one finger's own signal a pulse one can trust on its own?
+    period = period_state[c] (period_ms, quality); sig = clip_signal(); beats_on = clip_beats()."""
+    if not sig:
+        return False, "no samples"
+    if sig["railed"] > CLIP_MAX_RAILED:
+        return False, "saturated"
+    if not CLIP_DC_LO <= sig["dc"] <= CLIP_DC_HI:
+        return False, "off scale"
+    if not period.get("period_ms"):
+        return False, "no rhythm"                # incl. the edge of the range: a drift
+    if (period.get("quality") or 0) < CLIP_CLEAN_Q:
+        return False, "weak rhythm"
+    if sig["amplitude"] < CLIP_MIN_AMP:
+        return False, "flat"
+    if beats_on is None:
+        return False, "no beats"
+    if beats_on < CLIP_BEATS_ON:
+        return False, "beats off rhythm"
+    return True, None
+
+
+def clip_trust(cleans):
+    """Per finger: may it go into the fused pulse? Only when exactly the other one is clean is
+    a finger left out; otherwise both are used as before."""
+    if any(cleans) and not all(cleans):
+        return [bool(c) for c in cleans]
+    return [True] * len(cleans)
+
+
+clip_state = [{"clean": None, "trusted": True, "reason": None, "amplitude": None, "railed": None, "dc": None,
+               "beats_on_rhythm": None} for _ in range(CHANNELS)]
+clip_passes = [collections.deque(maxlen=CLIP_CLEAN_S) for _ in range(CHANNELS)]  # period_ms of the
+                                                                                 # last passes in a row
+
+
+def untrusted_fingers():
+    return [c for c in range(CHANNELS) if not clip_state[c]["trusted"]]
+
+
+def reset_clips():
+    with lock:
+        for s in clip_state:
+            s.update(clean=None, trusted=True, reason=None, amplitude=None, railed=None, dc=None,
+                     beats_on_rhythm=None)
+        for p in clip_passes:
+            p.clear()
+
+
+def judge_clips():
+    """Once a second from period_loop, after period_state is updated: judge each finger, store
+    it in clip_state (/state finger.clips) and return which fingers are trusted."""
+    judged = []
+    for c in range(CHANNELS):
+        try:
+            sig = clip_signal(c)
+        except Exception as e:
+            print(f"clip signal failed (ch {c}): {e}", flush=True)
+            sig = None
+        per = period_state[c].get("period_ms")
+        on = clip_beats(c, per)
+        ok, why = clip_clean(period_state[c], sig, on)
+        passes = clip_passes[c]
+        if ok:
+            passes.append(per)
+            if len(passes) < CLIP_CLEAN_S:
+                ok, why = False, "settling"
+            elif max(passes) > (1 + CLIP_STEADY) * min(passes):
+                ok, why = False, "rhythm unsteady"
+        else:
+            passes.clear()
+        judged.append((sig, on, ok, why))
+    trusted = clip_trust([ok for _, _, ok, _ in judged])
+    with lock:
+        for c, (sig, on, ok, why) in enumerate(judged):
+            clip_state[c].update(clean=ok, trusted=trusted[c], reason=why, beats_on_rhythm=on, **(sig or
+                                 {"amplitude": None, "railed": None, "dc": None}))
+    return trusted
 
 
 # ── one person or two? ───────────────────────────────────────────────────────────
@@ -384,24 +537,26 @@ def stale_fingers(now):
 
 
 fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None],
-         "two_hearts": False, "held": None}
+         "two_hearts": False, "held": None, "untrusted": []}
 
 
 def fuse():
     """One finger reading from both sensors.
     Agree within 10 % -> quality-weighted mean; disagree -> the one closest to the fused period;
-    one valid -> that one; none -> fused period itself if it is strong."""
+    one valid -> that one; none -> fused period itself if it is strong.
+    A finger that is not trusted (judge_clips: noisy next to a clean one) is never a candidate."""
     with lock:
         f = [dict(state["fingers"][c] or {}) for c in range(CHANNELS)]
         per = [dict(period_state[c]) for c in range(CHANNELS)]
         fp, fq = fused["period_ms"], fused["quality"] or 0
+        untrusted = untrusted_fingers()
     now = time.time()
     cands = []
     for c in range(CHANNELS):
         bpm = f[c].get("bpm_live")
         fresh = f[c].get("t") and now - f[c]["t"] < 5
         q = per[c].get("quality") or 0
-        if bpm and fresh and q >= 0.2:
+        if bpm and fresh and q >= 0.2 and c not in untrusted:
             cands.append((c, bpm, q))
     period_bpm = 60000 / fp if fp and fq >= 0.3 else None
     if len(cands) == 2 and abs(cands[0][1] - cands[1][1]) <= 0.1 * max(cands[0][1], cands[1][1]):
@@ -416,7 +571,7 @@ def fuse():
         bpm, sources = None, []
     with lock:
         # per finger: its candidate, as far as that finger's own number is out (finger_guards)
-        fused.update(bpm=round(bpm) if bpm else None, sources=sources,
+        fused.update(bpm=round(bpm) if bpm else None, sources=sources, untrusted=untrusted,
                      fingers=[c[1] if c and sent_bpm[c[0]] else None for c in
                               [next((x for x in cands if x[0] == ch), None) for ch in range(CHANNELS)]])
         state["beat"] = {**(state["beat"] or {}), "bpm_live": fused["bpm"], "fused": True, "t": time.time()}
@@ -444,29 +599,37 @@ def ble_status(tick):
     idle. The two-people flag lets the phone keep Heart Duel readings out of the patient's data."""
     on = sensing()
     ble.update_status(fused.get('quality') if on else None, presence['mode'],
-                      keepalive=(tick % 2 == 0), two_hearts=on and fused.get('two_hearts') is True)
+                      keepalive=(tick % 2 == 0), two_hearts=on and fused.get('two_hearts') is True,
+                      untrusted=untrusted_fingers() if on else ())
 
 
 def period_loop(stopped):
     tick = 0
     while not stopped.wait(1.0):
         tick += 1
-        curves, quals = [], []
+        curves, quals = [None] * CHANNELS, [0.0] * CHANNELS
         for c in range(CHANNELS):
             try:
                 ac = autocorr(c)
                 if ac:
                     ms, q, sig = rhythm_peak(*ac)
-                    curves.append(ac); quals.append(q)
+                    curves[c], quals[c] = ac, q
                 else:
                     ms, q, sig = None, 0.0, 0.0
                 with lock:
                     period_state[c].update(period_ms=ms, quality=round(q, 2), signal=round(sig, 2))
             except Exception as e:
                 print(f"period failed (ch {c}): {e}", flush=True)
-        fp, fq = fused_period(curves, quals) if curves else (None, 0.0)
+        trusted = judge_clips()
+        # the combined rhythm only from the clips that are trusted (a noisy clip only drags it down)
+        use = [(curves[c], quals[c]) for c in range(CHANNELS) if curves[c] and trusted[c]]
+        fp, fq = fused_period([u for u, _ in use], [q for _, q in use]) if use else (None, 0.0)
         if sensing():
-            two = update_two_hearts(periods_apart([dict(period_state[c]) for c in range(CHANNELS)]))
+            # two people = two CLEAN clips at different rhythms; a noisy clip next to a clean
+            # one cannot tell (periods_apart: None)
+            per = [dict(period_state[c]) if clip_state[c]["clean"] else {**period_state[c], "quality": 0}
+                   for c in range(CHANNELS)]
+            two = update_two_hearts(periods_apart(per))
         else:
             reset_two_hearts()
             two = False
@@ -497,9 +660,14 @@ def period_loop(stopped):
             sent_bpm[c] = 0
             reset_guards([c], fused_too=False)   # put back on, it settles again
             ble.update_finger(c, 0)            # that clip came off; 0 = no reading
+        for c in untrusted_fingers():
+            if sent_bpm[c]:                    # left out of the fused pulse: its number goes too
+                sent_bpm[c] = 0
+                reset_guards([c], fused_too=False)
+                ble.update_finger(c, 0)
         if not sensing():
             with lock:
-                fused.update(bpm=None, sources=[], fingers=[None, None], held=None)
+                fused.update(bpm=None, sources=[], fingers=[None, None], held=None, untrusted=[])
                 state["beat"] = {**(state["beat"] or {}), "bpm_live": None, "t": time.time()}
         ble_status(tick)
         if bpm:
@@ -540,12 +708,20 @@ def push_readings(bpm, br, rm, two):
 # ── finger presence: LEDs off until a hand is in the holders ─────────────────────────
 # Sensor + is wired to D2/D3, so the sketch can power them (call "sensor_power").
 # Measured: after power-on a sensor needs ~1.5 s to settle; finger 1 then varies < ~130
-# (14-bit, per 250 ms) without a finger and swings ~2500-3000 with one. Finger 2's lead
-# picks up spikes of 800-4000 even without a finger, so finger 1 decides for both.
-PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # flash = 2.25 s (amp settles ~1.25 s)
+# (14-bit, per 250 ms) without a finger and swings ~2500-3000 with one.
+# Without a finger both clips also show single events above the limit: a dip in the tail of
+# the power-on transient (clip 1, 891 at 2026-11-14 ~20:40), spikes on finger 2's lead and
+# spikes on both clips at once (800-2700), so the box said "finger detected" every ~17 s with
+# nobody there. A finger swings on every beat, so the swing must be there in two windows in a
+# row (look, then confirm). A single event is in one of them only. With that, either clip can
+# switch the sensors on: a finger in clip 2 alone is found too.
+PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # amp settles ~1.25 s, then look 1 s
+PROBE_CONFIRM_MS = 1300       # then confirm 1.3 s: one upstroke down to 46 BPM (flash = 3.55 s)
 WARMUP_S = 4.0               # after switching on: no readings until the pulse has re-locked
 PRESENCE_RANGE = 800          # max 250 ms range in the look window above this = finger
                               # (measured: no finger 90-445, finger ~1600-3000)
+CONFIRM_RANGE = 700           # ...and in the confirm window (any 250 ms span) above this (clip 1 empty, light into
+                              # the new case: 400-620 on 2026-11-14; a finger ~1600-3000)
 LEAVE_AFTER_S = 5.0           # pulse quality below 0.3 this long = hand gone
 presence = {"auto": True, "mode": "active", "since": time.time(), "last_probe_range": None}
 
@@ -562,8 +738,11 @@ def _last_t(ch=0):
     return ppgs[ch][-1][0] if ppgs[ch] else None
 
 
-def _probe_range(t_on):
-    w = [(t, v) for t, v in list(ppgs[0]) if t_on + PROBE_SETTLE_MS <= t < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS]
+def _probe_range(t_on, ch=0, start_ms=PROBE_SETTLE_MS, length_ms=PROBE_LOOK_MS, sliding=False):
+    """largest 250 ms swing of one clip in the window start_ms..start_ms+length_ms after t_on;
+    0 when it touched a rail, None with too few samples. sliding: every 250 ms span, not only
+    back-to-back ones (an upstroke split by a boundary counts whole)"""
+    w = [(t, v) for t, v in list(ppgs[ch]) if t_on + start_ms <= t < t_on + start_ms + length_ms]
     if len(w) < 20:
         return None
     if any(v < 200 or v > 13500 for _, v in w):
@@ -572,8 +751,17 @@ def _probe_range(t_on):
     while i < len(w):                       # 250 ms windows
         seg = [v for t, v in w if w[i][0] <= t < w[i][0] + 250]
         best = max(best, max(seg) - min(seg))
-        i += max(1, len(seg))
+        i += 1 if sliding else max(1, len(seg))
     return best
+
+
+def probe_finger(t_on):
+    """(finger, [(look, confirm) swing per clip]): a clip whose swing is above PRESENCE_RANGE in
+    the look window AND above CONFIRM_RANGE in the confirm window right after it"""
+    swings = [(_probe_range(t_on, c) or 0,
+               _probe_range(t_on, c, PROBE_SETTLE_MS + PROBE_LOOK_MS, PROBE_CONFIRM_MS, sliding=True) or 0)
+              for c in range(CHANNELS)]
+    return any(look > PRESENCE_RANGE and confirm > CONFIRM_RANGE for look, confirm in swings), swings
 
 
 def sensing():
@@ -588,6 +776,7 @@ def _forget_beats():
             state["fingers"][c] = None
             sent_bpm[c] = 0
     reset_guards()            # a new wearing: no pulse goes out until it is steady (PulseGuard)
+    reset_clips()             # ...and no clip is judged yet
     ble.clear_readings()      # AFF1 kept the last per-finger numbers after the finger left
 
 
@@ -637,15 +826,16 @@ def presence_loop(stopped):
             presence.update(mode="probing", since=time.time(), t_on=_last_t())
         elif presence["mode"] == "probing":
             t_on = presence.get("t_on") or 0
-            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS:
+            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS + PROBE_CONFIRM_MS:
                 continue
-            r = _probe_range(t_on)
-            presence["last_probe_range"] = r
-            if r is not None and r > PRESENCE_RANGE:
+            found, swings = probe_finger(t_on)
+            presence["last_probe_range"] = max(look for look, _ in swings)
+            presence["last_probe_swings"] = swings
+            if found:
                 _forget_beats()
                 presence.update(mode="active", since=time.time())
                 weak_since = time.time()       # give the pulse a few seconds to lock
-                print(f"presence: finger detected (range {r}) -> sensors on", flush=True)
+                print(f"presence: finger detected (swing per clip {swings}) -> sensors on", flush=True)
             else:
                 _sensor_power(False)
                 _go_idle()
@@ -856,6 +1046,8 @@ def state_snapshot() -> dict:
         ps["period"] = dict(period_state[c])
         out["pulses"].append(ps)
     out["finger"] = dict(fused)     # the one combined finger reading
+    with lock:                      # each clip as judged (judge_clips): clean, trusted, why not
+        out["finger"]["clips"] = [dict(s) for s in clip_state]
     out["breathing"] = dict(breathing)
     out["hrv"] = dict(hrv)
     out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}
