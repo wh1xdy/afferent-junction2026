@@ -111,12 +111,14 @@
   };
 
   const night = () => ui.clock === 'night';
+  A.night = night;
   const morningText = () => {
     $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
     $('decline').textContent = night() ? 'Not tonight' : 'Not today';
     $('crisisLead').textContent = `If ${night() ? 'tonight' : 'today'} is heavy, you do not have to carry it alone.`;
     $('end').classList.toggle('night', night());
     A.Checkin.refresh();
+    A.bus.emit('home');
   };
 
   const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings'];
@@ -246,7 +248,7 @@
       A.session = null;
       idle = A.makeVisual(ui.profile); idle.black = 0;
       resetEnd(); camGlyph(); A.Checkin.refresh();
-      show('start', true);
+      show('start', true); A.bus.emit('home');
       fadeCurtain(0, 1.8, () => { leaving = false; });
     });
   };

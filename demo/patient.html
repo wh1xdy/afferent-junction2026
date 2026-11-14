@@ -33,7 +33,10 @@
         <figcaption id="arcCap"></figcaption>
       </figure>
       <div id="weekBlock" aria-labelledby="weekH">
-        <h2 id="weekH" class="af-caps">Your week</h2>
+        <div class="weekHead">
+          <h2 id="weekH" class="af-caps">Your week</h2>
+          <p id="litTotal" class="litTotal" hidden><span id="litN"></span> <span class="af-caps">Mornings lit</span></p>
+        </div>
         <div id="week"></div>
       </div>
     </section>
@@ -83,6 +86,7 @@
   <script src="js/util.js"></script>
   <script src="js/art.js"></script>
   <script src="js/world.js"></script>
+  <script src="js/streak.js"></script>
   <script src="js/patient.js"></script>
 </body>
 </html>

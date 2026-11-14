@@ -131,6 +131,7 @@
       $('headline').textContent = 'The lantern is waiting.';
       $('sub').textContent = '';
       drawArc(null);
+      renderWeek();
       $('foot').textContent = 'Nothing saved on this phone yet.';
       return;
     }
@@ -145,7 +146,7 @@
       ? (t.session_time_h != null ? `${partOfDay(t.session_time_h)} at ${clock(t.session_time_h)}` : '')
       : el('a', { class: 'begin', href: 'index.html' + location.search }, [el('span', { class: 'flame', 'aria-hidden': 'true' }), document.createTextNode('Light the lantern')]));
     drawArc(t);
-    renderWeek(view.week || []);
+    renderWeek();
     renderHelped(view.what_helped || []);
     renderSharing();
     renderSensors();
@@ -195,29 +196,51 @@
     svg.setAttribute('aria-label', `Today's arc, lantern from ${t.mood_start ?? 'unset'} to ${t.mood_end ?? 'unset'} of 5`);
   }
 
-  const LANTERN = '<svg viewBox="0 0 40 60" aria-hidden="true"><path class="lf" d="M16.5 11a3.5 3.5 0 0 1 7 0"/><path class="lb" d="M15 13.5h10l5.5 5h-21z"/><rect class="lg" x="11" y="18.5" width="18" height="24" rx="4"/><ellipse class="ll" cx="20" cy="32" rx="2.3" ry="5.2"/><rect class="lb" x="9.8" y="42" width="20.4" height="3.2" rx="1.2"/></svg>';
+  const LANTERN = '<svg viewBox="0 0 40 60" aria-hidden="true"><path class="gd" d="M6 46.5h28"/><rect class="fr" x="8" y="15.8" width="24" height="29.6" rx="6.5"/><path class="fr fs" d="M8.6 15.4l-2.4-2.4M31.4 15.4l2.4-2.4M7.4 30.5H4.6M32.6 30.5h2.8M8.6 45.6l-2.4 2.4M31.4 45.6l2.4 2.4"/><path class="lf" d="M16.5 11a3.5 3.5 0 0 1 7 0"/><path class="lfd" d="M15.5 13.2h9"/><path class="lb" d="M15 13.5h10l5.5 5h-21z"/><rect class="lg" x="11" y="18.5" width="18" height="24" rx="4"/><ellipse class="ll" cx="20" cy="32" rx="2.3" ry="5.2"/><rect class="lb" x="9.8" y="42" width="20.4" height="3.2" rx="1.2"/></svg>';
+  const STATE_LABEL = { lit: 'a lit morning', today: 'open', missed: 'unlit', frozen: 'unlit, held by frost', rest: 'resting', future: 'still to come', none: 'before your first morning' };
 
-  function renderWeek(week) {
-    const days = week.slice(-7), n = days.length || 7;
-    const mood = d => d.played && d.mood >= 1 && d.mood <= 5 ? Math.round(d.mood) : null;
-    const colourOf = d => token(`--af-mood-${mood(d)}`) || d.colour;
-    const glowOf = d => parseFloat(token(`--af-mood-${mood(d)}-glow`)) || 0.6;
-    const lit = d => !!(mood(d) && colourOf(d));
+  const mondayOf = k => { const d = parseDate(k); d.setDate(d.getDate() - (d.getDay() + 6) % 7); return d; };
+  const legacyState = d => d.state || (d.played ? 'lit' : d.frozen ? 'frozen' : d.today ? 'today' : 'missed');
+
+  function weekData() {
+    const S = A.Streak;
+    if (S?.hasData()) return { days: S.week(), lit: S.summary().morningsLit };
+    const src = view?.week || [];
+    if (!src.length) return { days: [], lit: null };
+    const todayKey = view.date || src[src.length - 1].date, mon = mondayOf(todayKey), by = Object.fromEntries(src.map(d => [d.date, d]));
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const dd = new Date(mon); dd.setDate(mon.getDate() + i);
+      const k = isoDay(dd), d = by[k];
+      if (d) return { ...d, state: legacyState(d), today: k === todayKey || !!d.today };
+      return { date: k, weekday: DAYS[dd.getDay()].slice(0, 3), state: k > todayKey ? 'future' : 'none', mood: null };
+    });
+    return { days, lit: view.mornings_lit ?? src.filter(d => legacyState(d) === 'lit').length };
+  }
+
+  function renderWeek() {
+    const { days, lit: total } = weekData(), n = days.length || 7;
+    $('litTotal').hidden = !total;
+    $('litN').textContent = total || '';
+    const mood = d => d.state === 'lit' && d.mood >= 1 && d.mood <= 5 ? Math.round(d.mood) : null;
+    const colourOf = d => mood(d) ? token(`--af-mood-${mood(d)}`) || d.colour : token('--af-lantern-glow') || '#FFD9A0';
+    const glowOf = d => mood(d) ? parseFloat(token(`--af-mood-${mood(d)}-glow`)) || 0.6 : 0.7;
+    const lit = d => d.state === 'lit';
     const rgba = (hex, a) => { const [r, g, b] = A.hex(hex); return `rgba(${r},${g},${b},${a.toFixed(3)})`; };
     const stop = (d, at) => `${lit(d) ? rgba(colourOf(d), 0.25 + 0.6 * glowOf(d)) : 'rgba(0,0,0,0)'} ${at}%`;
     const glow = days.length ? `linear-gradient(90deg, ${stop({}, 0)}, ${days.map((d, i) => stop(d, ((i + 0.5) / n * 100).toFixed(2))).join(', ')}, ${stop({}, 100)})` : 'none';
     const cols = el('div', { class: 'days', style: `grid-template-columns:repeat(${n},1fr)` }, days.map(d => {
-      const dd = parseDate(d.date);
+      const dd = parseDate(d.date), state = d.state || 'missed';
       return el('div', {
-        class: 'day' + (d.today ? ' today' : ''),
+        class: `day s-${state}` + (d.today ? ' today' : ''),
         role: 'img',
-        'aria-label': `${DAYS[dd.getDay()]}${d.today ? ', today' : ''}, ${d.played ? (d.dawn_reached ? 'reached dawn' : 'played') : 'a quiet day'}`,
+        'aria-label': `${DAYS[dd.getDay()]}${d.today ? ', today' : ''}, ${STATE_LABEL[state] || STATE_LABEL.missed}`,
       }, [
-        el('span', { class: 'lamp' + (lit(d) ? '' : ' gap'), style: lit(d) ? `--c:${colourOf(d)};--g:${glowOf(d)}` : null, html: LANTERN }),
+        el('span', { class: 'lamp' + (lit(d) ? '' : ' gap') + ` g-${state}`, style: lit(d) ? `--c:${colourOf(d)};--g:${glowOf(d)}` : null, html: LANTERN }),
         el('span', { class: 'wd', text: d.today ? 'Today' : (d.weekday || DAYS[dd.getDay()].slice(0, 3)) }),
       ]);
     }));
     $('week').replaceChildren(el('div', { class: 'ribbon', style: `background:${glow}`, 'aria-hidden': 'true' }), cols);
+    $('weekBlock').hidden = !days.length;
   }
 
   function renderHelped(items) {
