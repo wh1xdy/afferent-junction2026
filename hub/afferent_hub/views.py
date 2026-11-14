@@ -7,7 +7,8 @@ MOOD_HEX = {1: "#34476E", 2: "#5A7CA6", 3: "#A9A79A", 4: "#E8B867", 5: "#FFCB5C"
 
 SENSORS = [
     ("phone_camera", "Phone camera", "Eye openness, blinks and head angle as numbers. Never images."),
-    ("pulse_stone", "Pulse stone", "Pulse in beats per minute."),
+    ("pulse_stone", "Pulse stone",
+     "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."),
     ("bedside_camera", "Bedside camera", "A stick figure while you play. Never images."),
     ("bedside_light", "Bedside light", "Nothing. It only receives light colours."),
     ("presence", "Bed presence", "Time in bed and restless moments."),
@@ -98,6 +99,8 @@ def compact_session(s: dict) -> dict:
         "status": s.get("status"), "profile": s.get("profile"), "simulated": s.get("simulated"),
         "duration_ms": s.get("duration_ms"), "rt_median_ms": _get(s, "core", "rt", "median_ms"),
         "mood_start": _get(s, "core", "mood_start"), "mood_end": s.get("mood_end"), "pre_post": s.get("pre_post"),
+        "vitals": s.get("vitals"), "pulse_source": _get(s, "signal", "pulse_source"),
+        "simulated_fields": s.get("simulated_fields"),
     }
 
 

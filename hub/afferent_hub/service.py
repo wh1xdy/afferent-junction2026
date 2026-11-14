@@ -52,6 +52,11 @@ def make_source(settings: Settings):
         from .bedside.unoq import UnoQSerial
 
         return UnoQSerial(mode.split(":", 1)[1])
+    if mode.startswith("unoq:"):
+        # UNO Q HTTP API through `wendy net forward 18081:18080 --device 169.254.3.42:50052`
+        from .bedside.unoq_http import UnoQHttp
+
+        return UnoQHttp(mode.split(":", 1)[1])
     return NullSource("ws" if mode == "ws" else "off")
 
 
@@ -70,8 +75,23 @@ class Hub:
         self.validation_status = "idle"
         self._gemma: tuple[float, dict] | None = None
         self._tasks: list[asyncio.Task] = []
-        self.bedside = Bedside(make_source(settings), self._to_bound_app, self.to_clinic, self._to_devices)
+        self._jobs: set[asyncio.Task] = set()
+        self.bedside = Bedside(make_source(settings), self._to_bound_app, self.to_clinic, self._to_devices,
+                               pulse_allowed=self._pulse_allowed)
         self.bedside.patient_id = settings.bound_patient
+
+    def _pulse_allowed(self) -> bool:
+        return bool(self.privacy(self.settings.bound_patient).get("sensors", {}).get("pulse_stone", True))
+
+    async def _set_pulse_source(self, on: bool):
+        # a source that can really switch the finger sensors off does so (I14); others only drop the data
+        set_enabled = getattr(self.bedside.source, "set_enabled", None)
+        if set_enabled is None:
+            return
+        try:
+            await set_enabled(on)
+        except Exception:
+            log.exception("bedside source could not switch the pulse sensor %s", "on" if on else "off")
 
     async def to_clinic(self, msg: dict):
         await self.rooms.broadcast("clinic", msg)
@@ -87,12 +107,14 @@ class Hub:
             await asyncio.to_thread(self.seed, self.settings.seed)
         else:
             await asyncio.to_thread(self.recompute_all)
+        if not self._pulse_allowed():
+            await self._set_pulse_source(False)
         await self.bedside.start()
         if self.settings.validation:
             self._tasks.append(asyncio.create_task(self._run_validation()))
 
     async def stop(self):
-        for t in self._tasks:
+        for t in self._tasks + list(self._jobs):
             t.cancel()
         await self.bedside.stop()
         self.store.close()
@@ -415,6 +437,15 @@ class Hub:
                 await self.bedside.set_camera(bool(change.get("on")))
             if change.get("sensor") == "bedside_light" and not change.get("on"):
                 await self.bedside.set_light("#000000", 0, 1500, "privacy")
+            if change.get("sensor") == "pulse_stone":
+                on = bool(change.get("on"))
+                if not on:
+                    await self.bedside.clear_pulse()
+                # the data stops here and now; the device is switched in the background because it
+                # takes about a second and must not hold up the patient's toggle
+                job = asyncio.create_task(self._set_pulse_source(on))
+                self._jobs.add(job)
+                job.add_done_callback(self._jobs.discard)
         await self.to_clinic({"type": "privacy", "patient_id": pid, "privacy": privacy})
         await self.rooms.broadcast("app", {"type": "privacy", "privacy": privacy}, patient_id=pid)
         return privacy
