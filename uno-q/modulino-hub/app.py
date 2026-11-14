@@ -4,12 +4,13 @@ Tar emot Knob/Thermo-värden från sketchen via Arduino Bridge och publicerar de
 som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
 
   GET  /state                      -> knob, climate, modulinos, finger (fused reading of both sensors),
-                                      beat (= fused, for the Jetson), fingers[0..1], pulses[0..1]
+                                      beat (= fused, for the Jetson), fingers[0..1], pulses[0..1],
+                                      breathing, hrv, presence, now (device clock, for staleness)
   GET  /ppg?ch=0|1                 -> raw 30 s of finger 1 (A1) / finger 2 (A2)
   POST /presence?auto=0|1          -> sensor LEDs off until a finger is detected (default on)
   POST /sensor?ch=0|1&on=0|1       -> manual sensor power (D2 / D3)
   POST /buzz?freq=880&ms=200       -> plays a tone on the Buzzer
-  POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat
+  POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat (sketch default: muted)
   POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
   POST /led/beat?on=0|1            -> red flash on every heartbeat (default off: it fakes camera rPPG)
 """
@@ -52,7 +53,7 @@ def on_climate(celsius, humidity):
     _set("climate", {"celsius": round(float(celsius), 2), "humidity": round(float(humidity), 1)})
 
 
-ppgs = [collections.deque(maxlen=1500) for _ in range(CHANNELS)]  # ~30 s at 45 Hz each
+ppgs = [collections.deque(maxlen=3200) for _ in range(CHANNELS)]  # ~70 s at 45 Hz each (HRV window)
 ppg = ppgs[0]
 
 
@@ -218,8 +219,17 @@ def fuse():
     return fused["bpm"]
 
 
+def ble_status(tick):
+    """Fused quality + presence mode -> AFF1 bytes 4..5. keepalive every other tick: a notify at
+    least every 2 s lets the phone see that the link is alive, also while idle."""
+    ble.update_status(fused.get('quality') if sensing() else None, presence['mode'],
+                      keepalive=(tick % 2 == 0))
+
+
 def period_loop(stopped):
+    tick = 0
     while not stopped.wait(1.0):
+        tick += 1
         curves, quals = [], []
         for c in range(CHANNELS):
             try:
@@ -250,12 +260,20 @@ def period_loop(stopped):
                 except Exception as e:
                     print(f"period update failed (ch {c}): {e}", flush=True)
         br = update_breathing() if sensing() else None
+        rm = update_hrv() if sensing() else None
+        if presence["mode"] == "idle":
+            # the finger may have left while the two updates above were running: their late
+            # result must not survive the reset done by presence_loop
+            reset_live_metrics()
+            br = rm = None
         ble.update_breathing(br or 0)
+        ble.update_hrv(rm or 0)
         bpm = fuse() if sensing() else None
         if not sensing():
             with lock:
-                fused.update(bpm=None, sources=[])
+                fused.update(bpm=None, sources=[], fingers=[None, None])
                 state["beat"] = {**(state["beat"] or {}), "bpm_live": None, "t": time.time()}
+        ble_status(tick)
         if bpm:
             ble.update(0, bpm)        # standard Heart Rate Measurement = the fused finger reading
 
@@ -309,6 +327,21 @@ def _forget_beats():
         for c in range(CHANNELS):
             beats[c].clear()
             state["fingers"][c] = None
+    ble.clear_readings()      # AFF1 kept the last per-finger numbers after the finger left
+
+
+def reset_live_metrics():
+    """No finger: forget the live breathing and HRV numbers. update_breathing / update_hrv run
+    only while sensing, so without this /state kept the last values for as long as nobody wore
+    the clip. The personal RMSSD baseline (and the history behind it) is kept."""
+    with lock:
+        breathing.update(per_minute=None, snr=None, channel=None)
+        hrv.update(rmssd_ms=None, sdnn_ms=None, mean_bpm=None, pairs=0, channel=None, vs_baseline=None)
+
+
+def _go_idle():
+    presence.update(mode="idle", since=time.time())
+    reset_live_metrics()
 
 
 def presence_loop(stopped):
@@ -332,7 +365,7 @@ def presence_loop(stopped):
             elif time.time() - weak_since > LEAVE_AFTER_S:
                 _sensor_power(False)
                 _forget_beats()
-                presence.update(mode="idle", since=time.time())
+                _go_idle()
                 weak_since = None
                 print("presence: no finger -> sensors off", flush=True)
         elif presence["mode"] == "idle" and time.time() - presence["since"] >= PROBE_OFF_S:
@@ -351,7 +384,7 @@ def presence_loop(stopped):
                 print(f"presence: finger detected (range {r}) -> sensors on", flush=True)
             else:
                 _sensor_power(False)
-                presence.update(mode="idle", since=time.time())
+                _go_idle()
 
 
 # ── breathing from heart-rate rhythm (respiratory sinus arrhythmia) ─────────────────
@@ -424,6 +457,83 @@ def rsa_debug(c):
     return f"ch{c}: beats {len(allp)} kept {len(kept)} span {span:.0f}s period {per} ibi {min(ibis) if ibis else '-'}-{max(ibis) if ibis else '-'}"
 
 
+# ── heart-rate variability (HRV) ─────────────────────────────────────────────────────
+# RMSSD (root mean square of successive beat-interval differences) over the last 60 s: the
+# standard short-term HRV / stress marker (lower = more stressed, relative to one's own baseline).
+# The sensor samples at ~45 Hz, so a beat time is only known to +-11 ms, while RMSSD is typically
+# 20-80 ms. Each beat is therefore re-timed at the steepest point of its upstroke in the raw signal,
+# with parabolic sub-sample interpolation. Artefacts: intervals off the pulse period, or > 30 % off
+# the local median of their neighbours (missed / double beats), are dropped.
+hrv = {"rmssd_ms": None, "sdnn_ms": None, "mean_bpm": None, "pairs": 0, "channel": None,
+       "baseline_rmssd_ms": None, "vs_baseline": None}
+_hrv_history = collections.deque(maxlen=600)          # (t, rmssd), ~10 min, for a personal baseline
+
+
+def refine_beat(c, t_ms):
+    """time of the steepest upstroke near a detected beat, sub-sample (ms)"""
+    w = [(t, v) for t, v in list(ppgs[c]) if t_ms - 150 <= t <= t_ms + 80]
+    if len(w) < 5:
+        return float(t_ms)
+    d = [(w[i][0] + w[i - 1][0]) / 2 for i in range(1, len(w))]           # slope time stamps
+    s_ = [(w[i][1] - w[i - 1][1]) / max(w[i][0] - w[i - 1][0], 1) for i in range(1, len(w))]
+    k = max(range(len(s_)), key=s_.__getitem__)
+    if 0 < k < len(s_) - 1:
+        a, b, cc = s_[k - 1], s_[k], s_[k + 1]
+        den = a - 2 * b + cc
+        off = 0.5 * (a - cc) / den if den else 0.0          # parabola vertex, in samples
+        off = max(-0.5, min(0.5, off))
+        step = (d[k + 1] - d[k - 1]) / 2
+        return d[k] + off * step
+    return d[k]
+
+
+def compute_hrv(c, window_ms=60000):
+    pts = list(beats[c])
+    if len(pts) < 12:
+        return None
+    t_end = pts[-1][0]
+    times = [refine_beat(c, t) for t, _ in pts if t >= t_end - window_ms]
+    if len(times) < 12:
+        return None
+    ibis = [b - a for a, b in zip(times, times[1:])]
+    per = period_state[c].get("period_ms")
+    ok = []
+    for j, i in enumerate(ibis):
+        # missed / double beats sit at ~2x / ~0.5x: drop intervals > 30 % off the local median of
+        # their neighbours. (A "> 20 % change from the previous interval" rule also removed real
+        # large variations and under-read high HRV: 86 -> 61 ms on a synthetic test.)
+        nb = sorted(ibis[max(0, j - 3):j] + ibis[j + 1:j + 4])
+        med = nb[len(nb) // 2] if nb else i
+        plausible = (0.6 * per <= i <= 1.6 * per) if per else (330 <= i <= 1800)
+        ok.append(plausible and abs(i - med) <= 0.3 * med)
+    diffs = [ibis[j] - ibis[j - 1] for j in range(1, len(ibis)) if ok[j] and ok[j - 1]]
+    good = [i for i, o in zip(ibis, ok) if o]
+    if len(diffs) < 20 or len(good) < 20:
+        return None
+    rmssd = math.sqrt(sum(x * x for x in diffs) / len(diffs))
+    m = sum(good) / len(good)
+    sdnn = math.sqrt(sum((i - m) ** 2 for i in good) / len(good))
+    return {"rmssd_ms": round(rmssd, 1), "sdnn_ms": round(sdnn, 1), "mean_bpm": round(60000 / m),
+            "pairs": len(diffs), "channel": c}
+
+
+def update_hrv():
+    res = [r for r in (compute_hrv(c) for c in range(CHANNELS)) if r]
+    best = max(res, key=lambda r: r["pairs"]) if res else None
+    if best and len(res) == 2 and abs(res[0]["rmssd_ms"] - res[1]["rmssd_ms"]) <= 0.25 * max(res[0]["rmssd_ms"], res[1]["rmssd_ms"]):
+        best = {**best, "rmssd_ms": round((res[0]["rmssd_ms"] + res[1]["rmssd_ms"]) / 2, 1), "channel": "both"}
+    with lock:
+        if best:
+            _hrv_history.append((time.time(), best["rmssd_ms"]))
+            hist = [v for _, v in _hrv_history]
+            base = sorted(hist)[len(hist) // 2] if len(hist) >= 120 else None    # >= 2 min of readings
+            hrv.update(best, baseline_rmssd_ms=base,
+                       vs_baseline=round(best["rmssd_ms"] / base - 1, 2) if base else None)
+        else:
+            hrv.update(rmssd_ms=None, sdnn_ms=None, mean_bpm=None, pairs=0, channel=None, vs_baseline=None)
+    return hrv["rmssd_ms"]
+
+
 def update_breathing():
     global _last_breath_log
     best = None
@@ -469,6 +579,28 @@ def bridge_loop(stopped):
         stopped.wait(2)
 
 
+def state_snapshot() -> dict:
+    """Body of GET /state."""
+    with lock:
+        out = dict(state)
+    out["pulse"] = pulse_summary(ch=0)
+    out["pulse"]["period"] = dict(period_state[0])
+    out["pulses"] = []
+    for c in range(CHANNELS):
+        ps = pulse_summary(ch=c)
+        ps["period"] = dict(period_state[c])
+        out["pulses"].append(ps)
+    out["finger"] = dict(fused)     # the one combined finger reading
+    out["breathing"] = dict(breathing)
+    out["hrv"] = dict(hrv)
+    out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}
+    out["ble"] = ble.status
+    # device clock: every "t" / "since" in this document is on the same clock, so an HTTP
+    # consumer can judge staleness as now - t without comparing its own clock to the board's
+    out["now"] = time.time()
+    return out
+
+
 class Handler(BaseHTTPRequestHandler):
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
@@ -481,20 +613,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/state"):
-            with lock:
-                out = dict(state)
-            out["pulse"] = pulse_summary(ch=0)
-            out["pulse"]["period"] = dict(period_state[0])
-            out["pulses"] = []
-            for c in range(CHANNELS):
-                ps = pulse_summary(ch=c)
-                ps["period"] = dict(period_state[c])
-                out["pulses"].append(ps)
-            out["finger"] = dict(fused)     # the one combined finger reading
-            out["breathing"] = dict(breathing)
-            out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}
-            out["ble"] = ble.status
-            self._json(200, out)
+            self._json(200, state_snapshot())
         elif path == "/ppg":
             c = int(parse_qs(urlparse(self.path).query).get("ch", ["0"])[0])
             self._json(200, {"samples": list(ppgs[c % CHANNELS])})

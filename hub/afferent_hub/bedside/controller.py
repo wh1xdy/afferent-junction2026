@@ -26,6 +26,12 @@ DEFAULT_TOKENS = {
 
 Send = Callable[[dict], Awaitable[None]]
 
+PHYSIO_KEYS = ("source", "transport", "simulated", "pulse_bpm", "quality", "quality_reported", "contact",
+               "finger_bpm", "finger_sources", "breathing_per_min", "breathing_snr_db", "rmssd_ms", "sdnn_ms",
+               "rmssd_baseline_ms", "rmssd_vs_baseline", "presence", "age_s")
+EMPTY_PULSE = {"bpm": None, "quality": 0, "contact": False, "source": None}
+
+
 def load_tokens() -> dict:
     try:
         return {**DEFAULT_TOKENS, **json.loads(TOKENS.read_text())["bedside"]}
@@ -40,8 +46,9 @@ def schedule_light(schedule: list[dict], hour: float) -> dict:
     return {"rgb": "#000000", "level": 0, "label": "off"}
 
 class Bedside:
-    def __init__(self, source, to_app: Send, to_devices: Send, clock=None):
+    def __init__(self, source, to_app: Send, to_devices: Send, clock=None, pulse_allowed=None):
         self.source = source
+        self.pulse_allowed: Callable[[], bool] | None = pulse_allowed
         self.to_app = to_app
         self.to_devices = to_devices
         self.clock = clock or (lambda: dt.datetime.now().astimezone())
@@ -57,7 +64,8 @@ class Bedside:
             "updated_iso": now_iso(),
             "light": {"rgb": "#000000", "level": 0, "fade_ms": 0, "reason": "idle"},
             "knob": {"level": self.dawn_level, "last_press_iso": None},
-            "pulse": {"bpm": None, "quality": 0, "contact": False, "source": None},
+            "pulse": dict(EMPTY_PULSE),
+            "physio": None,
             "presence": {"in_bed": None, "since_iso": None, "motion_events_tonight": 0},
             "thermo": {"temp_c": None, "humidity_pct": None},
             "camera_on": False,
@@ -113,6 +121,10 @@ class Bedside:
     async def on_event(self, msg: dict):
         t = msg.get("type")
         s = self.state
+        if t in ("pulse", "physio") and self.pulse_allowed and not self.pulse_allowed():
+            # pulse_stone off (I14): the receiver drops the data, nothing reaches the app or the clinic
+            await self.clear_pulse()
+            return
         s["updated_iso"] = now_iso()
         if t == "hello":
             s["connected"] = True
@@ -122,6 +134,12 @@ class Bedside:
             s["pulse"] = {"bpm": msg.get("bpm"), "quality": msg.get("quality", 0), "contact": bool(msg.get("contact")),
                           "source": msg.get("source")}
             await self.to_app({"type": "pulse", **s["pulse"]})
+        elif t == "physio":
+            p = {k: msg.get(k) for k in PHYSIO_KEYS}
+            if s["simulated"]:
+                p["simulated"] = True
+            s["physio"] = p
+            await self.to_app({"type": "physio", **p})
         elif t == "knob":
             await self._knob(msg)
         elif t == "presence":
@@ -140,6 +158,13 @@ class Bedside:
             s["thermo"] = {"temp_c": msg.get("temp_c"), "humidity_pct": msg.get("humidity_pct")}
             if msg.get("temp_c") is not None:
                 self.counters["temps"] = (self.counters["temps"] + [msg["temp_c"]])[-1440:]
+
+    async def clear_pulse(self):
+        s = self.state
+        if s["pulse"] == EMPTY_PULSE and s["physio"] is None:
+            return
+        s["pulse"], s["physio"] = dict(EMPTY_PULSE), None
+        s["updated_iso"] = now_iso()
 
     async def _knob(self, msg: dict):
         s = self.state

@@ -53,11 +53,15 @@ const tests = {
 
   'implausible pulse is ignored by the director'() {
     const { A, tick } = load();
+    const feed = bpm => A.Sensors.feedPulse({ bpm, quality: 0.9, contact: true, source: 'finger_ppg' });
+    feed(70);
     const s = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
-    run(A, tick, s, 5, () => { A.Sim.offset = 0; A.Sim.drowsy = 0; });
+    assert.strictEqual(A.Sensors.pulseMode, 'real');
+    run(A, tick, s, 5, () => { A.Sim.drowsy = 0; feed(70); });
     const a0 = s.a;
-    A.Sensors.feedPulse({ bpm: 190, quality: 0.9, contact: true });
-    run(A, tick, s, 2, () => A.Sensors.feedPulse({ bpm: 190, quality: 0.9, contact: true }));
+    feed(190);
+    run(A, tick, s, 2, () => feed(190));
+    assert.strictEqual(A.Sensors.pulse(A.now()).bpm, 190);
     assert.ok(Math.abs(s.a - a0) < 0.3, `arousal moved from ${a0} to ${s.a}`);
   },
 

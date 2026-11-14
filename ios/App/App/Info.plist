@@ -29,10 +29,33 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Afferent uses Bluetooth to read your pulse, breathing rate and beat-to-beat variation from the Afferent finger sensor. If you turn on Home and visitors in Settings, it also looks for your bedside unit and counts other phones nearby while the app is open. Nobody is identified.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_airplay._tcp</string>
+		<string>_raop._tcp</string>
+		<string>_googlecast._tcp</string>
+		<string>_spotify-connect._tcp</string>
+		<string>_sonos._tcp</string>
+		<string>_hap._tcp</string>
+		<string>_hap._udp</string>
+		<string>_homekit._tcp</string>
+		<string>_matter._tcp</string>
+		<string>_meshcop._udp</string>
+		<string>_hue._tcp</string>
+		<string>_ipp._tcp</string>
+		<string>_ipps._tcp</string>
+		<string>_printer._tcp</string>
+		<string>_pdl-datastream._tcp</string>
+		<string>_uscan._tcp</string>
+		<string>_amzn-wplay._tcp</string>
+		<string>_androidtvremote2._tcp</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Afferent reads only whether your eyes are closed. Camera frames never leave the phone.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Afferent talks to your bedside unit on your home network.</string>
+	<string>Afferent talks to your bedside unit on your home network. With Home and visitors on, it also checks that your home devices (TV, speakers, printer) are on the same Wi-Fi.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

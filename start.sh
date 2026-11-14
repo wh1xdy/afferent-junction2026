@@ -6,9 +6,13 @@ HUB="$ROOT/hub"
 VENV="$HUB/.venv"
 
 usage() {
-  echo "Usage: ./start.sh [--no-sim] [--serial /dev/tty...] [--ws] [--sim-pulse] [--reset] [--port 8000]"
+  echo "Usage: ./start.sh [--no-sim] [--serial /dev/tty...] [--unoq URL] [--ws] [--sim-pulse] [--reset] [--port 8000]"
   echo "  --no-sim       no bedside simulator (bedside off)"
   echo "  --serial PORT  real UNO Q over USB serial (115200 baud)"
+  echo "  --unoq URL     real UNO Q over its HTTP API, e.g. --unoq http://127.0.0.1:18081"
+  echo "                 The API is only on the Wendy Net mesh, so forward it first (wendy CLI,"
+  echo "                 logged in to the device's Wendy org):"
+  echo "                   wendy net forward 18081:18080 --device 169.254.3.42:50052"
   echo "  --ws           bedside device connects to /ws/bedside itself"
   echo "  --sim-pulse    the bedside simulator also streams pulse"
   echo "  --reset        drop the database and reseed the demo roster"
@@ -20,6 +24,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-sim) export AFFERENT_BEDSIDE=off ;;
     --serial) export AFFERENT_BEDSIDE="serial:$2"; shift ;;
+    --unoq)
+      if [[ $# -lt 2 ]]; then echo "--unoq needs a URL"; usage; exit 1; fi
+      export AFFERENT_BEDSIDE="unoq:$2"; shift ;;
     --ws) export AFFERENT_BEDSIDE=ws ;;
     --sim-pulse) export AFFERENT_SIM_PULSE=1 ;;
     --reset) RESET=1 ;;
@@ -31,8 +38,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! -x "$VENV/bin/python" ]]; then
-  echo "Creating $VENV"
-  python3 -m venv "$VENV"
+  # A bare python3 can be newer than the wheels in requirements.txt support, so prefer a known version.
+  PY=""
+  for cand in python3.14 python3.13 python3.12 python3; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+  done
+  if [[ -z "$PY" ]]; then echo "No python3 found (tried python3.14, 3.13, 3.12, python3)"; exit 1; fi
+  echo "Creating $VENV with $PY"
+  "$PY" -m venv "$VENV"
 fi
 "$VENV/bin/python" -m pip install -q --disable-pip-version-check -r "$HUB/requirements.txt"
 

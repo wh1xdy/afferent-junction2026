@@ -168,7 +168,7 @@
     "id": "pulse_stone",
     "label": "Pulse stone",
     "on": true,
-    "shares": "Pulse in beats per minute."
+    "shares": "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."
    },
    {
     "id": "bedside_camera",
