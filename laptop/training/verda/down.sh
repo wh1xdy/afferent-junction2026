@@ -7,7 +7,7 @@
 # The only copy of work_dirs/ lives on that volume, so pull.sh runs first.
 #
 # Usage: verda/down.sh [--yes]
-# Env: HOSTNAME, SKIP_PULL=1 (skip the work_dirs rsync -- you lose them),
+# Env: VM_HOSTNAME, SKIP_PULL=1 (skip the work_dirs rsync -- you lose them),
 #      plus the pull.sh env when pulling.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
@@ -36,21 +36,21 @@ fi
 # ------------------------------------------------- 2. resolve + confirm
 # `vm delete` wants the instance ID; the hostname is only a list/display name.
 IID="$(resolve_instance_id)" || \
-    die "no instance found with hostname '$HOSTNAME' ('verda vm ls' to check)."
+    die "no instance found with hostname '$VM_HOSTNAME' ('verda vm ls' to check)."
 
 cat >&2 <<EOF
-About to DELETE Verda instance '$HOSTNAME' ($IID) and ALL attached volumes,
+About to DELETE Verda instance '$VM_HOSTNAME' ($IID) and ALL attached volumes,
 including $REMOTE_ROOT/, the dataset copy and any checkpoints not pulled.
 EOF
 if [ -z "$YES" ]; then
     printf 'Type the hostname to confirm: ' >&2
     read -r ans
-    [ "$ans" = "$HOSTNAME" ] || die "aborted (typed '$ans')."
+    [ "$ans" = "$VM_HOSTNAME" ] || die "aborted (typed '$ans')."
 fi
 
 # --with-volumes is required: without it the OS volume survives detached and
 # keeps billing. --yes skips the CLI's own confirmation; we already asked ours.
 verda vm delete "$IID" --with-volumes --yes
 
-log "'$HOSTNAME' deleted with its volumes. 'verda vm ls' + 'verda volume list' to confirm;"
+log "'$VM_HOSTNAME' deleted with its volumes. 'verda vm ls' + 'verda volume list' to confirm;"
 log "billing stops here. NOTE: the dataset copy on the instance is gone."

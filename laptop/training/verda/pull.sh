@@ -5,7 +5,7 @@
 #     (checkpoints best_*.pth, exported ONNX + .json, eval reports, logs)
 #
 # Usage: verda/pull.sh [--dry-run]
-# Env: HOSTNAME, SSH_USER, SSH_KEY, SSH_DEST, SSH_OPTS, REMOTE_ROOT,
+# Env: VM_HOSTNAME, SSH_USER, SSH_KEY, SSH_DEST, SSH_OPTS, REMOTE_ROOT,
 #      PULL_DIRS (space-separated remote dirs under laptop/training,
 #                 default "work_dirs").
 set -euo pipefail

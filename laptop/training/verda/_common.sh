@@ -26,13 +26,18 @@ load_config() {
     [ -f "$VERDA_DIR/config.env" ] && . "$VERDA_DIR/config.env"
 
     # --- instance ---
-    HOSTNAME="${HOSTNAME:-afferent-train}"
-    INSTANCE_TYPE="${INSTANCE_TYPE:-1V100.6V}"
-    LOCATION="${LOCATION:-FIN-01}"
-    OS_IMAGE="${OS_IMAGE:-ubuntu-24.04-cuda-13.0-open-docker}"
+    # Defaults verified against the live catalog (Nov 2026): the only
+    # reasonably-priced GPU in stock was 1A100.40S.22V @ FIN-02. Stock moves:
+    # check `verda availability --type $INSTANCE_TYPE` before up.sh, and
+    # `verda instance-types --gpu` for the full catalog. Cheap alternative
+    # when back in stock: 1V100.4V (V100 needs the *-v100 OS image variant).
+    VM_HOSTNAME="${VM_HOSTNAME:-afferent-train}"
+    INSTANCE_TYPE="${INSTANCE_TYPE:-1A100.40S.22V}"
+    LOCATION="${LOCATION:-FIN-02}"
+    OS_IMAGE="${OS_IMAGE:-24.04.cuda13.0.docker}"
     OS_VOLUME_SIZE="${OS_VOLUME_SIZE:-100}"
     SPOT="${SPOT:-}"                          # 1 -> pass --is-spot to vm create
-    EXTRA_CREATE_ARGS="${EXTRA_CREATE_ARGS:-}"# appended verbatim to vm create
+    EXTRA_CREATE_ARGS="${EXTRA_CREATE_ARGS:-}" # appended verbatim to vm create
 
     # --- remote layout ---
     # Everything lands under $HOME/$REMOTE_ROOT on the instance, mirroring
@@ -91,15 +96,15 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 remote_run() {
     local pre=(--user "$SSH_USER")
     [ -n "$SSH_KEY" ] && pre+=(--key "$SSH_KEY")
-    verda ssh "$HOSTNAME" "${pre[@]}" -- "$@"
+    verda ssh "$VM_HOSTNAME" "${pre[@]}" -- "$@"
 }
 
-# Resolve the Verda instance ID (inst-...) for $HOSTNAME via `vm list -o json`.
+# Resolve the Verda instance ID (inst-...) for $VM_HOSTNAME via `vm list -o json`.
 # Needed because `vm describe` / `vm delete` take an instance ID, not a
 # hostname (only `verda ssh` resolves hostnames itself).
 resolve_instance_id() {
     need python3 "needed to parse 'verda vm list -o json'"
-    verda vm list -o json 2>/dev/null | HOST="$HOSTNAME" python3 -c '
+    verda vm list -o json 2>/dev/null | HOST="$VM_HOSTNAME" python3 -c '
 import json, os, sys
 
 host = os.environ["HOST"]
@@ -140,7 +145,7 @@ resolve_ssh_dest() {
 
     local ip=""
     ip="$(_verda_ip)" || true
-    [ -n "$ip" ] || die "could not resolve an IP for '$HOSTNAME'.
+    [ -n "$ip" ] || die "could not resolve an IP for '$VM_HOSTNAME'.
   Check 'verda vm ls' that the instance is running, then either:
     - retry (instance may still be booting), or
     - export SSH_DEST=$SSH_USER@<ip> manually (see 'verda vm ls -o json')."
@@ -159,7 +164,7 @@ _verda_ip() {
         # word splitting of $cmd is intentional (fixed strings above)
         # shellcheck disable=SC2086
         out="$(verda vm $cmd -o json 2>/dev/null)" || continue
-        ip="$(printf '%s' "$out" | HOST="$HOSTNAME" python3 -c '
+        ip="$(printf '%s' "$out" | HOST="$VM_HOSTNAME" python3 -c '
 import ipaddress, json, os, sys
 
 host = os.environ["HOST"]

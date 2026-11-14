@@ -136,7 +136,9 @@ is done. Check rates on the Modal pricing page / `modal cost` equivalents.
 verda auth login
 verda doctor                        # credentials + API reachability
 verda ssh-key add --name laptop --public-key "$(cat ~/.ssh/id_ed25519.pub)"
-verda instance-types --gpu          # pick a type (default 1V100.6V)
+verda instance-types --gpu          # pick a type (default 1A100.40S.22V; V100
+                                    # 1V100.4V is cheapest when back in stock)
+verda availability --type 1A100.40S.22V   # is it actually in stock, and where?
 
 cp verda/config.env.example verda/config.env   # optional overrides (gitignored)
 

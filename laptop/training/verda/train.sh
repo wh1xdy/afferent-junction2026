@@ -7,7 +7,7 @@
 #
 #   verda/train.sh             # docker build + `make train test`
 #
-# Env: HOSTNAME, MAKE_TARGETS ("train test" or "train,test,export,evaluate";
+# Env: VM_HOSTNAME, MAKE_TARGETS ("train test" or "train,test,export,evaluate";
 #        add export/evaluate once a test.json exists), AMP=1, IMAGE,
 #        TORCH_VARIANT, DEVICE (evaluate stays cpu: the image ships ORT-cpu),
 #        EXTRA (extra args appended to every make target).
@@ -18,13 +18,13 @@ set -euo pipefail
 load_config
 check_verda
 
-remote_run true || die "cannot reach '$HOSTNAME' -- run up.sh first (verda vm ls)."
+remote_run true || die "cannot reach '$VM_HOSTNAME' -- run up.sh first (verda vm ls)."
 
 REMOTE_SCRIPT="$REMOTE_ROOT/laptop/training/verda/remote_train.sh"
 remote_run test -f "$REMOTE_SCRIPT" || \
     die "$REMOTE_SCRIPT missing on the instance -- run sync.sh first."
 
-log "launching on $HOSTNAME: make $MAKE_TARGETS (AMP=${AMP:-0})"
+log "launching on $VM_HOSTNAME: make $MAKE_TARGETS (AMP=${AMP:-0})"
 {
     printf 'export REMOTE_ROOT=%q IMAGE=%q TORCH_VARIANT=%q AMP=%q DEVICE=%q EXTRA=%q MAKE_TARGETS=%q\n' \
         "$REMOTE_ROOT" "$IMAGE" "$TORCH_VARIANT" "$AMP" "${DEVICE:-cpu}" \
