@@ -20,7 +20,11 @@
     <div class="group">${g.rows.map(row).join('')}</div>
   </section>`;
 
+  // The Developer section is for the team, not for the patient: hidden unless ?dev is in the address, or it was turned
+  // on by tapping the version line 7 times (or holding it). The same again hides it. Kept on this phone only.
+  const DEV_KEY = 'afferent.dev';
   const dev = q.has('dev');
+  let devShown = dev || (() => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch { return false; } })();
   const GROUPS = [
     { title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
@@ -31,12 +35,11 @@
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
     { title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
-      { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
-        <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
       { icon: 'ios_share', label: 'Show to my doctor', href: 'patient.html#settings', id: 'qrBtn' },
       { icon: 'insights', label: 'Clinic dashboard', sup: 'Wi-Fi + link', href: 'patient.html#share', id: 'exportBtn' },
       { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
-      { icon: 'description', label: 'What is in an export', sup: 'Lanterns, play times, sensor numbers', static: true },
+      // Plain text, not a one-option control: a summary is the only kind of export there is.
+      { icon: 'description', label: 'What is in an export', sup: 'A summary: lanterns, play times, sensor numbers', supId: 'sharingState', static: true },
     ] },
     { title: 'Check-in', hint: 'Nine short questions every 14 days, in the daytime. Your clinic will see your answers.', rows: [
       { icon: 'checklist', label: 'Check-in', sup: 'Every 14 days', sw: 'id="checkinSw"' },
@@ -63,18 +66,41 @@
     { icon: 'insights', label: 'Day profile', val: '', attrs: 'data-dev="profile"' },
   ] };
 
+  const showDev = on => {
+    devShown = on;
+    try { on ? localStorage.setItem(DEV_KEY, '1') : localStorage.removeItem(DEV_KEY); } catch {}
+    const box = $('devGroup');
+    if (box) box.hidden = !on;
+    toast(on ? 'Developer settings are shown.' : 'Developer settings are hidden.');
+  };
+  const devUnlock = ver => {
+    if (!ver) return;
+    addEventListener('DOMContentLoaded', () => { ver.textContent = `Afferent ${A.config?.appVersion || ''}`.trim(); });
+    let taps = 0, last = 0, hold = 0;
+    ver.addEventListener('click', () => {
+      const now = performance.now();
+      taps = now - last < 1500 ? taps + 1 : 1; last = now;
+      if (taps >= 7) { taps = 0; showDev(!devShown); }
+    });
+    ver.addEventListener('pointerdown', () => { clearTimeout(hold); hold = setTimeout(() => { taps = -1; showDev(!devShown); }, 800); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => ver.addEventListener(t, () => clearTimeout(hold)));
+    ver.addEventListener('contextmenu', e => e.preventDefault());
+  };
+
   const buildSettings = () => {
     const body = $('settingsBody');
     if (!body) return;
     const html = GROUPS.map(group);
-    const devHtml = group(DEV).replace('class="set-group"', `class="set-group dev${dev ? ' open' : ''}"`)
+    const devHtml = group(DEV).replace('class="set-group"', `class="set-group dev${dev ? ' open' : ''}"${devShown ? '' : ' hidden'}`)
       .replace(/<h3 class="subhead t-label">Developer/, `<h3 class="subhead t-label"><button type="button" class="dev-toggle state" aria-expanded="${dev}"><span>Developer</span><span class="ms" aria-hidden="true">expand_more</span></button>`);
-    body.append(frag(html.join('') + devHtml + '<p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>'));
+    body.append(frag(html.join('') + devHtml + '<p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>'
+      + '<button type="button" class="app-version t-body-s muted" id="appVersion">Afferent</button>'));
     body.querySelector('.dev-toggle').onclick = e => {
       const box = e.currentTarget.closest('.set-group');
       box.classList.toggle('open');
       e.currentTarget.setAttribute('aria-expanded', String(box.classList.contains('open')));
     };
+    devUnlock($('appVersion'));
     body.querySelectorAll('[data-anchor]').forEach(b => b.onclick = () => A.Checkin?.anchor?.());
     body.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => toast(b.getAttribute('aria-label')));
   };
