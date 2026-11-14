@@ -1,0 +1,43 @@
+.talk-bubble {
+  --tail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='20' viewBox='0 0 8 20'%3E%3Cpath d='M8 0C8 9.5 6.4 15.6 1.2 19.2Q0.4 19.8 1.4 20H8Z'/%3E%3C/svg%3E");
+  --tail-edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='20' viewBox='0 0 8 20'%3E%3Cpath d='M7.5 0C7.5 9.5 6 15.3 1 18.8Q-0.1 19.6 1.4 19.5' fill='none' stroke='rgb(242,238,230)' stroke-opacity='0.13' stroke-width='1'/%3E%3C/svg%3E");
+  position: absolute; z-index: 1; left: 0; right: 0; top: calc(29.4% + 62px);
+  width: fit-content; max-width: calc(100% - 2 * var(--af-gutter) - 16px); margin: 0 auto;
+  min-height: 44px; padding: 11px 18px 11px 17px; border: 0; border-radius: 20px 20px 20px 0;
+  font: 500 17px/22px var(--af-font-ui); font-variation-settings: "ROND" var(--af-rond); letter-spacing: 0.2px; text-align: left;
+  color: var(--af-birch); text-shadow: 0 1px 2px rgba(3, 8, 20, 0.22);
+  background-color: var(--af-glass); background-image: var(--af-sheen);
+  box-shadow: var(--af-glass-edge), var(--af-lift-2);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
+  animation: bubbleIn 1300ms var(--af-ease-glide) 260ms both, bubbleFloat 7s var(--af-ease-breath) 1600ms infinite;
+  transition: scale var(--af-dur-press) var(--af-ease-std), background-color var(--af-dur-press) var(--af-ease-std), opacity var(--af-dur-exit) var(--af-ease-out), visibility 0s, transform var(--af-dur-exit) var(--af-ease-out);
+}
+.talk-bubble::before, .talk-bubble::after {
+  content: ""; position: absolute; left: -7px; bottom: 0; width: 8px; height: 20px; pointer-events: none;
+}
+.talk-bubble::before {
+  background: var(--af-glass);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  -webkit-mask: var(--tail) no-repeat 0 0 / 100% 100%; mask: var(--tail) no-repeat 0 0 / 100% 100%;
+}
+.talk-bubble::after { background: var(--tail-edge) no-repeat 0 0 / 100% 100%; }
+.talk-bubble-text { position: relative; display: block; }
+.talk-bubble:active { scale: 0.96; }
+.talk-bubble:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 3px; }
+@media (hover: hover) { .talk-bubble:hover { background-color: color-mix(in srgb, var(--af-glass) 90%, var(--af-birch)); } }
+
+.start.off .talk-bubble { transform: translateY(-8px); }
+#phone.card-open .talk-bubble { opacity: 0; visibility: hidden; transition: opacity var(--af-dur-exit) var(--af-ease-out), visibility 0s linear var(--af-dur-exit); }
+
+@keyframes bubbleIn { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+@keyframes bubbleFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -3px; } }
+
+:root[data-motion="reduced"] .talk-bubble { animation: fadeIn 300ms linear both; transition: none; }
+:root[data-motion="reduced"] .talk-bubble:active { scale: 1; background-color: color-mix(in srgb, var(--af-glass) 86%, var(--af-birch)); }
+:root[data-motion="reduced"] .start.off .talk-bubble { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .talk-bubble { animation: fadeIn 300ms linear both; transition: none; }
+  .talk-bubble:active { scale: 1; background-color: color-mix(in srgb, var(--af-glass) 86%, var(--af-birch)); }
+  .start.off .talk-bubble { transform: none; }
+}
