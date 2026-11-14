@@ -9,6 +9,7 @@ const path = require('path');
 const vm = require('vm');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'js', 'qrexport.js'), 'utf8');
+const UTIL = fs.readFileSync(path.join(__dirname, '..', 'js', 'util.js'), 'utf8');
 const flush = async () => { for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r)); };
 
 const node = () => ({
@@ -29,9 +30,10 @@ async function load({ search = '', saved = null } = {}) {
     fetch: async (url, o) => { urls.push(url); return { ok: false, status: 401, json: async () => ({}) }; },
   };
   ctx.window = ctx;
-  ctx.A = { DashGen: { render: () => '<html></html>' } };
   ctx.URL.createObjectURL = () => 'blob:x';
   vm.createContext(ctx);
+  vm.runInContext(UTIL, ctx, { filename: 'util.js' });
+  ctx.A.DashGen = { render: () => '<html></html>' };
   vm.runInContext(SRC, ctx, { filename: 'qrexport.js' });
   await flush();
   return { nodes, urls };
@@ -54,6 +56,28 @@ const tests = {
   async 'c: no hub at all: nothing is fetched from a hub'() {
     const p = await load();
     assert.ok(p.urls.every(u => !/\/api\//.test(u)), p.urls.join());
+  },
+  'd: one hub-address helper (A.hubApiBase in util.js) for the patient page and the export'() {
+    const js = f => fs.readFileSync(path.join(__dirname, '..', 'js', f), 'utf8');
+    for (const f of ['patient.js', 'qrexport.js']) {
+      assert.ok(js(f).includes('A.hubApiBase(q)'), f + ' uses the shared helper');
+      assert.ok(!/new URL\(s\)|pathname\.match/.test(js(f)), f + ' has no address parsing of its own');
+    }
+    const ctx = { URL, URLSearchParams, location: { search: '', protocol: 'capacitor:', origin: 'capacitor://localhost' } };
+    const saved = new Map();
+    ctx.localStorage = { getItem: k => saved.get(k) ?? null };
+    ctx.window = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(UTIL, ctx, { filename: 'util.js' });
+    const base = search => ctx.A.hubApiBase(new URLSearchParams(search));
+    assert.strictEqual(base(''), null, 'no hub');
+    saved.set('afferent.hub', 'http://10.0.0.5:8000/k/test-key');
+    assert.strictEqual(base(''), 'http://10.0.0.5:8000/k/test-key', 'the saved one, key kept');
+    assert.strictEqual(base('?ws=' + encodeURIComponent('wss://hub.example/k/k2/ws/app')), 'https://hub.example/k/k2');
+    assert.strictEqual(base('?hub=http://10.0.0.9:8000/'), 'http://10.0.0.9:8000', '?hub= first');
+    saved.clear();
+    ctx.location.protocol = 'http:'; ctx.location.origin = 'http://10.0.0.5:8000';
+    assert.strictEqual(base(''), 'http://10.0.0.5:8000', 'served by the hub: its own origin');
   },
 };
 
