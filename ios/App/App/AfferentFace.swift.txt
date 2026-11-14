@@ -1,0 +1,240 @@
+import ARKit
+import AVFoundation
+import Capacitor
+#if canImport(FaceCore)
+import FaceCore
+#endif
+
+// NOT PART OF THE BUILD YET. This file is plain text on purpose (AfferentFace.swift.txt, not in
+// the Xcode project), so it cannot break the app while the camera session is being reworked.
+// To switch it on, the wiring step:
+//   1. renames it to AfferentFace.swift and adds it to the App target, together with FaceCore
+//      (ios/App/FaceCore: either as a local Swift package, or its seven files in
+//      Sources/FaceCore added to the target directly; both compile, see `canImport` above);
+//   2. registers it next to the other plugins:  bridge?.registerPluginInstance(AfferentFacePlugin());
+//   3. calls `ingest(frame:anchor:)` from the ARKit session delegate (marked WIRING below) and
+//      sets `acquireCamera` / `releaseCamera` if the session is not already running by itself;
+//   4. updates NSCameraUsageDescription in Info.plist: it says the app "reads only whether your
+//      eyes are closed", which is no longer all of it.
+
+/// Face measures from the TrueDepth camera, for the web layer.
+///
+/// JS: Capacitor.Plugins.AfferentFace
+///   start()  -> {state}     begins a session: baselines start over
+///   stop()   -> {}
+///   status() -> {state}
+///   state: 'off' | 'starting' | 'tracking' | 'no_face' | 'unavailable' (no TrueDepth camera) | 'denied'
+///   event "state": {state}                                              on every change
+///   event "face", once per second while started:
+///     {t_ms, tracked, smile: 0..1|null, movement: >=0|null, blinks: Int, gaze_away: 0..1|null,
+///      distance_cm: Number|null, breathing_per_min: Number|null, breathing_snr: Number|null}
+///   event "micro", once per brief facial movement (40 to 500 ms):
+///     {t_ms, duration_ms, region: 'brow'|'eye'|'cheek'|'nose'|'mouth'|'jaw', peak: 0..1}
+///   t_ms = wall clock, ms since 1970: the end of the second ("face"), the start of the movement ("micro").
+///
+/// Rules this plugin keeps (the measures themselves: ios/App/FaceCore, ported from ios/Afferent):
+///  - It owns no camera. The app has one ARKit face-tracking session; its delegate hands every
+///    frame to `ingest(frame:anchor:)`.
+///  - Of a frame it reads 52 blendshape coefficients and four transforms, inside `ingest`, and
+///    keeps neither the frame nor the face mesh nor a pixel. Only the numbers above leave it,
+///    and only to the web layer on this phone.
+///  - A measure says what the face did (smiling, facial movement, blinks, looking away, a brief
+///    movement and where on the face). It names no feeling and draws no conclusion.
+///  - No value is null, never 0: a second without a tracked face has `tracked: false` and nulls.
+@objc(AfferentFacePlugin)
+public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "AfferentFacePlugin"
+    public let jsName = "AfferentFace"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+    ]
+
+    /// The started plugin, for the session delegate. nil while stopped.
+    public private(set) static weak var current: AfferentFacePlugin?
+
+    /// WIRING (optional): set by the owner of the ARKit session if the session should only run
+    /// while somebody wants it. Called on the main queue from start() and stop().
+    public static var acquireCamera: (() -> Void)?
+    public static var releaseCamera: (() -> Void)?
+
+    /// Where a per-person gaze fit is read from (FaceGazeCalibration as JSON), the reference
+    /// app's key. Nothing in this app writes it yet: without it the gaze gain is 1, and "at the
+    /// screen" is still the person's own running median.
+    private static let calibrationKey = "afferent.gazeCalibration"
+    /// The session delegate has been silent this long: the seconds are closed without a face.
+    private static let silence: TimeInterval = 1.0
+
+    /// ARKit's blendshape keys and the lane each one has in a FaceShapeVector, built once.
+    private static let lanes: [(ARFaceAnchor.BlendShapeLocation, Int)] =
+        FaceBlendShapes.names.enumerated().map { (ARFaceAnchor.BlendShapeLocation(rawValue: $0.element), $0.offset) }
+
+    private let queue = DispatchQueue(label: "afferent.face", qos: .userInitiated)
+    private let lock = NSLock()
+    // behind `lock`
+    private var running = false
+    private var state = "off"
+    // on `queue` only
+    private let aggregator = FaceAggregator()
+    private var lastIngest: TimeInterval = 0
+    private var watchdog: DispatchSourceTimer?
+
+    // MARK: - Plugin methods
+
+    @objc func start(_ call: CAPPluginCall) {
+        guard ARFaceTrackingConfiguration.isSupported else {
+            set(state: "unavailable")
+            call.resolve(["state": "unavailable"])
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            begin(call)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted { self.begin(call) } else { self.refuse(call) }
+            }
+        default:
+            refuse(call)
+        }
+    }
+
+    @objc func stop(_ call: CAPPluginCall) {
+        lock.lock()
+        let wasRunning = running
+        running = false
+        lock.unlock()
+        if AfferentFacePlugin.current === self { AfferentFacePlugin.current = nil }
+        queue.async {
+            self.watchdog?.cancel()
+            self.watchdog = nil
+            self.aggregator.reset()
+            self.set(state: "off")              // after the last frame already on the queue
+        }
+        DispatchQueue.main.async {
+            if wasRunning { AfferentFacePlugin.releaseCamera?() }
+            call.resolve()
+        }
+    }
+
+    @objc func status(_ call: CAPPluginCall) {
+        call.resolve(["state": currentState()])
+    }
+
+    private func begin(_ call: CAPPluginCall) {
+        lock.lock()
+        let wasRunning = running
+        running = true
+        lock.unlock()
+        if !wasRunning {
+            let calibration = Self.storedCalibration()
+            queue.async {
+                self.aggregator.reset()
+                self.aggregator.gazeCalibration = calibration
+                self.lastIngest = CACurrentMediaTime()
+                self.startWatchdog()
+                self.set(state: "starting")
+            }
+        }
+        AfferentFacePlugin.current = self
+        DispatchQueue.main.async {
+            if !wasRunning { AfferentFacePlugin.acquireCamera?() }
+            call.resolve(["state": wasRunning ? self.currentState() : "starting"])
+        }
+    }
+
+    private func refuse(_ call: CAPPluginCall) {
+        set(state: "denied")
+        call.resolve(["state": "denied"])
+    }
+
+    // MARK: - Frames
+
+    // =====================================================================================
+    // WIRING: the ARKit session delegate calls this for EVERY frame, face or no face:
+    //
+    //     func session(_ session: ARSession, didUpdate frame: ARFrame) {
+    //         let face = frame.anchors.lazy.compactMap { $0 as? ARFaceAnchor }.first
+    //         AfferentFacePlugin.current?.ingest(frame: frame, anchor: face)
+    //     }
+    //
+    // Any queue. It copies 52 numbers and four transforms out of the frame and returns; the
+    // work happens on this plugin's own queue. The frame and the anchor are not kept.
+    // =====================================================================================
+    public func ingest(frame: ARFrame, anchor: ARFaceAnchor?) {
+        lock.lock()
+        let on = running
+        lock.unlock()
+        guard on else { return }
+        var f = FaceFrame(time: frame.timestamp, tracked: false)
+        if let face = anchor {
+            f.tracked = face.isTracked
+            f.faceTransform = face.transform
+            f.cameraTransform = frame.camera.transform
+            f.leftEyeTransform = face.leftEyeTransform
+            f.rightEyeTransform = face.rightEyeTransform
+            let shapes = face.blendShapes
+            for (location, lane) in Self.lanes {
+                if let v = shapes[location]?.floatValue, v.isFinite { f.shapes[lane] = v }
+            }
+        }
+        queue.async {
+            self.lastIngest = f.time
+            self.process(f)
+        }
+    }
+
+    /// On `queue`.
+    private func process(_ f: FaceFrame) {
+        lock.lock()
+        let on = running
+        lock.unlock()
+        guard on else { return }
+        let out = aggregator.ingest(f)
+        if out.isEmpty { return }
+        for m in out.micro { notifyListeners("micro", data: m.dictionary) }
+        if let face = out.face {
+            set(state: face.tracked ? "tracking" : "no_face")
+            notifyListeners("face", data: face.dictionary)
+        }
+    }
+
+    /// If the session delegate stops calling (no session, session interrupted), the seconds
+    /// still close, as seconds without a face. ARFrame.timestamp and CACurrentMediaTime are the
+    /// same clock (time since boot).
+    private func startWatchdog() {
+        watchdog?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 0.5, repeating: 0.5)
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            let now = CACurrentMediaTime()
+            if now - self.lastIngest > Self.silence { self.process(FaceFrame(time: now, tracked: false)) }
+        }
+        timer.resume()
+        watchdog = timer
+    }
+
+    // MARK: - State
+
+    private func currentState() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return state
+    }
+
+    private func set(state newState: String) {
+        lock.lock()
+        let changed = state != newState
+        state = newState
+        lock.unlock()
+        if changed { notifyListeners("state", data: ["state": newState]) }
+    }
+
+    private static func storedCalibration() -> FaceGazeCalibration {
+        guard let data = UserDefaults.standard.data(forKey: calibrationKey),
+              let fit = try? JSONDecoder().decode(FaceGazeCalibration.self, from: data) else { return .identity }
+        return fit
+    }
+}
