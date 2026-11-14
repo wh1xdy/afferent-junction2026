@@ -1,0 +1,62 @@
+.ba-step { margin: 18px 0 0; opacity: 0; transform: translateY(6px); transition: opacity 600ms var(--af-ease-std), transform 600ms var(--af-ease-std); }
+.ba-step.on { opacity: 1; transform: none; }
+.ba-ask { margin: 0 0 10px; font: 400 19px/26px var(--af-font-brand); color: var(--md-sys-color-on-surface); }
+.ba-opts { display: flex; flex-direction: column; gap: 8px; }
+.ba-opt {
+  display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 8px 14px; border: 0; border-radius: 16px; text-align: left;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface); font: 500 15px/20px var(--af-font-ui);
+  transition: opacity 400ms var(--af-ease-std), box-shadow 400ms var(--af-ease-std), background 400ms var(--af-ease-std);
+}
+.ba-opt .ms { font-size: 22px; color: var(--md-sys-color-primary); }
+.ba-step.picked .ba-opt:not(.chosen) { opacity: 0.25; pointer-events: none; }
+.ba-step.picked .ba-skip { visibility: hidden; }
+.ba-opt.chosen { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); box-shadow: 0 0 0 2px #FFD58A, 0 0 22px rgba(255, 213, 138, 0.45); }
+.ba-opt.chosen .ms { color: #FFD58A; }
+.ba-skip { margin-top: 4px; }
+#phone.card-open .ba-step { opacity: 0; }
+
+.ba-follow {
+  position: absolute; z-index: 3; left: 16px; right: 16px; top: calc(var(--safe-top) + 92px);
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 6px 12px; padding: 12px 14px; border-radius: 20px;
+  background: color-mix(in srgb, #0D182A 82%, transparent); color: var(--af-birch); backdrop-filter: blur(6px);
+  box-shadow: 0 0 0 1px rgba(255, 217, 160, 0.18); opacity: 0; transform: translateY(-6px); pointer-events: none;
+  transition: opacity 500ms var(--af-ease-std), transform 500ms var(--af-ease-std), box-shadow 500ms var(--af-ease-std);
+}
+.ba-follow.on { opacity: 1; transform: none; pointer-events: auto; }
+.ba-follow .ba-icon { font-size: 22px; color: #FFD58A; }
+.ba-q { margin: 0; font: 400 15px/21px var(--af-font-ui); }
+.ba-ans { grid-column: 1 / -1; display: flex; gap: 8px; }
+.ba-ans button {
+  flex: 1; min-height: 44px; border: 0; border-radius: 14px; font: 500 15px/20px var(--af-font-ui);
+  background: rgba(255, 255, 255, 0.08); color: var(--af-birch);
+}
+.ba-follow.thanked { box-shadow: 0 0 0 2px #FFD58A, 0 0 28px rgba(255, 213, 138, 0.4); }
+.ba-follow.thanked .ba-ans { visibility: hidden; }
+
+.step-row .step-in { width: 9.5em; text-align: right; }
+.step-row .step-in::placeholder { color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 55%, transparent); }
+
+.stay-btn { gap: 8px; margin: 14px auto 0; display: flex; }
+.stay-btn .ms { font-size: 20px; }
+.end:not([data-phase="sheet"]) .stay-btn, .end.night .stay-btn { display: none; }
+
+.stay {
+  --b: 0; --left: 1;
+  position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: radial-gradient(circle at 50% 42%, #16243B 0%, #0D182A 55%, #070C16 100%); color: var(--af-birch);
+  opacity: 0; transition: opacity 600ms var(--af-ease-std);
+}
+.stay.on { opacity: 1; }
+.stay-orb { position: relative; width: 220px; height: 220px; display: grid; place-items: center; }
+.stay-ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(255, 217, 160, calc(0.12 + 0.18 * var(--left))); }
+.stay-core {
+  width: 100%; height: 100%; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 240, 210, 0.95) 0%, rgba(255, 213, 138, 0.55) 34%, rgba(242, 181, 68, 0.12) 62%, rgba(242, 181, 68, 0) 72%);
+  transform: scale(calc(0.38 + 0.62 * var(--b))); opacity: calc(0.55 + 0.45 * var(--b));
+}
+.stay-cue { margin: 6px 0 0; font: 300 24px/32px var(--af-font-brand); }
+.stay-note { margin: 0; font: 400 14px/20px var(--af-font-ui); color: color-mix(in srgb, var(--af-birch) 65%, transparent); }
+.stay.resting .stay-note { visibility: hidden; }
+.stay-actions { position: absolute; left: 28px; right: 28px; bottom: calc(var(--safe-bottom) + 64px); display: flex; justify-content: center; }
+:root[data-motion="reduced"] .stay-core { transform: scale(0.8); opacity: calc(0.35 + 0.65 * var(--b)); }
+@media (prefers-reduced-motion: reduce) { .stay-core { transform: scale(0.8); opacity: calc(0.35 + 0.65 * var(--b)); } }

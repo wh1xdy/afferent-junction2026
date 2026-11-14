@@ -280,7 +280,19 @@
   $('again').onclick = goHome;
   $('wakeBtn').onclick = goHome;
   $('closeBtn').onclick = () => A.bus.emit('exit');
-  const cue = text => { if (text) $('cue').textContent = text; $('cue').classList.toggle('on', !!text); };
+  const cue = (text, kind) => {
+    const el = $('cue');
+    if (text) { el.textContent = text; el.classList.toggle('line', kind === 'line'); }
+    el.classList.toggle('on', !!text);
+  };
+  let lineTimer = 0;
+  const taskLine = g => {
+    clearTimeout(lineTimer);
+    const text = A.LINES?.[g.id];
+    if (!text) return;
+    cue(text, 'line');
+    lineTimer = setTimeout(() => { if (A.session?.game?.id === g.id) cue(''); }, 3500);
+  };
 
   $('download').onclick = () => {
     const text = $('json').textContent;
@@ -296,10 +308,11 @@
   ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
   A.bus.on('segment', id => {
     if (id !== 'walk') log('phase ' + id);
+    if (id === 'rest') { cue('Hold the lantern and rest a moment', 'line'); return; }
     cue(id === 'checkin' ? (night() ? 'How are you tonight?' : 'How are you this morning?') : '');
   });
   A.bus.on('mode', m => log('mode ' + m));
-  A.bus.on('game', g => log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`));
+  A.bus.on('game', g => { log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`); taskLine(g); });
   A.bus.on('haptic', () => { $('haptic').classList.remove('pulse'); void $('haptic').offsetWidth; $('haptic').classList.add('pulse'); });
   A.bus.on('mood', m => {
     log(`lantern check-in ${m.which} ${m.value ?? 'skipped'}`);

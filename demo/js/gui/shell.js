@@ -159,7 +159,6 @@
       const li = document.createElement('li');
       const state = d.today && d.state === 'lit' ? 'sun' : d.state;
       li.className = 'day ' + state;
-      if (d.mood && d.state === 'lit') li.style.setProperty('--c', `var(--af-mood-${d.mood})`);
       li.innerHTML = `<span class="light" aria-hidden="true"></span><span class="d" aria-hidden="true">${DAY[d.weekday] || ''}</span>`;
       li.setAttribute('aria-label', [NAME[d.weekday], SAY[d.state]].filter(Boolean).join(', '));
       ol.append(li);

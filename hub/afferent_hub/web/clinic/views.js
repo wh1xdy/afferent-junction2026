@@ -3,7 +3,7 @@
   const V = (C.views = {});
   const esc = C.esc;
 
-  const TASK = { breath: 'Breath', loyly: 'Löyly', threads: 'Aurora threads', stars: 'Constellation', fireflies: 'Fireflies', beacon: 'Beacon', bells: 'Bells', shutters: 'Shutters', fork: 'Fork', lanterns: 'Two lanterns', joutsen: 'Joutsen', bite: 'Bite' };
+  const TASK = { breath: 'Breath', loyly: 'Löyly', threads: 'Aurora threads', stars: 'Constellation', fireflies: 'Fireflies', beacon: 'Beacon', bells: 'Bells', shutters: 'Shutters', fork: 'Fork', lanterns: 'Two lanterns', windows: 'Cabin windows', vihta: 'Vihta', birds: 'Same bird', swans: 'Swan line', faces: 'Frost faces', owls: 'Owl search', seals: 'Seal holes', reindeer: 'Reindeer watch', ferry: 'Ferry dock', drips: 'Drip rhythm', buoys: 'Buoy trail', steps: 'Snow steps', glance: 'Harbour glance', signpost: 'Signpost', runes: 'Rune turn', fog: 'Fog faces', joutsen: 'Joutsen', bite: 'Bite' };
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const MINUS = '−';
