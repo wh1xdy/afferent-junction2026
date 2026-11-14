@@ -1,0 +1,32 @@
+#signals .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
+#signals .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+
+.signals-body { padding-top: 4px; }
+.sig-group + .sig-group { margin-top: 4px; }
+.sig-group .subhead { font-weight: 600; color: var(--md-sys-color-secondary); }
+[data-scheme="kevat"] .sig-group .subhead { color: var(--md-sys-color-primary); }
+.sig-row { gap: 12px; }
+.sig-row .txt { overflow-wrap: anywhere; }
+.sig-val {
+  flex: none; min-width: 44px; text-align: right; white-space: nowrap; color: var(--md-sys-color-on-surface);
+  font: 400 26px/32px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0;
+}
+.sig-row .sig-sim {
+  align-self: flex-start; margin-top: 2px; padding: 0 8px; border-radius: 10px;
+  background: var(--md-sys-color-simulated-container); color: var(--md-sys-color-on-simulated-container);
+  font: 600 11px/20px var(--af-font-ui); letter-spacing: 0.08em; text-transform: uppercase;
+}
+.sig-note { margin: 12px 24px 0; }
+.signals-foot { margin: 16px 24px 0; }
+
+.live-chip {
+  position: absolute; z-index: 3; top: calc(var(--safe-top) + 52px); left: 50%; transform: translateX(-50%); pointer-events: none;
+  display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; white-space: nowrap;
+  background: color-mix(in srgb, var(--af-fjord) 72%, transparent); color: var(--af-birch);
+  font: 500 12px/16px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+}
+
+:root[data-motion="reduced"] #signals .sheet { animation: fadeIn 150ms linear; }
+@media (prefers-reduced-motion: reduce) {
+  #signals .sheet { animation: fadeIn 150ms linear; }
+}

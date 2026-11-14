@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/checkin.css">
   <link rel="stylesheet" href="css/streak.css">
   <link rel="stylesheet" href="css/gui/shell.css">
+  <link rel="stylesheet" href="css/vitals.css">
 </head>
 <body>
   <main id="app">
@@ -22,6 +23,7 @@
 
       <button id="closeBtn" class="icon-btn play-close state hidden" type="button" aria-label="End session"><span class="ms">close</span></button>
       <span id="simBadge" class="sim-badge play-sim hidden">SIMULATED</span>
+      <span id="liveChip" class="live-chip hidden"></span>
       <span id="cue" class="cue" aria-live="polite"></span>
       <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
 
@@ -30,6 +32,7 @@
         <header class="top-bar">
           <button class="icon-btn state" data-open="settings" type="button" aria-label="Settings"><span class="ms">settings</span></button>
           <button class="icon-btn state" data-open="info" type="button" aria-label="How it works"><span class="ms">info</span></button>
+          <button id="signalsBtn" class="icon-btn state" data-open="signals" type="button" aria-label="Your signals"><span class="ms">ecg_heart</span></button>
           <button id="camBtn" class="privacy state" data-open="settings" type="button" aria-label="Camera on. Open settings" hidden><span class="ms fill">videocam</span></button>
           <span class="sp"></span>
           <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
@@ -104,6 +107,17 @@
         </div>
       </div>
 
+      <div id="signals" class="layer hidden" role="dialog" aria-modal="true" aria-labelledby="signalsTitle">
+        <div class="scrim" data-close="signals"></div>
+        <div class="sheet">
+          <div class="handle" aria-hidden="true"></div>
+          <div class="sheet-head"><h2 id="signalsTitle" class="t-headline">Your signals</h2><button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button></div>
+          <div id="signalsBody" class="signals-body"></div>
+          <p class="t-body-s muted signals-foot">These numbers help you and your care team follow how you are doing. They are not a diagnosis.</p>
+          <div class="sheet-actions"><button class="btn tonal state" data-close="signals" type="button">Close</button></div>
+        </div>
+      </div>
+
       <div id="settings" class="screen settings hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <header class="top-bar app-bar">
           <button class="icon-btn state" data-close="settings" type="button" aria-label="Back"><span class="ms">arrow_back</span></button>
@@ -174,6 +188,7 @@
   <script src="js/onboard.js"></script>
   <script src="js/remind.js"></script>
   <script src="js/sensors.js"></script>
+  <script src="js/finger.js"></script>
   <script src="js/input.js"></script>
   <script src="js/hub.js"></script>
   <script src="js/audio.js"></script>
@@ -186,6 +201,7 @@
   <script src="js/engine.js"></script>
   <script src="js/perf.js"></script>
   <script src="js/checkin.js"></script>
+  <script src="js/vitals.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

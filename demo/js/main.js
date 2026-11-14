@@ -22,6 +22,7 @@
     simulator: saved.simulator ?? true,
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
+    signalsOverlay: saved.signalsOverlay ?? false,
   };
   const S = A.Sensors;
   const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
@@ -128,7 +129,7 @@
     A.bus.emit('home');
   };
 
-  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings', 'hubDialog'];
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog'];
   const show = (id, on) => {
     $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
     if (CARDS.includes(id)) {
@@ -150,7 +151,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -164,6 +165,7 @@
     $('soundSw').checked = ui.sound;
     $('quietSw').checked = A.config.quietNight;
     $('checkinSw').checked = A.config.checkin;
+    $('sigSw').checked = A.config.signalsOverlay;
     camGlyph();
   };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
@@ -171,6 +173,7 @@
     A.config.sensors[sensor] = el.checked;
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
+    if (sensor === 'pulse_stone') { A.Finger.sync(); if (!el.checked) S.feedPulse({ bpm: null, source: 'finger_ppg' }); }
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
@@ -183,14 +186,18 @@
   $('soundSw').onchange = e => setSound(e.target.checked);
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
+  $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
     if (pv.sensors) Object.assign(A.config.sensors, pv.sensors);
     if (pv.sharing) A.config.sharing = pv.sharing;
     syncSensors(); toggles(); saveSettings();
+    A.Finger.sync();
+    if (!A.config.sensors.pulse_stone) S.feedPulse({ bpm: null, source: 'finger_ppg' });
   };
   morningText(); toggles();
+  A.Finger.sync();
 
   let timeline = [];
 
@@ -287,7 +294,8 @@
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
     log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
-    show('closeBtn', false); show('simBadge', false); cue('');
+    show('closeBtn', false); show('simBadge', false); show('liveChip', false); cue('');
+    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) { A.lastVitals = r.vitals; A.lastVitalsAt = Date.now(); }
     if (S.camera()) S.stop();
     camGlyph();
     if (leaving || r.status === 'declined') return;
@@ -338,6 +346,7 @@
   });
   Hub.on('ack', d => log(`hub stored session${d.duplicate ? ' (duplicate)' : ''}${d.error ? ' error ' + d.error : ''}`));
   Hub.on('pulse', d => S.feedPulse(d));
+  Hub.on('physio', d => S.feedFingerHub(d));
   Hub.on('knob', d => { if (Number.isFinite(d.level)) setDawn(d.level); if (d.press) log('knob press'); });
   Hub.on('profile', d => setProfile(d.profile, 'hub'));
   Hub.on('privacy', d => applyPrivacy(d.privacy));
@@ -369,7 +378,7 @@
   function panel(s, now) {
     const p = S.pulse(now);
     $('pulseVal').textContent = s && p.bpm != null ? p.bpm.toFixed(0) : '--';
-    $('pulseSrc').textContent = { ky039: 'pulse stone', rppg: 'face (rPPG)', simulated: 'SIMULATED' }[p.source] || 'none';
+    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'face (rPPG)', simulated: 'SIMULATED' }[p.source] || 'none';
     for (const [id, key] of Object.entries(sliders)) { const el = $(id); if (!el.dataset.active) el.value = A.Sim[key]; }
     $('pulseSliderVal').textContent = (A.Sim.offset >= 0 ? '+' : '') + A.Sim.offset.toFixed(0) + ' bpm';
     $('drowsySliderVal').textContent = A.Sim.drowsy.toFixed(2);
@@ -386,6 +395,9 @@
     drawTimeline();
     const sim = !!s && !s.done && (p.source === 'simulated' || S.eyesSource() === 'simulated' || s.auto || s.profile !== 'live');
     show('simBadge', sim);
+    const chip = A.config.signalsOverlay ? A.Vitals.chip(s, p) : null;
+    if (chip) $('liveChip').textContent = chip;
+    show('liveChip', !!chip);
   }
 
   let last = A.now(), frame = 0, lastLive = 0;
