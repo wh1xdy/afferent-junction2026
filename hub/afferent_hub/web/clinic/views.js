@@ -443,7 +443,6 @@
           <div class="li">${icon('contrast')}<span><b>Theme</b><small>Light suits office daylight</small></span><span class="segmented" role="radiogroup" aria-label="Theme">${opt('light', 'Light', 'light_mode')}${opt('dark', 'Dark', 'dark_mode')}${opt('system', 'System', 'devices')}</span></div>
         </div></div>
         <div><div class="group-h">Demo</div><div class="group">
-          <div class="li">${icon('phone_in_talk')}<span><b>Send profile to Anna's phone</b><small>Changes the next session only</small></span><span class="li-actions"><button class="btn outlined small" data-profile="good_day">Good day</button><button class="btn outlined small" data-profile="bad_day">Bad day</button><button class="btn outlined small" data-profile="live">Today</button></span></div>
           <div class="li">${icon('history')}<span><b>Reset demo data</b><small>Back to the seeded patients</small></span><button class="btn text small" data-action="reset">Reset</button></div>
         </div></div>
         <p class="dp-foot">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>

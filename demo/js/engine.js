@@ -382,7 +382,7 @@
       startDawn(now) {
         this.dawnAt = now; V.dawnT = 0;
         this.setPhase('dawn');
-        Au.dawnPhrase();
+        if (!A.Music) Au.dawnPhrase();
         const hexc = this.night ? '#FFC98A' : '#FFF3DC', level = this.night ? A.config.dawnLevel : 60;
         V.borderColor = hex(hexc);
         this.light(hexc, level, 4000, 'dawn');

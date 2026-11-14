@@ -25,7 +25,7 @@
   const M = A.Music = {
     ctx: null, bus: {}, tracks: {}, buf: {}, missing: [], ready: false, manifest: null,
     route: 'speaker', latency: 0, hrtfUsed: 0, routeFns: [],
-    s: null, bed: null, colours: {}, pending: null, lastSwap: -99, swayAt: 0,
+    s: null, bed: null, want: null, gen: 0, colours: {}, pending: null, lastSwap: -99, swayAt: 0,
 
     init() {
       if (this.ctx) return this.ctx;
@@ -71,7 +71,7 @@
     load() {
       if (this.loading || Au.on === false) return this.loading;
       this.init();
-      this.loading = (async () => {
+      this.listed = (async () => {
         let man = null;
         try {
           const r = await fetch('audio/music/manifest.json', { cache: 'no-cache' });
@@ -80,6 +80,8 @@
         this.manifest = man;
         this.tracks = man?.tracks || {};
         this.ready = true;
+      })();
+      this.loading = this.listed.then(async () => {
         const lowMem = (navigator.deviceMemory || 8) <= 2;
         const want = Object.keys(this.tracks).filter(k => {
           const t = this.tracks[k];
@@ -87,7 +89,7 @@
           return t.mode === 'kaamos' || t.mode === 'flow' || t.role === 'colour' || t.role === 'stinger';
         });
         for (const k of want) await this.decode(k);
-      })();
+      });
       return this.loading;
     },
 
@@ -118,7 +120,8 @@
     },
 
     keep() {
-      const s = this.s, live = new Set([this.bed?.padK, this.bed?.motionK, this.padKey(s?.mode), this.motionKey(s?.mode)].filter(Boolean));
+      const s = this.s, dawn = s?.dawnAt != null && !s.bloomed && this.bloomKey();
+      const live = new Set([this.bed?.padK, this.bed?.motionK, this.padKey(s?.mode), this.motionKey(s?.mode), dawn].filter(Boolean));
       const resident = t => t.mode === 'flow' || t.role === 'colour' || t.role === 'stinger' || (t.mode === 'kaamos' && !s?.kaamosDone);
       for (const k of Object.keys(this.buf)) if (!live.has(k) && !resident(this.tracks[k] || {})) delete this.buf[k];
     },
@@ -208,8 +211,7 @@
       hold(b.curve.gain, t); b.curve.gain.setValueAtTime(0, t);
       b.curve.gain.linearRampToValueAtTime(DB(night ? -21 : -18), t + 2);
       this.levels();
-      const s = this.s;
-      Promise.resolve(this.load()).then(safe(() => { if (this.s === s && !this.bed) this.swap('kaamos', 'measure'); }));
+      this.target('measure');
     },
 
     curve(db, sec) { if (this.ctx) glide(this.bus.curve.gain, db === -Infinity ? 0 : DB(db), Math.max(1.5, sec), this.ctx.currentTime); },
@@ -247,9 +249,9 @@
 
     target(kind) {
       const s = this.s;
-      if (!s || s.phase === 'dawn' || s.dawnAt != null) return;
+      if (!s || s.ended || s.phase === 'dawn' || s.dawnAt != null) return;
       const key = s.measuring ? 'kaamos' : s.mode;
-      if (!key || (this.bed?.key === key && !this.pending)) return;
+      if (!key || (this.want === key && !this.pending)) return;
       this.pending = { key, kind };
       this.flush();
     },
@@ -259,17 +261,20 @@
       if (!p || !this.ctx) return;
       if (p.kind !== 'measure' && this.ctx.currentTime - this.lastSwap < MIN_GAP) return;
       this.pending = null;
-      if (this.bed?.key !== p.key) this.swap(p.key, p.kind);
+      if (this.want !== p.key) this.swap(p.key, p.kind);
     },
 
     async swap(key, kind, opt = {}) {
       const s = this.s;
-      if (!s) return;
-      this.lastSwap = this.ctx.currentTime;
+      if (!s || s.ended) return;
+      const gen = ++this.gen;
+      this.want = key;
+      await this.listed;
       const padK = this.padKey(key), pad = padK && await this.decode(padK);
       const motK = this.motionKey(key), mot = pad && motK && await this.decode(motK);
-      if (this.s !== s) return;
+      if (this.s !== s || this.gen !== gen || s.ended) return;
       const ctx = this.ctx, now = ctx.currentTime, old = this.bed;
+      this.lastSwap = now;
       if (!pad) {
         if (old && !old.procedural) this.fadeBed(old, now, 2);
         this.bed = { key, procedural: true, grid: { bpm: TEMPO[key]?.[0] || 60, beatsPerBar: TEMPO[key]?.[1] || 4, t0: now } };
@@ -315,12 +320,16 @@
       this.keep();
     },
 
-    fadeBed(v, when, xf) {
-      const at = Math.max(when, v.fadeEnd || 0);
-      v.fadeEnd = Infinity;
-      v.fades.forEach(f => { try { f.gain.setValueCurveAtTime(eq(false), at, xf); } catch { glide(f.gain, 0, xf, at); } });
-      v.srcs.forEach(src => { try { src.stop(at + xf + 0.1); } catch {} });
-      setTimeout(() => v.fades.forEach(f => { try { f.disconnect(); } catch {} }), (at - this.ctx.currentTime + xf + 0.3) * 1000);
+    fadeBed(v, when, xf, cut = false) {
+      const now = this.ctx.currentTime, hard = cut || v.out != null;
+      const at = hard ? Math.max(when, now) : Math.max(when, v.fadeEnd || 0), end = at + xf;
+      if (v.out != null && end >= v.out) return;
+      v.out = end;
+      const out = f => hard ? glide(f.gain, 0, xf, at) : f.gain.setValueCurveAtTime(eq(false), at, xf);
+      v.fades.forEach(f => { try { out(f); } catch { try { glide(f.gain, 0, xf, at); } catch {} } });
+      v.srcs.forEach(src => { try { src.stop(end + 0.1); } catch {} });
+      clearTimeout(v.unplug);
+      v.unplug = setTimeout(() => [...v.srcs, ...v.fades].forEach(n => { try { n.disconnect(); } catch {} }), (end - now + 0.3) * 1000);
     },
 
     widthNode() {
@@ -506,13 +515,17 @@
       if (!s || s.dawnAt != null) return;
       const now = this.ctx.currentTime;
       s.dawnAt = now; s.measuring = false; this.pending = null;
-      if (s.night) { this.levels(); this.curve(-15, 2); return; }
+      if (s.night) { this.levels(); this.curve(-15, 2); Au.dawnPhrase(); return; }
       s.dawnHush = true;
       this.levels();
       this.curve(0, 5);
       ease(this.bus.light.frequency, DAWN_LIGHT, 1.7, now);
-      const k = this.padKey('dawn');
-      if (k) this.swap('dawn', 'dawn', { level: DB(-9) }).then(() => { if (this.bed?.key === 'dawn' && this.s === s) this.bedLevel(DB(this.tracks[k].gain_db ?? 0), 5); });
+      this.swap('dawn', 'dawn', { level: DB(-9) }).then(safe(() => {
+        const v = this.bed;
+        if (this.s !== s || v?.key !== 'dawn') return;
+        if (v.procedural) Au.dawnPhrase();
+        else this.bedLevel(DB(this.tracks[v.padK].gain_db ?? 0), 5);
+      }));
       this.decode(this.bloomKey());
     },
     dawnT(t) { if (this.s && Number.isFinite(t)) this.s.dawnExt = t; },
@@ -528,7 +541,7 @@
       src.buffer = buf; gn.gain.value = DB(this.tracks[key].gain_db ?? 0);
       src.connect(gn); gn.connect(this.bus.stinger); src.start(now);
       const hit = this.tracks[key].hit_s ?? 0.5;
-      if (this.bed?.key === 'dawn') this.fadeBed(this.bed, now + hit, 4);
+      if (this.bed?.key === 'dawn' && !this.bed.procedural) this.fadeBed(this.bed, now + hit, 4);
     },
 
     end({ night, asleep, after = 0, sec } = {}) {
@@ -546,8 +559,9 @@
     stopAll(sec = 1) {
       if (!this.ctx) return;
       const now = this.ctx.currentTime;
-      if (this.bed && !this.bed.procedural) this.fadeBed(this.bed, now, sec);
-      this.bed = null;
+      this.gen++;
+      if (this.bed && !this.bed.procedural) this.fadeBed(this.bed, now, sec, true);
+      this.bed = null; this.want = null;
       for (const c of Object.values(this.colours)) {
         if (!c.src) continue;
         glide(c.gn.gain, 0, sec, now);

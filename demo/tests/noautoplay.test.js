@@ -73,6 +73,41 @@ test('a task that finishes itself without a tap is logged as auto, with a tap as
   }
 });
 
+test('the default input mode is touch, never auto', () => {
+  const { A } = session();
+  assert.strictEqual(A.Input.mode, 'touch');
+});
+
+test('only an explicit input=auto query selects auto mode', () => {
+  const { A } = session();
+  const parse = v => A.Input.parse(new URLSearchParams(v).get('input'));
+  assert.strictEqual(parse(''), 'touch');
+  assert.strictEqual(parse('clock=morning'), 'touch');
+  assert.strictEqual(parse('input='), 'touch');
+  assert.strictEqual(parse('input=touch'), 'touch');
+  assert.strictEqual(parse('input=camera'), 'camera');
+  for (const junk of ['AUTO', 'autoplay', 'true', '1', ' auto']) assert.strictEqual(parse('input=' + junk), 'touch', junk);
+  assert.strictEqual(parse('input=auto'), 'auto');
+});
+
+test('a session started from the default mode or any non-auto query never runs in auto mode', () => {
+  for (const q of ['', 'input=touch', 'input=camera', 'input=junk']) {
+    const { A, tick } = load();
+    const s = A.startSession({ clock: 'morning', input: A.Input.parse(new URLSearchParams(q).get('input')), stage: true, profile: 'live' });
+    const games = [];
+    A.bus.on('game', g => games.push(g.id));
+    run(A, tick, s, 120);
+    assert.strictEqual(s.auto, false, q);
+    assert.deepStrictEqual(games, [], q);
+    assert.strictEqual(s.T.state, 'ready', q);
+  }
+  const { A, tick } = load();
+  const s = A.startSession({ clock: 'morning', input: A.Input.mode, stage: true, profile: 'live' });
+  assert.strictEqual(s.auto, false);
+  run(A, tick, s, 120);
+  assert.strictEqual(s.tasks.length, 0);
+});
+
 test('autoplay still runs only when asked for explicitly', () => {
   const { s, games, go } = session({ stage: true, input: 'auto' });
   go(60);

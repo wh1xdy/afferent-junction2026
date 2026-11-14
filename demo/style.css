@@ -28,6 +28,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   aspect-ratio: 9 / 19.5;
   border-radius: 44px;
   overflow: hidden;
+  overflow: clip;
   isolation: isolate;
   background: var(--af-fjord);
   box-shadow: 0 0 0 9px #0B1424, 0 0 0 10px #22324F, 0 40px 90px rgba(2, 6, 16, 0.7);
