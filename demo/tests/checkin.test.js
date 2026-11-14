@@ -88,6 +88,9 @@ const page = ({ storage = new Map(), hub = null } = {}) => {
   A.bus.on('ws', m => emitted.push(m));
   const talks = [];
   A.bus.on('talk', () => talks.push(1));
+  // gui/swipe.js turns a swipe into the callbacks checkin.js hands it; here a swipe down calls them directly
+  const swipes = [];
+  A.Swipe = { bind: (el, get) => swipes.push(get) };
   vm.runInContext(fs.readFileSync(path.join(JS, 'checkin.js'), 'utf8'), ctx, { filename: 'checkin.js' });
   A.Checkin.init({ night: () => false, busy: () => false, log: () => {} });
   const root = doc.getElementById('checkin');
@@ -99,10 +102,10 @@ const page = ({ storage = new Map(), hub = null } = {}) => {
   const answer = v => { opts().find(b => b.dataset.v === String(v)).click(); flush(); };
   const begin = () => { A.Checkin.open(); sheet().querySelectorAll('.ci-btn').find(b => b.textContent === 'Start').click(); };
   const docs = () => emitted.filter(m => m.type === 'checkin').map(m => m.checkin);
-  return { A, doc, root, sheet, q, opts, answer, begin, flush, docs, talks, storage, swipe: (dy, dx = 0) => {
-    root.emit('pointerdown', { pointerId: 1, clientX: 100, clientY: 200 });
-    root.emit('pointermove', { pointerId: 1, clientX: 100 + dx, clientY: 200 + dy });
-    root.emit('pointerup', { pointerId: 1, clientX: 100 + dx, clientY: 200 + dy });
+  return { A, doc, root, sheet, q, opts, answer, begin, flush, docs, talks, storage, swipeDown: () => {
+    const g = swipes[0]?.();
+    assert.ok(g && g.down, 'the question takes a swipe down');
+    g.down();
   } };
 };
 
@@ -199,14 +202,14 @@ const tests = {
   'g: swiping down still stops, with the same safety rule'() {
     let p = page({ storage: seen() });
     p.begin(); p.answer(0);
-    p.swipe(160);
+    p.swipeDown();
     assert.strictEqual(kind(p), 'ci-info ci-saved');
 
     p = page({ storage: seen() });
     p.begin();
     for (let i = 1; i <= 8; i++) p.answer(0);
     p.opts().find(b => b.dataset.v === '1').click();
-    p.swipe(160);
+    p.swipeDown();
     assert.strictEqual(kind(p), 'ci-info ci-support');
   },
 
