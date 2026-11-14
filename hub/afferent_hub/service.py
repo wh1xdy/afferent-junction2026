@@ -502,9 +502,10 @@ class Hub:
         async with self.lock(pid):
             if self.store.checkin(doc["checkin_id"]) is not None:
                 return {"ok": True, "duplicate": True, "checkin_id": doc["checkin_id"], "patient_id": pid}
-            try:
-                day = views.day_index(p, doc["started_iso"][:10])
-            except (TypeError, ValueError):
+            # the local date (views.local_time): a UTC-stamped check-in just after midnight is on the new day,
+            # as the QR's minute for it is
+            day = views.local_day(p, doc.get("started_iso"))
+            if day is None:
                 day = views.now_day(p)
             stored = {**doc, "day_index": day, "received_iso": views.now_iso()}
             self.store.add_checkin(stored)

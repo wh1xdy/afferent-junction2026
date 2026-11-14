@@ -25,6 +25,12 @@ Regression tests: `hub/tests/test_bugburn_hub.py`.
 - **Root cause:** UTC stamps were read as if they were local wall-clock time.
 - **Fix:** new `qr._local()`. A stamp whose offset is 0 is converted to the hub's local clock (the clock `day_index` counts by). Local stamps with their offset (the app's `isoLocal`) are kept as written, so offset changes across DST in old check-ins do not shift the time.
 - **Verification:** `test_qr_talk_request_uses_local_day_and_minute` failed before the fix (`{'day': 9, 'minute': 1410}`) and passes after it. `tests/test_qr.py` passes.
+- **Review follow-up:** the helper is now `views.local_time()` (with `views.local_day()`). `_talk` and `_safety` sort by the
+  local time itself, not the stamp's text (a `Z` stamp and an offset stamp sorted wrongly, and over the cap the newest
+  could be dropped). A check-in's `day_index` is the local date of `started_iso` (it was the date as written, so a
+  UTC-stamped check-in just after midnight sat on the day before its local minute), and the QR reads a safety entry's day
+  and minute off the same stamp. Tests: `test_qr_talk_requests_sort_by_local_time`,
+  `test_checkin_day_and_minute_are_both_local`.
 
 ## Full verification
 - `<venv>/python -m pytest -q` (from hub/): **480 passed, 2 failed**. Both failures are baseline and Windows-only: `test_api.py::test_unoq_serial_over_pty` (no `termios` on Windows) and `test_team_modules.py::test_their_tests_pass_on_copied_code[data_manager]` (vendored).

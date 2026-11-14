@@ -3,6 +3,7 @@ import asyncio
 import datetime as dt
 import uuid
 
+import pytest
 from fastapi.testclient import TestClient
 
 from afferent_hub import qr, views
@@ -148,3 +149,53 @@ def test_talk_request_is_acked_and_counted_once(tmp_path, monkeypatch):
             assert app.receive_json()["type"] == "pong"
         talks = [f for f in hub.store.flags("anna") if f["type"] == "talk_request"]
         assert sorted(f.get("talk_id") or "" for f in talks) == ["talk-1", "talk-2"]
+
+
+@pytest.fixture
+def plus2(monkeypatch):
+    """The hub's clock at UTC+2 (as in Finland in winter), whatever the machine running the tests uses."""
+    import time
+    monkeypatch.setenv("TZ", "Etc/GMT-2")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+# BH-3 follow-up: a `Z` stamp and an offset stamp sort by the time they stand for, not as text
+def test_qr_talk_requests_sort_by_local_time(plus2):
+    patient = {"id": "x", "tms_end_date": "2026-11-01"}
+    flags = [{"type": "talk_request", "t_iso": "2026-11-11T00:30:00+02:00"},   # 00:30 on the 11th
+             {"type": "talk_request", "t_iso": "2026-11-10T23:30:00.000Z"},    # 01:30 on the 11th: the newest
+             {"type": "talk_request", "t_iso": "2026-11-10T21:00:00Z"}]        # 23:00 on the 10th
+    talk, omitted = qr._talk(patient, flags, 0, 30)
+    assert talk == [{"day": 10, "minute": 90}, {"day": 10, "minute": 30}, {"day": 9, "minute": 1380}]
+    # over the cap the oldest go, and the newest stays even though its text sorts first
+    many = [{"type": "talk_request", "t_iso": f"2026-11-11T00:{m:02d}:00+02:00"} for m in range(10)]
+    talk, omitted = qr._talk(patient, many + [flags[1]], 0, 30)
+    assert talk[0] == {"day": 10, "minute": 90} and omitted == 1
+    assert {"day": 10, "minute": 0} not in talk
+
+
+# BH-3 follow-up: a check-in's day and minute in the QR come off one stamp on one clock. The patient page stamps in
+# UTC (no isoLocal there), so 01:30 at home is 23:30Z the day before; the day used to be that UTC date.
+def test_checkin_day_and_minute_are_both_local(tmp_path, plus2):
+    with ws_hub(tmp_path) as c:
+        hub = c.app.state.hub
+        pid = hub.settings.bound_patient
+        today = dt.date.today()                                              # on the hub's clock (UTC+2)
+        stamp = (dt.datetime.combine(today, dt.time(1, 30)) - dt.timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        assert stamp.startswith((today - dt.timedelta(days=1)).isoformat())
+        doc = checkin(pid, 3, "minimal")
+        doc.update(started_iso=stamp, completed_iso=stamp)
+        doc["safety"].update(tier="low", item9=1, screen="support")
+        assert c.post("/api/checkins", json=doc).status_code == 200
+        p = hub.patient(pid)
+        nd = views.now_day(p)
+        stored = next(x for x in hub.store.checkins(pid) if x["checkin_id"] == doc["checkin_id"])
+        assert stored["day_index"] == nd
+        safety, _ = qr._safety(p, hub.store.checkins(pid), nd)
+        assert {"day": nd, "minute": 90} == {k: safety[0][k] for k in ("day", "minute")}
+        # a check-in stored before this fix, with the UTC date as its day, is read the same way
+        old = [{**stored, "day_index": nd - 1}]
+        assert qr._safety(p, old, nd)[0][0]["day"] == nd
