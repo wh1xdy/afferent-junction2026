@@ -1,5 +1,6 @@
 import ARKit
 import Capacitor
+import WebKit
 
 @objc(AfferentEyesPlugin)
 public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -63,6 +64,12 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin {
 }
 
 class AfferentViewController: CAPBridgeViewController {
+    override open func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
+        let config = super.webViewConfiguration(for: instanceConfiguration)
+        config.mediaTypesRequiringUserActionForPlayback = []
+        return config
+    }
+
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(AfferentFingerPlugin())
         bridge?.registerPluginInstance(AfferentPresencePlugin())

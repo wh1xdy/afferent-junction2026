@@ -31,6 +31,7 @@
       if (this.ctx) return this.ctx;
       Au.init();
       const ctx = this.ctx = Au.ctx;
+      this.session();
       const g = v => { const n = ctx.createGain(); n.gain.value = v; return n; };
       const f = (type, freq, q, gain) => { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = freq; if (q != null) n.Q.value = q; if (gain != null) n.gain.value = gain; return n; };
       const b = this.bus;
@@ -134,10 +135,20 @@
       return !!(k && this.buf[k]);
     },
 
-    unlock() {
-      const ctx = this.init();
+    session() {
       try { if (navigator.audioSession && navigator.audioSession.type !== 'ambient') navigator.audioSession.type = 'ambient'; } catch {}
-      if (ctx.state !== 'running' && !document.hidden) ctx.resume?.().catch(() => {});
+    },
+
+    wake() {
+      const ctx = this.ctx;
+      if (ctx && ctx.state !== 'running' && !document.hidden) ctx.resume?.().catch(() => {});
+    },
+
+    unlock() {
+      this.init();
+      this.session();
+      this.wake();
+      const ctx = this.ctx;
       if (this.unlocked) return;
       this.unlocked = true;
       const s = ctx.createBufferSource();
@@ -193,23 +204,64 @@
       return { bpm, beatsPerBar, t0, nextBeat: t => up(t, beat), nextBar: t => up(t, bar), latency: lat };
     },
 
+    fresh(night, t) {
+      return {
+        night, t0: t, phase: 'fadein', mode: null, measuring: true, colours: 0, stingers: 0, opened: false,
+        panel: false, breath: false, stingerUntil: 0, tier: 0, k: 0, modeAt: t, restCycles: 0, dawnAt: null, ended: false, kaamosDone: false,
+      };
+    },
+    homeDb(night) { return night ? -21 : -18; },
+
+    home({ night = false } = {}) {
+      this.atHome = true; this.homeNight = night;
+      const s = this.s;
+      if (s?.home && !s.ended) {
+        s.night = night;
+        if (!this.talking) this.curve(this.homeDb(night), 2);
+        return;
+      }
+      if (Au.on === false) {
+        if (this.ctx) this.stopAll(1);
+        this.s = null;
+        return;
+      }
+      this.init();
+      this.load();
+      this.wake();
+      this.stopAll(1);
+      const t = this.ctx.currentTime;
+      this.s = { ...this.fresh(night, t), phase: 'home', home: true, warm: true };
+      this.lastSwap = -99; this.pending = null;
+      ease(this.bus.light.frequency, LIGHT[0], 0.5, t);
+      this.curve(this.talking ? -Infinity : this.homeDb(night), 3);
+      this.levels();
+      this.target('measure');
+    },
+
+    talk(live) {
+      this.talking = live;
+      if (this.s?.home) this.curve(live ? -Infinity : this.homeDb(this.s.night), live ? 1.5 : 3);
+    },
+
     start({ night = false, route } = {}) {
+      this.atHome = false;
+      const prev = this.s, warm = !!prev?.home && !prev.ended && this.want === 'kaamos';
       this.s = null;
       if (Au.on === false) return;
       this.init();
       if (route) this.setRoute(route);
       this.load();
-      this.stopAll(0.05);
+      if (!warm) this.stopAll(0.05);
       const t = this.ctx.currentTime;
-      this.s = {
-        night, t0: t, phase: 'fadein', mode: null, measuring: true, colours: 0, stingers: 0, opened: false,
-        panel: false, breath: false, stingerUntil: 0, tier: 0, k: 0, modeAt: t, restCycles: 0, dawnAt: null, ended: false, kaamosDone: false,
-      };
+      this.s = warm ? Object.assign(prev, this.fresh(night, t), { home: false }) : this.fresh(night, t);
       this.lastSwap = -99; this.pending = null;
       const b = this.bus;
-      hold(b.light.frequency, t); b.light.frequency.setValueAtTime(LIGHT[0], t);
-      hold(b.curve.gain, t); b.curve.gain.setValueAtTime(0, t);
-      b.curve.gain.linearRampToValueAtTime(DB(night ? -21 : -18), t + 2);
+      if (warm) this.curve(this.homeDb(night), 2);
+      else {
+        hold(b.light.frequency, t); b.light.frequency.setValueAtTime(LIGHT[0], t);
+        hold(b.curve.gain, t); b.curve.gain.setValueAtTime(0, t);
+        b.curve.gain.linearRampToValueAtTime(DB(this.homeDb(night)), t + 2);
+      }
       this.levels();
       this.target('measure');
     },
@@ -310,7 +362,7 @@
         v.srcs.push(src); v.fades.push(fade);
         return { lvl, lp };
       };
-      const p = mk(pad, opt.level ?? (key === 'kaamos' && s.phase === 'fadein' ? 0 : this.levelFor(key, 'pad')), false);
+      const p = mk(pad, opt.level ?? (key === 'kaamos' && s.phase === 'fadein' && !s.warm ? 0 : this.levelFor(key, 'pad')), false);
       v.pad = p.lvl; v.lp = p.lp;
       if (mot) { v.motion = mk(mot, this.levelFor(key, 'motion'), true).lvl; v.motionK = motK; }
       if (old && !old.procedural) this.fadeBed(old, when, xf);
@@ -574,8 +626,10 @@
     },
 
     tick() {
+      const on = Au.on !== false;
+      if (on && this.atHome && !this.s) this.home({ night: this.homeNight });
       if (!this.ctx) return;
-      const s = this.s, now = this.ctx.currentTime, on = Au.on !== false;
+      const s = this.s, now = this.ctx.currentTime;
       if (on !== this.lastOn) { this.lastOn = on; ease(this.bus.mix.gain, on ? 1 : 0, 0.1, now); }
       if (!s) return;
       this.flush();
@@ -636,21 +690,22 @@
     M.panel(true, { breath: g.id === 'breath' });
   });
   on('sfx', e => { if (e && e.name !== 'stinger') M.duck(); });
-  on('endScreen', () => { if (M.s?.night) M.end({ night: true }); });
+  on('endScreen', () => { if (M.s?.night && !M.s.home) M.end({ night: true }); });
   on('sessionEnd', r => {
-    if (!M.s || !r) return;
+    if (!M.s || M.s.home || !r) return;
     if (r.status === 'fell_asleep') M.end({ asleep: true });
     else if (r.status === 'completed') M.end({ after: 1.2 });
     else M.end({ sec: 2 });
   });
-  on('home', () => { if (M.ctx) { M.stopAll(1); M.s = null; } });
+  on('home', () => M.home({ night: !!A.night?.() }));
+  on('voice', v => M.talk(!!v && v.state !== 'idle' && v.state !== 'error'));
 
   const unlock = safe(() => M.unlock());
-  ['pointerdown', 'touchend', 'keydown'].forEach(t => document.addEventListener(t, unlock, { capture: true, passive: true }));
+  ['pointerdown', 'touchstart', 'touchend', 'keydown'].forEach(t => document.addEventListener(t, unlock, { capture: true, passive: true }));
   document.addEventListener('visibilitychange', safe(() => {
     if (!M.ctx) return;
     if (document.hidden) M.ctx.suspend?.().catch(() => {});
-    else if (M.unlocked) M.ctx.resume?.().catch(() => {});
+    else if (M.unlocked || M.s) M.ctx.resume?.().catch(() => {});
   }));
   setInterval(safe(() => M.tick()), 25);
 })();
