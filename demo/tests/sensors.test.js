@@ -316,6 +316,11 @@ const tests = {
     assert.deepStrictEqual(plain(S.cameraState(A.now())), { link: 'unavailable', face: false, reason: null });
 
     cam(S);
+    assert.strictEqual(at().bpm, 80);
+    cam(S, { bpm: null, trust: undefined });
+    assert.strictEqual(at(), null, 'a second without a reading clears the last one at once, not after 3 s');
+
+    cam(S);
     tick(2.9);
     assert.deepStrictEqual([at().bpm, at().age_s], [80, 2.9]);
     tick(0.2);
@@ -364,10 +369,10 @@ const tests = {
     assert.deepStrictEqual([doc.vitals.camera_pulse.source, doc.vitals.camera_pulse.pulse_bpm.mean], ['rppg', 95]);
   },
 
-  'l: liveMetrics carries physio and camera_pulse'() {
+  'l: liveMetrics carries physio; the camera pulse stays on the phone'() {
     const { A, tick } = load(), S = A.Sensors;
     let s = start(A), m = s.liveMetrics(A.now());
-    assert.deepStrictEqual([m.physio, m.camera_pulse], [null, null]);
+    assert.deepStrictEqual([m.physio, 'camera_pulse' in m], [null, false]);
     s.finish('partial');
     connect(A);
     s = start(A);
@@ -379,7 +384,8 @@ const tests = {
     m = plain(s.liveMetrics(A.now()));
     assert.deepStrictEqual(keys(m.physio), PHYSIO);
     assert.deepStrictEqual([m.physio.source, m.physio.transport, m.physio.pulse_bpm, m.physio.rmssd_ms, m.pulse_source, m.pulse_bpm], ['finger_ppg', 'ble', 72, 46, 'finger_ppg', 72]);
-    assert.deepStrictEqual(keys(m.camera_pulse), ['age_s', 'bpm', 'source', 'trust_label', 'trust_score']);
+    assert.strictEqual(S.cameraPulse(A.now()).bpm, 80);
+    assert.ok(!('camera_pulse' in m) && !/rppg|trust_score|trust_label/.test(JSON.stringify(m)), 'no camera bpm or trust score in what goes out live');
   },
 
   'm: wording guard for the Your signals sheet'() {

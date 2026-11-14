@@ -21,6 +21,7 @@
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		AE0000000000000000000001 /* AfferentEyes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000002 /* AfferentEyes.swift */; };
 		AE0000000000000000000200 /* AfferentPulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000100 /* AfferentPulse.swift */; };
+		AE0000000000000000000201 /* AfferentPulseGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000101 /* AfferentPulseGate.swift */; };
 		AE0000000000000000000203 /* PulseEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000103 /* PulseEstimator.swift */; };
 		AE0000000000000000000209 /* FacePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000109 /* FacePulse.swift */; };
 /* End PBXBuildFile section */
@@ -41,6 +42,7 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		AE0000000000000000000002 /* AfferentEyes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentEyes.swift; sourceTree = "<group>"; };
 		AE0000000000000000000100 /* AfferentPulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPulse.swift; sourceTree = "<group>"; };
+		AE0000000000000000000101 /* AfferentPulseGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPulseGate.swift; sourceTree = "<group>"; };
 		AE0000000000000000000103 /* PulseEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseEstimator.swift; sourceTree = "<group>"; };
 		AE0000000000000000000109 /* FacePulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FacePulse.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -81,6 +83,7 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				AE0000000000000000000002 /* AfferentEyes.swift */,
 				AE0000000000000000000100 /* AfferentPulse.swift */,
+				AE0000000000000000000101 /* AfferentPulseGate.swift */,
 				AE0000000000000000000300 /* Team */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -194,6 +197,7 @@
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				AE0000000000000000000001 /* AfferentEyes.swift in Sources */,
 				AE0000000000000000000200 /* AfferentPulse.swift in Sources */,
+				AE0000000000000000000201 /* AfferentPulseGate.swift in Sources */,
 				AE0000000000000000000203 /* PulseEstimator.swift in Sources */,
 				AE0000000000000000000209 /* FacePulse.swift in Sources */,
 			);

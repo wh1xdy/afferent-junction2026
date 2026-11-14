@@ -466,7 +466,7 @@
           head_pitch_deg: f?.tracked && f.head_pitch_deg != null ? r1(f.head_pitch_deg) : null, face_tracked: !!f?.tracked,
           arousal: r3(this.a), fatigue: r3(this.fat), ambient_light: f?.ambient_light == null ? null : r3(f.ambient_light),
           profile: this.profile, simulated: p.source === 'simulated' || this.eyesSource === 'simulated' || this.auto || this.profile !== 'live',
-          physio: A.Sensors.livePhysio(now), camera_pulse: A.Sensors.cameraPulse(now),
+          physio: A.Sensors.livePhysio(now),
         };
       },
 

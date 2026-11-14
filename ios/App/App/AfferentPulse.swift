@@ -25,7 +25,6 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate
     ]
 
     private static let settleS = 2.8
-    private static let faceLostS = 2.0
     private static let badLightS = 5
     private static let relockEveryS = 30.0
     private static let maxQueued = 3
@@ -45,8 +44,8 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate
     private var badLight = 0
 
     @objc func start(_ call: CAPPluginCall) {
-        guard ARFaceTrackingConfiguration.isSupported else {
-            call.reject("TrueDepth camera not available", "unsupported")
+        guard #available(iOS 16.0, *), ARFaceTrackingConfiguration.isSupported else {
+            call.reject("needs iOS 16 and a TrueDepth camera", "unsupported")
             return
         }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -135,21 +134,31 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate
         exposure(locked: false)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleS) { [weak self] in
             guard let self, self.running, self.epoch == mine else { return }
-            self.exposure(locked: true)
+            guard self.exposure(locked: true) else { self.relock(); return }
             self.work.async { self.pulse.reset() }
             self.locked = true
         }
     }
 
-    private func exposure(locked: Bool) {
+    @discardableResult
+    private func exposure(locked: Bool) -> Bool {
         guard #available(iOS 16.0, *),
               let dev = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera,
-              (try? dev.lockForConfiguration()) != nil else { return }
+              (try? dev.lockForConfiguration()) != nil else { return false }
         let exp: AVCaptureDevice.ExposureMode = locked ? .locked : .continuousAutoExposure
         let wb: AVCaptureDevice.WhiteBalanceMode = locked ? .locked : .continuousAutoWhiteBalance
         if dev.isExposureModeSupported(exp) { dev.exposureMode = exp }
         if dev.isWhiteBalanceModeSupported(wb) { dev.whiteBalanceMode = wb }
         dev.unlockForConfiguration()
+        return !locked || exposureHeld()
+    }
+
+    private func exposureHeld() -> Bool {
+        guard #available(iOS 16.0, *),
+              let dev = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera else { return false }
+        return PulseGate.held(exposureLocked: dev.exposureMode == .locked,
+                              whiteBalanceLocked: dev.whiteBalanceMode == .locked,
+                              whiteBalanceLockable: dev.isWhiteBalanceModeSupported(.locked))
     }
 
     public func session(_ session: ARSession, didUpdate frame: ARFrame) {
@@ -167,7 +176,7 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate
         let t = frame.timestamp
         let face = frame.anchors.compactMap { $0 as? ARFaceAnchor }.first { $0.isTracked }
         if let face {
-            if lastFace > 0, t - lastFace > Self.faceLostS { work.async { self.pulse.reset() } }
+            if lastFace > 0, t - lastFace > PulseGate.lostS { work.async { self.pulse.reset() } }
             lastFace = t
             if locked, t - lastSample >= 1 / PulseMath.sampleHz, queued < Self.maxQueued {
                 lastSample = t
@@ -180,9 +189,17 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate
         }
         guard t - lastEmit >= 1 else { return }
         lastEmit = t
+        if locked, !exposureHeld() { relock() }
         let tracked = face != nil, measuring = tracked && locked, mine = epoch
         work.async {
-            let reading = measuring ? self.pulse.estimate() : nil
+            var reading: PulseReading?
+            if measuring {
+                switch PulseGate.step(now: t, lastAppended: self.pulse.lastAppended) {
+                case .estimate: reading = self.pulse.estimate()
+                case .hold: break
+                case .reset: self.pulse.reset()
+                }
+            }
             let luma = self.pulse.luma, clipped = self.pulse.clipped
             DispatchQueue.main.async {
                 guard self.running, self.epoch == mine else { return }
