@@ -74,7 +74,7 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         let t = frame.timestamp
         if t0 == nil { t0 = t }
         var b: [String: Double] = [:]
-        for (k, v) in face.blendShapes { b[k.rawValue] = v.doubleValue }
+        for (k, v) in face.blendShapes { b[Self.normalized(k.rawValue)] = v.doubleValue }
         let before = expr.events.count
         expr.feed(b, t: t)
         let g = Self.gaze(face, frame)
@@ -92,6 +92,13 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
             if let m = newMicro { self.recentMicro = m; self.microCount += 1 }
             if el >= Self.duration && self.running { self.stop() }
         }
+    }
+
+    /// ARKit raw values are "mouthSmile_L"; the analysis uses "mouthSmileLeft".
+    static func normalized(_ k: String) -> String {
+        if k.hasSuffix("_L") { return String(k.dropLast(2)) + "Left" }
+        if k.hasSuffix("_R") { return String(k.dropLast(2)) + "Right" }
+        return k
     }
 
     /// Gaze relative to the camera, in degrees (0,0 = looking straight into the lens).

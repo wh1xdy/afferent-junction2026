@@ -55,11 +55,11 @@ final class ExpressionTests: XCTestCase {
             s.feed([:], t: t)
             // fixate the camera, with a 15 deg saccade away and back every 2 s
             let away = (i / 60) % 2 == 1 && i % 60 < 30      // 0.5 s away in every other second
-            s.feedGaze(yaw: away ? 15 : 0.5 * sin(Double(i)), pitch: 0, t: t)
+            s.feedGaze(yaw: away ? 15 : 0.5 * sin(Double(i)), pitch: -6, t: t)   // phone below eye level
         }
         let sum = s.summary
         XCTAssertEqual(s.gazeShifts, 10)                     // 5 excursions x (out + back)
-        XCTAssertEqual(sum.gazeAwayShare, 0.25, accuracy: 0.02)
+        XCTAssertEqual(sum.gazeAwayShare, 0.25, accuracy: 0.05)      // baseline pitch -6 is "at the screen"
         let act = Activation.from(sum, restingBpm: 105)
         XCTAssertTrue(act.notes.contains { $0.contains("pulse") })
     }
@@ -68,6 +68,26 @@ final class ExpressionTests: XCTestCase {
         let sad = ExpressionKind.values(["browInnerUp": 0.7, "mouthFrownLeft": 0.6, "mouthFrownRight": 0.6])
         XCTAssertGreaterThan(sad[.sad]!, 0.5)
         XCTAssertLessThan(sad[.surprise]!, 0.05)
+    }
+
+    func testFrownDoesNotAlsoCountAsDisgust() {
+        // real data: a hard frown (mouthFrown 0.8) also raises noseSneer to ~0.3
+        var s = ExpressionSession()
+        for i in 0..<900 {
+            let t = Double(i) / 60
+            let frown = (600..<624).contains(i)                  // 400 ms
+            s.feed(["mouthFrownLeft": frown ? 0.8 : 0.0, "mouthFrownRight": frown ? 0.8 : 0.0,
+                    "browInnerUp": frown ? 0.22 : 0.07, "noseSneerLeft": frown ? 0.3 : 0.06,
+                    "noseSneerRight": frown ? 0.3 : 0.06, "mouthUpperUpLeft": frown ? 0.08 : 0.01,
+                    "mouthUpperUpRight": frown ? 0.08 : 0.01], t: t)
+        }
+        XCTAssertEqual(s.events.map(\.kind), [.sad])
+    }
+
+    func testARKitNamesAreNormalized() {
+        XCTAssertEqual(ExpressionTracker.normalized("mouthSmile_L"), "mouthSmileLeft")
+        XCTAssertEqual(ExpressionTracker.normalized("eyeBlink_R"), "eyeBlinkRight")
+        XCTAssertEqual(ExpressionTracker.normalized("jawOpen"), "jawOpen")
     }
 
     func testPHQ9() {
