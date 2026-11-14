@@ -21,8 +21,8 @@
 }
 
 .end-count { margin: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; color: var(--md-sys-color-on-surface); }
-.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 30px; overflow: hidden; font: 400 26px/30px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
-.end-count .unit { font: 500 13px/16px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
+.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 30px; overflow: hidden; font: 300 28px/30px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
+.end-count .unit { font: 600 11px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: var(--md-sys-color-on-surface-variant); }
 .end-count .tick { display: block; position: relative; height: 30px; }
 .end-count .tick span { position: absolute; right: 0; top: 0; }
 .end-count .tick .old { opacity: 0; }
@@ -38,9 +38,9 @@
 .week-lights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 30px); }
 .week-lights .day { --c: var(--af-honey); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .week-lights .light { position: relative; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; }
-.week-lights .d { font: 600 12px/16px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
-.week-lights .lit .light { background: var(--c); }
-.week-lights .sun .light { background: var(--md-sys-color-sun); box-shadow: 0 0 0 3px var(--md-sys-color-sun-container); }
+.week-lights .d { font: 600 11px/16px var(--af-font-ui); letter-spacing: 0.06em; color: var(--md-sys-color-on-surface-variant); }
+.week-lights .lit .light { background: radial-gradient(circle at 38% 32%, color-mix(in srgb, white 30%, var(--c)), var(--c) 62%); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 40%, transparent); }
+.week-lights .sun .light { background: radial-gradient(circle at 38% 32%, #FFF0D2, var(--md-sys-color-sun) 60%); box-shadow: 0 0 0 3px var(--md-sys-color-sun-container), 0 0 14px 2px color-mix(in srgb, var(--md-sys-color-sun) 45%, transparent); }
 .week-lights .sun .d { color: var(--md-sys-color-on-surface); }
 .week-lights .missed .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline); }
 .week-lights .frozen .light { box-shadow: inset 0 0 0 2px var(--af-frost); }

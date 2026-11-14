@@ -104,7 +104,7 @@
 
 .end-night { position: absolute; left: 24px; right: 24px; top: 24%; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity 1200ms var(--af-ease-in), transform 1200ms var(--af-ease-in); }
 .end-night .moon { font-size: 32px; color: var(--md-sys-color-on-surface-variant); display: none; }
-.end-title { margin: 0; color: var(--md-sys-color-on-surface); }
+.end-title { margin: 0; color: var(--md-sys-color-on-surface); text-shadow: var(--af-text-lift); }
 .end[data-phase="rest"] .end-night, .end[data-phase="declined"] .end-night { opacity: 1; transform: none; }
 .end[data-phase="rest"] .moon { display: block; }
 .end[data-phase="rest"] .end-title { color: var(--md-sys-color-on-surface-variant); }
@@ -132,6 +132,8 @@
 .mood-lantern svg { position: relative; width: 34px; height: 52px; }
 .mood-row:has([aria-checked="true"]) .mood-lantern:not([aria-checked="true"]) { opacity: 0.3; }
 .mood-lantern[aria-checked="true"] { transform: translateY(-6px) scale(1.12); color: var(--af-birch); }
+.mood-lantern[aria-checked="true"]::before { width: 84px; height: 84px; }
+.mood-lantern:focus-visible { outline: 2px solid color-mix(in srgb, var(--af-birch) 70%, transparent); outline-offset: 2px; }
 .end.closed .mood-lantern { pointer-events: none; }
 
 .end-sheet {
@@ -140,10 +142,11 @@
   transform: translateY(calc(100% + 40px)); visibility: hidden;
   transition: transform var(--af-dur-exit) var(--af-ease-out), visibility 0s linear var(--af-dur-exit);
 }
-.end[data-phase="sheet"] .end-sheet { transform: none; visibility: visible; transition: transform 600ms var(--af-ease-in), visibility 0s; }
+.end[data-phase="sheet"] .end-sheet { transform: none; visibility: visible; transition: transform 760ms var(--af-ease-glide), visibility 0s; }
+.end-sheet .wave-edge { filter: drop-shadow(0 -10px 18px rgba(3, 8, 20, 0.10)); }
 .end-sheet .wave-edge { position: absolute; left: 0; right: 0; bottom: calc(100% - 1px); width: 100%; height: 34px; display: block; fill: var(--md-sys-color-surface); }
-.end-paper { padding: 32px 28px calc(var(--safe-bottom) + 160px); display: flex; flex-direction: column; }
-.end-hello { margin: 0; color: var(--md-sys-color-on-surface); }
+.end-paper { padding: 32px calc(var(--af-safe-r) + 28px) calc(var(--safe-bottom) + 160px) calc(var(--af-safe-l) + 28px); display: flex; flex-direction: column; }
+.end-hello { margin: 0; color: var(--md-sys-color-on-surface); letter-spacing: -0.4px; }
 .end-quote { min-height: 0; transition: min-height 500ms var(--af-ease-std); }
 .end[data-phase="sheet"] .end-quote { min-height: 106px; }
 .end[data-phase="sheet"] .end-quote:has(.quote-line.on), .end[data-phase="sheet"] .end-quote.settled { min-height: 0; }
@@ -151,10 +154,10 @@
 .end-actions { position: absolute; z-index: 2; left: 28px; right: 28px; bottom: calc(var(--safe-bottom) + 64px); display: flex; flex-direction: column; align-items: center; gap: 8px;
   opacity: 0; pointer-events: none; transition: opacity var(--af-dur-enter) var(--af-ease-in) 300ms; }
 .end[data-phase="sheet"] .end-actions, .end[data-phase="rest"] .end-actions, .end[data-phase="declined"] .end-actions { opacity: 1; pointer-events: auto; }
-.end:not([data-phase="sheet"]) #again { width: auto; background: transparent; color: var(--md-sys-color-on-surface-variant); padding: 0 24px; }
+.end:not([data-phase="sheet"]) #again { width: auto; background: transparent; box-shadow: none; color: var(--md-sys-color-on-surface-variant); padding: 0 24px; text-shadow: var(--af-text-lift); }
 .end[data-phase="sheet"] .end-actions { bottom: calc(var(--safe-bottom) + 69px); }
 
-.offer { margin-top: 20px; padding: 16px 16px 8px 20px; border-radius: 24px; background: var(--md-sys-color-surface-container-high); }
+.offer { margin-top: 20px; padding: 16px 16px 8px 20px; border-radius: 24px; background: var(--md-sys-color-surface-container-high); box-shadow: var(--af-lift-1); }
 .offer p { margin: 0 0 4px; color: var(--md-sys-color-on-surface); }
 .offer-btns { display: flex; justify-content: flex-end; gap: 4px; }
 .end > .offer { position: absolute; left: 16px; right: 16px; top: 42%; z-index: 2; margin: 0; }
