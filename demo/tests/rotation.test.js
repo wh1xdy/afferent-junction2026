@@ -54,6 +54,29 @@ const tests = {
       assert.strictEqual(p, 1 / 4, 'only one fresh game left, so the whole pool is used');
     }
   },
+  'rotation: a preference narrows the draw while one of its games is still eligible, then the whole pool returns'() {
+    const A = load(), n = {};
+    for (let i = 0; i < 400; i++) {
+      const { id, p } = A.pickGame('wake', null, new Set(), ['bells', 'beacon', 'not_a_wake_game']);
+      assert.ok(id === 'bells' || id === 'beacon', id);
+      assert.strictEqual(p, 0.5);
+      n[id] = (n[id] || 0) + 1;
+    }
+    assert.ok(n.bells > 120 && n.beacon > 120, JSON.stringify(n));
+    assert.deepStrictEqual([A.pickGame('calm', null, new Set(), ['breath']).id, A.pickGame('calm', null, new Set(), ['breath']).p], ['breath', 1]);
+    const after = A.pickGame('wake', 'beacon', new Set(['bells']), ['bells', 'beacon']);
+    assert.ok(after.id === 'fireflies' || after.id === 'shutters', 'both preferred games played or last: the rest of the pool');
+    assert.strictEqual(after.p, 0.5);
+  },
+  'puzzles: every game listed as a puzzle exists and is a flow game, so an energised player in flow can get it'() {
+    const A = load();
+    assert.ok(A.PUZZLES.length >= 4, A.PUZZLES.join(','));
+    for (const id of A.PUZZLES) {
+      const src = fs.readFileSync(path.join(JS, 'tasks', `${id}.js`), 'utf8'), modes = /modes:\s*\[([^\]]*)\]/.exec(src)?.[1] ?? '';
+      assert.ok(modes.includes("'flow'"), `${id}: ${modes}`);
+      assert.ok(A.LINES[id], `${id} has an instruction line`);
+    }
+  },
   'instruction lines: one short line per task, no success or failure words'() {
     const A = load();
     for (const [id, line] of Object.entries(A.LINES)) {
