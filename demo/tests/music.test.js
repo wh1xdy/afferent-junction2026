@@ -81,14 +81,23 @@ const bufferFor = file => {
   return { file, duration, numberOfChannels: 2, length: Math.round(duration * 48000) };
 };
 
-const app = ({ music = MUSIC, suspended = false } = {}) => {
+// A seeded Math.random, so two runs of the same session can be compared source by source.
+const seeded = seed => {
+  let a = seed >>> 0;
+  const random = () => { a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  return Object.assign(Object.create(Math), { random });
+};
+
+// sensors: also load sensors.js on the same clock, so a pulse can be fed as the finger sensor gives it.
+// seed: a seeded Math.random. reducedMotion: the setting of that name.
+const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, reducedMotion = false } = {}) => {
   const wa = webAudio();
   wa.live.suspended = suspended;
-  let now = 0, timers = [], seq = 0;
+  let now = 0, timers = [], seq = 0, feeder = null, fedAt = -99;
   const intervals = [], docListeners = {}, calls = { dawnPhrase: 0 };
   const ctx = {
     console: { ...console, warn: (...a) => { calls.warnings = [...(calls.warnings || []), a.map(String).join(' ')]; } },
-    Math, Date, JSON, Set, Map, Object, Array, Number, String, Promise, Float32Array, Error, TypeError, URLSearchParams,
+    Math: seed == null ? Math : seeded(seed), Date, JSON, Set, Map, Object, Array, Number, String, Promise, Float32Array, Error, TypeError, URLSearchParams,
     setTimeout: (f, ms = 0) => { timers.push({ id: ++seq, at: now + Math.max(0, ms) / 1000, f }); return seq; },
     clearTimeout: id => { timers = timers.filter(t => t.id !== id); },
     setInterval: (f, ms) => { intervals.push({ f, every: ms / 1000, next: ms / 1000 }); return intervals.length; },
@@ -105,7 +114,13 @@ const app = ({ music = MUSIC, suspended = false } = {}) => {
   ctx.window = ctx;
   ctx.AudioContext = wa.Ctx;
   vm.createContext(ctx);
-  for (const f of ['util.js', 'audio.js', 'music.js', 'ambience.js']) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
+  const run = f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
+  run('util.js');
+  if (sensors) {
+    vm.runInContext(`A.now = () => __now(); A.config = { baselinePulse: 68, reducedMotion: ${!!reducedMotion}, sensors: { pulse_stone: true, phone_camera: true } };`, Object.assign(ctx, { __now: () => now }));
+    run('sensors.js');
+  }
+  for (const f of ['audio.js', 'music.js', 'biomusic.js', 'ambience.js']) run(f);
   const A = ctx.A, M = A.Music, Au = A.Audio;
   const phrase = Au.dawnPhrase;
   Au.dawnPhrase = (...a) => { calls.dawnPhrase++; return phrase.apply(Au, a); };
@@ -122,6 +137,7 @@ const app = ({ music = MUSIC, suspended = false } = {}) => {
         timers = timers.filter(t => t !== due);
         due.f();
       }
+      if (feeder && now - fedAt >= 0.5 - 1e-9) { fedAt = now; feeder(now); }
       for (const iv of intervals) if (now >= iv.next - 1e-9) { iv.next += iv.every; iv.f(); }
       await settle();
     }
@@ -159,7 +175,16 @@ const app = ({ music = MUSIC, suspended = false } = {}) => {
     await watch(sec);
     emit('segment', 'walk');
   };
-  return { A, M, Au, wa, ctx, calls, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, now: () => now };
+  // Every half second until feed(null): f(now). finger(bpm, o) is one notification pair of the finger sensor over
+  // Bluetooth (sensors.js feedFingerBle): the pulse (hrm) and the frame with its quality and presence (aff1).
+  const feed = f => { feeder = f; fedAt = -99; };
+  const finger = (bpm, { quality = 0.9, presence = 'active' } = {}) => {
+    const S = A.Sensors;
+    if (S.fingerLink.state !== 'connected') S.setFingerLink('connected', 'test');
+    S.feedFingerBle({ kind: 'hrm', bpm });
+    S.feedFingerBle({ kind: 'aff1', quality, presence, payload_len: 5, finger_bpm: [bpm, bpm], breathing_per_min: 14, rmssd_ms: 32 });
+  };
+  return { A, M, Au, wa, ctx, calls, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, isLive, feed, finger, now: () => now };
 };
 
 const tests = [];
@@ -528,6 +553,230 @@ test('a Talk conversation ended while the microphone is still being asked for le
   assert.strictEqual(tracks.length, 2);
   assert.deepStrictEqual(tracks.map(t => t.live), [false, false]);
   assert.strictEqual(V.s, null);
+});
+
+// The music that follows the heart (biomusic.js, music.js follow). Its oscillators are the only ones that reach the beds' bus.
+const reaches = (n, target, seen = new Set()) => {
+  if (n === target) return true;
+  if (!n?.outs || seen.has(n)) return false;
+  seen.add(n);
+  for (const o of n.outs) if (reaches(o, target, seen)) return true;
+  return false;
+};
+const bioLive = a => a.wa.sources.filter(n => n.kind === 'osc' && a.isLive(n) && reaches(n, a.M.bus.beds));
+// One bed at a time: while the generated music holds the bed's place no recorded bed plays without a stop, and once it
+// has faded out none of its notes is still sounding.
+const checkBio = a => {
+  a.check();
+  const M = a.M, now = a.now(), bios = M.bios.filter(v => v.out == null);
+  assert.ok(bios.length <= 1, bios.length + ' generated pieces play at once');
+  if (M.bed?.bio && now > M.bed.fadeEnd) assert.strictEqual(a.unstoppedBeds().length, 0, 'a recorded bed plays under the generated music: ' + a.unstoppedBeds().map(n => n.buffer.file));
+  if (!M.bed?.bio && M.bios.every(v => v.out != null && now > v.out + 0.2)) assert.strictEqual(bioLive(a).length, 0, 'generated notes sound after it handed back');
+};
+const watchBio = async (a, sec, step = 0.25) => { for (let t = 0; t < sec; t += step) { await a.advance(step); checkBio(a); } };
+
+test('a real pulse starts the generated music at the heart rate, and it leads down by at most 1 bpm in 10 s', async () => {
+  const a = app({ sensors: true }), B = a.A.MusicBio;
+  a.feed(() => a.finger(95));
+  a.tap(); a.begin();
+  await a.core('calm');
+  await watchBio(a, 3);
+  assert.strictEqual(B.following, true);
+  assert.ok(a.M.bed.bio, 'the generated music did not take the bed');
+  assert.ok(Math.abs(B.bpm - 95) <= 0.2, 'it starts at ' + B.bpm + ', not at the pulse of 95');
+  assert.strictEqual(B.target, 68, 'it leads towards the rest pulse');
+  await watchBio(a, 3);
+  const gaps = a.M.bed.synth.beats.slice(1).map((t, i, xs) => t - (i ? xs[i - 1] : a.M.bed.synth.beats[0]));
+  assert.ok(gaps.every(d => Math.abs(60 / d - 95) < 0.5), 'its beats are not at the pulse: ' + gaps.map(d => (60 / d).toFixed(1)));
+  const log = [B.bpm];
+  for (let i = 0; i < 120; i++) { await watchBio(a, 1, 0.5); log.push(B.bpm); }
+  for (let i = 1; i < log.length; i++) {
+    assert.ok(log[i] <= log[i - 1] + 1e-9, `the tempo went up at ${i} s: ${log[i - 1]} to ${log[i]}`);
+    assert.ok(log[i - 1] - log[i] <= 0.1 + 0.051, `it fell ${(log[i - 1] - log[i]).toFixed(2)} bpm in one second`);
+  }
+  for (let i = 10; i < log.length; i++) assert.ok(log[i - 10] - log[i] <= 1 + 0.051, `it fell ${(log[i - 10] - log[i]).toFixed(2)} bpm in 10 s`);
+  assert.ok(log[0] - log[log.length - 1] >= 9, 'it hardly moved: ' + log[0] + ' to ' + log[log.length - 1]);
+  assert.ok(Math.min(...log) >= 85 - 1e-6, 'it went more than 10 bpm below the heart: ' + Math.min(...log));
+  const late = a.M.bed.synth.beats, d = late[late.length - 1] - late[late.length - 2];
+  assert.ok(Math.abs(60 / d - B.bpm) < 0.3, `the beat (${(60 / d).toFixed(1)}) does not follow the tempo (${B.bpm})`);
+  assert.strictEqual(B.following, true);
+});
+
+test('without a real pulse the music is today\'s, source for source: no reading, simulated, weak, stale, no finger, locked to the simulator', async () => {
+  const session = async (setup, label) => {
+    const a = app({ sensors: true, seed: 42 }), B = a.A.MusicBio, seen = [];
+    setup?.(a);
+    a.tap(); a.begin();
+    await a.core('calm');
+    await a.watch(20);
+    await a.game('breath', 'calm');
+    a.emit('mode', 'flow');
+    await a.watch(20);
+    for (let i = 0; i < 20; i++) { await a.watch(1); seen.push(B.following, B.bpm, B.target); }
+    assert.ok(seen.every(x => x === false || x === null), label + ': the music says it follows a heart');
+    assert.ok(!a.M.bed?.bio && !a.M.bios.length, label + ': generated music played');
+    return a.wa.sources.map(n => [n.kind, n.buffer?.file ?? n.type, n.startAt, n.offset ?? null, n.stopAt, n.frequency.value].join(' '));
+  };
+  const today = await session(null, 'no sensor');
+  const S = a => a.A.Sensors;
+  const cases = {
+    'simulated over the hub': a => a.feed(() => S(a).feedFingerHub({ simulated: true, pulse_bpm: 95, quality: 0.9, quality_reported: true, presence: 'active', age_s: 0 })),
+    'simulated stone': a => a.feed(() => S(a).feedPulse({ source: 'simulated', bpm: 95, quality: 0.9 })),
+    'quality below 0.3': a => a.feed(() => a.finger(95, { quality: 0.2 })),
+    'no finger in the clip': a => a.feed(() => a.finger(95, { presence: 'idle' })),
+    'stale': a => a.feed(t => { if (t < 2) a.finger(95); }),
+    'locked to the simulator': a => { S(a).pulseMode = 'simulated'; a.feed(() => a.finger(95)); },
+  };
+  for (const [label, setup] of Object.entries(cases)) assert.deepStrictEqual(await session(setup, label), today, label + ': the music changed');
+});
+
+test('the generated music takes the bed\'s place, one at a time, through a mode change, a measurement and a lost pulse', async () => {
+  const a = app({ sensors: true }), B = a.A.MusicBio, M = a.M;
+  a.feed(() => a.finger(100));
+  a.tap(); a.begin();
+  await a.core('flow');
+  await watchBio(a, 10);
+  assert.ok(M.bed.bio && B.following);
+  assert.strictEqual(M.bed.synth.voice, 'bright');
+  assert.strictEqual(a.bedsOf('flow').length, 0, 'the flow bed started although the generated music was ready');
+  const piece = M.bed;
+  a.emit('mode', 'calm');
+  await watchBio(a, 12);
+  assert.strictEqual(M.bed, piece, 'a new mode started a new piece');
+  assert.strictEqual(M.bed.synth.voice, 'calm');
+  assert.strictEqual(B.target, 68);
+  a.emit('segment', 'game');
+  a.emit('game', { id: 'fork', mode: 'measure', k: 0.5, slot: 1, kind: 'measurement' });
+  await watchBio(a, 12);
+  assert.strictEqual(M.bed.key, 'kaamos', 'the measurement does not play its own bed');
+  assert.strictEqual(B.following, false);
+  assert.ok(piece.out != null && a.now() > piece.out, 'the generated music plays through the measurement');
+  assert.ok(Math.max(...piece.synth.beats) < piece.out, 'a beat was scheduled after the fade-out');
+  a.emit('segment', 'walk');
+  await watchBio(a, 10);
+  assert.ok(M.bed.bio && M.bed !== piece && B.following, 'it did not come back after the measurement');
+  a.emit('mode', 'flow');
+  await watchBio(a, 10);
+  a.feed(null);
+  await watchBio(a, 3.5);
+  assert.strictEqual(B.following, false, 'it still says it follows 3.5 s after the last reading');
+  assert.ok(M.bed.bio, 'it gave up before the pulse had been gone for 6 s');
+  await watchBio(a, 20);
+  assert.strictEqual(M.bed.key, 'flow');
+  assert.deepStrictEqual(a.liveBeds().map(n => n.buffer.file), ['mu_flow_pad.m4a']);
+  assert.strictEqual(bioLive(a).length, 0);
+  assert.deepStrictEqual([B.following, B.bpm, B.target], [false, null, null]);
+  a.feed(() => a.finger(90));
+  await watchBio(a, 14);
+  assert.ok(M.bed.bio && B.following, 'it did not take over again when the pulse came back');
+  assert.ok(Math.abs(B.bpm - 90) < 1.5, 'it came back at ' + B.bpm + ' bpm, not at the pulse');
+  await watchBio(a, 10);
+  assert.strictEqual(a.unstoppedBeds().length, 0);
+  assert.deepStrictEqual(a.calls.warnings || [], []);
+});
+
+test('the engine plays none of its own notes while the generated music holds the bed\'s place', () => {
+  const { run } = require('./harness');
+  for (const [bed, some] of [[{ key: 'bio', bio: true, procedural: false }, false], [{ key: 'calm', procedural: true }, true]]) {
+    let ticks = 0;
+    const audio = new Proxy({}, { get: (t, k) => k === 'tick' ? () => { ticks++; } : () => {} });
+    const { A, tick } = loadEngine({ audio, music: { bed } });
+    const s = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
+    run(A, tick, s, 20);
+    assert.strictEqual(ticks > 0, some, bed.bio ? 'the engine plays notes over the generated music' : 'the engine plays nothing without a bed');
+  }
+});
+
+test('the sound switch stops the generated music and brings it back', async () => {
+  const a = app({ sensors: true }), B = a.A.MusicBio, M = a.M;
+  a.feed(() => a.finger(92));
+  a.tap(); a.begin();
+  await a.core('calm');
+  await watchBio(a, 8);
+  const piece = M.bed;
+  assert.ok(piece.bio && B.following);
+  a.Au.on = false;
+  await watchBio(a, 6);
+  assert.strictEqual(B.following, false);
+  assert.ok(!M.bed?.bio && piece.out != null && a.now() > piece.out);
+  assert.strictEqual(bioLive(a).length, 0, 'generated notes sound with the sound off');
+  const notes = piece.synth.notes;
+  await watchBio(a, 4);
+  assert.strictEqual(piece.synth.notes, notes);
+  a.Au.on = true;
+  await watchBio(a, 4);
+  assert.ok(M.bed.bio && B.following, 'it did not come back with the sound');
+});
+
+test('reduced motion keeps the generated music still: no off-beat notes and no notes moving across the stereo field', async () => {
+  const shape = async reducedMotion => {
+    const a = app({ sensors: true, reducedMotion }), M = a.M;
+    a.feed(() => a.finger(100));
+    a.tap(); a.begin();
+    await a.core('flow');
+    await watchBio(a, 12);
+    const y = M.bed.synth, n0 = y.notes, b0 = y.S.k;
+    await watchBio(a, 12);
+    const pads = new Set(y.srcs), padSides = new Set();
+    const panned = bioLive(a).filter(n => !pads.has(n) && [...n.outs].some(e => [...e.outs].some(x => x.kind === 'stereo') || [...e.outs].some(x => x.kind === 'gain' && [...x.outs].some(z => z.kind === 'stereo'))));
+    return { perBeat: (y.notes - n0) / (y.S.k - b0), panned: panned.length };
+  };
+  const moving = await shape(false), still = await shape(true);
+  assert.ok(moving.perBeat > 2.5 && still.perBeat < 2.2, `notes a beat: ${moving.perBeat.toFixed(2)} as usual, ${still.perBeat.toFixed(2)} with reduced motion`);
+  assert.ok(moving.panned > 0, 'the usual music has no panned notes, the test is broken');
+  assert.strictEqual(still.panned, 0, 'notes are panned with reduced motion');
+});
+
+test('each state has its own music: tired at night a drone with no notes, tired by day lifts, energised sits under the heart', async () => {
+  const piece = async (clock, mode, bpm, sec = 40) => {
+    // The test core is 6 s; the first answer of a session waits 8 s after the start bed (MIN_GAP), so these wait 3 s.
+    const a = app({ sensors: true }), B = a.A.MusicBio, log = [];
+    a.feed(() => a.finger(bpm));
+    a.tap(); a.begin({ clock });
+    await a.core(mode);
+    await watchBio(a, 3);
+    for (let i = 0; i < sec; i++) { await watchBio(a, 1, 0.5); log.push(B.bpm); }
+    return { a, B, log, y: a.M.bed.synth };
+  };
+  const night = await piece('night', 'rest', 64);
+  assert.strictEqual(night.y.voice, 'drone');
+  assert.strictEqual(night.y.notes, 0, 'the night drone plays notes');
+  assert.strictEqual(night.B.target, 58);
+  assert.ok(night.log.every((x, i) => !i || x <= night.log[i - 1] + 1e-9) && night.log[night.log.length - 1] < 63);
+  const tired = await piece('morning', 'wake', 60);
+  assert.strictEqual(tired.y.voice, 'lift');
+  assert.strictEqual(tired.B.target, 76);
+  assert.ok(tired.log.every((x, i) => !i || (x >= tired.log[i - 1] - 1e-9 && x - tired.log[i - 1] <= 0.151)) && tired.log[tired.log.length - 1] > 62.5, 'tired by day does not lift: ' + tired.log.join(' '));
+  const energised = await piece('morning', 'flow', 104, 10);
+  assert.strictEqual(energised.y.voice, 'bright');
+  assert.strictEqual(energised.B.target, 99);
+  const stressed = await piece('night', 'calm', 90, 10);
+  assert.strictEqual(stressed.y.voice, 'calm');
+  assert.strictEqual(stressed.B.target, 68);
+});
+
+test('dawn takes over from the generated music, and the next session starts without it', async () => {
+  const a = app({ sensors: true }), B = a.A.MusicBio, M = a.M;
+  a.feed(() => a.finger(96));
+  a.tap(); a.begin();
+  await a.core('flow');
+  await watchBio(a, 12);
+  const piece = M.bed;
+  assert.ok(piece.bio);
+  a.emit('segment', 'dawn');
+  await watchBio(a, 6);
+  assert.strictEqual(M.bed.key, 'dawn');
+  assert.ok(piece.out != null && a.now() > piece.out);
+  assert.strictEqual(B.following, false);
+  a.emit('segment', 'end'); a.emit('endScreen');
+  a.emit('sessionEnd', { status: 'completed' });
+  await watchBio(a, 12);
+  a.emit('home');
+  await watchBio(a, 4);
+  assert.strictEqual(M.bed.key, 'kaamos');
+  assert.deepStrictEqual([B.following, B.bpm, B.target], [false, null, null], 'the start screen follows the heart');
+  assert.strictEqual(bioLive(a).length, 0);
+  assert.deepStrictEqual(a.calls.warnings || [], []);
 });
 
 (async () => {
