@@ -258,6 +258,9 @@ class ClientRobustness(unittest.TestCase):
         try:
             c = DataManagerClient("t", url=f"http://127.0.0.1:{server.server_address[1]}",
                                   flush_every_s=3600)
+            c._stop.set()                  # this test sends by hand: no background sender racing it
+            c._wake.set()
+            c._thread.join(2)
             c.sample("env.co2_ppm", 600)
             c.interval("presence.home", start=1794642860, id="home-1")
             while bodies:
@@ -266,9 +269,67 @@ class ClientRobustness(unittest.TestCase):
                 self.assertEqual(c.dropped, 0)
                 self.assertIsNotNone(c.last_error)
                 bodies.pop(0)
-            c._stop.set()
         finally:
             server.shutdown()
+
+    def test_an_answer_with_odd_fields_does_not_end_the_sender(self):
+        # a JSON object, so the batch was delivered, but accepted / rejected have the wrong type: this used to
+        # raise out of _send_queue and end the sender thread (the queue then only grew)
+        from http.server import BaseHTTPRequestHandler
+        bodies = [b'{"accepted": "3", "rejected": 5}', b'{"accepted": 1, "rejected": [7, "x"]}',
+                  b'{"accepted": true, "rejected": {"a": 1}}']
+
+        class Odd(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                body = bodies[0]
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *a):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Odd)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            c = DataManagerClient("t", url=f"http://127.0.0.1:{server.server_address[1]}",
+                                  flush_every_s=3600)
+            c._stop.set()                  # this test sends by hand: no background sender racing it
+            c._wake.set()
+            c._thread.join(2)
+            while bodies:
+                c.sample("env.co2_ppm", 600)
+                self.assertTrue(c._send_once(), bodies[0])
+                self.assertEqual(len(c._samples), 0, bodies[0])
+                bodies.pop(0)
+            self.assertEqual(c.sent["samples"], 1)               # only the int count is counted
+            self.assertEqual(c.sent["rejected"], 2)
+        finally:
+            server.shutdown()
+
+    def test_the_sender_thread_outlives_an_unexpected_error(self):
+        c = DataManagerClient("t", url="http://127.0.0.1:9", flush_every_s=0.05)
+        calls = []
+
+        def send_once():
+            calls.append(1)
+            if len(calls) == 1:
+                raise RuntimeError("unexpected")
+            c._samples.clear()
+            return True
+
+        c._send_once = send_once
+        c.sample("env.co2_ppm", 600)
+        deadline = time.time() + 5
+        while len(calls) < 2 and time.time() < deadline:
+            time.sleep(0.02)
+        self.assertGreaterEqual(len(calls), 2, "it tried again after the error")
+        self.assertTrue(c._thread.is_alive())
+        self.assertEqual(len(c._samples), 0)
+        c._stop.set()
+        c._wake.set()
 
 
 if __name__ == "__main__":

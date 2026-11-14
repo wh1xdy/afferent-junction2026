@@ -381,12 +381,18 @@ class DataManagerClient:
             self._note_connection(False)
             self._requeue(q, batch, str(e))
             return False
-        self.sent[key] += res.get("accepted", 0)
+        # the batch was delivered (a JSON object came back); counts with the wrong type are not counted
+        acc = res.get("accepted", 0)
+        if isinstance(acc, int) and not isinstance(acc, bool) and acc > 0:
+            self.sent[key] += acc
         rej = res.get("rejected") or []
+        if not isinstance(rej, list):
+            rej = []
         if rej:
             self.sent["rejected"] += len(rej)
             self._last_reject = rej
-            log.warning("%d %s rejected, e.g. %s", len(rej), key, rej[0].get("reason"))
+            first = rej[0].get("reason") if isinstance(rej[0], dict) else rej[0]
+            log.warning("%d %s rejected, e.g. %s", len(rej), key, first)
         self.last_error = None
         return True
 
@@ -411,6 +417,12 @@ class DataManagerClient:
             if self._stop.is_set():
                 return
             ok = True
-            while ok and (self._samples or self._events):
-                ok = self._send_once()
+            try:
+                while ok and (self._samples or self._events):
+                    ok = self._send_once()
+            except Exception as e:
+                # nothing may end this thread: the queue would only grow until the app restarts
+                ok = False
+                self.last_error = f"sender: {e!r}"
+                log.exception("data manager: sending failed, trying again later")
             backoff = self.flush_every_s if ok else min(backoff * 2, 60.0)

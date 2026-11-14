@@ -52,6 +52,12 @@ Windows shim for the Linux-only suites (not in the repo): a `sitecustomize.py` o
 - **Fix:** `_post` raises `OSError` when the answer is not a JSON object, so the batch is re-queued (resends are idempotent
   upserts) and the failure counts toward mDNS failover. Copied byte-identically to `uno-q/modulino-hub`, `jetson/presence`,
   `jetson/vision`, `posture-analysis/posture/afferent` (all blob 4e38c4e); `data_manager_push.py` docstring updated.
+- **Review follow-up:** a JSON object with the wrong field types (`"accepted": "3"`, `"rejected": 5`) still raised out of
+  `_send_queue` and ended the thread. `accepted` / `rejected` are now type-checked (the batch counts as delivered), and
+  `_loop` catches any exception per round, logs it and backs off instead of ending. All five copies are blob 8fb096e.
+  Tests: `ClientRobustness::test_an_answer_with_odd_fields_does_not_end_the_sender`,
+  `::test_the_sender_thread_outlives_an_unexpected_error`; the hand-driven client tests now stop the background sender
+  first (it raced them on the `interval()` wake-up and made the test above flaky).
 - **Vendored copy:** `hub/afferent_hub/team/data_manager/client/data_manager_client.py` (older version, not edited) re-queues
   non-JSON but still dies on a non-dict JSON answer (`res.get` at its line 266). Needs a manifest re-pin by the hub owner.
 - **Verification:** `cd jetson/data_manager && python -m pytest -q` (with the Windows shim) → 48 passed, 1 failed:
