@@ -56,6 +56,10 @@ def mood_only_series(sc: dict, clip: float) -> list:
 
 
 def p_best_trace(sessions: list[dict], mode: str, arm: str) -> list[float]:
+    return p_best_traces(sessions, mode)[arm]
+
+
+def p_best_traces(sessions: list[dict], mode: str) -> dict[str, list[float]]:
     ids = bandit.MODE_ARMS[mode]
     c = {a: [0, 0] for a in ids}
     out = []
@@ -66,8 +70,21 @@ def p_best_trace(sessions: list[dict], mode: str, arm: str) -> list[float]:
             if t.get("kind") == "adaptive" and t.get("mode") == mode and t.get("id") in c and t.get("helped") is not None:
                 c[t["id"]][0 if t["helped"] else 1] += 1
         p, _ = bandit.p_best_from_counts([1 + c[a][0] for a in ids], [1 + c[a][1] for a in ids], draws=2000)
-        out.append(float(p[ids.index(arm)]))
-    return out
+        out.append([float(x) for x in p])
+    return {a: [row[i] for row in out] for i, a in enumerate(ids)}
+
+
+def first_crossing(trace: list[float], target: float) -> int | None:
+    return next((i + 1 for i, v in enumerate(trace) if v >= target), None)
+
+
+def stays_from(trace: list[float], target: float) -> int | None:
+    if not trace or trace[-1] < target:
+        return None
+    i = len(trace)
+    while i > 0 and trace[i - 1] >= target:
+        i -= 1
+    return i + 1
 
 
 def arm_choice_share(sessions: list[dict], mode: str, arm: str, lo: int, hi: int) -> float | None:
@@ -137,40 +154,66 @@ def false_alarms(rows, params: dict = PARAMS) -> dict:
 def bandit_metrics(rows) -> dict:
     out = {"true_best": {"mode": "calm", "task_id": "breath"}, "target_p_best": bandit.BEST_TARGET}
     by_mode = {}
+    target = bandit.BEST_TARGET
     for mode in ("calm", "wake", "fatigue"):
-        hits, found = [], 0
+        firsts, stays, found, wrong_first, dropped = [], [], 0, 0, 0
         early, late = [], []
         for r in rows:
             best = r["p"]["truth"]["best_arm"][mode]
-            trace = p_best_trace(r["p"]["sessions"], mode, best)
-            k = next((i + 1 for i, v in enumerate(trace) if v >= bandit.BEST_TARGET), None)
-            hits.append(k)
-            found += k is not None
+            traces = p_best_traces(r["p"]["sessions"], mode)
+            first = first_crossing(traces[best], target)
+            stay = stays_from(traces[best], target)
+            firsts.append(first)
+            stays.append(stay)
+            found += stay is not None
+            dropped += first is not None and stay != first
+            others = [first_crossing(t, target) for a, t in traces.items() if a != best]
+            wrong = [k for k in others if k is not None]
+            wrong_first += bool(wrong) and (first is None or min(wrong) < first)
             early.append(arm_choice_share(r["p"]["sessions"], mode, best, 0, 14))
             late.append(arm_choice_share(r["p"]["sessions"], mode, best, DAYS - 14, DAYS))
-        by_mode[mode] = {"sessions_to_p_best_0_8": summary(hits), "found_share_by_day_56": stats.rnd(found / len(rows), 2),
+        by_mode[mode] = {"sessions_to_p_best_0_8": summary(stays),
+                         "sessions_to_first_p_best_0_8": summary(firsts),
+                         "found_share_by_day_56": stats.rnd(found / len(rows), 2),
+                         "dropped_back_after_first_crossing_share": stats.rnd(dropped / len(rows), 2),
+                         "wrong_arm_crossed_first_share": stats.rnd(wrong_first / len(rows), 2),
                          "best_arm_pick_share_days_0_13": stats.rnd(stats.mean(early), 2),
                          "best_arm_pick_share_days_42_55": stats.rnd(stats.mean(late), 2)}
-    out["sessions_to_p_best_0_8"] = by_mode["calm"]["sessions_to_p_best_0_8"]
-    out["found_share_by_day_56"] = by_mode["calm"]["found_share_by_day_56"]
+    calm = by_mode["calm"]
+    out["sessions_to_p_best_0_8"] = calm["sessions_to_p_best_0_8"]
+    out["sessions_to_p_best_0_8_rule"] = "first session from which P(best) stays at or above 0.8 to day 55"
+    out["sessions_to_first_p_best_0_8"] = calm["sessions_to_first_p_best_0_8"]
+    out["wrong_arm_crossed_first_share"] = calm["wrong_arm_crossed_first_share"]
+    out["found_share_by_day_56"] = calm["found_share_by_day_56"]
     out["by_mode"] = by_mode
     out["patients"] = len(rows)
     return out
 
 
-def matched_mood_only(rows, target_episodes: int, params: dict = PARAMS) -> dict:
-    clip, k = params["z_clip"], params["cusum_k"]
-    series = [(r["kind"], mood_only_series(r["score"], clip)) for r in rows]
-    for h in np.arange(params["thresholds"]["check_in"], 30.01, 0.5):
-        th = {**params["thresholds"], "check_in": float(h)}
+MOOD_K_SWEEP = (0.25, 0.35, 0.5, 0.75, 1.0)
+
+
+def matched_mood_only_at(series, target_episodes: int, k: float, params: dict) -> dict:
+    for h in np.arange(1.0, 30.01, 0.5):
+        th = {**params["thresholds"], "watch": min(params["thresholds"]["watch"], float(h)), "check_in": float(h)}
         fa = sum(episodes(cusum_states(s, k, th), "check_in") for kind, s in series if kind == "stable")
         if fa <= target_episodes:
             days = [first_at_least(cusum_states(s, k, th), "check_in", ONSET) for kind, s in series if kind == "relapse"]
-            return {"check_in_threshold": float(h), "false_check_in_episodes": fa,
+            return {"k": k, "check_in_threshold": float(h), "false_check_in_episodes": fa,
                     "days_onset_to_flag": summary([None if d is None else d - ONSET for d in days]),
                     "detected_share": stats.rnd(sum(d is not None for d in days) / len(days), 2)}
-    return {"check_in_threshold": None, "false_check_in_episodes": None, "days_onset_to_flag": summary([]),
+    return {"k": k, "check_in_threshold": None, "false_check_in_episodes": None, "days_onset_to_flag": summary([]),
             "detected_share": 0.0}
+
+
+def matched_mood_only(rows, target_episodes: int, params: dict = PARAMS) -> dict:
+    series = [(r["kind"], mood_only_series(r["score"], params["z_clip"])) for r in rows]
+    sweep = [matched_mood_only_at(series, target_episodes, k, params) for k in MOOD_K_SWEEP]
+    same = next(x for x in sweep if x["k"] == params["cusum_k"])
+    reached = [x for x in sweep if x["days_onset_to_flag"]["median"] is not None]
+    best = min(reached, key=lambda x: (x["days_onset_to_flag"]["median"], -x["detected_share"])) if reached else same
+    return {**same, "rule": "mood feature alone, composite k, threshold raised until false alarms match",
+            "best_k": best, "k_sweep": sweep}
 
 
 def sensitivity(rows, params: dict = PARAMS) -> list[dict]:

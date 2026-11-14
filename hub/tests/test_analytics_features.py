@@ -48,15 +48,13 @@ def test_rt_valid_and_upright(session):
     assert F.upright_frac({"tasks": []}) is None
 
 
-def test_morning_pulse_prefers_daily_then_morning_session(daily, session):
-    assert F.morning_pulse_value(daily, session) == 70.2
+def test_morning_pulse_uses_bedside_reading_only(daily, session):
+    assert F.morning_pulse_value(daily) == 70.2
+    daily["morning_pulse_quality"] = 0.3
+    assert F.morning_pulse_value(daily) is None
     daily["morning_pulse_bpm"] = None
-    assert F.morning_pulse_value(daily, session) == 79.4
-    session["local_hour"] = 21.0
-    assert F.morning_pulse_value(daily, session) is None
-    session["local_hour"] = 7.0
-    session["core"]["rest"]["pulse_quality"] = 0.3
-    assert F.morning_pulse_value(daily, session) is None
+    daily["morning_pulse_quality"] = None
+    assert F.morning_pulse_value(daily) is None
 
 
 def test_window_count_scales_and_needs_four_days():

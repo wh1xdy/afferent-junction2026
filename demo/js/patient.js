@@ -93,7 +93,7 @@
         if (v && v.week) return { v, src: 'hub' };
       } catch {}
     }
-    try { return { v: await fetchJSON('data/patient_view_anna.json'), src: 'saved' }; } catch {}
+    if (pid === 'anna') try { return { v: await fetchJSON('data/patient_view_anna.json'), src: 'saved' }; } catch {}
     return { v: null, src: 'none' };
   }
 
@@ -135,7 +135,7 @@
       return;
     }
     const t = view.today || {};
-    $('date').textContent = longDate(parseDate(view.date));
+    $('date').textContent = source === 'hub' ? longDate(parseDate(view.date)) : 'Saved week';
     $('headline').textContent = !t.played ? 'Today is open.' : t.dawn_reached ? 'You reached dawn.' : 'You rested.';
     $('sub').textContent = !t.played ? 'The lantern is there whenever you want it.'
       : t.settled && t.lifted ? 'You settled, and the light came back a little.'

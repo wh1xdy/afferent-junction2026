@@ -79,7 +79,7 @@ def test_anna_story(anna):
 def test_roster_states(roster):
     states = {pid: engine.analyze_patient(p["sessions"], p["daily"], 56)["state"] for pid, p in roster.items()}
     assert states["anna"] == "booster"
-    assert states["juha"] in {"watch", "check_in"}
+    assert states["juha"] == "check_in"
     assert all(states[p] == "stable" for p in ("mikko", "leena", "sofia", "eero"))
 
 
@@ -178,3 +178,12 @@ def test_forbidden_claims_absent(anna):
     text = json.dumps(anna).lower()
     for phrase in ("treats", "prevents relapse", "diagnos", "detects emotion", "hrv", "clinically validated", "\u2014"):
         assert phrase not in text
+
+
+def test_cusum_does_not_move_without_data(roster):
+    for p in roster.values():
+        last = max(max(s["day_index"] for s in p["sessions"]), max(r["day_index"] for r in p["daily"]))
+        a = engine.score(p["sessions"], p["daily"], last)
+        b = engine.score(p["sessions"], p["daily"], last + 3)
+        assert b["cusum"][last + 3] == a["cusum"][last]
+        assert b["states"][last + 3] == a["states"][last]

@@ -150,6 +150,6 @@ General: "supportive home maintenance after TMS", "early warning for the care te
 | Wake tasks | "short activating tasks when your pulse is low" | "treats fatigue", "antidepressant effect" |
 | Morning light | "morning light at the bedside" | "light therapy" (unless dosed and validated) |
 | Per-person learning | "learns which tasks bring your pulse down" | "learns what cures you" |
-| Trend | "if two of three measures (reaction time, mood check-in, missed nights) drift from your own baseline for about a week, the care team gets a note; a starting rule for a pilot" | "predicts relapse", "clinically validated" |
+| Trend | "an early-warning index compares nine measures with your own first two weeks; when it drifts for long enough, the clinic sees a suggestion to consider a call; the clinician decides" | "predicts relapse", "clinically validated" |
 
 Always forbidden: "treats depression", "prevents relapse", "detects emotions", "diagnoses", "HRV", "measures alertness", "detects relapse", "reward learning", "clinically validated".

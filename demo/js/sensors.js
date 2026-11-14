@@ -5,7 +5,7 @@
   const PROFILES = A.PROFILES = {
     live: { offset: 0, hold: 0, drowsy: 0, pitch: -8, open: 0.76, visual: null },
     good_day: { offset: 1, hold: 0, drowsy: 0, pitch: -4, open: 0.82, visual: { fog: 0.25, stars: 170, warm: 0.12, aurora: 0.35, exposure: 1.05, sat: 0.18, lanternGain: 1.3 } },
-    bad_day: { offset: 14, hold: 25, drowsy: 0.55, pitch: -15, open: 0.62, visual: { fog: 0.8, stars: 35, warm: 0.02, aurora: 0.02, exposure: 0.82, sat: 0.03, lanternGain: 0.7 } },
+    bad_day: { offset: 14, hold: 25, drowsy: 0.55, pitch: -15, open: 0.6, visual: { fog: 0.8, stars: 35, warm: 0.02, aurora: 0.02, exposure: 0.82, sat: 0.03, lanternGain: 0.7 } },
   };
   A.LIVE_VISUAL = { fog: 0.45, stars: 120, warm: 0.04, aurora: 0.05, exposure: 1, sat: 0.05, lanternGain: 1 };
 
@@ -27,7 +27,7 @@
         this.offset += (0 - this.offset) * (1 - Math.exp(-dt / tau));
         if (mode === 'wake' && g && this.offset < 9) this.offset += 0.25 * dt;
       }
-      const lift = !g ? this.lift : mode === 'wake' || mode === 'fatigue' ? 9 : mode === 'flow' || mode === 'measure' ? 5 : 2;
+      const lift = !g ? this.lift : this.profile === 'bad_day' ? -9 : mode === 'wake' || mode === 'fatigue' ? 9 : mode === 'flow' || mode === 'measure' ? 5 : 2;
       this.lift += (lift - this.lift) * (1 - Math.exp(-dt / 18));
     },
     face(now, dt) {
@@ -35,7 +35,7 @@
         if (R() < this.drowsy * 0.5 * dt) this.closeUntil = now + 0.7 + R() * 1.6;
         else if (now > this.nextBlink) { this.closeUntil = now + 0.12 + R() * 0.1; this.nextBlink = now + 2.5 + R() * 3; }
       }
-      const closed = now < this.closeUntil;
+      const closed = this.eyesShut || now < this.closeUntil;
       const open = closed ? 0.06 : clamp(this.openBase - 0.14 * this.drowsy + 0.04 * (A.noise(now * 0.9) - 0.5), 0.2, 1);
       const blink = 1 - open;
       return {

@@ -70,6 +70,7 @@ class Hub:
         self._gemma: tuple[float, dict] | None = None
         self._tasks: list[asyncio.Task] = []
         self.bedside = Bedside(make_source(settings), self._to_bound_app, self.to_clinic, self._to_devices)
+        self.bedside.patient_id = settings.bound_patient
 
     async def to_clinic(self, msg: dict):
         await self.rooms.broadcast("clinic", msg)
@@ -299,6 +300,9 @@ class Hub:
         if session_id and any(f.get("session_id") == session_id and f["type"] == ftype for f in flags):
             return
         if not session_id and flags and flags[0]["type"] == ftype and flags[0].get("_t", 0) > time.time() - 60:
+            return
+        if session_id and any(f["type"] == ftype and not f.get("session_id") and f.get("_t", 0) > time.time() - 900
+                              for f in flags):
             return
         flag = {"type": ftype, "t_iso": t_iso or views.now_iso(), "source": source}
         stored = {**flag, "_t": time.time(), **({"session_id": session_id} if session_id else {})}

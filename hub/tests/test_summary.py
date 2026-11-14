@@ -129,7 +129,7 @@ def test_template_output_on_fixture(analytics):
     assert r["simulated"] is True and "no diagnosis" in r["disclaimer"]
     t = r["text"]
     assert t.startswith("Anna (simulated), week 9 after TMS")
-    for piece in ("booster session since day 45", "+2.45", "up 0.24", "100% data completeness",
+    for piece in ("booster session since day 45", "+2.45", "up 0.24", "100% of features available",
                   "reaction time (+3.5)", "sleep regularity (+5.4)", "-1.7 bpm", "15 of 20", "P(best) 0.95"):
         assert piece in t, piece
     assert_clean(t, r["numbers"])
@@ -150,7 +150,7 @@ def test_template_sparse_analytics_does_not_crash():
          "composite": {"value": None, "completeness": 0.25, "confidence": "low", "contributions": []}}
     r = weekly_summary(a, {"display_name": "Eero", "simulated": True})
     assert r["source"] == "template"
-    assert "not available yet" in r["text"] and "25% data completeness" in r["text"]
+    assert "not available yet" in r["text"] and "25% of features available" in r["text"]
     assert guard.check(r["text"], r["numbers"]) is None
     assert r["numbers"]["week_since_tms"] == 1 and r["numbers"]["week_start_day"] == 0
 

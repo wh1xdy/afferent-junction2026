@@ -74,7 +74,7 @@
       <div id="info" class="card hidden">
         <dl class="keys">
           <dt>Start</dt><dd>rest a moment, pick the lantern that fits today, then tap when the lantern flares (5 times)</dd>
-          <dt>Tasks</dt><dd>tap, drag or swipe inside the panel, like Among Us tasks</dd>
+          <dt>Tasks</dt><dd>tap, drag or swipe inside the panel</dd>
           <dt>Paths</dt><dd>choose the short path or the climb; the climb gives more glow</dd>
           <dt>Two lanterns</dt><dd>tap the lantern that flared larger</dd>
           <dt>Breathing</dt><dd>hold while the circle grows, let go while it shrinks (Space works too)</dd>
@@ -97,6 +97,10 @@
           <label class="toggle"><span>Reduced motion</span><input type="checkbox" id="motionSw"><i></i></label>
         </div>
         <p class="small">Only numbers leave the phone, never camera images.</p>
+        <div id="demoBox" class="demo-box">
+          <form id="hubForm" class="hub-form"><label for="hubAddr" class="small">Hub address</label><input id="hubAddr" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000"><button class="chip" type="submit">Connect</button></form>
+          <p id="hubState" class="small">Hub: offline</p>
+        </div>
         <button class="primary quiet" data-close="settings">Close</button>
       </div>
     </section>
@@ -117,15 +121,16 @@
       <label class="row">pulse <input id="pulseSlider" type="range" min="-15" max="30" step="1" value="0"> <span id="pulseSliderVal"></span></label>
       <label class="row">drowsy <input id="drowsySlider" type="range" min="0" max="1" step="0.05" value="0"> <span id="drowsySliderVal"></span></label>
       <div class="btns">
-        <button id="stressBtn" class="chip">stressed</button>
-        <button id="flatBtn" class="chip">flat</button>
-        <button id="tiredBtn" class="chip">tired</button>
+        <button id="stressBtn" class="chip">high pulse</button>
+        <button id="flatBtn" class="chip">low pulse</button>
+        <button id="tiredBtn" class="chip">eyes closing</button>
+        <button id="shutBtn" class="chip">eyes closed</button>
         <button id="normalBtn" class="chip">normal</button>
       </div>
 
       <h2>Director <span id="modePill" class="tag pill">idle</span></h2>
-      <div class="row small">arousal <div class="bar2"><div id="arousalBar"></div></div></div>
-      <div class="row small">fatigue <div class="bar2"><div id="fatigueBar"></div></div></div>
+      <div class="row small">pulse vs baseline <div class="bar2"><div id="arousalBar"></div></div></div>
+      <div class="row small">eye closure <div class="bar2"><div id="fatigueBar"></div></div></div>
       <pre id="gameVal">-</pre>
       <pre id="eyesVal"></pre>
       <canvas id="timeline"></canvas>

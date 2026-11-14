@@ -1,8 +1,19 @@
 .sim-badge {
   position: absolute; top: 22px; left: 50%; transform: translateX(-50%); z-index: 2;
-  opacity: 0.55; pointer-events: none;
-  font-size: 9px; letter-spacing: 0.1em;
+  pointer-events: none;
+  font-size: 9.5px; letter-spacing: 0.1em; font-weight: 600;
+  color: #E4DAFF; background: rgba(124, 92, 220, 0.42); border: 1px solid rgba(205, 190, 255, 0.7);
+  text-shadow: 0 1px 2px rgba(10, 8, 30, 0.6);
 }
+
+#end.night .rest { color: #EBE8DE; text-shadow: 0 0 22px rgba(10, 14, 28, 0.85); }
+
+.demo-box { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.demo-box .chips { justify-content: flex-start; margin-top: 0; }
+.hub-form { display: flex; align-items: center; gap: 8px; }
+.hub-form label { margin: 0; white-space: nowrap; }
+.hub-form input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(7, 10, 20, 0.6); color: var(--ink); }
+#hubState { margin: 0; }
 
 #start .bar a.icon { display: grid; place-items: center; color: inherit; text-decoration: none; }
 #weekBtn svg circle { fill: none; }
@@ -32,6 +43,7 @@
 #end .flame.mood.on::before { opacity: 1; }
 #end.declined .flames { display: none; }
 #end.declined .rest { color: var(--ink); }
+#events { overflow-wrap: anywhere; white-space: pre-wrap; }
 
 .toggles { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px; }
 .toggle {

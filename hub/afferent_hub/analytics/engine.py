@@ -59,7 +59,8 @@ def score(sessions: list[dict], daily: list[dict], now_day: int, params: dict = 
             contrib[i][d] = f["spec"]["weight"] * max(-clip, min(clip, f["ewma"][d])) / w_av
         composite[d] = sum(contrib[i][d] for i, _ in avail)
 
-    cus = stats.cusum(composite, params["cusum_k"], params["cusum_start_day"])
+    fed = [c if ex["fresh"][d] else None for d, c in enumerate(composite)]
+    cus = stats.cusum(fed, params["cusum_k"], params["cusum_start_day"])
     states = ["stable" if d < params["cusum_start_day"] else stats.state_for(cus[d], params["thresholds"])
               for d in range(n)]
     return {"now_day": now_day, "extract": ex, "features": feats, "composite": composite,
@@ -196,7 +197,7 @@ def composite_block(sc: dict, now_day: int, params: dict) -> dict:
 def completeness_block(sc: dict, now_day: int) -> dict:
     ex = sc["extract"]
     lo = max(0, now_day - 6)
-    sessions_7d = sum(1 for d in range(lo, now_day + 1) for s in ex["by_day"].get(d, []) if s.get("status") in PLAYED)
+    sessions_7d = sum(1 for d in range(lo, now_day + 1) if any(s.get("status") in PLAYED for s in ex["by_day"].get(d, [])))
     days_7d = sum(1 for d in range(lo, now_day + 1) if d in ex["daily"])
     missed_7d = sum(1 for d in range(lo, now_day + 1) if ex["missed"][d])
     by_feature = {f["spec"]["key"]: stats.rnd(sum(1 for v in f["values"][lo:now_day + 1] if v is not None) / 7, 2)

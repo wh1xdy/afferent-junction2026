@@ -44,7 +44,7 @@ def _status(n):
     completeness = n.get("completeness")
     tail = []
     if completeness is not None:
-        tail.append(f"{_pct(completeness)} data completeness")
+        tail.append(f"{_pct(completeness)} of features available")
     if n.get("confidence"):
         tail.append(f"{n['confidence']} confidence")
     if comp is None:
@@ -93,7 +93,7 @@ def _sessions(n):
     if played is None:
         head = "No session data for the last 7 days"
     else:
-        head = f"Sessions: {played} in the last 7 days"
+        head = f"Played on {played} of the last 7 days"
         if missed:
             head += f", {missed} missed"
     parts = []

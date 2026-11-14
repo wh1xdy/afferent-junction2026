@@ -28,7 +28,7 @@ TASKS_BY_MODE = {"calm": ["breath", "loyly"], "flow": ["threads", "stars"], "wak
 DURATION_S = {"breath": (18, 22), "loyly": (15, 20), "threads": (12, 18), "stars": (12, 18), "fireflies": (8, 12),
               "beacon": (8, 12), "bells": (8, 12), "shutters": (8, 12), "fork": (15, 19), "lanterns": (17, 20)}
 ROSTER = [("anna", "Anna", "relapse", 28, "morning", 113), ("mikko", "Mikko", "stable", None, "morning", 0),
-          ("juha", "Juha", "relapse", 43, "morning", 112), ("leena", "Leena", "stable", None, "night", 0),
+          ("juha", "Juha", "relapse", 43, "morning", 148), ("leena", "Leena", "stable", None, "night", 0),
           ("sofia", "Sofia", "stable", None, "morning", 0), ("eero", "Eero", "stable", None, "morning", 1)]
 
 

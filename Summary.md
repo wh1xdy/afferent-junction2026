@@ -1,5 +1,7 @@
 # Afferent game: breakfast summary (v2)
 
+> Superseded by v3 (overnight build). This file describes the v2 design and is kept for history. Current: `README.md`, `STATUS.md`, `Criteria.md`, `DemoScript.md`, `Statistics.md`, `Validation.md`.
+
 Read this in 3 minutes. Details: `GameDesign.md`, `SessionSchema.md`, `BuildPlan.md`, `DemoScript.md`, `ArtBible.md`, `References.md`, `Decisions.md`. Try it: `cd demo && python3 -m http.server 8080`, open localhost:8080, press Begin.
 
 ## What changed overnight

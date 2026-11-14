@@ -26,7 +26,6 @@ FEATURES = [
 WINDOW = 7
 MIN_WINDOW_DAYS = 4
 MIN_POOLED_SESSIONS = 3
-MORNING_BEFORE_H = 11.0
 MIN_PULSE_QUALITY = 0.5
 
 
@@ -87,16 +86,11 @@ def lantern_cells(s: dict):
         return None
 
 
-def morning_pulse_value(rec: dict | None, s: dict | None) -> float | None:
+def morning_pulse_value(rec: dict | None) -> float | None:
     if rec and rec.get("morning_pulse_bpm") is not None:
         q = rec.get("morning_pulse_quality")
         if q is None or q >= MIN_PULSE_QUALITY:
             return float(rec["morning_pulse_bpm"])
-    if s and s.get("local_hour") is not None and s["local_hour"] < MORNING_BEFORE_H:
-        bpm = get(s, "core", "rest", "pulse_bpm")
-        q = get(s, "core", "rest", "pulse_quality")
-        if bpm is not None and q is not None and q >= MIN_PULSE_QUALITY:
-            return float(bpm)
     return None
 
 
@@ -160,15 +154,18 @@ def extract(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
                 recent = pooled_cells[-WINDOW:]
                 if len(recent) >= MIN_POOLED_SESSIONS:
                     values["reward_bias"][d] = stats.log_b(*[sum(c[i] for c in recent) for i in range(4)])
-        values["morning_pulse"][d] = morning_pulse_value(recs.get(d), s)
+        values["morning_pulse"][d] = morning_pulse_value(recs.get(d))
+        if d not in recs:
+            continue
         values["missed_sessions"][d] = window_count(missed, d)
         values["home_only_days"][d] = window_count(home, d)
         window = [h for h in hours[max(0, d - WINDOW + 1): d + 1] if h is not None]
         if len(window) >= MIN_WINDOW_DAYS:
             values["sleep_regularity"][d] = stats.inter_daily_stability(window)
 
+    fresh = [d in recs or main[d] is not None for d in range(n)]
     return {"values": values, "main": main, "rt_sessions": rt_s, "by_day": by_day, "daily": recs,
-            "missed": missed, "home_only": home, "hourly": hours}
+            "missed": missed, "home_only": home, "hourly": hours, "fresh": fresh}
 
 
 def reward_slope(sessions_in_order: list[dict]) -> float | None:

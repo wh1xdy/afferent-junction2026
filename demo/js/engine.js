@@ -55,7 +55,7 @@
       slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
-      coreRec: null, moodEnd: undefined, pauses: 0, lastLightLevel: null,
+      coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, storyDone: new Set(),
       playSamples: [], tweens: [],
@@ -125,7 +125,7 @@
       },
 
       autoRt(n) {
-        if (this.profile === 'bad_day') return n === 3 ? 1.12 : 0.46 + R() * 0.28;
+        if (this.profile === 'bad_day') return n === 3 ? 1.3 : 0.62 + R() * 0.24;
         return this.profile === 'good_day' ? 0.29 + R() * 0.12 : 0.32 + R() * 0.14;
       },
 
@@ -445,11 +445,13 @@
         }
         if (this.phase === 'end') {
           const t = now - this.phaseAt;
-          if (this.auto && this.moodEnd === undefined && t >= 2) this.setMood({ good_day: 5, bad_day: 3, live: 4 }[this.profile]);
+          if (this.auto && this.moodEnd === undefined && t >= 2) this.setMood({ good_day: 5, bad_day: 2, live: 4 }[this.profile]);
           if (t >= 4) V.black = ema(V.black, 0.8, dt, 1);
-          if (this.moodEnd !== undefined ? now - this.moodAt >= 1.2 : t >= 10) this.finish('completed');
+          if (this.moodEnd !== undefined ? now - this.moodAt >= 1.2 : t >= 6) this.finish(this.engaged() ? 'completed' : 'partial');
         }
       },
+
+      engaged() { return this.auto || this.inputs > 0; },
 
       setMood(v) {
         if (this.phase !== 'end' || this.moodEnd !== undefined) return;
@@ -461,6 +463,7 @@
 
       handle(type, d) {
         if (this.done) return;
+        if (type === 'pdown' || type === 'key') this.inputs++;
         if (type === 'exit') { this.finish('partial'); return; }
         if (this.phase === 'rt' && (type === 'pdown' || type === 'key')) { this.coreTap(d.t); return; }
         const g = this.phase === 'checkin' ? this.panel : this.phase === 'game' ? this.game : null;

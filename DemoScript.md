@@ -1,64 +1,69 @@
-# Demo script (v2, adaptive game)
+# Demo script (v3: three dimensions, one loop)
 
-The story to show: **the same game becomes a different game depending on the body.** A raised pulse brings calm tasks, eyes that keep closing bring a wake-up, a flat pulse brings lively tasks, and the bedside light follows.
+The story: **Anna finished TMS eight weeks ago. A two-minute game in the morning, a bedside unit that compares her only with herself, and a clinic view that suggests who might need a call.** Sense (everyday plus game), respond (game tasks, bedside light, a suggested call), learn what helps this person.
 
 ## Labelling rules
 
-- Two weeks of dashboard data are **simulated**; a "SIMULATED DATA" label stays in a fixed corner whenever they are on screen.
-- If a vital comes from the dashboard slider instead of the sensor, the pulse readout says "simulated" and the presenter says so.
-- The tagline "When the center of gravity moves, someone is there." appears exactly once in each product: the last card of the video and the last sentence of the pitch.
+- All patients and their 8-week histories are SIMULATED. The dashboard and the patient view carry the SIMULATED badge; say "simulated" once out loud when the dashboard first appears.
+- A vital from the simulator or the debug slider is labelled SIMULATED on screen; say so.
+- The summary card shows "Template" unless Gemma runs on the hub. Say "template summary, Gemma when it runs on the Jetson" unless the chip says Gemma.
+- Words: supportive, maintenance, early warning, suggests. Never: treats, prevents relapse, diagnoses, detects emotions, HRV, clinically validated.
+- The tagline "When the center of gravity moves, someone is there." appears once: the last card of the video and the last sentence of the pitch.
+
+## Before every take or stage run
+
+1. `./start.sh --reset` on the hub laptop or Jetson (or `curl -X POST localhost:8000/api/demo/reset`).
+2. Phone app: Settings > Hub address set, "Hub: connected". Clock chip on "clock: morning" for the dawn story.
+3. Dashboard open at `/clinic/` on the projector, list view.
 
 ## 1. Video, 2:00
 
-Set: bedroom in morning twilight, bedside unit with the pulse stone, actor plays the patient. Phone screen recorded in parallel and composited. Dashboard inset captioned "clinic view" whenever vitals are shown; no numbers in the patient view.
-
 | Time | Picture | Sound / caption |
 |---|---|---|
-| 0:00-0:08 | Dark room, phone glow, a fingertip resting on the glowing stone | "Weeks of daily TMS. Then the clinic goes quiet." |
-| 0:08-0:18 | Days passing at home | VO: "Afferent is a two-minute game for home maintenance after TMS. Not treatment. Support." |
-| 0:18-0:28 | **Wow 1:** the bedside camera image dissolves into a stick figure (lit setup) | "Frames never stored. Never sent." |
-| 0:28-0:36 | The fixed core: the lantern flares, the thumb taps | "Twenty seconds, the same every day: start pulse and reaction time." |
-| 0:36-0:58 | **Wow 2, calm:** the actor has just come up the stairs; clinic inset shows the pulse high; the island turns to the warm sauna, the breathing circle appears, the thumb holds and releases, the pulse curve in the inset bends down | "High pulse: the game slows down with you." |
-| 0:58-1:16 | **Wow 3, tired:** eyes keep falling shut; the shore turns bright, shutters swipe open, the real bedside light rises to daylight | "Eyes keep closing in the morning: a gentle wake-up." |
-| 1:16-1:30 | **Flat:** fireflies and the lighthouse beam, faster music; split-screen strip of three sessions showing three different islands | "Low pulse: it brings you up. No two sessions are the same." |
-| 1:30-1:36 | Dawn, full colour, the room light rises | Piano phrase |
-| 1:36-1:52 | **Wow 4:** dashboard, two weeks in 20 s (SIMULATED DATA); reaction time and mood drift from the personal band; "Suggest review"; panel "what brings this person's pulse down: breath, löyly"; Gemma note "generated on device" | VO: "When two of three measures drift for about a week, the care team gets a note. The clinician decides." |
-| 1:52-1:56 | Knob press, LED blinks, the stick figure vanishes | "Every sensor is the patient's to switch off." |
-| 1:56-2:00 | Black, logos (Jetson, Arduino UNO Q, Gemma on device) | "When the center of gravity moves, someone is there." |
+| 0:00-0:08 | Dark bedroom, phone glow, bedside unit with the pulse stone | "Weeks of daily TMS. Then the clinic goes quiet." |
+| 0:08-0:16 | Anna takes the phone, taps Begin | VO: "Afferent is a two-minute game for home maintenance after TMS. Not treatment. Support." |
+| 0:16-0:30 | **Dimension 2, the fixed core:** the lantern glows (rest pulse), Anna picks a mood lantern, taps when the lighthouse flares (5 times) | "Twenty seconds, the same every day: pulse, mood, reaction time." |
+| 0:30-0:50 | **Inner loop:** pulse is raised, the island turns to the warm sauna and the breathing circle appears; the clinic inset (live card) shows mode "calm" and the pulse bending down | "High pulse: the game slows down with you." |
+| 0:50-1:02 | The Fork (short path or the climb), then Two lanterns | "Two tiny lab tasks: effort and reward sensitivity." |
+| 1:02-1:12 | Dawn in the game; the real bedside light fades up to warm amber | "When the game reaches dawn, the room does too." |
+| 1:12-1:22 | **Dimension 1:** bedside unit close-up; dashboard "Everyday" card: time in bed, sleep regularity, morning pulse, home-only days (SIMULATED) | "The bedside unit notices sleep and routine with zero effort." |
+| 1:22-1:42 | **Dimension 3, the live moment:** dashboard list "Who might need a call"; Anna's row flashes, toast "Anna updated"; open Anna: early-warning index against her own baseline band, state "Consider discussing a booster session", drivers reaction time, sleep regularity, mood | "Compared only with her own first two weeks. It suggests; the clinician decides." |
+| 1:42-1:52 | "What helps Anna": Breath with its uncertainty bar; Validation tab, 13 days from simulated onset to a suggested call | "It learns what brings her pulse down, and shows how sure it is." |
+| 1:52-2:00 | Black, logos (Jetson, Arduino UNO Q, Gemma) | "When the center of gravity moves, someone is there." |
 
-Real in the video: the game, the director, the pulse stone (if the 12:00 gate passed), eye closure, bedside light, stick figure, Gemma generation. Simulated: the 14-day dataset; any vital marked simulated.
+Real in the video: the game, the director, eye closure (ARKit), the bedside light, the live dashboard update. Simulated: the 8-week histories, the validation cohort, any vital marked SIMULATED.
 
 ## 2. Stage pitch, 3:00
 
-Roles: David presents. Alex plays (an actor, not a patient). Romain runs the dashboard. Vlad stands by the router and unit.
+Roles: David presents. Alex plays the patient (an actor). Romain runs the dashboard. Vlad stands by the hub and the bedside unit.
 
-Projector: left the phone mirrored, right the dashboard with the live mode panel (mode, pulse curve, fatigue) and the stick figure.
+Projector: left the phone mirrored, right the dashboard. Use the stage chip ("stage mode (60 s)") in the Settings card if time is tight; otherwise a full session takes about 100 s.
 
-**Stage mode** (build flag): skips the core, loads Alex's stored baseline from the 19:00 rehearsal, plays about 60 s. Before walking on stage, Alex does 20 squats so the pulse is really raised.
-
-| Time | Action | Live / simulated |
+| Time | Action | Live or simulated |
 |---|---|---|
 | 0:00-0:20 | David with the phone and the glowing unit: "After weeks of daily TMS, patients go home, and nobody sees how they are doing until something goes wrong." | live |
-| 0:20-0:40 | "Afferent is a two-minute game that adapts to your body, and a bedside unit that compares you only with yourself. We measure reaction time, pulse and signs of tiredness, based on established lab paradigms. Everything stays on device." | live |
-| 0:40-1:05 | **Live, calm:** Alex's finger on the stone, pulse high from the squats. The game opens the breathing task; the dashboard shows mode "calm" and the pulse curve. | live (fallback: slider, said "simulated") |
-| 1:05-1:30 | **Live, tired:** Alex closes the eyes a few times on purpose. Within seconds the shore turns bright, the shutters task opens, the bedside light rises on stage. "Same game, different body, different game." | live |
-| 1:30-1:45 | Knob press: the stick figure vanishes. "The patient owns every sensor." | live |
-| 1:45-2:20 | Dashboard, two weeks in 20 s (SIMULATED DATA), Suggest review, "what calms this person", Gemma note generated offline. "If two of three measures drift from your own baseline for about a week, the care team gets a note. Saying not tonight never counts against you. The clinician decides; Afferent never books TMS. A starting rule for a pilot." | simulated data, live generation |
-| 2:20-2:50 | "No emotion detection, no microphone, no video leaves the room. At night the game never fights tiredness; it lets you sleep. Crisis support is a fixed card with the clinic and 112, never AI, and not an emergency service." Next step: a pilot with TMS responders against routine clinic scales. | live |
+| 0:20-0:35 | "Afferent has three parts: a two-minute game that measures and adapts, a bedside unit that watches everyday rhythm, and a clinic view that compares each person only with themselves." | live |
+| 0:35-1:35 | **Live loop:** Alex taps Begin. The dashboard row shows "Playing now" and the live card shows mode, pulse and eye closure. The game picks a calm task while the pulse is high; at dawn the bedside light rises on stage. When the session ends, Anna's row flashes and the toast shows the new index. | live game, SIMULATED history |
+| 1:35-2:15 | Open Anna. "Her early-warning index left her own baseline band in week 5. The cumulative sum crossed the call line and then the booster line. Mostly reaction time, sleep regularity and mood. Afferent suggests discussing a booster; the clinician decides." Show "What helps Anna" and the weekly summary. | SIMULATED data |
+| 2:15-2:35 | Validation tab: "On 50 simulated relapses the flag came a median of 13 days after onset, while the relapse was still building, with 3 false call episodes across 50 stable patients over six weeks. Simulated and not clinically validated; the pilot is the validation." | SIMULATED |
+| 2:35-2:50 | "No emotion detection, no microphone, no video leaves the room; the clinic sees numbers and a stick figure. At night the game lets you sleep. Crisis support is a fixed card with the clinic, 112 and the MIELI helpline, never AI." | live |
 | 2:50-3:00 | "When the center of gravity moves, someone is there." | live |
+
+Which story the live session tells: playing well (live or good day) moves Anna's index down a little, because one good morning counts against a bad week. To show a worsening point instead, set the profile to "bad day" (dashboard Demo menu or the "day:" chip): the autoplay then picks the dimmest lanterns but one, reacts slowly and avoids effort, and the index rises a little. Rehearse the one you choose.
 
 ### Q&A prepared answers
 
-1. **"Is there evidence this predicts relapse?"** "No, and we do not claim it. Reaction time and mood have established associations with depression in lab settings. We compare each person with their own baseline and give the clinician an early warning. Validation is the pilot."
-2. **"Is the adaptation itself therapeutic?"** "We claim support, not treatment. Slow breathing at six per minute has moderate evidence, morning light has good evidence. What we can show is the person's own response: the dashboard records which tasks bring this person's pulse down."
-3. **"Isn't keeping someone awake harmful?"** "Only in the morning. At night the game never fights tiredness; if the eyes stay closed for 30 seconds it ends quietly and the light stays off."
-4. **"Why would anyone play this in week 8?"** "Under two minutes, nothing to fail, and it is different every time because it follows your body."
-5. **"A camera in the bedroom?"** "The phone camera reads one number, whether the eyes are closed. Frames never leave the device, and every sensor has its own switch."
-6. **"What does Gemma do?"** "A short weekly note for the clinician from the numbers, offline on the Jetson, shown beside the numbers. It never talks to the patient."
+1. **"Does this predict relapse?"** "No, and we do not claim it. It is an early warning against the person's own baseline. On simulated data the flag comes about two weeks after a gradual relapse starts; real validation is a pilot against routine clinic scales."
+2. **"Why combine signals instead of a mood question?"** "Held to the same number of false alarms, mood alone flagged about 3 days later and missed 6 to 14% of simulated relapses that the combined index caught. Simulated, so treat it as a design argument, not evidence."
+3. **"Isn't keeping someone awake harmful?"** "Only morning sessions try to wake you. At night, if the eyes stay closed for 30 seconds, the session ends quietly and the light stays off."
+4. **"Why would anyone play this in week 8?"** "Under two minutes, nothing to fail, and it is different every time because it follows the body. Saying not today never counts against you."
+5. **"A camera in the bedroom?"** "The phone camera gives eye openness and head tilt as numbers; frames never leave the phone. The bedside camera, if on, becomes a stick figure. Every sensor has its own switch."
+6. **"What does the bandit learn?"** "Which task moves this person's pulse in the intended direction, with Thompson sampling. In simulation the best calm task is settled after a median of 11 sessions; for wake tasks the dashboard honestly shows it is still uncertain."
+7. **"What does Gemma do?"** "A short weekly note for the clinician, rephrasing the computed numbers on the hub. It never advises and never talks to the patient. Without Gemma a fixed template writes the same note."
 
 ## 3. Shoot checklist
 
-- Both iPhones charged, Do Not Disturb, brightness fixed.
-- Router, Jetson and UNO Q on; pulse stone tested with the actor's finger; dashboard seeded with the simulated dataset.
-- Shots: lit setup first (stick figure, knob press), then twilight: calm after stairs (3 takes), tired with eyes closing (3 takes), fireflies, dawn plus room light (5 takes), three-session split strip (screen recordings), dashboard capture.
+- iPhone charged, Do Not Disturb, brightness fixed, Hub address set, demo reset.
+- Hub, router and UNO Q on; pulse stone tested; dashboard at `/clinic/`.
+- Shots: morning session with dawn and room light (3 takes), calm task with raised pulse (3 takes), dashboard live update (screen recording), Anna detail and Validation tab (screen recording), bedside close-ups.
 - Record a clean stage-mode run as the stage backup clip.

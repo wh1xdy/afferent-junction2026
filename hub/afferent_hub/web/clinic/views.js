@@ -65,7 +65,7 @@
       ['Stable', rows.filter((r) => !needsCall(r) && r.state === 'stable')],
     ];
     const tiles = [
-      ['booster', 'Consider booster discussion', counts.booster],
+      ['booster', 'Booster discussion', counts.booster],
       ['check_in', 'Consider a call', counts.check_in],
       ['watch', 'Watch', counts.watch],
       ['stable', 'Stable', counts.stable],
@@ -87,6 +87,9 @@
     </section>`;
   };
 
+  const SHORT_LABEL = { 'Reward bias log b (7 sessions)': 'Reward bias', 'Effort choice (7 sessions)': 'Effort choice', 'Missed sessions (7 d)': 'Missed sessions', 'Home-only days (7 d)': 'Home-only days', 'Morning resting pulse': 'Morning pulse', 'Upright time in play': 'Upright time' };
+  const shortLabel = (l) => SHORT_LABEL[l] || l;
+
   V.row = function (r, L) {
     const color = C.stateColor(r.state);
     const drivers = (r.top_contributors || []).filter((c) => c.contribution > 0.05).slice(0, 2);
@@ -96,12 +99,12 @@
     return `<a class="prow" href="#/p/${esc(r.id)}" data-id="${esc(r.id)}" data-state="${esc(r.state)}" data-flag="${(r.flags || []).length > 0}">
       <span class="pcell pname">
         <span class="avatar" style="--c:${color}">${initial(r.display_name)}</span>
-        <span class="pname-t"><b>${esc(r.display_name)}${sim(r.simulated)}</b><span class="muted">${Math.round(r.weeks_since_tms ?? 0)} weeks after TMS</span></span>
+        <span class="pname-t"><b>${esc(r.display_name)}${sim(r.simulated)}</b><span class="muted">Week ${Math.floor((r.day_index ?? 0) / 7) + 1} after TMS</span></span>
       </span>
       <span class="pcell pstate">${chip(r.state)}${flags || since}</span>
       <span class="pcell pindex">${C.sparkline(r.sparkline || [], { color })}<span class="pindex-v"><b class="af-num">${num(r.composite)}</b><span class="trend af-num" data-dir="${trend > 0.05 ? 'up' : trend < -0.05 ? 'down' : 'flat'}">${trend > 0.05 ? '↑' : trend < -0.05 ? '↓' : '→'} ${signed(trend)} <span class="muted">7 d</span></span></span></span>
-      <span class="pcell pdrivers">${drivers.length ? drivers.map((c) => `<span><b>${esc(c.label)}</b> <span class="af-num muted">${signed(c.contribution)}</span></span>`).join('') : '<span class="muted">No feature above usual</span>'}</span>
-      <span class="pcell plast">${r.live_now ? '<span class="live-pill"><i></i>Playing now</span>' : `<span>${relDay(r.last_session_iso, L.date)}</span>`}<span class="muted af-num">${7 - (r.missed_7d ?? 0)} of 7 days played</span></span>
+      <span class="pcell pdrivers">${drivers.length ? drivers.map((c) => `<span><b>${esc(shortLabel(c.label))}</b> <span class="af-num muted">${signed(c.contribution)}</span></span>`).join('') : '<span class="muted">No feature above usual</span>'}</span>
+      <span class="pcell plast">${r.live_now ? '<span class="live-pill"><i></i>Playing now</span>' : `<span>${relDay(r.last_session_iso, L.date)}</span>`}<span class="muted af-num">${r.sessions_7d ?? 7 - (r.missed_7d ?? 0)} of 7 days played</span></span>
       <span class="pcell pdata"><span class="meter"><i style="width:${Math.round((r.completeness ?? 0) * 100)}%"></i></span><span class="af-num">${pct(r.completeness)} <span class="muted">${esc(r.confidence || '')}</span></span></span>
       <span class="pcell chev" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     </a>`;
@@ -137,7 +140,7 @@
     const nextThr = { stable: ['watch', thr.watch], watch: ['check_in', thr.check_in], check_in: ['booster', thr.booster], booster: ['booster', thr.booster] }[A.state] || [];
 
     const flagBanner = flags.length ? `<div class="flag-banner" role="alert">
-        <div><b>${esc(name)} ${flags[0].type === 'low_mood_twice' ? 'chose the dimmest mood lantern at the start and end of a session' : 'tapped “Talk to someone”'}${flags.length > 1 ? ` (${flags.length} notes)` : ''}, ${dateShort(flags[0].t_iso)} at ${timeOf(flags[0].t_iso)}.</b>
+        <div><b>${esc(name)} ${flags[0].type === 'low_mood_twice' ? 'chose the dimmest mood lantern at the start and end of a session' : 'tapped “Talk to someone”'}${new Set(flags.map((f) => f.session_id || f.t_iso)).size > 1 ? ` (${new Set(flags.map((f) => f.session_id || f.t_iso)).size} notes)` : ''}, ${dateShort(flags[0].t_iso)} at ${timeOf(flags[0].t_iso)}.</b>
         <span>The app showed the fixed card with Emergency 112, MIELI Crisis Helpline 09 2525 0111 and the clinic number. Afferent is not watched around the clock.</span></div>
         <button class="btn" data-action="clear-flags" data-id="${esc(id)}">Mark as seen</button></div>` : '';
 
@@ -158,8 +161,8 @@
         <div class="status-kpis">
           <div class="skpi"><span class="af-caps">Early-warning index</span><b class="af-num" data-k="composite">${num(comp.value)}</b><span class="af-num muted">${signed(comp.trend_7d)} in 7 days</span></div>
           <div class="skpi"><span class="af-caps">CUSUM ${info('One-sided cumulative sum of the index above k = ' + (cu.k ?? 0.5) + ', from day 14. Watch at ' + thr.watch + ', call at ' + thr.check_in + ', booster discussion at ' + thr.booster + '.')}</span><b class="af-num" data-k="cusum">${num(cu.value, 1)}</b><span class="af-num muted">${A.state === 'booster' ? `booster line ${thr.booster}` : `next line ${nextThr[1]}`}${sinceDays != null && A.state !== 'stable' ? ` · ${sinceDays} d in state` : ''}</span></div>
-          <div class="skpi"><span class="af-caps">Data completeness</span><b class="af-num">${pct(cm.overall ?? comp.completeness)}</b><span class="muted">${esc(comp.confidence)} confidence · ${comp.n_features}/${comp.n_features_total} features</span></div>
-          <div class="skpi"><span class="af-caps">Sessions, 7 days</span><b class="af-num">${cm.sessions_7d ?? '-'}<small> / 7</small></b><span class="muted af-num">${cm.missed_7d ?? 0} missed</span></div>
+          <div class="skpi"><span class="af-caps">Features available ${info('Share of the index weight with recent data. Per-feature coverage over 7 days is in the drivers panel.')}</span><b class="af-num">${comp.n_features}<small> / ${comp.n_features_total}</small></b><span class="muted">${esc(comp.confidence)} confidence · ${pct(cm.overall ?? comp.completeness)} of weight</span></div>
+          <div class="skpi"><span class="af-caps">Days played, 7 days</span><b class="af-num">${cm.sessions_7d ?? '-'}<small> / 7</small></b><span class="muted af-num">${cm.missed_7d ?? 0} missed</span></div>
         </div>
       </section>`;
 
@@ -279,7 +282,7 @@
     const facts = [
       ['State', n.state ? chip(n.state, n.state_label) : null],
       ['Index', n.composite != null ? `${signed(n.composite)} <span class="muted">(${signed(n.composite_trend_7d)} in 7 d)</span>` : null],
-      ['Completeness', n.completeness != null ? `${pct(n.completeness)} <span class="muted">${esc(n.confidence || '')}</span>` : null],
+      ['Features available', n.completeness != null ? `${pct(n.completeness)} <span class="muted">${esc(n.confidence || '')}</span>` : null],
       ['Sessions', n.sessions_7d != null ? `${n.sessions_7d} of 7 days` : null],
       ['Drivers', (n.top_contributors || []).map((c) => `${esc(c.label)} <span class="muted">z ${signed(c.signed_z, 1)}</span>`).join('<br>') || null],
       ['Best calm task', n.best_calm_task ? `${esc(n.best_calm_task)} <span class="muted">P(best) ${num(n.best_calm_p_best)}</span>` : null],
@@ -307,8 +310,8 @@
         <td><b>${dateShort(s.date)}</b><span class="muted af-num">day ${s.day}</span></td>
         <td><span class="status-tag" data-s="${esc(s.status)}">${esc((s.status || '').replace('_', ' '))}</span>${s.profile && s.profile !== 'live' ? `<span class="muted">${esc(s.profile.replace('_', ' '))}</span>` : ''}${s.simulated ? '' : '<span class="muted">measured</span>'}</td>
         <td class="mcell">${slope(0, p.delta, -8, 8, p.delta == null ? null : p.delta <= -2 ? true : p.delta >= 2 ? false : null)}<span class="af-num">${num(p.start, 0)} → ${num(p.end, 0)}<small class="${p.delta <= -2 ? 'good' : ''}">${signed(p.delta, 1)} bpm</small></span></td>
-        <td class="mcell">${slope(h.start, h.end, -15, 5, h.delta == null ? null : h.delta >= 2 ? true : null)}<span class="af-num">${h.delta == null ? '-' : signed(h.delta, 1) + '°'}<small>head pitch</small></span></td>
-        <td class="mcell">${slope(e.start, e.end, 0.3, 0.9, null)}<span class="af-num">${num(e.start)} → ${num(e.end)}<small>openness</small></span></td>
+        <td class="mcell">${slope(h.start, h.end, -15, 5, h.delta == null ? null : h.delta >= 2 ? true : null)}<span class="af-num">${h.delta == null ? '<span class="muted">not tracked</span>' : signed(h.delta, 1) + '°'}<small>head pitch</small></span></td>
+        <td class="mcell">${slope(e.start, e.end, 0.3, 0.9, null)}<span class="af-num">${e.start == null && e.end == null ? '<span class="muted">not tracked</span>' : `${num(e.start)} → ${num(e.end)}`}<small>openness</small></span></td>
         <td class="mood-cell">${m.start != null ? V.lantern(m.start) : '<i class="lantern none"></i>'}<span class="muted">→</span>${m.end != null ? V.lantern(m.end) : '<i class="lantern none"></i>'}<span class="af-num muted">${m.delta != null ? signed(m.delta, 0) : ''}</span></td>
       </tr>`;
     }).join('');
@@ -403,7 +406,7 @@
       </div>
       ${last ? `<div class="live-metrics last-pp">
         <div><span class="af-caps muted">Pulse</span><b class="af-num">${num(last.pulse?.start, 0)} → ${num(last.pulse?.end, 0)}</b><span class="muted small af-num">${signed(last.pulse?.delta, 1)} bpm</span></div>
-        <div><span class="af-caps muted">Head pitch</span><b class="af-num">${last.head_pitch?.delta == null ? '-' : signed(last.head_pitch.delta, 1) + '°'}</b><span class="muted small">start to end</span></div>
+        <div><span class="af-caps muted">Head pitch</span><b class="af-num">${last.head_pitch?.delta == null ? '<span class="muted">-</span>' : signed(last.head_pitch.delta, 1) + '°'}</b><span class="muted small">${last.head_pitch?.delta == null ? 'face not tracked' : 'start to end'}</span></div>
         <div><span class="af-caps muted">Mood</span><b>${last.mood?.start != null ? V.lantern(last.mood.start) : '-'} <span class="muted">→</span> ${last.mood?.end != null ? V.lantern(last.mood.end) : '-'}</b><span class="muted small af-num">${last.mood?.start ?? '-'} → ${last.mood?.end ?? '-'}</span></div>
       </div>` : ''}`;
     }
@@ -416,7 +419,8 @@
         <span class="bed-t"><b>${bed.presence?.in_bed ? 'In bed' : 'Not in bed'}</b><span class="muted af-num">${bed.presence?.in_bed && bed.presence.since_iso ? 'since ' + timeOf(bed.presence.since_iso) : ''}${bed.thermo?.temp_c != null ? ` · ${num(bed.thermo.temp_c, 1)} °C` : ''}</span></span>
       </div>`;
     })() : '<div class="bed muted">Bedside unit not connected</div>';
-    return { status, body: main + bedHtml + `<p class="privacy-note">Never video. Numbers and a stick figure only.</p>` };
+    const bedFor = bed && (!bed.patient_id || bed.patient_id === id) ? bedHtml : '<div class="bed muted">No bedside unit paired with this patient</div>';
+    return { status, body: main + bedFor + `<p class="privacy-note">Never video. Numbers and a stick figure only.</p>` };
   };
 
   const dnum = (v) => (v == null ? '-' : Number.isInteger(+v) ? String(v) : (+v).toFixed(1));
@@ -433,22 +437,27 @@
       [dplural(r.days_onset_to_check_in.median, 'day'), 'from relapse onset to “consider a call”', iqr(r.days_onset_to_check_in)],
       [`${Math.round(r.detected_share * 100)}<small>%</small>`, 'of simulated relapses reached “consider a call”', `${v.n_seeds} relapse seeds`],
       [`${num(st.false_alarms_per_patient_month)}`, 'false call suggestions per patient-month, stable controls', `${st.false_check_in_episodes} episodes in ${st.patient_days} patient-days`],
-      st.mood_only_false_check_in_episodes != null
-        ? [`${st.false_check_in_episodes}<small> vs ${st.mood_only_false_check_in_episodes}</small>`, 'false call episodes: full index vs mood check-in alone', 'same CUSUM, same stable controls']
-        : [dplural(r.lead_time_vs_mood_only_days.median, 'day'), 'earlier than a mood-only rule', iqr(r.lead_time_vs_mood_only_days)],
-      [dplural(b.sessions_to_p_best_0_8.median, 'session'), `until P(best) of ${best} reaches ${b.target_p_best ?? 0.8}`, iqr(b.sessions_to_p_best_0_8)],
+      (() => {
+        const mm = r.mood_only_at_matched_false_alarms, bk = mm?.best_k;
+        if (!mm?.days_onset_to_flag?.median) return [dplural(r.lead_time_vs_mood_only_days.median, 'day'), 'earlier than a mood-only rule, same CUSUM', iqr(r.lead_time_vs_mood_only_days)];
+        const lo = Math.min(mm.days_onset_to_flag.median, bk?.days_onset_to_flag?.median ?? Infinity);
+        const hi = Math.max(mm.days_onset_to_flag.median, bk?.days_onset_to_flag?.median ?? -Infinity);
+        const shares = [mm.detected_share, bk?.detected_share].filter((x) => x != null).map((x) => Math.round(x * 100));
+        return [`${dnum(r.days_onset_to_check_in.median)}<small> vs ${dnum(lo)}${hi > lo ? '-' + dnum(hi) : ''} days</small>`, 'to “consider a call” at equal false alarms, full index vs mood alone', `flagged ${Math.round(r.detected_share * 100)}% vs ${Math.min(...shares)}${Math.max(...shares) > Math.min(...shares) ? '-' + Math.max(...shares) : ''}%, ${mm.false_check_in_episodes} false episodes each`];
+      })(),
+      [dplural(b.sessions_to_p_best_0_8.median, 'session'), `until P(best) of ${best} stays above ${b.target_p_best ?? 0.8}`, `${iqr(b.sessions_to_p_best_0_8)}${b.sessions_to_first_p_best_0_8 ? `, first reached after ${dnum(b.sessions_to_first_p_best_0_8.median)}` : ''}`],
     ].map(([n, l, s]) => `<div class="vkpi"><b class="af-num">${n}</b><span>${l}</span><span class="muted af-num">${s}</span></div>`).join('');
     const timing = [
       ['Watch', r.days_onset_to_watch, C.stateColor('watch')],
       ['Consider a call', r.days_onset_to_check_in, C.stateColor('check_in')],
       ['Consider booster discussion', r.days_onset_to_booster, C.stateColor('booster')],
-      ['Mood check-in alone', r.mood_only_rule_days_onset_to_flag, C.css('--af-silver-400')],
+      ['Mood alone, equal false alarms', r.mood_only_at_matched_false_alarms?.best_k?.days_onset_to_flag || r.mood_only_rule_days_onset_to_flag, C.css('--af-silver-400')],
     ].filter(([, o]) => o?.iqr);
     const tmax = Math.max(28, ...timing.map(([, o]) => o.iqr[1] + 2));
     const ticks = [0, 7, 14, 21, 28, 35].filter((t) => t <= tmax);
     const timingHtml = `<div class="trange">${timing.map(([l, o, c]) => `<div class="tr-row" data-tip="${esc(`${l}: median ${dnum(o.median)} days after onset, IQR ${dnum(o.iqr[0])} to ${dnum(o.iqr[1])}${o.n != null ? `, n = ${o.n}` : ''}`)}"><span class="tr-l">${l}</span><span class="tr-track"><i style="left:${(o.iqr[0] / tmax) * 100}%;width:${(Math.max(0.3, o.iqr[1] - o.iqr[0]) / tmax) * 100}%;--c:${c}"></i><b style="left:${(o.median / tmax) * 100}%;--c:${c}"></b></span><span class="tr-v af-num">${dnum(o.median)} d</span></div>`).join('')}
       <div class="tr-row tr-axis"><span></span><span class="tr-track">${ticks.map((t) => `<em style="left:${(t / tmax) * 100}%">${t}</em>`).join('')}</span><span></span></div></div>`;
-    const modes = Object.entries(b.by_mode || {}).map(([m, o]) => `<span><span class="mode-dot" style="--c:${C.modeColor(m)}"></span>${MODE_LABEL[m] || m} <b class="af-num">${dnum(o.sessions_to_p_best_0_8?.median)}</b> <span class="muted af-num">sessions, ${pct(o.found_share_by_day_56)} found</span></span>`).join('');
+    const modes = Object.entries(b.by_mode || {}).map(([m, o]) => `<span><span class="mode-dot" style="--c:${C.modeColor(m)}"></span>${MODE_LABEL[m] || m} <b class="af-num">${dnum(o.sessions_to_p_best_0_8?.median)}</b> <span class="muted af-num">sessions, settled in ${pct(o.found_share_by_day_56)}</span></span>`).join('');
     const sens = (v.sensitivity || []).length;
     return `<section class="page validation">
       <div class="page-head">
@@ -462,7 +471,7 @@
       <div class="vkpis">${tiles}</div>
       <div class="grid">
         ${card('c-vex', title('Early-warning index, one example', 'Relapse patient against a stable control'), '<div id="v-ex"></div>', '<span class="legend"><i style="--c:var(--af-clinic-line-primary)"></i>Relapse (Anna)</span><span class="legend"><i style="--c:var(--af-aurora-teal)"></i>Stable control (Mikko)</span>')}
-        ${card('c-vtiming', title('Time from onset to each suggestion', 'Median and interquartile range across seeds, days'), timingHtml, `<span class="muted">${r.mood_only_rule ? 'Mood check-in alone: ' + esc(r.mood_only_rule) + '.' : 'Dot: median. Bar: interquartile range.'}</span>`)}
+        ${card('c-vtiming', title('Time from onset to each suggestion', 'Median and interquartile range across seeds, days'), timingHtml, `<span class="muted">Mood alone: the same CUSUM on the mood check-in only, threshold raised until its false alarms match the full index. Dot: median. Bar: interquartile range.</span>`)}
         ${card('c-vcusum', title('CUSUM, same example', 'Accumulated drift with state thresholds'), '<div id="v-cusum"></div>', '<span class="legend"><i style="--c:var(--af-clinic-line-primary)"></i>Relapse</span><span class="legend"><i style="--c:var(--af-aurora-teal)"></i>Stable control</span>')}
         ${card('c-vbandit', title('How fast it learns what helps', `P(best) of the truly best calm task (${best}) by session, one example`), '<div id="v-bandit"></div>', modes ? `<div class="vmodes">${modes}</div>` : `<span class="muted">Found by day 56 in ${pct(b.found_share_by_day_56)} of seeds.</span>`)}
         ${sens ? card('c-vsens', title('Sensitivity', 'Each dot is one CUSUM setting: earlier calls cost more false alarms'), '<div id="v-sens"></div>', '<span class="muted">Grey: other settings of k (CUSUM slack) and call threshold. Hover a dot for details.</span>') : ''}
@@ -527,7 +536,7 @@
         g.push(`<circle cx="${cx}" cy="${cy}" r="${p.current ? 7 : 5}" fill="${p.current ? C.css('--af-lantern-amber') : C.css('--af-silver-400')}" opacity="${p.current ? 1 : 0.6}" stroke="${C.css('--af-night-800')}" stroke-width="2" ${p.current ? 'style="filter:drop-shadow(0 0 6px rgba(242,181,68,0.7))"' : ''} data-tip="${esc(tipTxt)}"/>`);
         if (p.current) g.push(`<text x="${cx + 12}" y="${cy + 4}" class="ax" fill="${C.css('--af-lantern-glow')}">in use: k ${p.k}, call at ${p.check_in}</text>`);
       });
-      el4.innerHTML = `<svg class="chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sensitivity of lead time against false alarms">${g.join('')}</svg>`;
+      el4.innerHTML = `<svg class="chart" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sensitivity of detection delay against false alarms">${g.join('')}</svg>`;
     }
   };
 })();

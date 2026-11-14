@@ -43,7 +43,7 @@
     },
     auto(dt, now) {
       if (this.t < this.autoAt || this.choice !== null) return;
-      const v = { good_day: 4, bad_day: 2, live: 3 }[profile()];
+      const v = { good_day: 4, bad_day: 1, live: 3 }[profile()];
       this.down(0.05 + 0.9 * (v - 0.5) / 5, 0.5, now);
     },
     draw(ctx, b, now) {
@@ -88,7 +88,7 @@
             const r = this.round, hard = path === 'hard';
             r.path = path; r.spec = hard ? FORK_HARD : FORK_EASY; r.phase = 'path'; r.decisionMs = path === 'none' ? null : Math.round(r.t * 1000); r.pathAt = r.t;
             const pts = pathPts(hard ? r.hardSide : -r.hardSide, hard);
-            r.lights = Array.from({ length: r.spec.lights }, (_, k) => ({ p: along(pts, (k + 1) / r.spec.lights), on: null, born: null, gone: false }));
+            r.lights = path === 'none' ? [] : Array.from({ length: r.spec.lights }, (_, k) => ({ p: along(pts, (k + 1) / r.spec.lights), on: null, born: null, gone: false }));
             r.nextAt = r.t + 0.35;
             if (path !== 'none') Au.piano(hard ? 6 : 4, 0.14);
           },
@@ -107,7 +107,7 @@
               }
             }
             if (r.phase === 'reward' && r.t - r.rewardAt > 1.1) {
-              if (r.i === 0) this.start(1); else finish(this, now);
+              if (r.i === 0 && r.path !== 'none') this.start(1); else finish(this, now);
             }
           },
           reward(now) {
@@ -211,12 +211,12 @@
         const larger = [...Array(6).fill('rich'), ...Array(6).fill('lean')].sort(() => R() - 0.5);
         const pick = (type, n) => { const idx = larger.map((x, i) => x === type ? i : -1).filter(i => i >= 0).sort(() => R() - 0.5); return new Set(idx.slice(0, n)); };
         const sched = { rich: pick('rich', 3), lean: pick('lean', 1) };
-        const bias = { good_day: 0.15, live: 0.08, bad_day: 0 }[profile()] ?? 0.08;
+        const bias = { good_day: 0.15, live: 0.08, bad_day: -0.15 }[profile()] ?? 0.08;
         return base('lanterns', 60, {
-          kind: 'measurement', larger, sched, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null,
+          kind: 'measurement', larger, sched, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
           next(now) {
             this.i++;
-            if (this.i >= 12) { finish(this, now); this.tr = null; return; }
+            if (this.i >= 12 || this.missedRun >= 3) { finish(this, now); this.tr = null; this.i = 12; return; }
             const L = this.larger[this.i];
             if (this.sched[L].has(this.i)) this.pending[L]++;
             this.tr = { L, richSide: R() < 0.5 ? 'left' : 'right', t: 0, phase: 'ready', resp: null, autoAt: null };
@@ -238,6 +238,7 @@
             if (correct && this.pending[resp] > 0) { this.pending[resp]--; this.rewards[resp]++; rewarded = true; }
             this.trials.push({ trial: this.i + 1, larger: tr.L, rich_side: tr.richSide, response: resp, correct, rewarded, rt_ms: resp === null ? null : Math.round((tr.t - tr.cueT) * 1000) });
             if (resp !== null) this.items++;
+            this.missedRun = resp === null ? this.missedRun + 1 : 0;
             Object.assign(tr, { phase: 'fb', fbT: tr.t, resp: side, rewarded });
             if (rewarded) {
               this.sparks.push({ born: now, side });

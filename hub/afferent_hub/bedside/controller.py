@@ -53,6 +53,7 @@ class Bedside:
         self.clock = clock or (lambda: dt.datetime.now().astimezone())
         self.tokens = load_tokens()
         self.ws_devices = 0
+        self.patient_id: str | None = None
         self.device: str | None = None
         self.fw: str | None = None
         self.session_active = False
@@ -80,6 +81,7 @@ class Bedside:
     def snapshot(self) -> dict:
         s = json.loads(json.dumps(self.state))
         s["connected"] = bool(getattr(self.source, "connected", False)) or self.ws_devices > 0
+        s["patient_id"] = self.patient_id
         return s
 
     async def start(self):

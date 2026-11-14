@@ -24,14 +24,14 @@ DEFAULT_PRIVACY = {
 HELPED_TEXT = {
     "breath": "Slow breathing often settles you.",
     "loyly": "The warm löyly often settles you.",
-    "fireflies": "Fireflies often lift a low morning.",
+    "fireflies": "Fireflies often raise a low pulse.",
     "beacon": "The beacon often helps you wake gently.",
     "bells": "The bells often help a heavy morning feel lighter.",
     "shutters": "Opening the shutters often helps when your eyes feel heavy.",
     "threads": "The aurora threads often help you settle into the moment.",
     "stars": "Joining the stars often helps you settle into the moment.",
 }
-DAWN_TEXT = "Mornings with the bedside dawn light tend to follow better days."
+DAWN_TEXT = "Days with the dawn light are often followed by brighter check-ins (still learning)."
 
 CLINIC_SEES = [
     "Numbers from your sessions compared with your own baseline",
@@ -103,7 +103,7 @@ def patient_row(patient: dict, analytics: dict, sessions: list[dict], flags: lis
     cus = analytics.get("cusum") or {}
     contribs = sorted((c for c in comp.get("contributions") or [] if (c.get("contribution") or 0) > 0),
                       key=lambda c: -c["contribution"])[:3]
-    last = max(sessions, key=lambda s: (s.get("day_index") or 0, s.get("started_iso") or ""), default=None)
+    last = max((s for s in sessions if s.get("status") in PLAYED), key=lambda s: (s.get("day_index") or 0, s.get("started_iso") or ""), default=None)
     spark = list((analytics.get("timeline") or {}).get("composite") or [])[-14:]
     return {
         "id": patient["id"], "display_name": patient.get("display_name"), "kind": patient.get("kind"),
@@ -116,6 +116,7 @@ def patient_row(patient: dict, analytics: dict, sessions: list[dict], flags: lis
         "last_session_iso": last.get("started_iso") if last else None,
         "live_now": live,
         "missed_7d": (analytics.get("completeness") or {}).get("missed_7d"),
+        "sessions_7d": (analytics.get("completeness") or {}).get("sessions_7d"),
         "completeness": comp.get("completeness", (analytics.get("completeness") or {}).get("overall")),
         "confidence": comp.get("confidence"),
         "sparkline": spark,

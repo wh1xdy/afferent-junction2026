@@ -21,7 +21,7 @@ Fields are in `contracts/session.v3.schema.json` and `SessionSchema.md`. Each se
 
 | Metric | How it is computed | Evidence | Role |
 |---|---|---|---|
-| Resting pulse (`core.rest.pulse_bpm`) | Median pulse over the 6 s rest, from the bedside KY-039, face rPPG or the labelled simulator, with `pulse_quality` 0 to 1 | established as a measure; plausible as a marker | Director baseline (median of the first 7 valid sessions, then 14-day rolling median); fallback for morning pulse before 11:00 |
+| Resting pulse (`core.rest.pulse_bpm`) | Median pulse over the 6 s rest, from the bedside KY-039, face rPPG or the labelled simulator, with `pulse_quality` 0 to 1 | established as a measure; plausible as a marker | Director baseline (median of the first 7 valid sessions, then 14-day rolling median). Not used for the morning pulse feature |
 | Spontaneous blink rate | Closures of 50 to 500 ms per minute, rest window only (blinks are not game input) | exploratory | Context, director rest baseline. 6 s is noisy, always shown with its quality |
 | Eye openness | Median of 1 minus mean(blink_l, blink_r) over the rest | plausible | Context, director rest baseline |
 | Head pitch | Median head pitch in camera space, positive is chin up; posture proxy | exploratory | Context, director rest baseline, defines "upright" |
@@ -52,7 +52,7 @@ Fields are in `contracts/daily.v1.schema.json`: one record per patient and day, 
 | Intradaily variability (IV) | Same 7-day window: n * sum (x_i - x_{i-1})^2 / ((n - 1) * sum (x_i - mean)^2); high = fragmented | exploratory | Context `timeline.sleep_iv_7d` |
 | Midpoint variability | Standard deviation of the sleep midpoint over the trailing 7 days (needs 4) | plausible | Context `timeline.sleep_midpoint_sd_7d` |
 | Night-time restlessness | Presence-sensor motion bursts between onset and wake | exploratory | Context `timeline.restlessness` |
-| Morning resting pulse | 30 s KY-039 reading after waking (finger on the stone before 11:00), used when quality >= 0.5 or quality unknown; fallback: the session's rest pulse if the session started before 11:00 with quality >= 0.5 | plausible (resting heart rate tends to rise in depressive episodes; single readings are noisy) | **Composite: "Morning resting pulse", weight 0.75, worse when high**. Pulse only, Afferent does not compute HRV |
+| Morning resting pulse | 30 s KY-039 reading after waking (finger on the stone before 11:00), used when quality >= 0.5 or quality unknown; no fallback to the in-game rest pulse, because that reading runs about 5 bpm higher (seated, after getting up) and mixing the two sources would shift the baseline whenever the share of each source changes | plausible (resting heart rate tends to rise in depressive episodes; single readings are noisy) | **Composite: "Morning resting pulse", weight 0.75, worse when high**. Pulse only, Afferent does not compute HRV |
 | Home or away hours, home-only day | Phone presence via Wi-Fi/BLE at the bedside unit; home-only = away < 0.5 h | plausible (homestay and mobility from phones correlate with depressive symptoms) | **Composite: "Home-only days (7 d)"** = home-only days in the trailing 7 days, scaled to 7 days when some days are unknown (needs 4 known days), weight 0.75, worse when high |
 | Visitors | Count of unfamiliar nearby devices; nobody is identified | exploratory | Context only |
 | Steps | Phone accelerometer step-like activity | plausible; SIMULATED tonight | Context only |
@@ -103,14 +103,14 @@ Weights follow the evidence level, they are not fitted. Evidence for the composi
 
 ### 4. Change detection: CUSUM
 
-One-sided CUSUM on the composite from day 14: `S_d = max(0, S_{d-1} + composite_d - k)` with **k = 0.35**; days without a composite keep S. States: stable below 1.5, watch from 1.5, "consider a check-in call" from 3.0, "consider discussing a booster session" from 8.0; always stable before day 14. The suggestion text is fixed per state and always ends with "The clinician decides." `reasons` = the labels of the three largest positive contributions.
+One-sided CUSUM on the composite from day 14: `S_d = max(0, S_{d-1} + composite_d - k)` with **k = 0.35**; days without a composite keep S, and so do days without any new observation (no daily record and no played session): the composite is still shown from the carried EWMA, but it is not fed to the CUSUM again, so S never moves on extrapolation alone. The windowed features (7-day counts, sleep regularity) are only emitted on days with a daily record. States: stable below 1.5, watch from 1.5, "consider a check-in call" from 3.0, "consider discussing a booster session" from 8.0; always stable before day 14. The suggestion text is fixed per state and always ends with "The clinician decides." `reasons` = the labels of the three largest positive contributions.
 
 k was lowered from 0.5 (first contract draft) to 0.35 after the synthetic sensitivity analysis: one day earlier median detection (13 instead of 14 days after onset) for 3 instead of 1 false check-in episodes in 2100 stable patient-days (0.043 instead of 0.014 per patient-month). We accepted that trade for the demo; a real deployment would set k and the thresholds on real follow-up data. See the sensitivity table in `Validation.md`. Evidence: established method (Page's CUSUM), parameters exploratory.
 
 ### 5. What helps this person
 
 - **Immediate effect** (`bandit.immediate`): per (mode, task) the median pulse delta with IQR, median recovery slope, median head pitch change and median eye openness, over all runs with pulse quality >= 0.5.
-- **Bayesian bandit** (`bandit.arms`): arms are (mode, task) in the modes with an intended direction: calm {Breath, Löyly}, wake {Fireflies, Beacon, Bells}, fatigue {Shutters, Bells, Beacon}, rest {Breath}. Beta(1, 1) prior, `alpha = 1 + helped`, `beta = 1 + not helped`. `p_best` per arm within its mode by Monte Carlo (4000 draws per arm, `numpy.random.default_rng(0)`, so it is deterministic), `ci90` from the 5th and 95th percentile of the same draws. Thompson sampling is expressed as selection probabilities: `w = max(p_best, 0.05)`, renormalised per mode; the hub sends them to the phone in `config`, and the director picks the next task with these weights. Flow tasks have no intended direction, so they keep uniform weights.
+- **Bayesian bandit** (`bandit.arms`): arms are (mode, task) in the modes with an intended direction: calm {Breath, Löyly}, wake {Fireflies, Beacon, Bells}, fatigue {Shutters, Bells, Beacon}, rest {Breath}. Beta(1, 1) prior, `alpha = 1 + helped`, `beta = 1 + not helped`. `p_best` per arm within its mode by Monte Carlo (4000 draws per arm, `numpy.random.default_rng(0)`, so it is deterministic), `ci90` from the 5th and 95th percentile of the same draws. Thompson sampling is expressed as selection probabilities: `w = max(p_best, 0.05)`, renormalised per mode; the hub sends them to the phone in `config`, and the director picks the next task with these weights, under one deliberate variety rule: the task just played is never picked again back to back (game and simulator alike). With two calm tasks, a second calm slot in the same session therefore always gets the other task, which limits how strongly the director can exploit the winner. Flow tasks have no intended direction, so they keep uniform weights.
 - **Next-day association** (`bandit.next_day`): for each task (the 4 with the most "with" days, each side needs >= 5 days) and for the bedside dawn light: mean next-day mood check-in and mean next-day composite change, on days with versus without it. Always labelled "association, not causation": tasks are not randomised across days, and the bandit itself makes good tasks more frequent.
 
 Evidence: Thompson sampling is an established method; the "helped" outcome and the associations are exploratory.
@@ -121,7 +121,7 @@ Evidence: Thompson sampling is an established method; the "helped" outcome and t
 
 ### 7. Validation
 
-`python -m afferent_hub.analytics.validate` runs 50 relapse and 50 stable synthetic patients day by day and reports lead time, false alarms, a mood-only comparison and bandit convergence. Results and charts: `Validation.md`, served as JSON at `GET /api/validation`. Simulated, set on synthetic data only, not clinically validated.
+`python -m afferent_hub.analytics.validate` runs 50 relapse and 50 stable synthetic patients day by day and reports the days from onset to flag (detection delay), false alarms, a mood-only comparison and bandit convergence. Results and charts: `Validation.md`, served as JSON at `GET /api/validation`. Simulated, set on synthetic data only, not clinically validated.
 
 ## Output fields beyond the first contract fixture
 

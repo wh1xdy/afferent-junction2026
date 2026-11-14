@@ -121,7 +121,7 @@
    "label": "Fireflies",
    "glyph": "fireflies",
    "mode": "wake",
-   "text": "Fireflies often lift a low morning.",
+   "text": "Fireflies often raise a low pulse.",
    "p_best": 0.681,
    "n": 10,
    "confidence": "low"
@@ -131,7 +131,7 @@
    "label": "Dawn light",
    "glyph": "sun",
    "mode": null,
-   "text": "Mornings with the bedside dawn light tend to follow better days.",
+   "text": "Days with the dawn light are often followed by brighter check-ins (still learning).",
    "p_best": null,
    "n": 29,
    "confidence": "low"

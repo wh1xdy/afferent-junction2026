@@ -735,7 +735,7 @@
     };
     ctx.save(); ctx.beginPath(); ctx.rect(-30, -47, 60, 50); ctx.clip(); ctx.fillStyle = rim; cloak(); ctx.fill(); ctx.restore();
     ctx.save(); ctx.translate(-1.1, 0.5); ctx.fillStyle = body; cloak(); ctx.fill(); ctx.restore();
-    ctx.fillStyle = rgb(P.night950, 0.9); ctx.beginPath(); ctx.moveTo(7.6, -55.5); ctx.bezierCurveTo(4.8, -54, 4.2, -49.5, 5.6, -46.2); ctx.quadraticCurveTo(7.2, -45.4, 8.4, -46.6); ctx.bezierCurveTo(9.6, -49.5, 9.4, -53, 7.6, -55.5); ctx.fill();
+    ctx.fillStyle = rgb(P.night950, 0.5); ctx.beginPath(); ctx.moveTo(6.6, -54.2); ctx.bezierCurveTo(4.9, -53, 4.6, -49.8, 5.4, -47.6); ctx.quadraticCurveTo(6.5, -47, 7.3, -47.8); ctx.bezierCurveTo(8.1, -49.8, 8, -52.4, 6.6, -54.2); ctx.fill();
     const sc = grade(P.coral, 'yellow'), wv = rm ? 0.4 : 1;
     ctx.fillStyle = rgb(sc); ctx.beginPath();
     ctx.moveTo(-4, -47); ctx.quadraticCurveTo(1, -44.5, 6, -46.5); ctx.lineTo(6, -43.5); ctx.quadraticCurveTo(1, -41, -4, -43); ctx.closePath(); ctx.fill();

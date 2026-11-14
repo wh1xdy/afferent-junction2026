@@ -73,3 +73,19 @@ def test_committed_results_file():
     r = json.loads(path.read_text())
     assert r["schema"] == "afferent.validation/1" and r["simulated"] and r["n_seeds"] >= 50
     assert (ROOT / "Validation.md").exists()
+
+
+def test_cohort_separation():
+    r = validation.run_validation(10)
+    assert r["relapse"]["detected_share"] >= 0.9
+    assert r["stable"]["false_check_in_episodes"] <= 2
+    assert r["relapse"]["days_onset_to_check_in"]["median"] <= 18
+    b = r["bandit"]["by_mode"]["calm"]
+    assert b["sessions_to_p_best_0_8"]["median"] >= b["sessions_to_first_p_best_0_8"]["median"]
+
+
+def test_report_matches_committed_results():
+    if not validate.RESULTS.exists():
+        pytest.skip("run python -m afferent_hub.analytics.validate first")
+    r = json.loads(validate.RESULTS.read_text())
+    assert (ROOT / "Validation.md").read_text() == validate.report(r)

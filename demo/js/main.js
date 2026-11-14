@@ -73,7 +73,7 @@
     const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'auto' } : { auto: 'touch', touch: 'auto', camera: 'auto' };
     ui.input = order[ui.input]; chips();
   };
-  $('clockChip').onclick = () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); };
+  $('clockChip').onclick = () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); };
   $('stageChip').onclick = () => { ui.stage = !ui.stage; chips(); };
   $('profileChip').onclick = () => setProfile(PROFILES[(PROFILES.indexOf(ui.profile) + 1) % PROFILES.length]);
   $('soundBtn').onclick = () => { ui.sound = !ui.sound; A.Audio.on = ui.sound; chips(); };
@@ -81,10 +81,36 @@
 
   $('weekBtn').href = 'patient.html' + location.search;
 
+  const phone = window.matchMedia?.('(max-width: 760px)').matches;
+  if (phone && !q.has('dev')) $('demoBox').prepend(document.querySelector('#start .chips'));
+
+  const hubKey = 'afferent.hub';
+  const normHub = v => {
+    v = (v || '').trim().replace(/\/+$/, '');
+    if (!v) return '';
+    if (!/^(https?|wss?):\/\//.test(v)) v = 'http://' + v;
+    if (!/:\d+$/.test(v.replace(/^[a-z]+:\/\//, ''))) v += ':8000';
+    return v;
+  };
+  try { $('hubAddr').value = localStorage.getItem(hubKey) || ''; } catch {}
+  $('hubForm').onsubmit = e => {
+    e.preventDefault();
+    const v = normHub($('hubAddr').value);
+    try { v ? localStorage.setItem(hubKey, v) : localStorage.removeItem(hubKey); } catch {}
+    location.reload();
+  };
+
+  const morningText = () => {
+    $('endText').textContent = ui.clock === 'night' ? 'Rest well.' : 'Good morning.';
+    $('decline').textContent = ui.clock === 'night' ? 'Not tonight' : 'Not today';
+    $('end').classList.toggle('night', ui.clock === 'night');
+  };
+  morningText();
+
   const show = (id, on) => $(id).classList.toggle('hidden', !on);
   const crisis = source => {
     show('crisis', true);
-    A.bus.emit('ws', { type: 'crisis', patient_id: A.config.patientId, source, t_iso: A.Record.isoLocal(new Date()) });
+    A.bus.emit('ws', { type: 'crisis', patient_id: A.config.patientId, ...(A.session?.rec?.session_id ? { session_id: A.session.rec.session_id } : {}), source, t_iso: A.Record.isoLocal(new Date()) });
     log('crisis card opened (' + source + ')');
   };
   document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
@@ -220,11 +246,11 @@
     el.addEventListener('pointerup', () => delete el.dataset.active);
     el.oninput = () => { A.Sim[key] = Number(el.value); A.Sim.holdUntil = 0; };
   }
-  const presets = { stressBtn: { offset: 22 }, flatBtn: { offset: -9 }, tiredBtn: { drowsy: 0.85 }, normalBtn: { offset: 0, drowsy: 0 } };
-  for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + id.replace('Btn', '')); };
+  const presets = { stressBtn: { offset: 22 }, flatBtn: { offset: -9 }, tiredBtn: { drowsy: 0.85 }, shutBtn: { eyesShut: true }, normalBtn: { offset: 0, drowsy: 0, eyesShut: false } };
+  for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + $(id).textContent); };
 
   const Hub = A.Hub;
-  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); log(on ? 'hub connected' : 'hub disconnected'); });
+  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = 'Hub: ' + (on ? 'connected' : 'offline') + (Hub.url ? ' (' + Hub.httpBase() + ')' : ''); log(on ? 'hub connected' : 'hub disconnected'); });
   Hub.on('config', c => {
     if (c.baseline_pulse_bpm) A.config.baselinePulse = c.baseline_pulse_bpm;
     if (Number.isFinite(c.dawn_level)) setDawn(c.dawn_level);
@@ -237,8 +263,8 @@
   Hub.on('profile', d => setProfile(d.profile, 'hub'));
   Hub.on('privacy', d => applyPrivacy(d.privacy));
   Hub.on('demo_reset', () => log('hub demo reset'));
-  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) log('no hub, offline mode');
-  else log('hub ' + Hub.url);
+  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) { log('no hub, offline mode'); $('hubState').textContent = 'Hub: not set. Enter the address shown by ./start.sh.'; }
+  else { log('hub ' + Hub.url); $('hubState').textContent = 'Hub: connecting to ' + Hub.httpBase(); }
 
   const MODE_COL = { ...Object.fromEntries(Object.entries(A.MODES).map(([k, v]) => [k, v.colour])), measure: '#B79CFF' };
   const tl = $('timeline'), tctx = tl.getContext('2d');
