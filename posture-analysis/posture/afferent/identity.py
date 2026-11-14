@@ -40,6 +40,7 @@ class PersonTrack:
     kpts: np.ndarray
     last_seen: float
     face: FaceObs | None = None
+    occluded: bool = False  # True when returning cached data during brief occlusion
 
 
 def cosine(a: np.ndarray, b: np.ndarray) -> float:
@@ -71,10 +72,14 @@ def centroid(bbox: tuple[float, float, float, float]) -> tuple[float, float]:
 class PersonTracker:
     """Minimal IoU tracker giving stable ids to person detections."""
 
-    def __init__(self, iou_thr: float = 0.3):
+    def __init__(self, iou_thr: float = 0.3,
+                 crossing_iou_thr: float = 0.15):
         self.iou_thr = iou_thr
+        self.crossing_iou_thr = crossing_iou_thr
         self.tracks: dict[int, PersonTrack] = {}
         self._next_id = 1
+        # Track ids involved in a crossing this frame
+        self.crossing_ids: set[int] = set()
 
     def update(self, persons: list[dict], t: float) -> list[PersonTrack]:
         """persons: [{bbox, kpts}]. Returns tracks matched to detections."""
@@ -113,6 +118,16 @@ class PersonTracker:
                  if t - tr.last_seen > 2.0]
         for tid in stale:
             del self.tracks[tid]
+
+        # Detect crossings: pairs of active tracks with significant overlap
+        self.crossing_ids = set()
+        active = [tr for tr in out if t - tr.last_seen < 0.5]
+        for i, a in enumerate(active):
+            for b in active[i + 1:]:
+                if iou(a.bbox, b.bbox) >= self.crossing_iou_thr:
+                    self.crossing_ids.add(a.track_id)
+                    self.crossing_ids.add(b.track_id)
+
         return out
 
 
@@ -147,6 +162,8 @@ class IdentityTracker:
         # cumulative seconds of fresh-face mismatch while LOCKED
         self._mismatch_s = 0.0
         self._mismatch_last_t: float | None = None
+        # After a crossing, require face re-verification before measuring
+        self._needs_reverify = False
 
         # enrollment
         self.enrolling = False
@@ -197,15 +214,26 @@ class IdentityTracker:
                          None)
             if match is not None:
                 self.target = match
+                self.target.occluded = False
                 self._last_seen_t = t
+                # Detect crossing: if the locked target is involved in a
+                # bbox overlap with another person, require face reverify
+                if tid in self._tracker.crossing_ids:
+                    self._needs_reverify = True
                 if self._verify_locked(t, fresh):
+                    # If reverification is pending, mark as occluded so
+                    # the pipeline does not aggregate stale/wrong data
+                    if self._needs_reverify:
+                        self.target.occluded = True
                     return self.target
                 # persistent face mismatch: lock dropped -> LOST
                 self.target = None
                 return None
             if t - self._last_seen_t <= self.lost_after_s:
                 # brief occlusion: keep returning the last known track so
-                # the smoother and gait buffer are not reset every frame
+                # the smoother and gait buffer are not reset every frame,
+                # but mark it occluded so the pipeline skips measurements
+                self.target.occluded = True
                 return self.target
             self._transition(STATE_LOST, t, self.last_match_score)
             self.target = None
@@ -220,6 +248,7 @@ class IdentityTracker:
             self._last_seen_t = t
             self._mismatch_s = 0.0
             self._mismatch_last_t = None
+            self._needs_reverify = False
             return locked
         return None
 
@@ -319,6 +348,9 @@ class IdentityTracker:
         elif relevant:
             self._mismatch_s = 0.0
             self._mismatch_last_t = None
+            # Good face match clears any pending crossing reverification
+            if best_score >= self.threshold:
+                self._needs_reverify = False
         return True
 
     def _collect_enrollment(self, tracks: list[PersonTrack],

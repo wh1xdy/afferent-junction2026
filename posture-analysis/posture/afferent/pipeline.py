@@ -136,6 +136,8 @@ class FrameProcessor:
         self._frames_with_target = 0
         self._last_had_persons = False  # read by process() from frame 0
         self.last_result: dict[str, Any] = {}
+        # Per-episode posture angle buffer: list of {angle_name: value}
+        self._episode_angles: list[dict[str, float | None]] = []
 
     # -- site (room) ------------------------------------------------------------
     def _load_site_calibration(self) -> None:
@@ -145,6 +147,8 @@ class FrameProcessor:
         self.ref_shoulder_hip_px = self.storage.get_config(
             "ref_shoulder_hip_px")
         self.ref_trunk_len_px = self.storage.get_config("ref_trunk_len_px")
+        self.ref_trunk_angle_deg = self.storage.get_config(
+            "ref_trunk_angle_deg")
 
     def set_site(self, site: str) -> None:
         """Switch the active site (room). Pending minute buffers are flushed
@@ -211,8 +215,17 @@ class FrameProcessor:
 
         res["target"] = True
         self._frames_with_target += 1
-        kpts = self.smoother.update(target["kpts"], t)
-        bbox = target["bbox"]
+
+        # During brief occlusion the identity tracker returns a cached
+        # track with stale keypoints. Keep the lock but skip all
+        # measurements so duplicate data never enters the aggregates.
+        if target.occluded:
+            res["occluded"] = True
+            self.last_result = res
+            return res
+
+        kpts = self.smoother.update(target.kpts, t)
+        bbox = target.bbox
         self.recent_kpts(kpts)
         res["_persons"] = [
             {"bbox": tuple(float(v) for v in p["bbox"]),
@@ -231,7 +244,8 @@ class FrameProcessor:
         res["speed"] = fs.speed
 
         angles = geo.compute_frame_angles(kpts, fs.orientation,
-                                          self.ref_shoulder_hip_px)
+                                          self.ref_shoulder_hip_px,
+                                          self.ref_trunk_angle_deg)
         res["angles"] = angles
         self.minute_agg.add(t, fs.activity, fs.orientation, angles,
                             angles.get("slump_index"))
@@ -265,7 +279,7 @@ class FrameProcessor:
                 smile_score(face_metrics.blendshapes))
 
         # gait buffer + step detection while walking
-        gait_sample = self._make_gait_sample(kpts, t)
+        gait_sample = self._make_gait_sample(kpts, t, fs.orientation)
         if fs.activity == "walking":
             if not self._gait_buf:
                 self._gait_buf_start = t
@@ -278,6 +292,10 @@ class FrameProcessor:
             self._close_gait(t)
 
         self.episodes.update(fs)
+        # Append angles AFTER episodes.update so that _on_episode (called
+        # on episode boundary) sees only frames from the ended episode,
+        # not the first frame of the new one.
+        self._episode_angles.append(angles)
         if self.session is not None:
             self.session.update(t, kpts, fs, target)
 
@@ -289,7 +307,8 @@ class FrameProcessor:
         return res
 
     # -- gait -------------------------------------------------------------------
-    def _make_gait_sample(self, kpts: np.ndarray, t: float) -> gait_mod.GaitSample:
+    def _make_gait_sample(self, kpts: np.ndarray, t: float,
+                          orientation: str = "unknown") -> gait_mod.GaitSample:
         mh = geo.mid_hip(kpts)
         head = geo._pt(kpts, kp.HEAD)
         # hip floor position for speed (homography ground-plane approx)
@@ -305,7 +324,8 @@ class FrameProcessor:
             trunk_len=geo.trunk_length(kpts),
             trunk_inclination=geo.trunk_inclination_deg(kpts),
             arm_angles=(la, ra),
-            floor_pos=hip_floor)
+            floor_pos=hip_floor,
+            orientation=orientation)
 
     def _close_gait(self, t: float) -> None:
         if len(self._gait_buf) >= 10:
@@ -317,14 +337,35 @@ class FrameProcessor:
             }
         self._gait_buf = []
 
+    @staticmethod
+    def _posture_stats(angle_buf: list[dict[str, float | None]]
+                       ) -> dict[str, Any]:
+        """Median / p10 / p90 of each angle across an episode's frames."""
+        out: dict[str, Any] = {}
+        if not angle_buf:
+            return out
+        keys = angle_buf[0].keys()
+        for k in keys:
+            vals = [f[k] for f in angle_buf if f.get(k) is not None]
+            if not vals:
+                continue
+            arr = np.array(vals)
+            out[k] = {
+                "median": round(float(np.median(arr)), 2),
+                "p10": round(float(np.percentile(arr, 10)), 2),
+                "p90": round(float(np.percentile(arr, 90)), 2),
+                "n": len(vals),
+            }
+        return out
+
     def _on_episode(self, ep: dict) -> None:
-        variables = None
+        variables: dict[str, Any] = {}
         gait_res = None
         lg = self._last_gait
         if lg is not None and ep["type"] == "walk" and \
                 abs(lg["start"] - ep["start"]) < 2.0:
             gait_res = lg["result"]
-            variables = {
+            variables.update({
                 "speed_m_s": gait_res.speed_m_s,
                 "cadence_steps_min": gait_res.cadence_steps_min,
                 "step_length_m": gait_res.step_length_m,
@@ -338,9 +379,16 @@ class FrameProcessor:
                 "calibrated": gait_res.calibrated,
                 "effective_fps": gait_res.effective_fps,
                 "undersampled": gait_res.undersampled,
-            }
+            })
+
+        # Posture stats for every episode type (walk, stand, sit)
+        posture = self._posture_stats(self._episode_angles)
+        if posture:
+            variables["posture"] = posture
+        self._episode_angles = []
+
         self.storage.add_episode(
-            ep, variables=variables,
+            ep, variables=variables or None,
             extractor_version=self.cfg.extractor_version,
             model_version=self.cfg.model_version)
 
@@ -360,7 +408,7 @@ class FrameProcessor:
             samples = self.session.upright_samples
         else:
             samples = getattr(self, "_recent_kpts", None) or []
-        trunks, shd = [], []
+        trunks, shd, angles = [], [], []
         for k in samples:
             tl = geo.trunk_length(k)
             ms, mh = geo.mid_shoulder(k), geo.mid_hip(k)
@@ -368,16 +416,24 @@ class FrameProcessor:
                 trunks.append(tl)
             if ms is not None and mh is not None:
                 shd.append(abs(float(ms[1] - mh[1])))
+            a = geo.trunk_inclination_deg(k)
+            if a is not None:
+                angles.append(a)
         if len(trunks) < 5:
             return None
         ref_tl = float(np.median(trunks))
         ref_sh = float(np.median(shd)) if shd else None
+        ref_angle = float(np.median(angles)) if angles else None
         self.ref_trunk_len_px = ref_tl
         if ref_sh:
             self.ref_shoulder_hip_px = ref_sh
             self.storage.set_config("ref_shoulder_hip_px", ref_sh)
+        if ref_angle is not None:
+            self.ref_trunk_angle_deg = ref_angle
+            self.storage.set_config("ref_trunk_angle_deg", ref_angle)
         self.storage.set_config("ref_trunk_len_px", ref_tl)
         return {"ref_trunk_len_px": ref_tl, "ref_shoulder_hip_px": ref_sh,
+                "ref_trunk_angle_deg": ref_angle,
                 "n_samples": len(trunks)}
 
     def recent_kpts(self, kpts: np.ndarray) -> None:
@@ -494,7 +550,8 @@ class GuidedSession:
                 trunk_len=geo.trunk_length(kpts),
                 trunk_inclination=geo.trunk_inclination_deg(kpts),
                 arm_angles=(la, ra),
-                floor_pos=hip_floor))
+                floor_pos=hip_floor,
+                orientation=fs.orientation))
             if t - self.walk_start > self.WALK_TIMEOUT_S:
                 self._finish(t)
 
@@ -513,6 +570,7 @@ class GuidedSession:
         upright_ref = {
             "ref_trunk_len_px": self.p.ref_trunk_len_px,
             "ref_shoulder_hip_px": self.p.ref_shoulder_hip_px,
+            "ref_trunk_angle_deg": self.p.ref_trunk_angle_deg,
             "n_upright_samples": len(self.upright_samples),
         }
         variables = {"upright": upright_ref}
@@ -691,10 +749,12 @@ class Pipeline:
         if res.get("angles"):
             a = res["angles"]
             lines.append(
-                "neck:{} trunk:{} asym:{} tilt:{} slump:{}".format(
+                "neck:{} trk:{} trkL:{} asym:{} tilt:{} slump:{} ht:{}".format(
                     _fmt(a.get("neck_flexion")), _fmt(a.get("trunk_inclination")),
+                    _fmt(a.get("trunk_lateral_inclination")),
                     _fmt(a.get("shoulder_asymmetry")),
-                    _fmt(a.get("head_lateral_tilt")), _fmt(a.get("slump_index"))))
+                    _fmt(a.get("head_lateral_tilt")), _fmt(a.get("slump_index")),
+                    _fmt(a.get("head_trunk_angle"))))
         if res.get("face"):
             f = res["face"]
             lines.append(

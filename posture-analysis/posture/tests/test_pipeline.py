@@ -1,9 +1,14 @@
 """Pipeline-level units: StepDetector scaling + FrameProcessor init."""
 import math
 
+import numpy as np
+
 from afferent.config import Config
+from afferent.identity import FaceObs, STATE_LOCKED
 from afferent.pipeline import FrameProcessor, StepDetector
 from afferent.storage import Storage
+
+from conftest import make_kpts
 
 
 def test_frame_processor_init_last_had_persons(tmp_path):
@@ -45,3 +50,54 @@ def test_step_detector_no_trunk_falls_back_to_fixed_floor():
         hip_y = 300.0 + 2.0 * math.sin(2 * math.pi * 1.8 * t)
         steps += sd.update(t, hip_y)  # range ~4 > 2 -> steps
     assert steps >= 2
+
+
+def _emb(seed: int, dim: int = 128) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    v = rng.normal(size=dim)
+    return v / np.linalg.norm(v)
+
+
+def test_pipeline_locked_target_produces_angles(tmp_path):
+    """Full pipeline path: SEARCH -> LOCKED produces valid angles.
+
+    Regression test for the target['kpts'] / target.kpts bug: without the
+    fix, a TypeError is raised during process() when the identity locks.
+    """
+    st = Storage(str(tmp_path / "pipe.db"))
+    proc = FrameProcessor(Config(), st)
+
+    # Stub pose estimator: returns one person with known keypoints.
+    kpts = make_kpts(facing="profile")
+    person_bbox = (250, 50, 400, 440)
+
+    class _FakePose:
+        def __call__(self, image, force_detect=False):
+            return [{"bbox": person_bbox, "kpts": kpts.copy()}]
+
+    proc.pose = _FakePose()
+    proc.face = None  # bypass face module; inject faces directly
+
+    # Enroll a target embedding in the gallery.
+    target_emb = _emb(42)
+    st.add_gallery(target_emb, "enrolement")
+
+    # First frame: inject a matching face and process.
+    face = FaceObs(
+        bbox=(300, 60, 380, 130),
+        embedding=target_emb + 0.01 * _emb(43),
+        score=0.95, t=0.0,
+    )
+    proc.identity.set_faces([face])
+    image = np.zeros((480, 640, 3), dtype=np.uint8)
+    res = proc.process(image, 0.0)
+
+    assert res["identity"] == STATE_LOCKED, f"expected LOCKED, got {res['identity']}"
+    assert res["target"] is True
+    # Profile view: trunk_inclination and neck_flexion should be computed.
+    assert res["angles"].get("trunk_inclination") is not None or \
+        res["angles"].get("neck_flexion") is not None
+    assert res.get("kpts") is not None
+    assert res.get("bbox") is not None
+
+    st.close()

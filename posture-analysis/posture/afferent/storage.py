@@ -33,7 +33,8 @@ SCHEMA_VERSION = 3
 # rooms, each with its own floor homography and upright references. They
 # are stored internally as "site:<site>:<key>"; all other keys are global.
 SITE_SCOPED_KEYS = frozenset({
-    "floor_homography", "ref_shoulder_hip_px", "ref_trunk_len_px"})
+    "floor_homography", "ref_shoulder_hip_px", "ref_trunk_len_px",
+    "ref_trunk_angle_deg"})
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_version (

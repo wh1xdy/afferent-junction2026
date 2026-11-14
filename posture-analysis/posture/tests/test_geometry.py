@@ -67,6 +67,33 @@ def test_slump_index():
     assert geo.slump_index(k, None) is None
 
 
+def test_head_trunk_angle_upright():
+    """With head stacked over shoulders, angle is small."""
+    k = make_kpts(facing="profile")
+    a = geo.head_trunk_angle_deg(k)
+    assert a is not None and a < 30.0
+
+
+def test_head_trunk_angle_forward_head():
+    """Head thrust forward -> head_trunk_angle increases."""
+    k = make_kpts(facing="profile")
+    # Move ears far forward (+x) relative to shoulders
+    k[kp.LEFT_EAR] = (400, 100, 0.9)
+    k[kp.RIGHT_EAR] = (400, 100, 0.9)
+    a = geo.head_trunk_angle_deg(k)
+    assert a is not None and a > 40.0
+
+
+def test_head_trunk_angle_uses_best_ear():
+    """When only one ear is visible, use that one."""
+    k = make_kpts(facing="profile")
+    # Left ear invisible, right ear visible
+    k[kp.LEFT_EAR] = (np.nan, np.nan, 0.0)
+    k[kp.RIGHT_EAR] = (335, 100, 0.9)
+    a = geo.head_trunk_angle_deg(k)
+    assert a is not None
+
+
 def test_trunk_length():
     k = make_kpts()
     tl = geo.trunk_length(k)
@@ -103,13 +130,20 @@ def test_orientation_contradiction():
 def test_valid_angles_table():
     v = geo.valid_angles("face")
     assert v["neck_flexion"] == "no"
+    assert v["trunk_inclination"] == "no"
+    assert v["trunk_lateral_inclination"] == "yes"
     assert v["shoulder_asymmetry"] == "yes"
     assert v["head_lateral_tilt"] == "yes"
+    assert v["head_trunk_angle"] == "yes"
     v = geo.valid_angles("profile")
     assert v["neck_flexion"] == "yes" and v["trunk_inclination"] == "yes"
+    assert v["trunk_lateral_inclination"] == "no"
     assert v["shoulder_asymmetry"] == "no"
+    assert v["head_trunk_angle"] == "yes"
     v = geo.valid_angles("back")
     assert v["neck_flexion"] == "no" and v["shoulder_asymmetry"] == "yes"
+    assert v["trunk_lateral_inclination"] == "yes"
+    assert v["head_trunk_angle"] == "no"
     # unknown orientation -> everything invalid
     assert all(x == "no" for x in geo.valid_angles("unknown").values())
 
@@ -117,13 +151,18 @@ def test_valid_angles_table():
 def test_compute_frame_angles_respects_orientation():
     k = make_kpts(facing="front")
     angles = geo.compute_frame_angles(k, "face", ref_shoulder_hip_px=100.0)
-    # face view: neck/trunk invalid -> None; asymmetry/tilt/slump computed
+    # face view: neck/trunk(AP) invalid -> None; lateral trunk + asymmetry/tilt/slump computed
     assert angles["neck_flexion"] is None
     assert angles["trunk_inclination"] is None
+    assert angles["trunk_lateral_inclination"] is not None
     assert angles["shoulder_asymmetry"] is not None
     assert angles["head_lateral_tilt"] is not None
     assert angles["slump_index"] is not None
+    assert angles["head_trunk_angle"] is not None
     angles_p = geo.compute_frame_angles(k, "profile",
                                         ref_shoulder_hip_px=100.0)
     assert angles_p["neck_flexion"] is not None
+    assert angles_p["trunk_inclination"] is not None
+    assert angles_p["trunk_lateral_inclination"] is None
     assert angles_p["shoulder_asymmetry"] is None
+    assert angles_p["head_trunk_angle"] is not None

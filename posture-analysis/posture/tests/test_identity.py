@@ -74,14 +74,22 @@ def test_brief_occlusion_keeps_last_track(tmp_path):
     it.set_faces([_face_in((330, 80, 390, 140), _emb(10), t=0.0)])
     target = it.update(0.0, [_person()])
     assert it.state == STATE_LOCKED and target is not None
+    assert not target.occluded
 
-    # detection drops for < lost_after_s: still LOCKED, same track kept
+    # detection drops for < lost_after_s: still LOCKED, same track kept,
+    # but marked as occluded so the pipeline skips measurements
     kept = it.update(0.4, [])
     assert it.state == STATE_LOCKED
     assert kept is not None and kept.track_id == target.track_id
+    assert kept.occluded is True
+
+    # target reappears -> no longer occluded
+    it.set_faces([_face_in((330, 80, 390, 140), _emb(10), t=0.6)])
+    reacquired = it.update(0.6, [_person()])
+    assert reacquired is not None and not reacquired.occluded
 
     # beyond lost_after_s -> LOST and no track
-    assert it.update(2.0, []) is None
+    assert it.update(2.6, []) is None
     assert it.state == STATE_LOST
     st.close()
 
@@ -168,6 +176,41 @@ def test_face_outside_person_not_locked(tmp_path):
     it.set_faces([_face_in((600, 300, 660, 360), emb)])
     t = it.update(0.0, [_person(bbox=(300, 50, 500, 400))])
     assert t is None and it.state == STATE_SEARCH
+    st.close()
+
+
+def test_crossing_requires_reverification(tmp_path):
+    """When two person bboxes overlap (crossing), the target should be
+    marked occluded until a fresh face re-verifies identity."""
+    st = _storage(tmp_path)
+    target_emb = _emb(10)
+    st.add_gallery(target_emb, "enrolement")
+    it = IdentityTracker(st, threshold=0.4, lost_after_s=3.0)
+
+    # Lock on the target
+    it.set_faces([_face_in((330, 80, 390, 140), target_emb, t=0.0)])
+    t = it.update(0.0, [_person(bbox=(300, 50, 500, 400))])
+    assert it.state == STATE_LOCKED and t is not None
+    assert not t.occluded
+
+    # Two persons with overlapping bboxes -> crossing
+    persons = [
+        _person(bbox=(300, 50, 500, 400)),   # target
+        _person(bbox=(350, 50, 550, 400)),   # other person, overlapping
+    ]
+    it.set_faces([])  # no face visible (target is from behind)
+    t2 = it.update(0.5, persons)
+    assert it.state == STATE_LOCKED
+    assert t2 is not None
+    # After crossing, should be marked occluded (pending reverification)
+    assert t2.occluded is True
+
+    # Face re-verification clears the reverification flag
+    it.set_faces([_face_in((330, 80, 390, 140), target_emb, t=1.0)])
+    t3 = it.update(1.0, [_person(bbox=(300, 50, 500, 400))])
+    assert t3 is not None
+    assert not t3.occluded
+
     st.close()
 
 
