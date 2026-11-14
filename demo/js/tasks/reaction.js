@@ -339,12 +339,14 @@
       const B = state(s), g = geo();
       B.dip = J.at; B.twitch = J.at; B.judge = { t: J.at, label: 'Too early' };
       if (B.fl.m === 'bite') B.fl = { m: 'water', t: J.at };
+      J.verdict('wrong', g.x, g.y, g.S * 0.07);
       ripple(B, g.x, g.y, 6 * g.U, 24 * g.U, 0.5, 0.35);
       J.hap('miss', 0.8); J.sfx('bite_tap_water');
     },
     resolve(s, trial, now) {
       const B = state(s), tr = s.core.trial, g = geo(), at = J.at;
       if (trial.rt_ms !== null) B.judge = { t: at, ms: trial.rt_ms, label: grade(trial.rt_ms) };
+      J.verdict(trial.outcome === 'hit' ? 'right' : 'miss', g.x, g.y, g.S * 0.07);
       if (trial.outcome === 'miss') {
         B.fl = { m: 'sink', t: at }; B.yank = at;
         B.fish.push({ t: at + (J.rm() ? 0.1 : 0), kind: 'swim', x0: g.x, y0: g.y, dur: J.rm() ? 0.4 : 0.8, bead: trial.trial });

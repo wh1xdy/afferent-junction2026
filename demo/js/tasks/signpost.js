@@ -65,12 +65,14 @@
         },
 
         cur() { return this.state === 'show' ? this.trials[this.i] : null; },
+        mark(kind, c) { const b = this.b; if (b) { const U = unit(b); J.verdict(kind, b.x + b.w / 2 + c.side * b.w * 0.27, b.y + b.h * 0.62 - 50 * U, 40 * U); } },
 
         respond(dir, t) {
           const c = this.cur();
           if (!c || c.resp !== null) return;
           c.resp = dir; c.rt = Math.max(0, t - c.on); c.ok = dir === c.dir;
           this.flashAt = J.at; this.flashOk = c.ok; this.flashSide = c.side;
+          this.mark(c.ok ? 'right' : 'wrong', c);
           const b = this.b;
           if (c.ok) {
             if (b) { const U = unit(b), sx = b.x + b.w / 2 + c.side * b.w * 0.27; fx.burst(sx + dir * 30 * U, b.y + b.h * 0.42, 10, C.glow, 130 * U, { kind: 'spark', size: [4 * U, 1] }); }
@@ -89,7 +91,7 @@
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           }
           if (this.state === 'fix' && this.t - this.stateAt >= FIX) { this.state = 'show'; this.stateAt = this.t; this.trials[this.i].on = now; this.trials[this.i].onAt = J.at; }
-          if (this.state === 'show' && this.t - this.stateAt >= LIMIT) { const c = this.trials[this.i]; c.ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); }
+          if (this.state === 'show' && this.t - this.stateAt >= LIMIT) { const c = this.trials[this.i]; c.ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); this.mark('miss', c); }
         },
 
         down(u, v, t) { if (this.done) return; this.lastIn = this.t; this.ptr = { u, v, t, fired: false }; },
