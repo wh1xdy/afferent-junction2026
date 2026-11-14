@@ -1,0 +1,549 @@
+{
+ "version": 1,
+ "note": "Minigame task assets (task_<id>_*) from design/minigames.md section 3. Run: python3 art/generate.py --plan art/tasks_plan.json --only <names>. Separate from plan.json so the world-art plan is untouched.",
+ "style": "Hand-painted 2D side-view art for a calm, wordless mobile game set on a small Finnish archipelago island in winter. Soft gouache and watercolour texture with subtle paper grain, simple flat layered shapes with gentle internal gradients, no outlines, no hard cel shading, no glossy highlights, no 3D render look. Clear value structure that still reads in greyscale: light snow tops, mid-value bodies, darker bases. Restrained palette: night blue #1C2548, slate #28335E, violet #5B4B8A, silver #B9CAD6, snow #E8EEF5, birch bark #E8E1D2, moss #4A6B3F, spruce #16323A, ice #7FC8E8, sea #2A5C80, wood #7A5638, amber #D98E2B, coral #F49D6E, gold #FFD27A. Quiet, hopeful, uncluttered, generous negative space. No text, no letters, no numbers, no logos, no signature, no watermark, no faces.",
+ "isolated": "Isolated element on a fully transparent background. Nothing else in the image beyond what is named: no sky, no backdrop, no frame, no vignette, no border, no ground, no extra objects, buildings, islands or water unless named.",
+ "backdrop": "Full-bleed painting that fills the entire frame edge to edge, lighting painted in, no frame, no border, no vignette.",
+ "assets": [
+  {
+   "name": "task_reaction_float",
+   "size": "1024x1024",
+   "spec_size": "512x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A tiny round wooden fishing float, dark wood lower half, a softly glowing warm amber bead of light on top, side view, centred, transparent background, no text."
+  },
+  {
+   "name": "task_reaction_light_fish",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A small stylised fish made entirely of soft glowing warm amber light, translucent body, smooth rounded shape, a short soft trail of light behind the tail, no eyes, no scales, no hook, side view, transparent background, no text."
+  },
+  {
+   "name": "task_reaction_splash_sheet",
+   "size": "1536x1024",
+   "spec_size": "1536x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Four frames in a row of a small water splash crown made of pale silver and warm amber light droplets, growing from a flat ring to a crown to scattered droplets, side view, evenly spaced, transparent background, no text. Composition: one wide, low horizontal arrangement about 3 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_reaction_bite_glow",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A soft round burst of warm white light resting on dark water with one faint ripple ring around it, centred, fading smoothly to transparent at the edges, no lens flare, transparent background."
+  },
+  {
+   "name": "task_reaction_figure_rod",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "B",
+   "tag": "prio B",
+   "quality": "medium",
+   "prompt": "The same small hooded figure in a long cloak standing at the end of a short wooden pier, seen from the side facing right, holding a long thin wooden pole angled out over the water, a small glowing hand lantern hanging from the pole tip, no face visible, simple rounded shapes, transparent background."
+  },
+  {
+   "name": "task_fork_fell",
+   "size": "1024x1536",
+   "spec_size": "1024x1536",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "high",
+   "prompt": "A steep snowy fell rising from low ground at the bottom left to a high rounded summit at the top right, a narrow switchback footpath of flat stepping stones zigzagging up the slope, two slender bare birches near the top, deep cool blue snow shadows, nothing else, transparent background, no text."
+  },
+  {
+   "name": "task_fork_shore",
+   "size": "1024x1536",
+   "spec_size": "1024x1536",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A low gentle snowy shoreline curving beside a dark frozen lake in the lower half of the image, a short footpath of three flat stepping stones, a still faint reflection on the ice near the end of the path, empty sky above, transparent background, no text."
+  },
+  {
+   "name": "task_fork_cairn",
+   "size": "1024x1536",
+   "spec_size": "512x768",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A small stacked-stone cairn with a shallow iron fire bowl on top, bowl unlit, a little snow on the stones, side view, transparent background, no text."
+  },
+  {
+   "name": "task_fork_waymarker_sheet",
+   "size": "1536x1024",
+   "spec_size": "1024x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Two small Nordic stacked-stone waymarkers side by side, each with a small niche holding a candle, the left one unlit in cold grey-blue stone, the right one lit with a small warm amber flame and a soft glow on the stones, transparent background, no text. Composition: one wide, low horizontal arrangement about 2 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_fork_figure_hop",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "B",
+   "tag": "prio B",
+   "quality": "medium",
+   "prompt": "The same small hooded figure in a long cloak seen from the side, mid-hop with knees tucked and cloak flaring, holding a lantern on a short pole, a short soft scarf trailing, no face visible, transparent background."
+  },
+  {
+   "name": "task_lanterns_pier_rope",
+   "size": "1536x1024",
+   "spec_size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Two dark weathered wooden pier posts at the left and right edges with a single slack rope hanging in a gentle curve between them across the middle of the image, open empty space above, a calm dark water strip along the bottom, transparent background, no text."
+  },
+  {
+   "name": "task_lanterns_lantern",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "high",
+   "prompt": "A single small hand lantern hanging from a short metal clip hook, rounded rectangular glass body, simple dark metal cap and base, glass rendered neutral pale grey so it can be tinted, no flame, front view, transparent background, no text."
+  },
+  {
+   "name": "task_lanterns_flame",
+   "size": "1024x1024",
+   "spec_size": "512x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A single soft teardrop candle flame, pale cream core fading to warm amber edges, transparent background."
+  },
+  {
+   "name": "task_lanterns_sky_bloom",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A soft circular burst of warm golden light with very faint thin rays, fading smoothly to transparent at the edges, no hard rim, transparent background."
+  },
+  {
+   "name": "task_lanterns_warm_star",
+   "size": "1024x1024",
+   "spec_size": "256x256",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "One small soft four-point star with a warm amber glow halo, transparent background."
+  },
+  {
+   "name": "task_breath_petals_open",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Six overlapping translucent watercolour petals arranged in a circle like an opening flower seen from the front, pale warm amber at the centre fading to soft teal at the tips, glowing edges, very soft, transparent background, no text."
+  },
+  {
+   "name": "task_breath_petals_bud",
+   "size": "1024x1024",
+   "spec_size": "512x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Six translucent watercolour petals folded tightly into a small closed bud around a point of warm light, pale amber and soft teal, transparent background."
+  },
+  {
+   "name": "task_breath_mote",
+   "size": "1024x1024",
+   "spec_size": "64x64",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A tiny soft speck of warm white light with a faint halo, like a snow crystal catching lantern light, transparent background."
+  },
+  {
+   "name": "task_breath_ring",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A thin soft ring of pale gold light painted in watercolour, slightly uneven brush edge, faint inner glow, empty transparent centre, transparent background."
+  },
+  {
+   "name": "task_breath_ring_night",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A thin soft ring of deep night-blue light in watercolour, soft uneven edge, empty transparent centre, transparent background."
+  },
+  {
+   "name": "task_breath_frost_glints",
+   "size": "1536x1024",
+   "spec_size": "1024x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Frost sparkle along the tips of bare birch branches, tiny cold-white glints only, no trunks, transparent background. Composition: one wide, low horizontal arrangement about 2 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_breath_window_warm",
+   "size": "1024x1024",
+   "spec_size": "512x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "The warm amber glow of a small square sauna window in a dark log wall, soft bloom spilling outwards, no frame detail, transparent background."
+  },
+  {
+   "name": "task_breath_harbour_windows",
+   "size": "1536x1024",
+   "spec_size": "1536x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "v2",
+   "quality": "medium",
+   "prompt": "A strip of small harbour house silhouettes at night with small square windows, half of them lit warm amber, half dark, Finnish harbour, transparent background. Composition: one wide, low horizontal arrangement about 3 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_loyly_ladle",
+   "size": "1536x1024",
+   "spec_size": "1024x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A traditional Finnish wooden sauna ladle with a long slender birch handle and a deep round carved bowl, warm honey-brown wood, side view tilted slightly towards the viewer, nothing else, transparent background, no text. Composition: one wide, low horizontal arrangement about 2 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_loyly_bucket",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A small wooden sauna bucket with vertical staves and two dark metal bands, filled to the brim with calm dark teal water reflecting one soft highlight, side view, nothing else, transparent background."
+  },
+  {
+   "name": "task_loyly_kiuas",
+   "size": "1536x1024",
+   "spec_size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "high",
+   "prompt": "A low dark iron sauna stove seen from the side, a small open grate with glowing amber embers below, an empty flat top where stones will sit, warm light from below, soft shadows, transparent background, no text."
+  },
+  {
+   "name": "task_loyly_steam_puff",
+   "size": "1024x1024",
+   "spec_size": "512x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A single soft round puff of white steam in watercolour, feathered edges fading to fully transparent, no hard outline, transparent background."
+  },
+  {
+   "name": "task_loyly_panel_fog",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A soft warm condensation fog texture, faint flame-cream colour with tiny scattered droplets, densest at the top and fading to transparent at the bottom, tileable, transparent background."
+  },
+  {
+   "name": "task_threads_loom_frame",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A square weaving frame made of pale birch wood seen straight from the front, simple rounded corners, a thin inner border, the centre empty and transparent, soft watercolour texture, no pegs, no threads, transparent background, no text."
+  },
+  {
+   "name": "task_threads_knot_glyphs",
+   "size": "1536x1024",
+   "spec_size": "1536x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Five small glowing knots of light in a row, each a different simple shape: circle, diamond, four-point star, ring, droplet, all pure white with a soft glow so they can be tinted in code, evenly spaced, transparent background, no text. Composition: one wide, low horizontal arrangement about 3 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_threads_aurora_strand",
+   "size": "1536x1024",
+   "spec_size": "1024x256",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "One thin flowing ribbon of northern light, horizontal, soft feathered edges, pure white luminous core fading outwards, for tinting in code, transparent background. Composition: one wide, low horizontal arrangement about 4 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_stars_sky",
+   "size": "1536x1024",
+   "spec_size": "1024x512",
+   "transparent": false,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A deep night sky over the tops of a Finnish birch forest, indigo fading to near black, soft watercolour wash, very faint diagonal milky-way haze, no stars, no moon, no text. Keep all important content inside the middle horizontal band, about 75 percent of the image height; the top and bottom will be cropped."
+  },
+  {
+   "name": "task_stars_star",
+   "size": "1024x1024",
+   "spec_size": "256x256",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A single soft star glow, white-silver core fading to transparent, four thin diffraction spikes, gentle watercolour bloom, transparent background."
+  },
+  {
+   "name": "task_stars_swan_line",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "One continuous thin glowing gold brush line drawing of a whooper swan in flight, wings fully spread, neck stretched forward, no fill, like a figure on an old hand-drawn star chart, minimal, transparent background, no text."
+  },
+  {
+   "name": "task_stars_swan_line_b",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "The same thin glowing gold line drawing of the whooper swan in flight with its wings lowered in a downbeat, same style and scale, transparent background, no text."
+  },
+  {
+   "name": "task_fireflies_firefly_sheet",
+   "size": "1536x1024",
+   "spec_size": "512x128",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Four frames in a row of a single tiny firefly seen from the side, small soft dark body, two delicate translucent wings in different flutter positions, the tail segment glowing soft yellow-green, no glow halo, evenly spaced, transparent background, no text. Composition: one wide, low horizontal arrangement about 4 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_fireflies_jar",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A small old glass preserving jar with an open wire-bail lid, empty, slightly blue glass with soft highlights on the left, isolated, transparent background, no text."
+  },
+  {
+   "name": "task_fireflies_reeds",
+   "size": "1536x1024",
+   "spec_size": "1536x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A dark strip of frosted reeds and winter grasses with pale frost tips, lake ice just visible behind, horizontally tileable, transparent background. Composition: one wide, low horizontal arrangement about 3 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_fireflies_light_column",
+   "size": "1024x1536",
+   "spec_size": "512x1536",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A soft vertical column of pale green-white light rising and widening upwards, fading to transparent at the top and edges, transparent background. Composition: one tall, narrow vertical arrangement about 3 times as tall as it is wide, spanning the full height, centred horizontally, with empty transparent space left and right."
+  },
+  {
+   "name": "task_beacon_lighthouse",
+   "size": "1024x1536",
+   "spec_size": "1024x1536",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "high",
+   "prompt": "A slender white Nordic lighthouse with two dark slate-blue bands on a low rounded black rock, side view, glass lamp room with a soft warm amber glow inside, a small railing gallery, full height of the image, no surrounding landscape, transparent background, no text."
+  },
+  {
+   "name": "task_beacon_boat",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A small wooden Nordic fishing boat seen exactly from the side facing right, low dark hull, small square wheelhouse with two tiny dark windows, one short thin mast with an unlit round lantern at the top, simple rounded shapes, dark navy silhouette with a faint cool silver rim light along the top edges, transparent background, no text."
+  },
+  {
+   "name": "task_beacon_ferry",
+   "size": "1536x1024",
+   "spec_size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A small Nordic island ferry seen from the side facing right, pale upper deck with a row of five small dark windows, dark hull, one short funnel without markings, simple rounded shapes, transparent background, no text."
+  },
+  {
+   "name": "task_beacon_pier_lanterns",
+   "size": "1536x1024",
+   "spec_size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A short low wooden pier seen from the side along the bottom of the image, ten thin wooden posts each topped with a small unlit glass lantern, dark water line below, transparent background, no text."
+  },
+  {
+   "name": "task_beacon_sea",
+   "size": "1536x1024",
+   "spec_size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A horizontally tileable strip of calm dark night sea seen from the side, deep navy with a gentle long swell, thin faint silver highlights on the crests, no sky, transparent background."
+  },
+  {
+   "name": "task_bells_trio",
+   "size": "1536x1024",
+   "spec_size": "1536x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Three bronze hand bells of clearly different sizes in a row, large, medium and small, each hanging from a short leather strap, warm amber bronze with a soft inner highlight, visible clapper, side view, evenly spaced, transparent background, no text. Composition: one wide, low horizontal arrangement about 3 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  },
+  {
+   "name": "task_bells_tower",
+   "size": "1024x1536",
+   "spec_size": "512x1536",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A slim traditional Finnish wooden church bell tower seen from the side, dark weathered boards, a small pointed roof, a vertical column of four small square windows all dark, a small dark lamp opening at the top, on a low snowy rock, full height, transparent background, no text. Composition: one tall, narrow vertical arrangement about 3 times as tall as it is wide, spanning the full height, centred horizontally, with empty transparent space left and right."
+  },
+  {
+   "name": "task_bells_lamp_glow",
+   "size": "1024x1024",
+   "spec_size": "512x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Only a soft warm golden lamp glow with a gentle starburst halo fading to transparent, nothing else, transparent background."
+  },
+  {
+   "name": "task_bells_comet",
+   "size": "1024x1536",
+   "spec_size": "256x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A single small glowing spark with a short soft tapering light trail pointing upward, pale gold core, transparent background. Composition: one tall, narrow vertical arrangement about 2 times as tall as it is wide, spanning the full height, centred horizontally, with empty transparent space left and right."
+  },
+  {
+   "name": "task_shutters_rollerblind",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": false,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A single square window with a white wooden frame seen from inside a dim room at polar night, a closed pale linen roller blind with a wooden bottom bar and a round wooden pull ring on a short cord, thin cold blue light leaking at the edges, flat front view, no text."
+  },
+  {
+   "name": "task_shutters_pair",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": false,
+   "prio": "A",
+   "tag": "",
+   "quality": "high",
+   "prompt": "Seen from outside, a square window with a pair of closed louvred wooden shutters painted pale blue-grey with a small iron hook latch in the middle, snow on the sill and the top ledge, set in pale ochre horizontal board cladding, flat front view, no text."
+  },
+  {
+   "name": "task_shutters_dawn_view",
+   "size": "1536x1024",
+   "spec_size": "1536x1024",
+   "transparent": false,
+   "prio": "A",
+   "tag": "",
+   "quality": "high",
+   "prompt": "View through a window opening of a snowy shore and calm sea at winter sunrise, a low pale gold sun on the horizon, peach and pale blue sky, a small distant white lighthouse with slate-blue bands, soft watercolour, no text."
+  },
+  {
+   "name": "task_shutters_facade",
+   "size": "1536x1024",
+   "spec_size": "2048x768",
+   "transparent": false,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A long row of Nordic harbour wooden houses in pale ochre, cream and pale blue with white window frames and snowy roofs, blue-hour light, a few bare birch silhouettes in front, horizontally tileable, no text. Keep all important content inside the middle horizontal band, about 56 percent of the image height; the top and bottom will be cropped."
+  },
+  {
+   "name": "task_shutters_sunburst",
+   "size": "1024x1024",
+   "spec_size": "1024x1024",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "Soft wide radiating rays of warm gold and cream light from the centre, gentle edges fading to transparent, no hard lines, transparent background."
+  },
+  {
+   "name": "task_shutters_roller_parts",
+   "size": "1536x1024",
+   "spec_size": "1024x512",
+   "transparent": true,
+   "prio": "A",
+   "tag": "",
+   "quality": "medium",
+   "prompt": "A sprite row of a rolled-up linen blind cylinder, a wooden pull ring, an iron hook latch and a small heap of loose snow, evenly spaced, transparent background, no text. Composition: one wide, low horizontal arrangement about 2 times as wide as it is tall, spanning the full width, centred vertically, with empty transparent space above and below."
+  }
+ ]
+}

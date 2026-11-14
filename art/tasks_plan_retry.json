@@ -1,0 +1,41 @@
+{
+ "version": 1,
+ "note": "Retry pass for task art failures (scene objects). Same style as tasks_plan.json.",
+ "style": "Hand-painted 2D side-view art for a calm, wordless mobile game set on a small Finnish archipelago island in winter. Soft gouache and watercolour texture with subtle paper grain, simple flat layered shapes with gentle internal gradients, no outlines, no hard cel shading, no glossy highlights, no 3D render look. Clear value structure that still reads in greyscale: light snow tops, mid-value bodies, darker bases. Restrained palette: night blue #1C2548, slate #28335E, violet #5B4B8A, silver #B9CAD6, snow #E8EEF5, birch bark #E8E1D2, moss #4A6B3F, spruce #16323A, ice #7FC8E8, sea #2A5C80, wood #7A5638, amber #D98E2B, coral #F49D6E, gold #FFD27A. Quiet, hopeful, uncluttered, generous negative space. No text, no letters, no numbers, no logos, no signature, no watermark, no faces.",
+ "isolated": "Isolated element on a fully transparent background. Nothing else in the image beyond what is named: no sky, no backdrop, no frame, no vignette, no border, no ground, no extra objects, buildings, islands or water unless named.",
+ "backdrop": "Full-bleed painting that fills the entire frame edge to edge, lighting painted in, no frame, no border, no vignette.",
+ "assets": [
+  {
+   "name": "task_reaction_figure_rod",
+   "size": "1024x1024",
+   "transparent": true,
+   "prio": "B",
+   "quality": "medium",
+   "prompt": "The small faceless hooded figure from the game: a long violet-blue hooded cloak reaching the ankles with a soft paper texture, the hood shadow fully hiding the face, a coral-orange knitted scarf wrapped around the neck, dark boots, holding a thin wooden pole with a small dark iron lantern with an UNLIT glass body (no flame, no glow; the light is added in code). The figure stands at the end of a short snowy wooden pier seen from the side facing right, holding the long thin pole angled out over the water like a fishing rod, the unlit lantern hanging from the pole tip. A small strip of dark water under the pier end only. Simple rounded shapes."
+  },
+  {
+   "name": "task_fork_figure_hop",
+   "size": "1024x1024",
+   "transparent": true,
+   "prio": "B",
+   "quality": "medium",
+   "prompt": "The small faceless hooded figure from the game: a long violet-blue hooded cloak reaching the ankles with a soft paper texture, the hood shadow fully hiding the face, a coral-orange knitted scarf wrapped around the neck, dark boots, holding a thin wooden pole with a small dark iron lantern with an UNLIT glass body (no flame, no glow; the light is added in code). Seen from the side facing right, mid-hop with knees tucked and the cloak flaring, the coral scarf trailing behind, the lantern on its short pole swinging. No ground."
+  },
+  {
+   "name": "task_stars_sky",
+   "size": "1536x1024",
+   "transparent": false,
+   "prio": "A",
+   "quality": "medium",
+   "prompt": "Mostly empty deep night sky, indigo at the top fading to near black, soft watercolour wash with subtle paper grain, a very faint diagonal milky-way haze. Only along the very bottom edge, a thin dark silhouette band of bare birch and spruce treetops. No houses, no buildings, no lights, no water, no lighthouse, no fire, no stars, no moon. Keep the sky open and calm."
+  },
+  {
+   "name": "task_shutters_facade",
+   "size": "1536x1024",
+   "transparent": false,
+   "prio": "A",
+   "quality": "medium",
+   "prompt": "Close, flat front view of a continuous row of Nordic harbour wooden house fronts filling the whole frame edge to edge, horizontal board cladding in pale ochre, cream and pale blue, white window frames with dark unlit windows, snowy roof edges at the top, a strip of snowy ground at the bottom, a few thin bare birch silhouettes in front, blue-hour light. Horizontally tileable: the left and right edges continue the same row. No sea, no sky beyond a thin strip above the roofs, no people."
+  }
+ ]
+}
