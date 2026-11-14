@@ -56,7 +56,6 @@ def make_source(settings: Settings):
         from .bedside.unoq_http import UnoQHttp
 
         if mode == "unoq:auto":
-            # on the Wendy Net mesh: found over mDNS (role=modulino-hub), see bedside/unoq_auto.py
             from .bedside.unoq_auto import UnoQAuto
 
             return UnoQAuto()

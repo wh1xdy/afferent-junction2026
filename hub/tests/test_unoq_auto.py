@@ -191,7 +191,7 @@ def test_mdns_resolver_picks_the_role_and_an_ipv4_address():
     asyncio.run(run())
 
 
-def test_mdns_resolver_ignores_adverts_that_are_not_wendy_net_publications(caplog):
+def test_mdns_resolver_ignores_adverts_whose_host_name_is_not_a_mesh_one(caplog):
     async def run(**kw):
         r = MdnsResolver(**kw)
         r._azc = FakeZeroconf({
@@ -206,6 +206,6 @@ def test_mdns_resolver_ignores_adverts_that_are_not_wendy_net_publications(caplo
 
     with caplog.at_level("WARNING", logger="afferent.bedside"):
         assert asyncio.run(run()) == ("http://10.99.0.1:18080", None, None)
-    ignored = [m for m in caplog.messages if "not published through Wendy Net" in m]
+    ignored = [m for m in caplog.messages if "host name is not a Wendy Net one" in m]
     assert len(ignored) == 1 and "laptop.local." in ignored[0]              # said once, not on every lookup
     assert asyncio.run(run(mesh_only=False))[0] == "http://192.168.1.50:8080"

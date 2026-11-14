@@ -7,9 +7,10 @@ For a hub that runs on the Wendy Net mesh itself (jetson/home_hub). The UNO Q ap
 from this container. The address is looked up before the first poll and again whenever the link is
 lost. A link that works is never replaced by another advert. Everything else is UnoQHttp.
 
-Only adverts published through Wendy Net count (host name `device-<id>.mesh.local.`). With LAN
-projection enabled on a device, apps also see plain mDNS adverts from the local network; those are
-not authenticated, so a look-alike there must not get the patient's readings or the API token.
+Only adverts whose host name ends in `.mesh.local.` count: that is how Wendy Net names what it
+publishes, and it keeps plain mDNS adverts from the local network out when LAN projection is enabled
+on a device. It is a filter, not authentication: the advertiser chooses the name, so anything that
+can advertise on the mesh can pose as the role.
 
 zeroconf is imported only here and only when discovery starts, so the laptop hub does not need it.
 """
@@ -72,10 +73,12 @@ class MdnsResolver:
         if getattr(state_change, "name", "") != "Removed":
             self._names[name] = None    # newest last
 
-    async def resolve(self) -> str | None:
+    async def adverts(self) -> list[dict]:
+        """Every advert of the role that resolves, oldest first: name, server (host name) and url."""
         if self._azc is None:
-            return None
-        for name in reversed(list(self._names)):
+            return []
+        out = []
+        for name in list(self._names):
             info = await self._azc.async_get_service_info(SERVICE, name, timeout=RESOLVE_TIMEOUT_MS)
             if info is None or (info.properties or {}).get(b"role") != self.role:
                 continue
@@ -83,13 +86,17 @@ class MdnsResolver:
             if self.mesh_only and not server.lower().endswith(MESH_SUFFIX):
                 if name not in self._ignored:
                     self._ignored.add(name)
-                    log.warning("mDNS: ignoring %s advert %s from %s: not published through Wendy Net",
-                                self.role.decode(), name, server or "an unnamed host")
+                    log.warning("mDNS: ignoring %s advert %s from %s: host name is not a Wendy Net one (%s)",
+                                self.role.decode(), name, server or "an unnamed host", MESH_SUFFIX)
                 continue
             addrs = [a for a in info.parsed_addresses() if ":" not in a]
             if addrs and info.port:
-                return f"http://{addrs[0]}:{info.port}"
-        return None
+                out.append({"name": name, "server": server, "url": f"http://{addrs[0]}:{info.port}"})
+        return out
+
+    async def resolve(self) -> str | None:
+        found = await self.adverts()
+        return found[-1]["url"] if found else None
 
     async def stop(self) -> None:
         browser, azc = self._browser, self._azc

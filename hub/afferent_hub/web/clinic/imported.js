@@ -11,6 +11,8 @@
     watch: ['Watch', 'insights', 'Watch'],
     stable: ['Stable', 'check', 'Stable'],
   };
+  const NONE = ['Not enough data yet', 'schedule', 'Not enough data yet'];
+  const look = (s) => STATE[s] || (s == null ? NONE : STATE.stable);
   const RANK = { booster: 0, check_in: 1, watch: 2, stable: 3 };
   const TIER_RANK = { high: 0, moderate: 1, incomplete: 2, low: 3 };
   const TIER = { high: 'High', moderate: 'Moderate', incomplete: 'Incomplete', low: 'Low', not_answered: 'Not reached' };
@@ -37,7 +39,7 @@
   const week = (d) => Math.max(1, Math.floor((d - 1) / 7) + 1);
   const weeks = (B) => `Weeks ${week(B.period.from_day)} to ${week(B.period.to_day)} after TMS`;
   const intSigned = (n) => (n > 0 ? '+' : n < 0 ? MINUS : '') + Math.abs(n);
-  const chip = (s) => { const x = STATE[s] || STATE.stable; return `<span class="st" data-state="${esc(s)}">${icon(x[1])}${x[0]}</span>`; };
+  const chip = (s) => { const x = look(s); return `<span class="st" data-state="${esc(s ?? 'none')}">${icon(x[1])}${x[0]}</span>`; };
   const flagged = (B) => (B.safety || []).filter((s) => s.tier in TIER_RANK);
   const topTier = (B) => flagged(B).sort((a, b) => TIER_RANK[a.tier] - TIER_RANK[b.tier])[0]?.tier || null;
   const phrase = (k, worse) => (FEAT[k] ? `${FEAT[k][0]} ${worse ? FEAT[k][3] : FEAT[k][4]}` : k);
@@ -101,14 +103,14 @@
   }
 
   function stateBanner(B) {
-    const s = B.state.shown, x = STATE[s] || STATE.stable;
+    const s = B.state.shown, x = look(s);
     const reasons = (B.contrib || []).filter((c) => c.contribution > 0.15).slice(0, 3).map((c) => phrase(c.key, true));
     const ph = B.phq.history || [], last = ph[ph.length - 1];
     const phqRaised = B.state.phq_state && RANK[B.state.phq_state] < (RANK[B.state.cusum] ?? 9) && RANK[B.state.phq_state] <= RANK[s];
     const since = s !== 'stable' && B.state.since_day != null ? `since ${dayStr(B, B.state.since_day)}` : '';
-    return `<div class="banner sbanner" data-kind="state" data-state="${esc(s)}">${icon(x[1])}
+    return `<div class="banner sbanner" data-kind="state" data-state="${esc(s ?? 'none')}">${icon(x[1])}
       <div><b>${esc(x[2])}</b>${since ? `<span class="since">${esc(since)}</span>` : ''}
-        <p>${esc(reasons.length ? reasons.join(', ') : s === 'stable' ? 'Steady across all signals' : 'Small drift across several signals')}.</p>
+        <p>${esc(s == null ? 'No session was recorded in these weeks, so there is nothing to compare' : reasons.length ? reasons.join(', ') : s === 'stable' ? 'Steady across all signals' : 'Small drift across several signals')}.</p>
         ${phqRaised && last ? `<p>PHQ-9 ${last.total}, ${esc((BAND[last.band] || '').toLowerCase())}${B.phq.baseline != null ? `, ${intSigned(last.total - B.phq.baseline)} from discharge` : ''}.</p>` : ''}
         <p>The clinician decides.</p></div>
     </div>`;
@@ -218,7 +220,7 @@
     const wtip = (vals, label, fmt) => (i) => `<div class="tip-h">${esc(tiny(B, Math.max(0, start(i))))} to ${esc(tiny(B, start(i) + 6))}</div><div class="tip-r"><span>${esc(label)}</span><b>${vals[i] == null ? 'no value' : fmt(vals[i])}</b></div>`;
     const el = document.getElementById('cchart');
     const cv = B.weekly.composite || [];
-    const stateCol = B.state.shown === 'stable' ? C.css('--c-outline') : C.stateColor(B.state.shown);
+    const stateCol = B.state.shown === 'stable' || B.state.shown == null ? C.css('--c-outline') : C.stateColor(B.state.shown);
     if (el) C.seriesChart(el, { values: cv, connect: true, threshold: 0.5, thresholdColor: stateCol, thresholdLabel: 'drift line', h: 196, xlabels: xl, aria: 'Early-warning index, 8 weekly medians', tip: wtip(cv, 'Index', (v) => signed(v)) });
     for (const k of C.qr.FEATURES) {
       const e = document.getElementById('mm-' + k);

@@ -53,7 +53,6 @@
   const icon = (name, cls = '') => `<span class="ms ${cls}" aria-hidden="true">${name}</span>`;
   const info = (text) => `<button class="info" type="button" aria-label="${esc(text)}" data-tip="${esc(text)}">${icon('info')}</button>`;
   const simBadge = (on, small = true) => (on ? `<span class="sim-badge ${small ? 'small' : ''}">Simulated</span>` : '');
-  const allSim = (V.allSim = (L) => !!L && !!L.simulated && L.patients.every((p) => p.simulated));
   const chip = (state) => { const s = STATE[state] || STATE.stable; return `<span class="st" data-state="${esc(state)}">${icon(s.icon)}${s.label}</span>`; };
   const flagChip = (f) => (C.isSafety(f.type) ? `<span class="st" data-state="safety">${icon('shield')}${C.flagText(f.type, 'chip')}</span>` : `<span class="st" data-state="talk">${icon('chat_bubble')}Asked to talk</span>`);
   V.chip = (state) => (STATE[state] || STATE.stable).label;
@@ -113,7 +112,7 @@
       <p class="page-sub">Sorted by need. ${n} ${n === 1 ? 'person' : 'people'} after TMS, ${played ? `${played} ${played === 1 ? 'session' : 'sessions'} this morning` : 'no session yet this morning'}.</p>
       <div class="filters" role="toolbar" aria-label="Filter patients">${chips}</div>
       <div class="plist" role="list">${rows.length ? rows.map((r) => V.row(r, L, r.id === sel, [-1, max])).join('') : '<div class="empty-row">No patient matches.</div>'}</div>
-      <p class="list-foot">Each person is compared only with their own first two weeks after TMS. Afferent suggests; the clinician decides.${allSim(L) ? ' All patients on this hub are simulated.' : L.simulated ? ' Patients marked Simulated are generated demo data.' : ''}</p>`;
+      <p class="list-foot">Each person is compared only with their own first two weeks after TMS. Afferent suggests; the clinician decides.${L.simulated ? ' All patients on this hub are simulated.' : ''}</p>`;
   };
 
   V.row = function (r, L, sel, domain) {
@@ -124,7 +123,7 @@
     const talkIcon = talk ? `<span class="talk" title="Asked to talk ${timeOf(talk.t_iso)}" aria-label="Asked to talk">${icon('chat_bubble', 'fill')}</span>` : '';
     const why = safe ? `Check-in ${relDay(f0.t_iso, L.date, true)}` : reason(r, L);
     return `<a class="prow" role="listitem" href="#/p/${esc(r.id)}" data-id="${esc(r.id)}" aria-current="${sel}">
-      <span class="pname"><b>${esc(r.display_name)}</b>${simBadge(r.simulated && !allSim(L))}${talkIcon}</span>
+      <span class="pname"><b>${esc(r.display_name)}</b>${talkIcon}</span>
       ${safe ? flagChip(f0) : chip(r.state)}
       <span class="spark-cell">${C.sparkline(r.sparkline || [], { domain, w: 120, h: 32 })}</span>
       <span class="preason">${esc(why)}</span>
