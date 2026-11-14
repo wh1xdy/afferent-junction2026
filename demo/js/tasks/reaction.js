@@ -3,7 +3,7 @@
   const J = A.J, C = J.C, E = J.ease, R = Math.random, TAU = Math.PI * 2;
   const POSE = 0.55, LIFT = 1.15;
   const DEMO = { bite: 0.8, press: 1.0, auto: 1.08 };
-  const STEP = [6, 7, 8, 9, 10];
+  const STEP = [5, 6, 7, 8, 9];
   const FISH = 'task_reaction_light_fish', SPLASH = 'task_reaction_splash_sheet';
   const CREAM = mixc(C.silver100, C.glow, 0.35), LINE = C.silver200, WOOD = C.woodD;
 
@@ -114,7 +114,7 @@
         if (f.kind === 'catch') {
           s.kick(f.demo ? 0.4 : 0.6);
           J.fx.burst(g.lx, g.ly, 8, C.glow, 90 * g.U, { life: 0.45, size: [2.4 * g.U, 0.8 * g.U] });
-          J.sfx('bite_catch', { step: f.bead, piano: [f.demo ? 5 : STEP[clamp(f.bead, 1, 5) - 1], f.demo ? 0.07 : 0.11] });
+          J.sfx('bite_catch', { step: f.bead, piano: [f.demo ? 4 : STEP[clamp(f.bead, 1, 5) - 1], f.demo ? 0.07 : 0.11] });
         } else { s.kick(0.3); J.bloom(g.lx, g.ly, g.W * 0.08, C.glow, 0.3, 0.2, 0.5); }
       }
       if (!rm && p > 0 && p < 1 && f.kind === 'catch' && (f.n = (f.n || 0) + 1) % 2 === 0) {

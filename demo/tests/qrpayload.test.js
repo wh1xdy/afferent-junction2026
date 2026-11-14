@@ -300,17 +300,31 @@ test('over the cap: face numbers go first, then talk, then PHQ; safety never dro
   assert.throws(() => QR.encode(worstCase(), { key, now: NOW, maxChars: 150 }), /too_large/);
 });
 
-test('a part ending in a space survives, only line breaks and tabs are stripped', () => {
-  let r;
-  do r = QR.encode(worstCase(), { key, now: NOW }); while (!r.text.slice(4, -1).includes(' '));
-  const data = r.text.slice(4);
-  const cut = data.indexOf(' ') + 1;
-  const parts = [`AF1/1/2/SPCE:${data.slice(0, cut)}`, `AF1/2/2/SPCE:${data.slice(cut)}`];
-  assert.ok(parts[0].endsWith(' '));
-  assert.strictEqual(QR.decode(parts, { now: NOW }).status, 'ok');
-  assert.strictEqual(QR.decode(parts.map(p => `\t${p}\r\n`), { now: NOW }).status, 'ok');
-  assert.strictEqual(QR.parse('AF1/1/2/SPCE:AB \r\n').data, 'AB ');
-  assert.strictEqual(QR.parse('\nAF1:AB \t').data, 'AB ');
+test('multi-part codes: no part ends in a space, wherever the cut falls', () => {
+  // base45 has a space in its alphabet and a scanner may trim what it read, so a part cut after a space can lose a character.
+  // A base45 group of 3 characters never ends in a space (its last character is at most 32 of 45), so parts are cut on group borders.
+  // The bytes 06 54 encode to "0 0" and 00 24 to " 00": with them any cut that is not on a group border ends in a space.
+  for (let groups = 60; groups < 100; groups++) {
+    const bytes = Uint8Array.from({ length: 2 * groups }, (_, i) => ((i >> 1) % 2 ? [0x00, 0x24] : [0x06, 0x54])[i % 2]);
+    const data = QR.base45.encode(bytes);
+    assert.strictEqual(data.length, 3 * groups);
+    for (const cap of [15 + Math.ceil(data.length / 2), 16 + Math.ceil(data.length / 2), 15 + Math.ceil(data.length / 3), 17 + Math.ceil(data.length / 3)]) {
+      const parts = QR.chunk(data, cap);
+      assert.ok(parts.length >= 2 && parts.length <= 3 && parts.every(p => p.length <= cap), `groups ${groups}, cap ${cap}`);
+      assert.ok(parts.every(p => !p.endsWith(' ')), `groups ${groups}, cap ${cap}: a part ends in a space`);
+      const col = new QR.Collector();
+      let r;
+      for (const p of parts) r = col.add(`\t${p}\r\n`);
+      assert.strictEqual(r.status, 'complete');
+      assert.strictEqual(r.text, 'AF1:' + data, `groups ${groups}, cap ${cap}`);
+      assert.deepStrictEqual(QR.base45.decode(r.text.slice(4)), bytes);
+    }
+  }
+  for (let i = 0; i < 40; i++) {
+    const c = QR.encode(worstCase(), { key, now: NOW + i * 1000, maxChars: 400 });
+    assert.ok(c.parts.length === 3 && c.parts.every(p => !p.endsWith(' ')));
+    assert.strictEqual(QR.decode(c.parts, { now: NOW + i * 1000 }).status, 'ok', `encode ${i}`);
+  }
 });
 
 function forged(vitals18) {
@@ -428,6 +442,19 @@ test('face numbers: a code from another encoder cannot carry a share above 1, a 
     const r = forgedFace(bad);
     assert.deepStrictEqual([r.status, r.reason, 'body' in r], ['damaged', 'body_shape', false], String(bad));
   }
+});
+
+test('a part ending in a space survives, only line breaks and tabs are stripped', () => {
+  let r;
+  do r = QR.encode(worstCase(), { key, now: NOW }); while (!r.text.slice(4, -1).includes(' '));
+  const data = r.text.slice(4);
+  const cut = data.indexOf(' ') + 1;
+  const parts = [`AF1/1/2/SPCE:${data.slice(0, cut)}`, `AF1/2/2/SPCE:${data.slice(cut)}`];
+  assert.ok(parts[0].endsWith(' '));
+  assert.strictEqual(QR.decode(parts, { now: NOW }).status, 'ok');
+  assert.strictEqual(QR.decode(parts.map(p => `\t${p}\r\n`), { now: NOW }).status, 'ok');
+  assert.strictEqual(QR.parse('AF1/1/2/SPCE:AB \r\n').data, 'AB ');
+  assert.strictEqual(QR.parse('\nAF1:AB \t').data, 'AB ');
 });
 
 test('tamper: a changed character never yields a different verified body', () => {

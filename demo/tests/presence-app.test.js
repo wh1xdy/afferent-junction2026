@@ -11,8 +11,8 @@ const T0 = Date.UTC(2026, 10, 14, 9, 0, 0) / 1000;
 
 // bridge: 'core' = @capacitor/core is loaded (registerPlugin exists); 'ios' = the bridge the app really
 // has (plain scripts, no @capacitor/core): no registerPlugin, plugins at Capacitor.Plugins; 'none' = native
-// build without the plugin.
-function load({ native = true, search = '', savedSettings = null, bridge = 'core' } = {}) {
+// build without the plugin. platform: what Capacitor.getPlatform() answers.
+function load({ native = true, search = '', savedSettings = null, bridge = 'core', platform = 'ios' } = {}) {
   let clock = T0;
   const timers = [];
   const storage = new Map();
@@ -23,7 +23,7 @@ function load({ native = true, search = '', savedSettings = null, bridge = 'core
   const plugin = {
     start: async opts => { calls.push(['start', opts]); return radio.status; },
     stop: async () => { calls.push(['stop']); },
-    drain: async () => { calls.push(['drain']); const devices = radio.devices.map(d => ({ ...d, first: clock - 5, last: clock })); return { devices, status: radio.status, dropped: 0 }; },
+    drain: async () => { calls.push(['drain']); if (radio.fail) throw new Error('radio failed'); const devices = radio.devices.map(d => ({ ...d, first: clock - 5, last: clock })); return { devices, status: radio.status, dropped: 0 }; },
   };
   class FakeDate extends Date {
     constructor(...a) { super(...(a.length ? a : [clock * 1000])); }
@@ -41,7 +41,7 @@ function load({ native = true, search = '', savedSettings = null, bridge = 'core
     crypto: { randomUUID: () => 'x' },
   };
   if (native) {
-    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios' };
+    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => platform };
     if (bridge === 'core') ctx.Capacitor.registerPlugin = () => plugin;
     else ctx.Capacitor.Plugins = bridge === 'ios' ? { AfferentPresence: plugin } : {};
   }
@@ -71,6 +71,12 @@ function load({ native = true, search = '', savedSettings = null, bridge = 'core
 const UNIT = { id: 'C0FFEE00-0000-4000-8000-000000000001', name: 'Afferent Finger', uuids: ['180D'], rssi: [-61, -60] };
 const GUEST = { id: 'A1A1A1A1-0000-4000-8000-000000000002', name: null, uuids: [], mfg: '4c00100501', rssi: [-50, -51, -49] };
 
+// What AfferentPresencePlugin.kt sends: Bluetooth addresses as ids, and (unlike iOS) Apple's
+// manufacturer bytes for every Apple device, including AirPods (type 0x07) that are not phones.
+const DROID_UNIT = { id: 'c0:ff:ee:00:00:01', name: 'Afferent Finger', uuids: ['180D', '0000AFF0-0000-1000-8000-00805F9B34FB'], rssi: [-61, -60] };
+const DROID_GUEST = { id: '5a:11:22:33:44:55', uuids: [], mfg: '4c0010050118abcdef', rssi: [-50, -51, -49] };
+const DROID_AIRPODS = { id: '6b:11:22:33:44:66', uuids: [], mfg: '4c000719010f2000', rssi: [-48, -47] };
+
 const tests = {
   async 'off by default: nothing runs, the session context is null'() {
     const t = load();
@@ -95,6 +101,56 @@ const tests = {
     assert.strictEqual(JSON.stringify(t.calls[0]), '["start",{"lan":true}]');
     await t.steps(1);
     assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+  },
+
+  async 'Android bridge: same plugin name, same calls; a guest phone is 1 visitor, AirPods are not'() {
+    const t = load({ bridge: 'ios', platform: 'android' });
+    assert.strictEqual(t.A.Presence.available, true);
+    assert.strictEqual(t.A.Presence.native, true);
+    t.radio.devices = [DROID_UNIT];
+    await t.A.Presence.enable();
+    assert.strictEqual(JSON.stringify(t.calls[0]), '["start",{"lan":true}]');
+    await t.steps(1);
+    let s = t.A.Presence.status();
+    assert.strictEqual(s.presence.state, 'home', s.presence.reason);
+    assert.strictEqual(s.presence.reason, 'seen: ble');
+    assert.ok(!s.guests.nearby_devices.some(d => d.addr === DROID_UNIT.id));
+
+    t.A.Presence.setProfile('demo');
+    t.A.Presence.calibrate();
+    await t.steps(11);
+    assert.strictEqual(t.A.Presence.sessionContext().visitors_present, 0);
+    t.radio.devices = [DROID_UNIT, DROID_GUEST, DROID_AIRPODS];
+    await t.steps(8);
+    s = t.A.Presence.status();
+    assert.strictEqual(t.A.Presence.sessionContext().visitors_present, 1, JSON.stringify(s.guests));
+    const row = k => s.guests.nearby_devices.find(d => d.addr === k.id);
+    assert.strictEqual(row(DROID_GUEST).kind, 'phone');
+    assert.strictEqual(row(DROID_AIRPODS).kind, 'other');
+    assert.strictEqual(row(DROID_AIRPODS).counted, false);
+  },
+
+  async 'Android build without the plugin: unavailable and never starts'() {
+    const t = load({ bridge: 'none', platform: 'android' });
+    assert.strictEqual(t.A.Presence.available, false);
+    await t.A.Presence.enable();
+    assert.strictEqual(t.A.Presence.on, false);
+    assert.strictEqual(t.calls.length, 0);
+  },
+
+  async 'wording: iOS keeps "iPhone Settings", Android says "phone Settings"'() {
+    const said = async platform => {
+      const t = load({ bridge: 'ios', platform });
+      const toasts = [];
+      t.A.Shell = { toast: m => toasts.push(m) };
+      t.radio.status = { ...t.radio.status, lan: 'denied' };
+      await t.A.Presence.enable();
+      await t.steps(1);
+      t.A.Presence.rememberWifi();
+      return toasts[0];
+    };
+    assert.strictEqual(await said('ios'), 'Local Network is off for Afferent in iPhone Settings.');
+    assert.strictEqual(await said('android'), 'Local Network is off for Afferent in phone Settings.');
   },
 
   async 'native build without the plugin: unavailable, loads without an error and never starts'() {
@@ -140,21 +196,170 @@ const tests = {
     assert.ok(rows.some(r => r.events.includes('guest_arrived')));
   },
 
-  async 'unit out of range while watching -> away after the threshold, home again when back'() {
+  async 'unit and home Wi-Fi both gone while watching -> away after the threshold, home again when back'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    t.radio.status = { ...t.radio.status, lanDevices: ['aa11', 'bb22', 'cc33'] };
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo'); // 2 min away limit
+    await t.steps(1);
+    t.A.Presence.rememberWifi();
+    await t.steps(1);
+    t.radio.devices = [];
+    t.radio.status = { ...t.radio.status, lanDevices: [] };   // another Wi-Fi: the home devices do not answer
+    await t.steps(10);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'away');
+    assert.strictEqual(t.A.Presence.sessionContext().home, false);
+    assert.strictEqual(t.A.Presence.status().text, 'Away');
+    t.radio.devices = [UNIT];
+    await t.steps(1);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+    assert.ok(t.A.Presence.status().events.includes('returned_home'));
+  },
+
+  async 'silence from the bedside unit is could-not-look: never away, and after ten minutes not home either'() {
     const t = load();
     t.radio.devices = [UNIT];
     await t.A.Presence.enable();
     t.A.Presence.setProfile('demo'); // 2 min away limit
     await t.steps(2);
+    t.radio.devices = [];            // e.g. another phone connected to the unit: it stops advertising
+    await t.steps(24);               // 12 min with the app open
+    const s = t.A.Presence.status();
+    assert.strictEqual(s.presence.state, 'unknown', s.presence.reason);
+    assert.strictEqual(JSON.stringify(t.A.Presence.sessionContext()), '{"home":null,"visitors_present":null,"simulated":false}');
+    assert.strictEqual(s.text, 'Not sure yet');
+    const rows = t.A.Presence.ticksJsonl().split('\n').map(l => JSON.parse(l));
+    assert.ok(!rows.some(r => r.state === 'away' || r.events.includes('left_home')), 'no outing was written');
+    assert.ok(rows.slice(-10).every(r => r.sig.ble === null), 'silence is logged as could-not-look');
+  },
+
+  async 'Bluetooth switched off for longer than the away limit: not away, the source could not look'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');
+    await t.steps(2);
+    t.radio.devices = [];
+    t.radio.status = { ...t.radio.status, bluetooth: 'poweredOff', scanning: false };
+    await t.steps(10);
+    assert.notStrictEqual(t.A.Presence.status().presence.state, 'away');
+    assert.strictEqual(t.A.Presence.status().text, 'Bluetooth is off');
+    const rows = t.A.Presence.ticksJsonl().split('\n').map(l => JSON.parse(l));
+    assert.ok(rows.slice(-10).every(r => r.sig.ble === null));
+  },
+
+  async 'learning counts watched time only: a locked phone does not finish it'() {
+    const t = load();
+    t.radio.devices = [UNIT, GUEST];
+    await t.A.Presence.enable();
+    await t.steps(1);
+    t.A.Presence.calibrate();          // home profile: 60 min = 120 watched ticks
+    await t.steps(2);
+    t.ctx.document.hidden = true;
+    t.fire('visibilitychange');
+    t.advance(3660);                   // locked for longer than the whole learning time
+    t.ctx.document.hidden = false;
+    t.fire('visibilitychange');
+    await t.steps(1);
+    let s = t.A.Presence.status();
+    assert.strictEqual(s.guests.calibrating, true, 'three snapshots are not an hour of learning');
+    assert.strictEqual(s.guests.household_devices, 0);
+    assert.strictEqual(t.A.Presence.sessionContext().visitors_present, null);
+    assert.ok(s.text.endsWith('· learning'), s.text);
+    await t.steps(116);
+    assert.strictEqual(t.A.Presence.status().guests.calibrating, true, '119 of 120');
+    await t.steps(1);
+    s = t.A.Presence.status();
+    assert.strictEqual(s.guests.calibrating, false);
+    assert.strictEqual(s.guests.household_devices, 1, 'the phone that was there the whole time is household');
+  },
+
+  async 'learning: ticks while Bluetooth cannot look are not counted'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');   // 5 min = 10 watched ticks
+    await t.steps(1);
+    t.A.Presence.calibrate();
+    const on = t.radio.status;
+    t.radio.status = { ...on, bluetooth: 'poweredOff', scanning: false };
+    await t.steps(14);
+    assert.strictEqual(t.A.Presence.status().guests.calibrating, true);
+    t.radio.status = on;
+    await t.steps(9);
+    assert.strictEqual(t.A.Presence.status().guests.calibrating, true);
+    await t.steps(1);
+    assert.strictEqual(t.A.Presence.status().guests.calibrating, false);
+  },
+
+  async 'not calibrated: watched longer than the dwell window, visitors stay unknown'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');   // 2 min dwell
+    await t.steps(8);
+    assert.deepStrictEqual([t.A.Presence.sessionContext().home, t.A.Presence.sessionContext().visitors_present], [true, null]);
+  },
+
+  async 'a short look away (under 3 min) adds no absence; a radio that stops answering makes the context unknown'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    t.radio.status = { ...t.radio.status, lanDevices: ['aa11', 'bb22'] };
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');
+    await t.steps(1);
+    t.A.Presence.rememberWifi();
+    await t.steps(1);
     t.radio.devices = [];
     t.radio.status = { ...t.radio.status, lanDevices: [] };
-    await t.steps(10);
-    assert.strictEqual(t.A.Presence.status().presence.state, 'away');
-    assert.strictEqual(t.A.Presence.sessionContext().home, false);
-    t.radio.devices = [UNIT];
+    await t.steps(2);
+    const before = t.A.Presence.status().presence.absence_min;
+    t.ctx.document.hidden = true;
+    t.fire('visibilitychange');
+    t.advance(170);
+    t.ctx.document.hidden = false;
+    t.fire('visibilitychange');
     await t.steps(1);
-    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
-    assert.ok(t.A.Presence.status().events.includes('returned_home'));
+    assert.strictEqual(t.A.Presence.status().presence.absence_min, before, 'the hidden time was not watched');
+    assert.strictEqual(t.A.Presence.sessionContext().home, true);
+
+    t.radio.fail = true;               // visible, but drain() keeps failing: nothing new is known
+    await t.steps(3);
+    assert.strictEqual(t.A.Presence.sessionContext().home, null);
+    assert.ok(t.A.Presence.status().text.startsWith('Not working'), t.A.Presence.status().text);
+  },
+
+  async 'reopened somewhere else: the status row does not show the old Home'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    await t.steps(2);
+    assert.strictEqual(t.A.Presence.status().text, 'Home · bedside unit nearby');
+    t.ctx.document.hidden = true;
+    t.fire('visibilitychange');
+    t.advance(6 * 3600);
+    t.radio.devices = [];
+    t.ctx.document.hidden = false;
+    t.fire('visibilitychange');
+    assert.strictEqual(t.A.Presence.status().text, 'Not sure yet', 'before the first new look');
+    await t.steps(3);
+    const s = t.A.Presence.status();
+    assert.strictEqual(s.presence.state, 'home', 'the tracker keeps its last decision');
+    assert.strictEqual(s.text, 'Not sure yet', 'the patient is not told it as current');
+  },
+
+  async 'one home device is not enough to remember a Wi-Fi'() {
+    const t = load(), toasts = [];
+    t.A.Shell = { toast: m => toasts.push(m) };
+    t.radio.status = { ...t.radio.status, lanDevices: ['aa11'] };
+    await t.A.Presence.enable();
+    await t.steps(1);
+    t.A.Presence.rememberWifi();
+    await t.steps(1);
+    assert.strictEqual(JSON.parse(t.storage.get('afferent.presence')).wifiLearned.length, 0);
+    assert.match(toasts.join('|'), /Two are needed/);
+    assert.notStrictEqual(t.A.Presence.status().presence.state, 'home');
   },
 
   async 'app closed for an hour: not counted as absence, the old state is stale'() {
@@ -199,9 +404,12 @@ const tests = {
     t.A.Sensors = { fingerLink: { state: 'connected', name: 'Afferent Finger' } };
     await t.steps(10);
     assert.strictEqual(t.A.Presence.status().presence.state, 'home');
-    t.A.Sensors.fingerLink = { state: 'scanning', name: null };   // link lost: the normal rule applies again
+    t.A.Sensors.fingerLink = { state: 'scanning', name: null };   // link lost and no advert: could not look
     await t.steps(10);
-    assert.strictEqual(t.A.Presence.status().presence.state, 'away');
+    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+    await t.steps(15);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'unknown');
+    assert.strictEqual(t.A.Presence.sessionContext().home, null);
   },
 
   async 'home Wi-Fi fingerprint: remembered devices visible -> home without the unit'() {

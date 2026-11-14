@@ -1,12 +1,14 @@
-// Signals section of the patient detail (Decisions I53, contracts/api.md section 3.5), and the weekly finger sensor
-// and face numbers of a code the patient handed over (weeklyRows, weeklyHtml, faceRows, faceHtml; imported view).
+// Signals section of the clinic view. Two inputs, and no other:
+//  - the sensor blocks of a session document stored on the patient's own hub (sessionRows, html)
+//  - the weekly finger sensor and face numbers of a code the patient handed over (weeklyRows, weeklyHtml, faceRows, faceHtml)
+// Nothing here is a current reading: the system never sends, streams or serves sensor values to the clinic.
 // Pure functions on window.C: no DOM access, so hub/tests/clinic_signals.test.js runs them in a node vm.
 (() => {
   const C = (window.C = window.C || {});
-  const STALE_S = 5;
   const MINUS = '−';
   const NO_READING = 'no reading';
-  const NO_CURRENT = 'no current reading';
+  const WEEKS = 8;
+  const MIN_QUALITY = 0.3;
   const SOURCE = {
     ble: 'finger sensor (PPG), Bluetooth via the phone',
     hub_http: 'finger sensor (PPG), hub HTTP',
@@ -15,16 +17,10 @@
     simulated: 'simulator',
     face: 'phone camera (TrueDepth face tracking)',
   };
-  const PRESENCE = { idle: 'no finger', probing: 'checking for a finger', active: 'measuring' };
-  const LINK = {
-    off: 'Bluetooth off', unauthorized: 'Bluetooth not allowed', unsupported: 'no Bluetooth in this app', scanning: 'looking for the sensor',
-    connecting: 'connecting to the sensor', connected: 'sensor connected', unavailable: 'sensor not reachable',
-  };
   const SERIES = { pulse: 'pulse_bpm', breathing: 'breathing_per_min', rmssd: 'rmssd_ms' };
   // The sensor keeps one running median of its last 10 minutes of RMSSD readings, whoever wore the clip
   // (uno-q/modulino-hub/app.py update_hrv). It is not a baseline kept per person, so it is not called one.
   const VS_NOTE = 'RMSSD against the sensor’s median of its last 10 minutes of readings; not kept per person';
-  const WEEKS = 8;
   // The numbers of a patient code (demo/js/qrpayload.js VITALS, map key 18): key, label, unit, what the number is.
   const WEEKLY = [
     ['pulse_bpm', 'Pulse, finger sensor', 'bpm', 'session mean, clips on during play'],
@@ -33,6 +29,7 @@
   ];
   const NOT_CARRIED = 'This code carries no finger sensor numbers. It was made before the app added them.';
   const NO_WEEKS = 'No finger sensor reading in these 8 weeks.';
+  const SESSION_FOOT = 'Measured values with their source, from a stored session. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.';
   const WEEKLY_FOOT = 'Handed over by the patient in this code: weekly medians with their source. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.';
   // The face numbers of a patient code (demo/js/qrpayload.js FACE, map key 19). Each is named by what the face did,
   // never by a feeling. A share is 0 to 1 and shown in percent; 0 is a value, a week without a reading is null.
@@ -53,43 +50,22 @@
   const pct = (v) => { if (!isNum(v)) return null; const p = Math.round(v * 100); return (p > 0 ? '+' : p < 0 ? MINUS : '') + Math.abs(p); };
   const isSim = (o) => !!o && (o.simulated === true || o.source === 'simulated');
   const fingerSource = (o) => (isSim(o) ? SOURCE.simulated : SOURCE[o.transport] || SOURCE.finger);
-  const ageText = (s) => (!isNum(s) ? 'age unknown' : s < 1.5 ? 'just now' : s < 90 ? `${Math.round(s)} s ago` : 'over a minute ago');
-
-  // One row per value. `ageS` is the time since the dashboard received the object, in seconds;
-  // the object's own age_s is added. A value older than STALE_S is not shown.
-  function liveRows(physio, camera, ageS) {
-    const rows = [];
-    const total = (o) => (isNum(ageS) ? ageS + (isNum(o.age_s) ? o.age_s : 0) : null);
-    if (physio && (physio.source === 'finger_ppg' || isSim(physio))) {
-      const age = total(physio);
-      const base = { source: fingerSource(physio), simulated: isSim(physio), age, ageText: ageText(age), stale: age == null || age > STALE_S };
-      const row = (key, label, value, unit, note) => rows.push({ ...base, key, label, unit, note: base.stale ? '' : note || '',
-        value: base.stale ? NO_CURRENT : value ?? NO_READING, missing: base.stale || value == null });
-      const q = physio.quality_reported && isNum(physio.quality) ? `signal quality ${physio.quality.toFixed(2)}` : 'signal quality not reported';
-      const fb = Array.isArray(physio.finger_bpm) ? physio.finger_bpm : [];
-      row('pulse', 'Pulse (fused)', fmt(physio.pulse_bpm), 'bpm', q);
-      row('finger_1', 'Finger 1', fmt(fb[0]), 'bpm');
-      row('finger_2', 'Finger 2', fmt(fb[1]), 'bpm');
-      row('breathing', 'Breathing rate', fmt(physio.breathing_per_min), 'per min');
-      row('rmssd', 'HRV (RMSSD)', fmt(physio.rmssd_ms), 'ms');
-      if (isNum(physio.sdnn_ms)) row('sdnn', 'SDNN', fmt(physio.sdnn_ms), 'ms');
-      if (isNum(physio.rmssd_vs_baseline)) row('vs_baseline', 'vs recent median', pct(physio.rmssd_vs_baseline), '%', VS_NOTE);
-      row('presence', 'Finger detection', PRESENCE[physio.presence] || (physio.presence == null ? 'not reported' : null), '');
-    }
-    if (camera && camera.source === 'rppg') {
-      const age = total(camera);
-      const stale = age == null || age > STALE_S;
-      const value = fmt(camera.bpm);
-      const trust = isNum(camera.trust_score) ? `trust ${Math.round(camera.trust_score)} of 100${camera.trust_label ? ', ' + camera.trust_label : ''}` : 'trust not reported';
-      rows.push({ key: 'camera', label: 'Pulse (camera)', value: stale ? NO_CURRENT : value ?? NO_READING, unit: 'bpm', note: stale ? '' : trust,
-        source: SOURCE.camera, simulated: false, age, ageText: ageText(age), stale, missing: stale || value == null });
-    }
-    return rows;
-  }
 
   const named = (fields, block) => (fields || []).some((f) => f === '*' || f === 'vitals' || f === `vitals.${block}` || String(f).startsWith(`vitals.${block}.`));
   const has = (st) => !!st && st.samples > 0 && isNum(st.mean);
   const range = (st) => (isNum(st.min) && isNum(st.max) ? `${fmt(st.min)} to ${fmt(st.max)}` : '');
+
+  // The rule of the patient code (hub/afferent_hub/qr.py session_vital): what the finger sensor recorded counts as a
+  // measurement only when the sensor reported its signal quality and that quality stayed at 0.3 or more.
+  // Returns why the session's finger numbers are not shown, or '' when they are.
+  function unusable(f) {
+    if (!f || f.quality_reported !== true) return 'signal quality not reported';
+    const q = f.quality;
+    if (!has(q)) return 'no reading at signal quality 0.3 or more';
+    if (q.mean < MIN_QUALITY) return 'signal quality below 0.3';
+    if (isNum(q.min) && q.min < MIN_QUALITY) return 'signal quality below 0.3 in part of the session';
+    return '';
+  }
 
   // Summary rows of one stored session. `vitals` is the session's vitals object, `simulatedFields` its simulated_fields.
   function sessionRows(vitals, simulatedFields) {
@@ -97,25 +73,29 @@
     const v = vitals || {};
     const f = v.finger, b = v.breathing, h = v.hrv, c = v.camera_pulse;
     const fsrc = f ? fingerSource(f) : SOURCE.finger;
+    const why = unusable(f);
+    const ok = (st) => !why && has(st);
     const block = (o, name) => ({ source: isSim(o) ? SOURCE.simulated : fsrc, simulated: isSim(o) || named(simulatedFields, name) });
     const push = (meta, key, label, value, unit, note, series) => rows.push({ ...meta, key, label, value: value ?? NO_READING, unit, note: note || '', series: series || null, missing: value == null });
+    // a row of the finger sensor: the value with its note, or "no reading" with the reason
+    const reading = (meta, key, label, value, unit, note, series) => (why ? push(meta, key, label, null, unit, why) : push(meta, key, label, value, unit, note, series));
     if (f) {
       const m = block(f, 'finger');
-      const q = f.quality_reported && has(f.quality) ? `signal quality ${f.quality.mean.toFixed(2)}` : '';
-      push(m, 'pulse', 'Pulse (fused)', has(f.pulse_bpm) ? fmt(f.pulse_bpm.mean) : null, 'bpm', [has(f.pulse_bpm) ? range(f.pulse_bpm) : '', q].filter(Boolean).join(', '), SERIES.pulse);
-      push(m, 'finger_1', 'Finger 1', has(f.finger_1_bpm) ? fmt(f.finger_1_bpm.mean) : null, 'bpm');
-      push(m, 'finger_2', 'Finger 2', has(f.finger_2_bpm) ? fmt(f.finger_2_bpm.mean) : null, 'bpm');
-      push(m, 'fingers_diff', 'Between the fingers', fmt(f.fingers_abs_diff_bpm), 'bpm', 'mean absolute difference');
+      const q = ok(f.quality) ? `signal quality ${f.quality.mean.toFixed(2)}` : '';
+      reading(m, 'pulse', 'Pulse (fused)', ok(f.pulse_bpm) ? fmt(f.pulse_bpm.mean) : null, 'bpm', [ok(f.pulse_bpm) ? range(f.pulse_bpm) : '', q].filter(Boolean).join(', '), SERIES.pulse);
+      reading(m, 'finger_1', 'Finger 1', ok(f.finger_1_bpm) ? fmt(f.finger_1_bpm.mean) : null, 'bpm');
+      reading(m, 'finger_2', 'Finger 2', ok(f.finger_2_bpm) ? fmt(f.finger_2_bpm.mean) : null, 'bpm');
+      reading(m, 'fingers_diff', 'Between the fingers', fmt(f.fingers_abs_diff_bpm), 'bpm', 'mean absolute difference');
       const p = f.presence_s;
       if (p) push(m, 'presence', 'Finger detection', fmt(p.active), 's', `measuring; checking for a finger ${fmt(p.probing) ?? 0} s, no finger ${fmt(p.idle) ?? 0} s`);
     }
-    if (b) push(block(b, 'breathing'), 'breathing', 'Breathing rate', has(b.rate_per_min) ? fmt(b.rate_per_min.mean) : null, 'per min', has(b.rate_per_min) ? range(b.rate_per_min) : '', SERIES.breathing);
+    if (b) reading(block(b, 'breathing'), 'breathing', 'Breathing rate', ok(b.rate_per_min) ? fmt(b.rate_per_min.mean) : null, 'per min', ok(b.rate_per_min) ? range(b.rate_per_min) : '', SERIES.breathing);
     if (h) {
       const m = block(h, 'hrv');
       const r = h.rmssd_ms;
-      push(m, 'rmssd', 'HRV (RMSSD)', has(r) ? fmt(r.mean) : null, 'ms', has(r) && isNum(r.first) && isNum(r.last) ? `${fmt(r.first)} → ${fmt(r.last)}, first to last` : '', SERIES.rmssd);
-      if (has(h.sdnn_ms)) push(m, 'sdnn', 'SDNN', fmt(h.sdnn_ms.mean), 'ms');
-      if (has(h.rmssd_vs_baseline)) push(m, 'vs_baseline', 'vs recent median', pct(h.rmssd_vs_baseline.mean), '%', VS_NOTE);
+      reading(m, 'rmssd', 'HRV (RMSSD)', ok(r) ? fmt(r.mean) : null, 'ms', ok(r) && isNum(r.first) && isNum(r.last) ? `${fmt(r.first)} → ${fmt(r.last)}, first to last` : '', SERIES.rmssd);
+      if (ok(h.sdnn_ms)) push(m, 'sdnn', 'SDNN', fmt(h.sdnn_ms.mean), 'ms');
+      if (ok(h.rmssd_vs_baseline)) push(m, 'vs_baseline', 'vs recent median', pct(h.rmssd_vs_baseline.mean), '%', VS_NOTE);
     }
     if (c) {
       const t = c.trust_score, l = c.trust_label_s;
@@ -141,7 +121,7 @@
   }
 
   function rowHtml(r, series) {
-    const meta = [r.source, r.ageText, r.note].filter(Boolean).map(esc).join(' · ');
+    const meta = [r.source, r.note].filter(Boolean).map(esc).join(' · ');
     return `<div class="sig-row${r.missing ? ' none' : ''}" data-key="${esc(r.key)}">
       <span class="sig-l">${esc(r.label)}</span>
       ${r.series ? spark(series, r.series) : ''}
@@ -150,34 +130,16 @@
     </div>`;
   }
 
-  // o: {physio, camera, at, cameraAt, via, session, sessionLabel, bound, nowMs}
-  //  physio, camera: the newest objects (contracts/api.md 3.5) or null; at, cameraAt: when the dashboard received them (ms)
-  //  via: 'phone' or 'hub'; session: a compact session row with `vitals` (and `simulated_fields`); bound: this patient is
-  //  bound to the bedside unit; nowMs: the caller's clock. Returns '' when there is nothing to show.
+  // o: {session, sessionLabel}. session is a compact session row of the hub with `vitals` (and `simulated_fields`),
+  // sessionLabel when it was recorded. Returns '' when the session has no sensor block.
   function html(o) {
-    const now = o.nowMs;
-    const age = (at) => (isNum(at) && isNum(now) ? Math.max(0, (now - at) / 1000) : null);
-    const rows = liveRows(o.physio, null, age(o.at)).concat(liveRows(null, o.camera, age(o.cameraAt ?? o.at)));
-    const vit = o.session && o.session.vitals;
-    const srows = vit ? sessionRows(vit, o.session.simulated_fields) : [];
-    if (!rows.length && !srows.length && !o.bound) return '';
-    const out = [];
-    if (rows.length) {
-      // `link` is the phone's Bluetooth link. It says nothing about a frame the phone got from the hub
-      // (transport hub_http): those values are current while the Bluetooth link may be off or searching.
-      const link = o.physio && o.via === 'phone' && o.physio.transport !== 'hub_http' && LINK[o.physio.link];
-      const from = [o.via === 'phone' ? 'relayed by the phone' : o.via === 'hub' ? 'from the bedside source on the hub' : '', link || ''].filter(Boolean).join(' · ');
-      out.push(`<div class="sig-block" data-part="now"><div class="sig-h"><h3>Current readings</h3><span class="muted">${esc(from)}</span></div><div class="sig-rows">${rows.map((r) => rowHtml(r)).join('')}</div></div>`);
-    } else if (o.bound) {
-      out.push('<p class="sig-empty muted">No finger sensor reading yet</p>');
-    }
-    if (srows.length) {
-      const when = o.sessionLabel || (o.session.started_iso ? `${o.session.started_iso.slice(0, 10)} ${o.session.started_iso.slice(11, 16)}` : '');
-      const noQ = vit.finger && vit.finger.quality_reported === false;
-      out.push(`<div class="sig-block" data-part="session"><div class="sig-h"><h3>Last session with sensor data</h3><span class="muted">${esc(when)}</span></div><div class="sig-rows">${srows.map((r) => rowHtml(r, vit.series)).join('')}</div>${noQ ? '<p class="sig-note">signal quality not reported by this sensor version; not used by the game</p>' : ''}</div>`);
-    }
-    out.push('<p class="sig-foot">Measured values with their source. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.</p>');
-    return out.join('');
+    const session = o && o.session;
+    const vit = session && session.vitals;
+    const rows = vit ? sessionRows(vit, session.simulated_fields) : [];
+    if (!rows.length) return '';
+    const when = o.sessionLabel || (session.started_iso ? `${session.started_iso.slice(0, 10)} ${session.started_iso.slice(11, 16)}` : '');
+    const noQ = vit.finger && vit.finger.quality_reported === false;
+    return `<div class="sig-block" data-part="session"><div class="sig-h"><h3>Last session with sensor data</h3><span class="muted">${esc(when)}</span></div><div class="sig-rows">${rows.map((r) => rowHtml(r, vit.series)).join('')}</div>${noQ ? '<p class="sig-note">signal quality not reported by this sensor version; not used by the game</p>' : ''}</div><p class="sig-foot">${esc(SESSION_FOOT)}</p>`;
   }
 
   // One row per number of a handed-over code. `ok(x, key)` says which stored numbers are values; anything else, and a
@@ -236,5 +198,5 @@
     return codeHtml(rows, weekLabel, 'face-', FACE_FOOT);
   }
 
-  C.signals = { liveRows, sessionRows, html, weeklyRows, weeklyHtml, faceRows, faceHtml, STALE_S };
+  C.signals = { sessionRows, html, weeklyRows, weeklyHtml, faceRows, faceHtml };
 })();

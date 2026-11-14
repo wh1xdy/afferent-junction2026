@@ -28,7 +28,7 @@
     reward_bias: ['Reward bias', 'log b', 2, 'lower than usual', 'higher than usual'],
   };
   const EXPLORATORY = new Set(['upright_frac', 'reward_bias']);
-  const SENSOR = { phone_camera: 'Phone camera', pulse_stone: 'Pulse stone', bedside_camera: 'Bedside camera', bedside_light: 'Bedside light', presence: 'Presence', phone_presence: 'Phone presence', phone_motion: 'Phone motion' };
+  const SENSOR = { phone_camera: 'Phone camera', pulse_stone: 'Pulse stone', bedside_camera: 'Bedside camera', bedside_light: 'Bedside light', phone_presence: 'Phone presence', phone_motion: 'Phone motion' };
 
   const dayIso = (B, d) => { const t = new Date(B.period.tms_end_date + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
   const dayStr = (B, d) => (d == null ? '-' : dateShort(dayIso(B, d)));
@@ -174,7 +174,8 @@
 
   function facts(B) {
     const m = B.mornings, c = B.complete, total = B.period.to_day - B.period.from_day + 1;
-    const on = Object.entries(B.sensors || {}).filter(([, v]) => v).map(([k]) => SENSOR[k] || k);
+    const sensors = Object.entries(B.sensors || {}).filter(([k]) => k !== 'presence');
+    const on = sensors.filter(([, v]) => v).map(([k]) => SENSOR[k] || k);
     const byf = Object.entries(c.by_feature || {}).map(([k, v]) => `${FEAT[k]?.[0] || k} ${pct(v)}`).join(', ');
     const pauses = (B.pauses || []).map((p) => `${dayStr(B, p.from_day)} to ${dayStr(B, p.until_day)}, by ${p.source === 'clinician' ? 'the clinic' : 'the patient'}`);
     const rows = [
@@ -183,7 +184,7 @@
       ['Missed and rest days', `<span class="num">${m.missed ?? '-'} missed, ${m.rest ?? '-'} rest</span>${m.frozen ? ` <small>${m.frozen} kept by a pause</small>` : ''}`],
       ['Pauses', pauses.length ? `<span data-tip="${esc(pauses.join('; '))}">${pauses.length} ${pauses.length === 1 ? 'pause' : 'pauses'}</span> <small class="num">${c.paused_days ?? 0} days</small>` : 'None'],
       ['Data complete', `<span class="num" data-tip="${esc(byf)}">${pct(B.composite.completeness)}</span> <small>${esc(B.state.confidence || '')} confidence</small>`],
-      ['Sensors on', `<span class="num" data-tip="${esc(on.join(', ') || 'None')}">${on.length} of ${Object.keys(B.sensors || {}).length}</span>`],
+      ['Sensors on', `<span class="num" data-tip="${esc(on.join(', ') || 'None')}">${on.length} of ${sensors.length}</span>`],
     ];
     return `<section class="card"><div class="facts">${rows.map(([k, v]) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</div></section>`;
   }

@@ -153,6 +153,7 @@ def test_roster_bodies_have_the_shape(client):
         assert b["state"]["shown"] in qr.STATES and b["state"]["cusum"] in qr.STATES
         assert set(b["sensors"]) == {"phone_camera", "pulse_stone", "bedside_camera", "bedside_light", "presence",
                                      "phone_presence", "phone_motion"}
+        assert b["sensors"]["presence"] is False
         assert len(b["phq"]["history"]) <= qr.CAPS["phq"] and len(b["safety"]) <= qr.CAPS["safety"]
         assert len(b["talk"]) <= qr.CAPS["talk"]
         assert b["vitals"] == NO_VITALS

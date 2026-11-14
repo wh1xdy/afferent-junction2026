@@ -261,7 +261,7 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
                                     for k in FEATURE_KEYS}},
         "pauses": [{"from_day": p["from_day"], "until_day": p["until_day"], "source": p["source"]}
                    for p in pauses if p["until_day"] >= lo and p["from_day"] <= nd],
-        "sensors": {s[0]: bool(sensors.get(s[0], False)) for s in views.SENSORS},
+        "sensors": {k: bool(sensors.get(k, False)) for k in views.DEFAULT_PRIVACY["sensors"]},
         "vitals": vitals,
         "face": face,
     }

@@ -195,6 +195,21 @@ def test_stale_breathing_and_hrv_left_in_state_come_out_none():
     assert one(map_state(warm, new_mem(), 0.0), "physio")["rmssd_ms"] is None
 
 
+def test_per_finger_numbers_left_over_from_an_earlier_wearing_are_not_current():
+    # older firmware keeps finger.fingers while nobody wears the clip and clears state.fingers:
+    # one second after a finger is detected again the old numbers are still in /state
+    s = synthetic_active(bpm=None, quality=0.1, sources=[], fingers=[72, 74])
+    s["presence"]["since"] = T0 - 1
+    s["fingers"] = [None, None]
+    p = one(map_state(s, new_mem(), 0.0), "physio")
+    assert p["presence"] == "active" and p["finger_bpm"] == [None, None] and p["pulse_bpm"] is None
+
+    # a finger that has a beat time of its own keeps its number
+    s = synthetic_active()
+    s["fingers"][1] = None
+    assert one(map_state(s, new_mem(), 0.0), "physio")["finger_bpm"] == [72, None]
+
+
 def test_beats_older_than_three_seconds_do_not_count():
     s = synthetic_active()
     s["fingers"][0]["t"] = s["fingers"][1]["t"] = T0 - 4
@@ -386,6 +401,29 @@ def test_light_scales_holds_and_coalesces():
     assert scaled == ["/led?r=128&g=101&b=69&ms=0", "/led?r=0&g=0&b=0&ms=0"]
     assert 1 <= len(burst) <= 2 and burst[-1] == "/led?r=128&g=128&b=128&ms=0"
     assert not any(p.startswith("/camera") for p in posts)
+
+
+def test_a_failed_light_command_is_sent_again():
+    async def run():
+        fake = FakeUnoQ()
+        dev, _ = await connect(fake)
+        dev.light_retry_s = 0.02
+        fake.post_status = 503                             # the bridge call on the device timed out
+        await dev.send({"type": "light", "rgb": "#000000", "level": 0, "fade_ms": 8000, "reason": "asleep"})
+        await until(lambda: len(fake.led()) >= 3)          # no other light command arrives: it keeps trying
+        fake.post_status = 200
+        n = len(fake.led())
+        await until(lambda: len(fake.led()) > n)
+        await asyncio.sleep(0.1)
+        after = len(fake.led())
+        await asyncio.sleep(0.1)
+        settled = len(fake.led()) == after                 # accepted once, then quiet
+        led = fake.led()
+        await dev.stop()
+        return led, settled
+
+    led, settled = asyncio.run(run())
+    assert set(led) == {"/led?r=0&g=0&b=0&ms=0"} and settled
 
 
 def test_light_sent_before_the_link_is_up_goes_out_at_connect():
@@ -609,7 +647,33 @@ def test_simulator_can_never_relay_physio_as_measured():
         return sink, b.state
 
     sink, state = asyncio.run(run())
-    assert state["simulated"] is True and one(sink.app, "physio")["simulated"] is True
+    physio = one(sink.app, "physio")
+    # flag and label agree, so the phone and anything reading the state treat it the same way
+    assert state["simulated"] is True and physio["simulated"] is True and physio["source"] == "simulated"
+    assert state["physio"]["source"] == "simulated" and state["physio"]["simulated"] is True
+
+
+def test_simulator_relabels_a_device_pulse_as_simulated_too():
+    async def run():
+        sink = Sink()
+        b = sink.bedside(make_source(Settings(bedside="sim")))
+        await b.on_event({"type": "pulse", "bpm": 72, "quality": 0.62, "contact": True, "source": "finger_ppg"})
+        return sink, b.state
+
+    sink, state = asyncio.run(run())
+    assert one(sink.app, "pulse")["source"] == "simulated" and state["pulse"]["source"] == "simulated"
+
+
+def test_physio_flagged_simulated_never_keeps_a_measured_label():
+    async def run():
+        sink = Sink()
+        b = sink.bedside(make_source(Settings(bedside="off")))
+        physio = one(map_state(synthetic_active(), new_mem(), 0.0), "physio")
+        await b.on_event({**physio, "simulated": True})
+        return one(sink.app, "physio")
+
+    physio = asyncio.run(run())
+    assert physio["simulated"] is True and physio["source"] == "simulated"
 
 
 def test_pulse_stone_off_drops_pulse_and_physio():
@@ -712,7 +776,8 @@ def test_physio_from_a_device_reaches_the_app_and_never_the_clinic(client):
         bedside.send_json({"type": "hello", "device": "unoq", "fw": "test"})
         bedside.send_json(physio)
         assert recv_until(app, "physio") == physio
-        state = client.get("/api/bedside/state").json()
+        hub = client.app.state.hub
+        state = hub.bedside.state
         assert state["physio"]["rmssd_ms"] == 51.3 and state["physio"]["source"] == "finger_ppg"
 
         class Switch:
@@ -727,19 +792,18 @@ def test_physio_from_a_device_reaches_the_app_and_never_the_clinic(client):
             async def stop(self):
                 return None
 
-        hub = client.app.state.hub
         hub.bedside.source = Switch()
         r = client.post("/api/patients/anna/privacy", json={"sensor": "pulse_stone", "on": False})
         assert r.status_code == 200 and r.json()["sensors"]["pulse_stone"] is False
         wait_for(lambda: Switch.calls == [False])
-        state = client.get("/api/bedside/state").json()
+        state = hub.bedside.state
         assert state["physio"] is None and state["pulse"]["bpm"] is None
 
         bedside.send_json(physio)
         bedside.send_json({"type": "pulse", "bpm": 72, "quality": 0.62, "contact": True, "source": "finger_ppg"})
         bedside.send_json({"type": "thermo", "temp_c": 20.5, "humidity_pct": 33})
         wait_for(lambda: client.get("/api/bedside/state").json()["thermo"]["temp_c"] == 20.5)
-        assert client.get("/api/bedside/state").json()["physio"] is None
+        assert hub.bedside.state["physio"] is None and hub.bedside.state["pulse"]["bpm"] is None
 
         r = client.post("/api/patients/anna/privacy", json={"sensor": "pulse_stone", "on": True})
         assert r.json()["sensors"]["pulse_stone"] is True
@@ -782,4 +846,4 @@ def test_other_patients_switch_does_not_touch_the_bound_device(client):
     assert Switch.calls == []
     with client.websocket_connect("/ws/bedside") as bedside:
         bedside.send_json({"type": "pulse", "bpm": 70, "quality": 0.8, "contact": True, "source": "finger_ppg"})
-        wait_for(lambda: client.get("/api/bedside/state").json()["pulse"]["bpm"] == 70)
+        wait_for(lambda: hub.bedside.state["pulse"]["bpm"] == 70)

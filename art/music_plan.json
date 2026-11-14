@@ -63,8 +63,8 @@
       "stems": "auto_split",
       "pick": "a steady 16-bar stretch with no fill, drop or key change, arpeggio clearly apart from the pad",
       "files": [
-        { "file": "mu_flow_pad.m4a", "channels": 2, "loop_bars": 64, "loop_s": 153.6, "stems": "strings, synth, bass, FX" },
-        { "file": "mu_flow_motion.m4a", "channels": 1, "loop_bars": 64, "loop_s": 153.6, "stems": "guitar, percussion, keyboard arpeggio" }
+        { "file": "mu_flow_pad.m4a", "channels": 2, "loop_bars": 32, "loop_s": 76.84, "stems": "strings, synth, bass, FX" },
+        { "file": "mu_flow_motion.m4a", "channels": 1, "loop_bars": 32, "loop_s": 76.84, "stems": "guitar, percussion, keyboard arpeggio" }
       ]
     },
     {

@@ -375,7 +375,7 @@
     const alnum = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const set = [...randomBytes(4)].map(b => alnum[b % 36]).join('');
     for (let n = 2; n <= MAX_PARTS; n++) {
-      const size = Math.ceil(data.length / n);
+      const size = 3 * Math.ceil(data.length / n / 3);
       if (size + `${PREFIX}/1/${n}/${set}:`.length > cap) continue;
       return Array.from({ length: n }, (_, i) => `${PREFIX}/${i + 1}/${n}/${set}:` + data.slice(i * size, (i + 1) * size));
     }
@@ -521,7 +521,7 @@
 
   const QR = {
     PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, VITALS, FACE, STATES, TIERS, SENSORS, FORBIDDEN,
-    encode, decode, pack, unpack, parse, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
+    encode, decode, pack, unpack, parse, chunk, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
     cbor: { encode: cborEncode, decode: cborDecode, Tag }, base45: { encode: b45encode, decode: b45decode },
     sign, isoDay, epochDay, cleanInitial,
   };

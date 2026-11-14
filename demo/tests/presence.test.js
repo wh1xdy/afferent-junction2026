@@ -357,13 +357,22 @@ const tests = {
   },
 
   // ── phone adapters ────────────────────────────────────────────────────
-  'adapter: bedside unit over BLE follows probes.py patient_seen'() {
+  'adapter: bedside unit over BLE: heard is a sighting, silence is could-not-look, never "not seen"'() {
     const now = 1000;
     assert.strictEqual(P.bleSighting({ known: false, ok: true, lastAt: 990, now }), null);  // never paired
     assert.strictEqual(P.bleSighting({ known: true, ok: false, lastAt: 990, now }), null);  // Bluetooth off
     assert.strictEqual(P.bleSighting({ known: true, ok: true, lastAt: 990, now }), true);
-    assert.strictEqual(P.bleSighting({ known: true, ok: true, lastAt: now - 121, now }), false); // 120 s window
-    assert.strictEqual(P.bleSighting({ known: true, ok: true, lastAt: null, now }), false);
+    assert.strictEqual(P.bleSighting({ known: true, ok: true, lastAt: now - 120, now }), true);
+    assert.strictEqual(P.bleSighting({ known: true, ok: true, lastAt: now - 121, now }), null); // 120 s window
+    assert.strictEqual(P.bleSighting({ known: true, ok: true, lastAt: null, now }), null);
+    // silence alone never makes an outing, however long it lasts
+    const p = tracker({ away_after_s: 120 });
+    let t = T0;
+    p.update(t, { ble: true });
+    const events = [];
+    for (let i = 0; i < 60; i++) { t += STEP; events.push(...p.update(t, { ble: P.bleSighting({ known: true, ok: true, lastAt: T0, now: t }) })); }
+    assert.ok(!events.includes('left_home') && p.outings.length === 0, events.join());
+    assert.strictEqual(p.state, P.UNKNOWN);
   },
   'adapter: home Wi-Fi fingerprint'() {
     const learned = ['a', 'b', 'c'];
@@ -373,7 +382,36 @@ const tests = {
     assert.strictEqual(P.wifiSighting({ learned, visible: ['a'], onWifi: true, browse: 'starting' }), null);
     assert.strictEqual(P.wifiSighting({ learned, visible: ['a'], onWifi: true, browse: 'ready' }), false); // 3 learned: needs 2
     assert.strictEqual(P.wifiSighting({ learned, visible: ['a', 'c', 'x'], onWifi: true, browse: 'ready' }), true);
-    assert.strictEqual(P.wifiSighting({ learned: ['tv'], visible: ['tv'], onWifi: true, browse: 'ready' }), true);
+    // one device name ("Living Room") is the same in many homes: never proof of home, never proof of away
+    assert.strictEqual(P.wifiSighting({ learned: ['tv'], visible: ['tv'], onWifi: true, browse: 'ready' }), null);
+    assert.strictEqual(P.wifiSighting({ learned: ['tv'], visible: [], onWifi: false, browse: 'off' }), null);
+    assert.strictEqual(P.wifiSighting({ learned: ['tv', 'hp'], visible: ['tv'], onWifi: true, browse: 'ready' }), false);
+    assert.strictEqual(P.wifiSighting({ learned: ['tv', 'hp'], visible: ['hp', 'tv'], onWifi: true, browse: 'ready' }), true);
+    assert.strictEqual(P.homeWifiMatchesNeeded(1), 2);
+  },
+  'adapter: calibration on the phone needs its snapshots as well as the time'() {
+    const g = gtracker();
+    g.start_calibration(T0, 300, 10);
+    g.observe([{ addr: 'guest', rssi: -50, ts: T0 + 3600, kind: 'phone', company: 76 }]);
+    assert.deepStrictEqual(g.update(T0 + 3600, true), [], 'an hour later, one snapshot: still learning');
+    assert.ok(g.calibrating() && g.household.size === 0);
+    let t = T0 + 3600, ev = [];
+    for (let i = 0; i < 9; i++) { t += STEP; ev = g.update(t, true); }
+    assert.deepStrictEqual(ev, ['calibrated']);
+    const old = gtracker();
+    old.start_calibration(T0, 300);                      // core.py behaviour: the clock alone
+    assert.deepStrictEqual(old.update(T0 + 300, true), ['calibrated']);
+  },
+  'adapter: an open visit whose phones are quiet for a moment still counts as one visitor'() {
+    const p = tracker(), g = gtracker({ dwell_s: 120, end_after_s: 600, window_s: 60 });
+    let t = T0;
+    const step = (ads, n = 1) => { for (let i = 0; i < n; i++) { t += STEP; P.tick(p, g, t, { ble: true }, ads(t)); } };
+    step(() => [], 6);
+    step(t => phones(1, t), 9);
+    assert.strictEqual(g.visits.length, 1);
+    step(() => [], 4);                                   // out of range for two minutes, the visit is not over
+    assert.deepStrictEqual([g.current, g.visits[0].end], [0, null]);
+    assert.strictEqual(P.sessionContext(p, g, t, { stretchStart: T0, calibrated: true }).visitors_present, 1);
   },
   'adapter: hub counts only when reached on the local network'() {
     assert.strictEqual(P.hubSighting({ connected: true, url: 'ws://192.168.1.20:8000/ws/app' }), true);
@@ -554,6 +592,7 @@ const same = (a, b, what) => { const d = firstDiff(a, b); if (d) throw new Error
 const SEEDS = Number(process.env.PRESENCE_SEEDS) || 12;   // PRESENCE_SEEDS=200 for a deeper run
 tests[`differential: ${SEEDS} random traces match jetson/presence/core.py tick by tick`] = () => {
   const py = python();
+  if (!py && process.env.PRESENCE_REQUIRE_PY === '1') throw new Error('python3 or jetson/presence/core.py not found');
   if (!py) return console.log('      (skipped: python3 or jetson/presence/core.py not found)');
   let ticks = 0, events = 0;
   for (let seed = 1; seed <= SEEDS; seed++) {
