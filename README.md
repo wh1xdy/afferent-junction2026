@@ -298,6 +298,44 @@ The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numb
 - Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
 - The printed page lists the same weekly numbers under the code.
 
+### Talk transcripts on the hub
+
+When a Talk conversation ends, the phone sends the transcript to the hub over the app link
+(`{type: "transcript"}` on `/ws/app`) and keeps it in a local outbox until the hub acks it
+(`demo/js/voice.js`). Audio itself only ever goes to Google while the conversation is open;
+the transcript stays on the phone (last 20 conversations) and on the hub — nothing goes to
+the clinic or the data manager.
+
+The hub appends each transcript as **one JSON line** to a rotating log
+(`hub/afferent_hub/transcripts.py`):
+
+- Directory: `AFFERENT_TRANSCRIPTS_DIR`, default `hub/data/transcripts/` — next to
+  `afferent.db` on the hub's disk (the Jetson when the hub runs there).
+- Ring buffer: `transcript-000001.jsonl`, `transcript-000002.jsonl`, …; a new file starts
+  past `AFFERENT_TRANSCRIPT_FILE_MB` (10 MB), and once the directory passes
+  `AFFERENT_TRANSCRIPT_TOTAL_MB` (500 MB) the oldest files are removed — the current file
+  is never removed.
+- A resent `transcript_id` (ack lost on disconnect) is deduplicated in-process and the ack
+  carries `duplicate: true`; the id also stays inside each row for post-hoc dedupe across
+  a hub restart.
+
+Each line is a self-contained record:
+
+```json
+{"transcript_id": "3f6b…", "patient_id": "anna",
+ "t_iso": "2026-11-14T15:30:00.000Z", "received_iso": "2026-11-14T17:36:43+02:00",
+ "turns": [{"role": "user", "text": "I feel a bit tired today"},
+           {"role": "agent", "text": "I hear you. Did you sleep alright?"}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `transcript_id` | uuid from the phone; dedupe key |
+| `patient_id` | patient the conversation belongs to |
+| `t_iso` | when the conversation ended, phone clock (UTC ISO 8601) |
+| `received_iso` | when the hub wrote the row, hub clock |
+| `turns` | ordered list; `role` is `user` or `agent`, `text` is that turn's full transcript |
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)
