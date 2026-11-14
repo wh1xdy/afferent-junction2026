@@ -50,9 +50,11 @@ from 4daecf6). `hub/tests/test_session_js_contract.py` and `test_contracts.py` (
 - **Root cause:** `Hub.send()` keeps only `session_end` in an outbox; every other message goes to `raw()`, which drops it
   when the socket is not open. The hub turns a `crisis` message into a `talk_request` flag for the clinic, so a talk
   request made with the hub unreachable never showed up. (`patient.js` already queues its own `crisis` messages.)
-- **Fix:** an unsent `crisis` message is kept under `afferent.outbox.talk` (max 20) and sent once on the next open, with
-  its original `t_iso`. The hub has no ack for these, so they are cleared when sent.
-- **Verification:** `node demo/tests/hub.test.js` → `3 ok, 0 failed`.
+- **Fix:** every `crisis` message gets a `talk_id` and is kept under `afferent.outbox.talk` (max 20) until the hub acks
+  it (`{type: 'ack', talk_id}`), and sent again on every open with its original `t_iso`, as sessions are. The hub flags
+  a `talk_id` once. (Review follow-up: the first version cleared them as soon as `ws.send()` was called, so a link that
+  dropped before the hub read them still lost them.)
+- **Verification:** `node demo/tests/hub.test.js` → `5 ok, 0 failed`; `hub/tests/test_bugburn_hub.py::test_talk_request_is_acked_and_counted_once`.
 
 ### 4. Dashboard export does not reach the paired hub — Medium — Fixed
 - **Reproduce:** new `demo/tests/qrexport.test.js`: with `afferent.hub` saved as Settings saves it

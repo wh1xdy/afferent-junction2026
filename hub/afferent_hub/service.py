@@ -476,8 +476,10 @@ class Hub:
     async def add_flag(self, pid: str, ftype: str, source: str, session_id: str | None = None, t_iso=None,
                        extra: dict | None = None):
         flags = self.store.flags(pid)
-        checkin_id = (extra or {}).get("checkin_id")
+        checkin_id, talk_id = (extra or {}).get("checkin_id"), (extra or {}).get("talk_id")
         if checkin_id and any(f.get("checkin_id") == checkin_id for f in flags):
+            return
+        if talk_id and any(f.get("talk_id") == talk_id for f in flags):
             return
         if session_id and any(f.get("session_id") == session_id and f["type"] == ftype for f in flags):
             return
@@ -770,8 +772,13 @@ class Hub:
         elif t == "voice_context":
             await self.rooms.send(client, await self.voice_context(msg.get("patient_id") or pid))
         elif t == "crisis":
+            # talk_id: the phone keeps the request until this ack (demo/js/hub.js) and may send it again
+            tid = msg.get("talk_id") if isinstance(msg.get("talk_id"), str) and msg.get("talk_id") else None
             await self.add_flag(msg.get("patient_id") or pid, "talk_request", msg.get("source") or "talk_button",
-                                session_id=msg.get("session_id"), t_iso=msg.get("t_iso"))
+                                session_id=msg.get("session_id"), t_iso=msg.get("t_iso"),
+                                extra={"talk_id": tid} if tid else None)
+            if tid:
+                await self.rooms.send(client, {"type": "ack", "talk_id": tid, "ok": True, "error": None})
 
     async def app_closed(self, client: Client):
         pid, sid = client.patient_id, client.session_id

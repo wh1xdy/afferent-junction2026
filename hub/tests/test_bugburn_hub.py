@@ -111,3 +111,40 @@ def test_qr_talk_request_uses_local_day_and_minute(monkeypatch):
     assert qr._minute("2026-11-11T01:30:00+02:00") == 90
     assert qr._minute("2026-07-11T01:30:00+03:00") == 90       # the app's own local stamp is kept as written
     assert qr._minute("2026-11-11T01:30:00") == 90            # no offset: already local
+
+
+# app-core #3 follow-up: the phone keeps a talk request until the hub acks its talk_id (demo/js/hub.js), so the same
+# request can arrive twice; the clinic gets one flag
+def test_talk_request_is_acked_and_counted_once(tmp_path, monkeypatch):
+    import time as real_time
+    import types
+
+    from afferent_hub import service
+
+    def ack(ws):
+        for _ in range(50):
+            m = ws.receive_json()
+            if m.get("type") == "ack":
+                return m
+        raise AssertionError("no ack")
+
+    with ws_hub(tmp_path) as c:
+        hub = c.app.state.hub
+        msg = {"type": "crisis", "patient_id": "anna", "source": "talk_button", "t_iso": "2026-11-15T07:50:00+02:00",
+               "talk_id": "talk-1"}
+        with c.websocket_connect("/ws/app?patient=anna") as app:
+            app.send_json(msg)
+            assert ack(app) == {"type": "ack", "talk_id": "talk-1", "ok": True, "error": None}
+        # an hour later (past the hub's one-minute repeat window) the phone sends it again: its ack was lost
+        monkeypatch.setattr(service, "time", types.SimpleNamespace(time=lambda: real_time.time() + 3600,
+                                                                   monotonic=real_time.monotonic))
+        with c.websocket_connect("/ws/app?patient=anna") as app:
+            app.send_json(msg)
+            assert ack(app)["talk_id"] == "talk-1"
+            app.send_json({**msg, "talk_id": "talk-2"})
+            assert ack(app)["talk_id"] == "talk-2"
+            app.send_json({"type": "crisis", "patient_id": "anna"})       # an older app: no talk_id, no ack
+            app.send_json({"type": "ping"})
+            assert app.receive_json()["type"] == "pong"
+        talks = [f for f in hub.store.flags("anna") if f["type"] == "talk_request"]
+        assert sorted(f.get("talk_id") or "" for f in talks) == ["talk-1", "talk-2"]
