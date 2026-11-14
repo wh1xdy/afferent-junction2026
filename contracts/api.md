@@ -385,8 +385,8 @@ def analyze_patient(sessions: list[dict], daily: list[dict], now_day: int) -> di
 ```
 
 - `sessions`: session v3 documents of one patient with `day_index` filled. `daily`: daily v1 records of the same patient. Any order.
-- Returns exactly the shape of `fixtures/analytics_anna.json` (`"schema": "afferent.analytics/1"`). Top-level keys: `schema`, `patient_id`, `now_day`, `date`, `generated_iso` (the only non-deterministic field; may be `null` in tests), `simulated`, `params`, `state`, `state_label`, `suggestion`, `director`, `features`, `composite`, `cusum`, `bandit`, `pre_post`, `pre_post_summary`, `completeness`, `timeline`.
-- Series arrays in `features[].series` and `timeline` have length `now_day + 1` (index = day), `null` where not available.
+- Returns exactly the shape of `fixtures/analytics_anna.json` (`"schema": "afferent.analytics/1"`). Top-level keys: `schema`, `patient_id`, `now_day`, `date`, `generated_iso` (the only non-deterministic field; may be `null` in tests), `simulated`, `params`, `state`, `state_label`, `suggestion`, `director`, `features`, `secondary_features`, `composite`, `cusum`, `bandit`, `pre_post`, `pre_post_summary`, `completeness`, `timeline`.
+- Series arrays in `features[].series`, `secondary_features[].series` and `timeline` have length `now_day + 1` (index = day), `null` where not available.
 
 Feature set (the composite), documented in `Statistics.md` by the analytics agent:
 
@@ -401,6 +401,18 @@ Feature set (the composite), documented in `Statistics.md` by the analytics agen
 | `home_only_days` | Home-only days (7 d) | daily | count of `presence.home_only` in the trailing 7 days | high | 0.75 | 0.75 | plausible |
 | `upright_frac` | Upright time in play | session | sum of `tasks[].upright_s` / sum of `tasks[].duration_ms`/1000 | low | 0.5 | 0.05 | exploratory |
 | `reward_bias` | Reward bias log b (7 sessions) | session | pooled log b over the last 7 sessions with a valid `two_lanterns` block (sum the four cells, then the 0.5-corrected formula) | low | 0.5 | 0.1 | exploratory |
+
+Secondary features (`secondary_features[]`, exploratory, never in the composite, the CUSUM, the state or the suggestion; module `afferent_hub.analytics.game_rt`, method in `Statistics.md` section 3b):
+
+| key | label | unit | per-day value | worse | weight | MAD floor | evidence |
+|---|---|---|---|---|---|---|---|
+| `game_rt_norm` | In-game reaction time, normalised | z vs own usual per task kind | median over the day's cells (task id and stimulus kind from `tasks[].extra.rt.by_kind`, else `<task>:all`) of each cell's robust z against its own baseline, after moving the cell to its median baseline difficulty `extra.dda.d_mean` | high | 0 | 0.5 | exploratory |
+| `game_rt_median` | In-game reaction time | ms | median of the task-level `tasks[].extra.rt.median_ms` over tasks with `n >= 3`, raw and unadjusted | high | 0 | 20 ms | exploratory |
+
+- Built from the day's main session only. A cell value needs `n >= 3` and a positive `median_ms`; two runs of one task on a day are averaged weighted by `n`.
+- Block shape: `key`, `label`, `unit`, `source` (`session`), `worse`, `weight` (always 0), `in_composite` (always false), `evidence`, `covariate` (`"extra.dda.d_mean"`), `baseline` (as in `features[]`: `median`, `mad`, `scale`, `n`, `first_day`, `last_day`, `ready`, `band_lo`, `band_hi`), `latest` (`day`, `value`, `ewma`, `stale`), `completeness_7d`, and `series` with `value`, `ewma` (EWMA of the value itself, not of a signed z) and `rolling_7d` (7-day rolling median, at least 3 values).
+- Extra series: `game_rt_norm.series.n_cells` (cells behind the day's value); `game_rt_median.series.n_tasks`, `n_trials` and `dda_d_mean` (mean `d_mean` of those tasks). `game_rt_norm` also carries `cells[]`: `{"cell", "n_days", "baseline_n", "baseline_median_ms", "baseline_scale_ms", "difficulty_slope_ms"}` (`difficulty_slope_ms` is the Theil-Sen slope of median RT on `d_mean`, `null` without 5 baseline days spanning at least 0.1).
+- Always present with both keys; without any `extra.rt` every value is `null`. Sessions without `extra` stay valid. The clinic detail draws `game_rt_norm` as a small trend labelled exploratory; the export adds both to `features.csv` and `codebook.csv`.
 
 Algorithm (defaults in `params`, the analytics agent may tune them but must update `params`, `Statistics.md` and `Validation.md` together):
 
@@ -441,7 +453,7 @@ def demo_roster(seed: int = 7, today: datetime.date | None = None) -> list[dict]
 
 - Returns `{"patient": {...}, "sessions": [...], "daily": [...], "truth": {...}}`. `patient` as in `GET /api/patients/{id}` (`simulated: true`). `sessions` are valid session v3 documents (`profile: "live"`, `simulated: true`, `simulated_fields: ["*"]`, `day_index` filled, ids `sim-<patient>-d<day>`); `daily` are valid daily v1 records for days 0 to `days - 1`, all `day_complete: true`, `simulated: true`. `truth`: `{"kind", "onset_day", "severity": [per day 0 to 1], "best_arm": {"calm": "breath", ...}, "arm_rates": {"calm/breath": 0.75, ...}}`.
 - `start_date` default: today minus `days` (so the last generated day is yesterday and today is `now_day = days`).
-- Realism: personal baselines drawn per patient, day-to-day noise, weekends (later sleep, more home-only days), about 10 to 15% missed days at baseline, missing sensor values (morning pulse about 25% missing), and for `relapse` a gradual severity ramp from `onset_day` (default 28, week 5) to full over 21 days that slows reaction time, lowers mood, effort, reward bias and upright time, raises morning pulse, lowers sleep regularity, increases home-only and missed days. Task `helped` outcomes are drawn from per-arm true rates (breath best in calm). Values stay in plausible physiological ranges.
+- Realism: personal baselines drawn per patient, day-to-day noise, weekends (later sleep, more home-only days), about 10 to 15% missed days at baseline, missing sensor values (morning pulse about 25% missing), and for `relapse` a gradual severity ramp from `onset_day` (default 28, week 5) to full over 21 days that slows reaction time, lowers mood, effort, reward bias and upright time, raises morning pulse, lowers sleep regularity, increases home-only and missed days. Task `helped` outcomes are drawn from per-arm true rates (breath best in calm). Completed adaptive tasks carry `extra.dda` (`v`, `d_start`, `d_mean` = `intensity`, `d_max`; not for rest-mode breath) and, for tasks with discrete stimuli, `extra.rt` with one stimulus kind each (threads and stars `choice`, fireflies `catch`, beacon `beat`, bells `choice`, shutters `tap_target`): plausible medians per kind, a difficulty effect, anticipations, lapses, half the trials on `auto` completion, and the patient's day-level core RT trend at a damped exponent (0.6), so a relapse slows them mildly. Breath and loyly have no `extra.rt`; skipped tasks and declined days have no `extra`. These fields come from a separate random stream, so every other generated value is unchanged. Values stay in plausible physiological ranges.
 - `demo_roster`: anna (relapse, onset 28), mikko (stable control), juha (relapse, onset 43, should end near `check_in`), leena, sofia, eero (stable). All `simulated: true`. Today is `now_day = 56` for all.
 
 ### 5.4 afferent_hub.summary
