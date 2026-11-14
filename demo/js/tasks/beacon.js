@@ -185,6 +185,11 @@
           if (r.fever) { this.feverUntil = now + 2.6; hap.seq([['rise', 160]]); }
         },
 
+        mark(bt, kind, now) {
+          const b = this.box(), U = unit(b), ps = this.pose(bt, now);
+          if (ps) J.verdict(kind, b.x + b.w * (0.5 + 0.5 * ps.s), b.y + b.h * ps.v - 18 * U, (bt.ferry ? 34 : 26) * U);
+        },
+
         hit(bt, grade, now) {
           this.resolve(bt, now);
           this.settle(bt);
@@ -203,6 +208,7 @@
               fx.add({ x, y: y - 26 * U * (bt.ferry ? 0.6 : 1), vx: (ux * Math.cos(a) - uy * Math.sin(a)) * sp, vy: (uy * Math.cos(a) + ux * Math.sin(a)) * sp - 40 * U, g: 220 * U, drag: 3, life: 0.5, size: [(big ? 7 : 5.5) * U, 1 * U], kind: 'spark', c: grade === 'barely' ? C.warm : i % 3 ? C.amber : C.glow });
             }
           }
+          J.verdict('right', x, y - 18 * U, (bt.ferry ? 34 : 26) * U);
           J.bloom(x, y - 30 * U, (bt.ferry ? 80 : 46) * U * (big ? 1.3 : 1) * (1 + 0.12 * this.tier), C.amber, grade === 'barely' ? 0.35 : 0.6, 0.12, 0.5);
           if (bt.ferry) hap('land');
           else hap(grade === 'perfect' ? 'bright' : 'hit', grade === 'barely' ? 0.7 : 1);
@@ -212,6 +218,7 @@
         },
 
         miss(bt, now) {
+          this.mark(bt, 'miss', now);
           this.rt?.cue(bt, 'beat', bt.tR);
           if (this.taps) this.rt?.lapse(bt); else this.rt?.drop(bt);
           this.resolve(bt, now);
@@ -301,6 +308,7 @@
               return;
             }
             this.errors++; this.nearAt = J.at;
+            this.mark(near, 'wrong', now);
             hap('miss'); sfx('beacon_near');
             this.log();
             return;

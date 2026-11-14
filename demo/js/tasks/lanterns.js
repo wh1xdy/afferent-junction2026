@@ -118,6 +118,11 @@
 
   const getB = g => g.L.b || A.session?.box?.() || { x: 27, y: 101, w: 335, h: 388 };
 
+  const mark = (g, side, kind, at) => {
+    const G = geo(getB(g)), ps = pairState(g, true), l = ps && pairLayout(g, G, ps, at, dipOf(g, G, ps, at)).find(l => l.side === side);
+    if (l) J.verdict(kind, l.x, l.y + (G.LH / 2 - G.HG) * l.sc, 0.32 * G.LH * l.sc);
+  };
+
   const release = (g, side, rewarded, at) => {
     const L = g.L, G = geo(getB(g)), ps = pairState(g, true), i = side === 'left' ? 0 : 1, dir = i ? 1 : -1;
     const shown = ps && pairLayout(g, G, ps, at, dipOf(g, G, ps, at)).find(l => l.side === side);
@@ -185,7 +190,12 @@
   const practiceTap = (g, side, at) => {
     const L = g.L, P = L.prac;
     if (P.resp || L.rt - INTRO < 0.2) return;
-    if (side !== P.big) { P.wrong = { side, at }; hap('miss', 0.8); return; }
+    if (side !== P.big) {
+      mark(g, side, 'wrong', at);
+      mark(g, P.big, 'miss', at);
+      P.wrong = { side, at }; hap('miss', 0.8); return;
+    }
+    mark(g, side, 'right', at);
     P.resp = side; P.respRt = L.rt;
     release(g, side, false, at);
   };
@@ -413,7 +423,7 @@
         wrap(g);
         return;
       }
-      if (ev === 'respond' && d.side != null) release(g, d.side, !!d.rewarded, at);
+      if (ev === 'respond' && d.side != null) { mark(g, d.side, 'ok', at); release(g, d.side, !!d.rewarded, at); }
     },
     extra(g) {
       if (!A.session?.auto && g.trials) memo.set({ last: Date.now(), unanswered: g.trials.filter(t => t.response === null).length });

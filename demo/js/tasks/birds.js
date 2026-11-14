@@ -55,7 +55,11 @@
         update(dt, now) {
           if (this.done) return;
           const c = this.cur;
-          if (c && now - c.on >= SHOW) { c.off = now; this.cur = null; this.nextAt = this.t + GAP; this.sync(); }
+          if (c && now - c.on >= SHOW) {
+            const b = this.b;
+            if (b && c.match && c.tap === null) J.verdict('miss', b.x + b.w / 2, b.y + b.h * 0.52 - 20 * unit(b), 34 * unit(b));
+            c.off = now; this.cur = null; this.nextAt = this.t + GAP; this.sync();
+          }
           if (!this.cur && this.t >= this.nextAt) {
             if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('birds_done'); J.border(1); J.spill(0.35); return; }
             const t = this.trials[++this.i];
@@ -71,6 +75,7 @@
           if (!c || c.tap !== null) { this.empty++; this.sync(); return; }
           c.tap = t;
           const b = this.b, U = b ? unit(b) : 1, bx = b ? b.x + b.w / 2 : 0, by = b ? b.y + b.h * 0.52 : 0;
+          if (b) J.verdict(c.match ? 'right' : 'wrong', bx, by - 20 * U, 34 * U);
           if (c.match) {
             c.rt = Math.max(0, t - c.on); this.okAt = J.at;
             if (b) { fx.burst(bx, by - 20 * U, 12, C.glow, 150 * U, { kind: 'spark', size: [4 * U, 1] }); J.bloom(bx, by - 20 * U, 90 * U, C.warm, 0.35, 0.12, 0.4); }

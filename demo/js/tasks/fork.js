@@ -294,6 +294,7 @@
       }
       const pv = g.pv, r = g.round, T = at();
       if (!pv || !r) return;
+      const spot = (p, kind) => { const b = pv.b; if (b) { const S = STONE_S * depth(p[1]), [nx, ny] = niche(b.x + b.w * p[0], b.y + b.h * p[1], S); J.verdict(kind, nx, ny, S * 0.9); } };
       if (ev === 'round') {
         if (d.i > 0) {
           const cur = figPos(pv, T);
@@ -314,6 +315,7 @@
         }
         pv.stretchAt = T;
         hap('hit');
+        spot(A.FORK.pathPts(sideOf(r, d.path), d.hard)[2], 'ok');
         sfx('fork_choose', { piano: [4, 0.12] });
         const b = A.session?.box?.();
         if (b && !rm()) J.fx.burst(b.x + b.w * 0.5, b.y + b.h * 0.86, 6, C.silver200, 55, { g: 140, life: 0.45, add: false, size: [1.8, 1], alpha: [0.7, 0] });
@@ -325,6 +327,7 @@
         st[ev === 'hit' ? 'hitAt' : 'goneAt'] = T;
         pv.lit.set(d.light, st);
         hopTo(pv, d.light.p, T);
+        spot(d.light.p, ev === 'hit' ? 'right' : 'miss');
         if (ev === 'hit') {
           pv.hits++;
           if (d.light.born != null) pv.tap_ms.push(Math.round((d.light.on - d.light.born) * 1000));
@@ -336,7 +339,10 @@
         }
         return;
       }
-      if (ev === 'miss') { pv.pats.push({ u: d.u, v: d.v, t0: T }); hap('touch'); sfx('fork_pat'); return; }
+      if (ev === 'miss') {
+        if (pv.b) J.verdict('wrong', pv.b.x + pv.b.w * d.u, pv.b.y + pv.b.h * d.v, 20);
+        pv.pats.push({ u: d.u, v: d.v, t0: T }); hap('touch'); sfx('fork_pat'); return;
+      }
       if (ev === 'reward') {
         pv.bowlAt = T; pv.trailAt = r.path === 'none' ? null : T;
         const s = sideOf(r, r.path === 'none' ? 'easy' : r.path), hard = r.path === 'hard', m = d.got;
@@ -354,6 +360,7 @@
     draw(g, ctx, b, now) {
       const r = g.round, pv = g.pv;
       if (!r || !pv) return;
+      pv.b = b;
       const T = now, dt = pv.lastAt === null ? 0 : clamp(T - pv.lastAt, 0, 0.05);
       pv.lastAt = T;
       const X = u => b.x + u * b.w, Y = v => b.y + v * b.h, red = rm();

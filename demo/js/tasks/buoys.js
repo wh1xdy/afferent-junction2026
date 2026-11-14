@@ -79,6 +79,7 @@
           if (this.next === 0) this.t0 = t; else this.gaps.push(t - this.tLast);
           this.tLast = t; this.next++; this.lastIn = this.t;
           const U = unit(this.b);
+          J.verdict('right', o.x, o.y, o.r * 1.5);
           fx.burst(o.x, o.y, 8, C.glow, 120 * U, { kind: 'spark', size: [4 * U, 1] });
           J.bloom(o.x, o.y, o.r * 3 + 20 * U, C.glow, 0.35, 0.12, 0.35);
           J.border(this.next / N);
@@ -92,6 +93,8 @@
         wrong(o) {
           this.errors++; o.wob = J.at; o.inside = true;
           const tg = this.target(); if (tg) tg.wob2 = J.at;
+          J.verdict('wrong', o.x, o.y, o.r * 1.5);
+          if (tg) J.verdict('miss', tg.x, tg.y, tg.r * 1.5);
           hap('miss'); sfx('buoys_wrong');
           fx.drip(o.x, o.y + o.r);
         },

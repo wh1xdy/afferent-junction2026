@@ -44,6 +44,7 @@
           this.taps.push(t);
           this.swing = J.at; this.steam = Math.min(1, this.steam + 0.035);
           const b = this.b;
+          if (b) J.verdict('ok', b.x + u * b.w, b.y + v * b.h, 22 * unit(b));
           if (b) {
             const U = unit(b);
             fx.rise(b.x + b.w * (0.4 + 0.2 * R()), b.y + b.h * 0.72, 2, C.silver100, { size: [3 * U, 7 * U], kind: 'soft', life: 1.1, add: false, alpha: [0.35, 0] });

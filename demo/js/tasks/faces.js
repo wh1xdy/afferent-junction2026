@@ -59,7 +59,10 @@
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           } else if (this.state === 'fix' && T >= FIX) { this.state = 'face'; this.stateAt = this.t; this.trials[this.i].faceAt = J.at; }
           else if (this.state === 'face' && T >= FACE) { this.state = 'probe'; this.stateAt = this.t; const c = this.trials[this.i]; c.on = now; c.onAt = J.at; sfx('faces_light'); }
-          else if (this.state === 'probe' && T >= LIMIT) { this.trials[this.i].ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); }
+          else if (this.state === 'probe' && T >= LIMIT) {
+            if (this.b) { const P = this.pane(this.trials[this.i].probeSide, this.b); J.verdict('miss', P.cx, P.cy, 30 * P.U); }
+            this.trials[this.i].ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync();
+          }
         },
 
         down(u, v, t) {
@@ -69,6 +72,7 @@
           const c = this.trials[this.i], side = u >= 0.5 ? 1 : -1;
           c.resp = side; c.rt = Math.max(0, t - c.on); c.ok = side === c.probeSide;
           const b = this.b;
+          if (b) { const P = this.pane(side, b); J.verdict(c.ok ? 'right' : 'wrong', P.cx, P.cy, 30 * P.U); }
           if (c.ok) {
             this.hitAt = J.at;
             if (b) { const P = this.pane(c.probeSide, b); fx.burst(P.cx, P.cy, 10, C.glow, 130 * P.U, { kind: 'spark', size: [4 * P.U, 1] }); J.bloom(P.cx, P.cy, P.w * 0.9, C.warm, 0.3, 0.12, 0.4); }

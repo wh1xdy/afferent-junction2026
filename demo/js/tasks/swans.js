@@ -47,6 +47,7 @@
           c.resp = dir; c.rt = Math.max(0, t - c.on); c.ok = dir === c.dir;
           this.flashAt = J.at; this.flashOk = c.ok;
           const b = this.b;
+          if (b) J.verdict(c.ok ? 'right' : 'wrong', b.x + b.w / 2, b.y + b.h * 0.58 - 10 * unit(b), 30 * unit(b));
           if (c.ok) {
             if (b) { const U = unit(b); fx.burst(b.x + b.w / 2 + dir * 40 * U, b.y + b.h * 0.55, 10, C.glow, 140 * U, { kind: 'spark', size: [4 * U, 1] }); }
             hap('hit'); sfx('swans_glide', { piano: [3 + (this.items % 5), 0.12] });
@@ -64,6 +65,7 @@
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           }
           if (this.state === 'fix' && this.t - this.stateAt >= FIX) { this.state = 'show'; this.stateAt = this.t; this.trials[this.i].on = now; this.trials[this.i].onAt = J.at; }
+          if (this.state === 'show' && this.t - this.stateAt >= LIMIT && this.b) J.verdict('miss', this.b.x + this.b.w / 2, this.b.y + this.b.h * 0.58 - 10 * unit(this.b), 30 * unit(this.b));
           if (this.state === 'show' && this.t - this.stateAt >= LIMIT) { const c = this.trials[this.i]; c.ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); }
         },
 

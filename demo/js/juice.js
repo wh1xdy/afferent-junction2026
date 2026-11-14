@@ -314,14 +314,56 @@
     if (params.bell) SFX.bell();
   };
 
+  const VERDICT = { right: hex('#86D6A6'), wrong: hex('#EC8A86'), ok: hex('#A9DEC0'), miss: hex('#CDD6E0') };
+  const VERDICT_S = 0.45, marks = [];
+  const verdict = (kind, x, y, r = 24) => {
+    if (!VERDICT[kind] || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    marks.push({ kind, x, y, r: Math.max(10, r || 24), t0: J.at });
+    if (marks.length > 12) marks.shift();
+    A.bus.emit('verdict', { kind, x, y, r });
+  };
+  const icon = (ctx, kind, x, y, s, lw) => {
+    ctx.beginPath();
+    if (kind === 'right') { ctx.moveTo(x - 0.5 * s, y + 0.02 * s); ctx.lineTo(x - 0.15 * s, y + 0.36 * s); ctx.lineTo(x + 0.52 * s, y - 0.34 * s); }
+    else { const d = 0.36 * s; ctx.moveTo(x - d, y - d); ctx.lineTo(x + d, y + d); ctx.moveTo(x + d, y - d); ctx.lineTo(x - d, y + d); }
+    ctx.lineWidth = lw; ctx.stroke();
+  };
+  const drawMarks = ctx => {
+    for (let i = marks.length - 1; i >= 0; i--) if (J.at - marks[i].t0 >= VERDICT_S || J.at < marks[i].t0) marks.splice(i, 1);
+    if (!marks.length) return;
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const m of marks) {
+      const q = (J.at - m.t0) / VERDICT_S, c = VERDICT[m.kind], a = q < 0.65 ? 1 : 1 - EASE.inOut((q - 0.65) / 0.35);
+      const s = rm() ? 1 : lerp(0.6, 1, EASE.outBack(q / 0.3, 2)), r = m.r * s, lw = clamp(m.r * 0.1, 2, 4);
+      ctx.setLineDash([]);
+      if (m.kind === 'miss') {
+        sprite(ctx, 'soft', c, m.x, m.y, m.r * 1.5, 0.3 * a, true);
+        ctx.setLineDash([lw * 1.6, lw * 1.6]);
+        ring(ctx, m.x, m.y, m.r, c, 0.9 * a, lw);
+        continue;
+      }
+      sprite(ctx, 'soft', c, m.x, m.y, r * 1.6, 0.5 * a, true);
+      disc(ctx, m.x, m.y, r, c, 0.16 * a);
+      ring(ctx, m.x, m.y, m.kind === 'ok' && !rm() ? m.r * (0.8 + 0.45 * q) : r, c, 0.95 * a, lw);
+      if (m.kind === 'ok') continue;
+      const br = clamp(m.r * 0.5, 11, 19) * s;
+      disc(ctx, m.x, m.y, br, c, 0.95 * a);
+      ring(ctx, m.x, m.y, br, C.night950, 0.45 * a, 1.2);
+      ctx.strokeStyle = rgb(C.night950, 0.92 * a);
+      icon(ctx, m.kind, m.x, m.y, br * 1.05, Math.max(2.2, br * 0.26));
+    }
+    ctx.restore();
+  };
+
   const J = A.J = {
     C, spr, sprite, glow, ring, disc, dist, unit, finger, touch, tapCue, dragCue, line, dots, base, finish, idle,
-    fx, light, bloom, border, borderWarmth, stinger, spill, flash, hap, beat, sfx, rm, size, stats,
+    fx, light, bloom, verdict, border, borderWarmth, stinger, spill, flash, hap, beat, sfx, rm, size, stats,
     ease: EASE, bezier, spring, squash, wobble, hitstop, slowmo,
     at: 0, timeScale: 1, st,
     tempo(mode) { return A.MODES?.[mode]?.tempo ?? 60; },
     reset(t = tnow()) {
-      fx.clear(); st.lights.length = 0; st.blooms.length = 0; st.warmth = 0; st.spilled = false; st.pulseAt = -9;
+      fx.clear(); marks.length = 0; st.lights.length = 0; st.blooms.length = 0; st.warmth = 0; st.spilled = false; st.pulseAt = -9;
       Object.assign(clock, { lag: 0, scale: 1, stopUntil: -9, slowUntil: -9, slowScale: 1 });
       J.at = t; J.timeScale = 1; beat.cbs = [];
     },
@@ -340,6 +382,7 @@
         for (const [x, y, r, c, a] of st.lights) sprite(ctx, 'soft', c, x, y, r, a, true);
         st.lights.length = 0;
       }
+      drawMarks(ctx);
     },
   };
   A.MINI = { glow, dist, base, finish, unit, ring, disc, finger, touch, tapCue, dragCue, line, dots, idle, C };
