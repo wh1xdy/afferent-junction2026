@@ -29,17 +29,17 @@
    "layer": "pad",
    "bpm": 99.95,
    "meter": 4,
-   "len_s": 153.676833,
-   "bars": 64,
+   "len_s": 76.838417,
+   "bars": 32,
    "channels": 2,
    "lufs": -20.0,
-   "true_peak": -6.2,
+   "true_peak": -9.4,
    "files": {
     "m4a": "mu_flow_pad.m4a"
    },
    "src": {
     "raw": "G3 Flow v5.mp3",
-    "start_s": 0.075,
+    "start_s": 19.285,
     "plan": "G3"
    }
   },
