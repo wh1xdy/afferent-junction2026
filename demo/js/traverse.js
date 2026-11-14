@@ -6,7 +6,7 @@
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
   const DT = 1 / 240;
-  const AIR_TILT = 0.3, LOOK = 220, G = 900, GA = 820, JV = 300, CREST = 0.7, HOLD_G = 0.55, HOLD_T = 0.22, APEX_V = 55, APEX_G = 0.7, BUF = 0.15, LEAD = 0.25;
+  const TILE = 560, AIR_TILT = 0.3, LOOK = 220, G = 900, GA = 820, JV = 300, CREST = 0.7, HOLD_G = 0.55, HOLD_T = 0.22, APEX_V = 55, APEX_G = 0.7, BUF = 0.15, LEAD = 0.25;
 
   const MODES = {
     calm: { vt: 215, slope: 0.17, A: 40, L: [700, 1050], space: 2.9, kinds: { drift: 3, rock: 2, log: 1 } },
@@ -165,12 +165,21 @@
     };
 
     function biome(m) { return { calm: 'sauna', flow: 'forest', wake: 'lake', fatigue: 'shore', rest: 'harbour' }[m] || 'forest'; }
+    const tile = (cs, type, x0, len) => {
+      const last = cs[cs.length - 1], same = last && last.type === type;
+      cs.push({ type, x0, x1: x0 + len, seed: Math.floor(TR() * 1e6), n: same ? (last.n || 0) + 1 : 0, from: same || !last ? null : last.type });
+    };
     function chunk(type, x0, x1) {
-      const u = unit(), cs = V.chunks;
-      const last = cs[cs.length - 1];
-      if (last && last.type === type && Math.abs(last.x1 - x0 * u) < 2) { last.x1 = x1 * u; return; }
-      cs.push({ type, x0: x0 * u, x1: x1 * u, seed: Math.floor(TR() * 1e6) });
-      while (cs.length > 8 && cs[1].x1 < V.worldX - 400 * u) cs.shift();
+      const u = unit(), cs = V.chunks, end = x1 * u;
+      while (cs[cs.length - 1].x1 < end) tile(cs, type, cs[cs.length - 1].x1, TILE * u);
+      while (cs.length > 16 && cs[1].x1 < V.worldX - 1200 * u) cs.shift();
+    }
+    function fillGaps() {
+      const cs = V.chunks;
+      for (let i = 0; i < cs.length - 1; i++) {
+        const gap = cs[i + 1].x0 - cs[i].x1;
+        if (gap > 1) { const t = cs.splice(i + 1); tile(cs, cs[i].type, cs[i].x1, gap); cs[cs.length - 1].n = cs[i].n; cs.push(...t); }
+      }
     }
 
     function pickKind(P, d) {
@@ -203,7 +212,7 @@
       const len = o.len ?? (kick ? lerp(280, 360, r0) : lerp(P.L[0], P.L[1], r0));
       const A = o.A ?? (kick ? P.A * (0.9 + 0.3 * r1) : P.A * (0.5 + 0.6 * r1) * (r2 < 0.5 ? 1 : -0.6));
       const g = T.add({ len, b1: T.endH() - P.slope * len, d1: -P.slope, A, P, m: P.m, free: !!o.free, roll: true });
-      chunk(biome(P.m), g.x0, g.x1);
+      chunk(st.legBiome || biome(P.m), g.x0, g.x1);
       place(g, P);
       return g;
     }
@@ -223,7 +232,7 @@
           const rise = T.add({ len: 520, b1: T.endH() + 70, d1: 0, P, m, summitRise: true });
           const plat = T.add({ len: 200, P, m, summit: true, station: { id: 'summit', ...STATIONS.summit, kind: 'summit' } });
           T.add({ len: 600, b1: T.endH() - 90, d1: -P.slope, P, m });
-          chunk(biome(m), rise.x0, T.end());
+          chunk(st.legBiome || biome(m), rise.x0, T.end());
           plan.fellDone = true; plan.plateau = plat;
           continue;
         }
@@ -233,7 +242,7 @@
           st.station.seg = bench;
           st.station.x = bench.x1 - 8;
           const out = T.add({ len: 260, b1: T.endH() - 25, d1: -P.slope, P, m, ramp: true });
-          chunk(biome(m), into.x0, out.x1);
+          chunk(st.legBiome || biome(m), into.x0, out.x1);
           plan.commitX = into.x0 - 400;
           plan.stationDone = true;
           continue;
@@ -301,7 +310,8 @@
       for (const o of st.obs) if (o.x >= x0) o.x += dx;
       if (st.plan?.endX != null && st.plan.endX >= x0) st.plan.endX += dx;
       if (st.nextObsX >= x0) st.nextObsX += dx;
-      for (const c of V.chunks) { if (c.x0 >= x0 * u - 1) c.x0 += dx * u; if (c.x1 >= x0 * u - 1) c.x1 += dx * u; }
+      for (const c of V.chunks) if (c.x0 >= x0 * u - 1) { c.x0 += dx * u; c.x1 += dx * u; }
+      fillGaps();
     }
 
     function commit(now) {
@@ -319,7 +329,7 @@
       st.state = 'drift'; st.at = now; st.driftAt = now; st.pendingDrift = false;
       st.plan = { kind: 'drift' };
       st.station = null;
-      const cut = T.segs.findIndex(g => g.x0 > b.x + 0.9 * W0());
+      const cut = T.segs.findIndex(g => g.x0 > b.x + 1.8 * W0());
       if (cut > 0) T.segs.length = cut;
       st.obs = st.obs.filter(o => o.x < b.x);
     }
@@ -619,12 +629,13 @@
 
       planNext(now) {
         const p = s.planNext ? s.planNext(now) : { kind: 'task', seconds: 12 };
-        const cut = T.segs.findIndex(g => g.free && g.x0 > b.x + 0.9 * W0());
+        const cut = T.segs.findIndex(g => g.free && g.x0 > b.x + 1.8 * W0());
         if (cut > 0) T.segs.length = cut;
         for (const g of T.segs) g.free = false;
         st.obs = st.obs.filter(o => o.x < T.end());
         st.nextObsX = Math.min(st.nextObsX, T.end());
         st.plan = { ...p };
+        if (p.kind !== 'drift') st.legBiome = biome(curMode() === 'rest' ? 'calm' : curMode());
         if (p.kind === 'drift') {
           if (st.state === 'exit' || st.state === 'stage') toDrift(now);
           else st.pendingDrift = true;
@@ -699,7 +710,6 @@
         if (z) st.fold = { at: Math.max(now, at - 0.05), from: [z.W / 2, z.H * 0.35], c: st.station?.c || COL.glow };
         st.prevStation = st.station; st.station = null;
         const ps = st.prevStation;
-        if (ps?.kind === 'sky' && ps.seg) shiftAfter(ps.seg, Math.min(0, b.x + 30 - ps.seg.x1));
         T_.planNext(now);
       },
 
