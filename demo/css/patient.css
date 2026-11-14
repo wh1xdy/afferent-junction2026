@@ -65,6 +65,12 @@ body[data-tab="today"] #page { padding-top: calc(var(--hero) + 4px); }
 
 .card { margin-top: 24px; padding: 20px 20px 22px; border-radius: 28px; background: var(--ll-surface-mid); }
 .card + .card { margin-top: 12px; }
+.card.pause { display: flex; align-items: center; gap: 16px; padding: 16px 20px; background: color-mix(in srgb, #CFE2EE 70%, var(--ll-surface-mid)); }
+.card.pause[hidden] { display: none; }
+.card.pause .title { color: var(--ll-on-surface); }
+.pz { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 50%; color: #4F6B85; background: radial-gradient(circle at 35% 30%, #F4F9FC, #C9DCE8 70%); box-shadow: 0 0 0 2px var(--ll-surface-mid), 0 0 0 4px var(--af-frost, #9DB9CC); animation: frost 0.6s ease-out both; }
+.pz svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+@keyframes frost { from { transform: scale(0.8); opacity: 0; } to { transform: none; opacity: 1; } }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 
 .days { display: grid; grid-template-columns: repeat(7, 1fr); margin-top: 18px; }
@@ -205,5 +211,6 @@ button.li:active::after, .li.sensor:active::after { opacity: 0.08; }
 
 @media (prefers-reduced-motion: reduce) {
   #arc .arcLine { animation: none; stroke-dashoffset: 0; }
+  .pz { animation: none; }
   #bar, .bar-title, .seg button, .seg button svg, .switch, .switch .thumb, #nav .pill { transition: none; }
 }

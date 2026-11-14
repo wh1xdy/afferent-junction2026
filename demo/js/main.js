@@ -104,6 +104,7 @@
   chips();
 
   $('weekBtn').href = 'patient.html' + location.search;
+  $('qrBtn').href = 'patient.html' + location.search + '#settings';
 
   const hubKey = 'afferent.hub';
   const normHub = v => {

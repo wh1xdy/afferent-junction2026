@@ -358,7 +358,7 @@
   }
 
   function parse(text) {
-    const s = String(text || '').trim();
+    const s = String(text || '').replace(/^[\r\n\t]+|[\r\n\t]+$/g, '');
     if (s.length > MAX_TEXT) return null;
     if (s.startsWith(`${PREFIX}:`)) return { whole: true, data: s.slice(PREFIX.length + 1) };
     const m = /^AF1\/([1-9])\/([1-9])\/([0-9A-Z]{4}):(.*)$/.exec(s);
