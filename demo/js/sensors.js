@@ -58,13 +58,16 @@
   };
 
   const plug = A.plug = n => window.Capacitor?.Plugins?.[n] ?? window.Capacitor?.registerPlugin?.(n);
+  // Patient switches. `presence` is bed presence and no bed sensor exists (Alex A9): it is never on, whatever was saved or the hub sends.
+  const SWITCHES = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false };
+  A.switches = (...changes) => Object.assign({}, SWITCHES, ...changes, { presence: false });
   const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const unit = x => Number.isFinite(x) ? clamp(x, 0, 1) : null;
   const num = x => Number.isFinite(x) ? x : null;
   const age = x => Math.round(x * 10) / 10;
-  const NO_PULSE = { bpm: null, quality: 0, source: null };
+  const NO_PULSE = { bpm: null, quality: null, source: null };
   const NO_PHYSIO = {
     source: null, transport: null, simulated: false, pulse_bpm: null, quality: null, quality_reported: false, contact: null,
     finger_bpm: [null, null], breathing_per_min: null, rmssd_ms: null, sdnn_ms: null, rmssd_vs_baseline: null, presence: null, age_s: null,
@@ -126,11 +129,11 @@
 
     readArkit(now) {
       const d = this.native;
-      if (!d || now - this.nativeAt > 0.5) return { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: null, quality: 0 };
+      if (!d || now - this.nativeAt > 0.5) return { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: null, quality: null };
       const open = d.openness ?? 1 - (d.blink_l + d.blink_r) / 2;
       return {
         t: now, eye_openness: d.tracked ? clamp(open, 0, 1) : null, blink_l: d.blink_l, blink_r: d.blink_r, tracked: !!d.tracked,
-        head_pitch_deg: d.tracked ? d.pitch_deg ?? null : null, ambient_light: d.ambient ?? null, quality: d.tracked ? 0.9 : 0,
+        head_pitch_deg: d.tracked ? d.pitch_deg ?? null : null, ambient_light: d.ambient ?? null, quality: null,
       };
     },
 
@@ -142,13 +145,13 @@
         const res = this.landmarker.detectForVideo(vid, performance.now());
         const bs = res.faceBlendshapes?.[0]?.categories, m = res.facialTransformationMatrixes?.[0]?.data;
         if (now - this.ambientAt > 1) { this.ambientAt = now; try { this.ambient = luma(vid); } catch { this.ambient = null; } }
-        if (!bs) this.mp = { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: this.ambient, quality: 0 };
+        if (!bs) this.mp = { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: this.ambient, quality: null };
         else {
           const get = n => bs.find(c => c.categoryName === n)?.score ?? 0;
           const bl = get('eyeBlinkLeft'), br = get('eyeBlinkRight');
           this.mp = {
             t: now, eye_openness: clamp(1 - (bl + br) / 2, 0, 1), blink_l: bl, blink_r: br, tracked: true,
-            head_pitch_deg: m ? Math.atan2(m[9], m[10]) * 180 / Math.PI : null, ambient_light: this.ambient, quality: 0.85,
+            head_pitch_deg: m ? Math.atan2(m[9], m[10]) * 180 / Math.PI : null, ambient_light: this.ambient, quality: null,
           };
         }
       }
@@ -167,7 +170,7 @@
     setPulse(bpm, quality, source = 'rppg') { this.rppg = bpm ? { bpm, quality, source, at: A.now() } : null; },
 
     feedNativePulse(d) {
-      this.setPulse(d.bpm, d.quality ?? 0, 'rppg');
+      this.setPulse(d.bpm, d.quality ?? null, 'rppg');
       this.camPulse = { bpm: d.bpm ?? null, trust_score: d.trust?.score ?? null, trust_label: d.trust?.label ?? null, at: A.now() };
       if (d.light) this.light = d.light;
     },

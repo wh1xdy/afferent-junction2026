@@ -24,10 +24,9 @@
   const GROUPS = [
     { title: 'Sensors', hint: 'Only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
-      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Finger sensor', supId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
-      { icon: 'lightbulb', label: 'Bedside light', sw: 'data-sensor="bedside_light"' },
+      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', supId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
-      { icon: 'sensor_occupied', label: 'Presence sensor', sw: 'data-sensor="presence"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
     { title: 'Export to your clinic', hint: 'One export a day, at 07:00. Nobody watches live.', rows: [
@@ -43,7 +42,7 @@
     { id: 'morningsGroup', title: 'Mornings', rows: [] },
     { title: 'Sound and light', rows: [
       { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
-      { icon: 'nightlight', label: 'Dim light', sup: 'Light at most 25%', sw: 'id="quietSw"' },
+      { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
     ] },
     { title: 'Help', rows: [
@@ -241,5 +240,5 @@
   const sheet = document.querySelector('.end-sheet');
   if (sheet) sheet.prepend(frag(G.wave()));
   buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped();
-  A.Shell = { toast, week, phase, row, group };
+  A.Shell = { toast, week, phase, row, group, groups: GROUPS };
 })();

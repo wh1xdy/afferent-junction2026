@@ -4,12 +4,12 @@
   const DASH = '–', MIN_QUALITY = 0.3;
   const int = x => x == null ? null : String(Math.round(x));
 
-  const PRESENCE = { idle: 'Resting. Place a finger in the clip to start.', probing: 'Looking for your finger', active: 'Measuring' };
+  const PRESENCE = { idle: 'Resting. Place a finger in each of the two clips to start.', probing: 'Looking for your finger', active: 'Measuring' };
   const LINK = {
     scanning: 'Looking for the finger sensor', connecting: 'Looking for the finger sensor',
     unauthorized: 'Bluetooth is off for Afferent in Settings', off: 'Switched off',
   };
-  const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in the clip to start.';
+  const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in each of the two clips to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
   const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', rppg: 'Camera', simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };

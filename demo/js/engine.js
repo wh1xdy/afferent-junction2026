@@ -74,7 +74,7 @@
       setPhase(p) { this.phase = p; this.phaseAt = A.now(); A.bus.emit('segment', p); },
       light(rgbHex, level, fade_ms, reason) {
         if (this.night && A.config.quietNight !== false) level = Math.min(level, QUIET_CAP);
-        this.lastLightLevel = level;
+        this.lastLightLevel = A.config.sensors.bedside_light && A.Hub?.connected ? level : null;
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
         if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },

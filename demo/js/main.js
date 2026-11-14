@@ -17,7 +17,7 @@
   A.config = {
     deviceId, appVersion: '0.3.0', patientId: q.get('patient') || 'anna', dawnLevel: 15, baselinePulse: 68,
     reducedMotion: saved.reducedMotion ?? prefersCalm,
-    sensors: { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: true, phone_motion: false, ...saved.sensors },
+    sensors: A.switches(saved.sensors),
     sharing: saved.sharing || 'summary',
     simulator: saved.simulator ?? true,
     quietNight: saved.quietNight ?? true,
@@ -190,7 +190,7 @@
 
   const applyPrivacy = pv => {
     if (!pv) return;
-    if (pv.sensors) Object.assign(A.config.sensors, pv.sensors);
+    if (pv.sensors) Object.assign(A.config.sensors, A.switches(A.config.sensors, pv.sensors));
     if (pv.sharing) A.config.sharing = pv.sharing;
     syncSensors(); toggles(); saveSettings();
     A.Finger.sync();
@@ -210,7 +210,7 @@
     if (ui.input === 'camera' && !S.camera()) {
       $('begin').disabled = true;
       log('starting camera');
-      try { log(`camera on (${await S.startCamera()}), only eye openness and head tilt are read`); }
+      try { log(`camera on (${await S.startCamera()}), only eye openness, blinks, head tilt and brightness are read`); }
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();

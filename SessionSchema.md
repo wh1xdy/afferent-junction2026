@@ -122,7 +122,7 @@ Counts: `rich_correct` (rich larger, tapped rich), `rich_incorrect` (rich larger
 
 ### vitals, context
 
-`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` (the pulse the game used; same enum as `signal.pulse_source`). `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level`.
+`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` (the pulse the game used; same enum as `signal.pulse_source`). `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level` (the last level the game sent to the hub for the bedside light, one small LED; null when nothing was sent because the switch is off or no hub is connected).
 
 #### Sensor blocks in vitals (Decisions I53)
 

@@ -85,7 +85,7 @@ Patient list sorted by need: state severity (`booster` > `check_in` > `watch` > 
 {
   "patient": {"id": "anna", "display_name": "Anna", "kind": "relapse", "simulated": true, "tms_end_date": "2026-09-20", "now_day": 56,
               "clinic_contact": {"name": "Your clinic", "number": "09 000 0000", "hours": "office hours"}},
-  "privacy": {"sharing": "summary", "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": true, "phone_presence": true, "phone_motion": true}},
+  "privacy": {"sharing": "summary", "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": false, "phone_presence": true, "phone_motion": true}},
   "latest_session": {"...": "full session v3 document"},
   "sessions": [{"session_id": "...", "day_index": 56, "started_iso": "...", "status": "completed", "profile": "live", "simulated": true,
                 "duration_ms": 109800, "rt_median_ms": 437, "mood_start": 2, "mood_end": 3, "pre_post": {"...": "as in the session"}}],
@@ -205,6 +205,8 @@ Body `{"rgb": "#FFC98A", "level": 15, "fade_ms": 2000, "reason": "manual"}`. Sen
 
 Body `{"sensor": "phone_camera", "on": false}` or `{"sharing": "paused"}`. Stores it, broadcasts `privacy` on `/ws/clinic` and sends `privacy` to the app. Response: the new `privacy` object.
 
+`presence` is bed presence, and no bed sensor exists (Alex A9). The key stays in `privacy.sensors` and in the session's `sensors` block with the value `false`. It has no row in the patient view or in the phone settings, the phone keeps it `false` whatever was saved or the hub sends, and a change to it is answered with 400 like any unknown sensor. Home and visitors on the phone is a different thing (`phone_presence`).
+
 ### POST /api/patients/{id}/pause
 
 Streak pause, the Apple Pause Rings menu (Today, Until Monday, Until next month, Custom date). Body `{"source": "patient" | "clinician", "until": "YYYY-MM-DD", "from": "YYYY-MM-DD"}`; `from` defaults to today, `until: null` ends the current pause of that source from `from` on. A patient pause is capped at 14 days per pause (the hub clamps `until`) and can be renewed; a clinician pause has no cap. Paused days hold the streak, are `rest` in the week and are left out of the missed-session window. Stored on the patient document as `pauses: [{"source", "from_day", "until_day", "set_iso"}]`. Broadcasts `pause` on `/ws/clinic` and to the app, then `analytics_updated`. Response: `{"ok": true, "pause": {"source": "patient", "until": "2026-11-16"} | null, "pauses": [{"source", "from", "until"}]}`. The app may send the same as a `pause` WebSocket message (always `source: "patient"`).
@@ -318,7 +320,7 @@ Hub to phone:
                   "fatigue": {"shutters": 0.536, "bells": 0.174, "beacon": 0.29}, "rest": {"breath": 1.0}},
  "measurement_slots": {"fork": 1, "lanterns": 3},
  "dawn_level": 15, "night_hours": [21, 6],
- "privacy": {"sharing": "summary", "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": true, "phone_presence": true, "phone_motion": true}},
+ "privacy": {"sharing": "summary", "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": false, "phone_presence": true, "phone_motion": true}},
  "server_time_iso": "2026-11-15T07:41:00+02:00",
  "checkin": {"enabled": true, "cadence_days": 14, "always_ask_cssrs": false, "cssrs_licensed": false,
              "protocol_signed": false, "early_request": false, "reminder_local_time": "12:00", "language": "en"},

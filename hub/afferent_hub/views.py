@@ -10,8 +10,8 @@ SENSORS = [
     ("pulse_stone", "Pulse stone",
      "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."),
     ("bedside_camera", "Bedside camera", "A stick figure while you play. Never images."),
-    ("bedside_light", "Bedside light", "Nothing. It only receives light colours."),
-    ("presence", "Bed presence", "Time in bed and restless moments."),
+    ("bedside_light", "Bedside light",
+     "Nothing. It is one small LED on the bedside unit and only receives colours."),
     ("phone_presence", "Home or away", "Hours at home and a count of nearby unknown devices. Nobody is identified."),
     ("phone_motion", "Steps", "A daily step count (simulated in this demo)."),
 ]
@@ -19,7 +19,7 @@ SENSORS = [
 DEFAULT_PRIVACY = {
     "sharing": "summary",
     "sensors": {"phone_camera": True, "pulse_stone": True, "bedside_camera": False, "bedside_light": True,
-                "presence": True, "phone_presence": True, "phone_motion": True},
+                "presence": False, "phone_presence": True, "phone_motion": True},
 }
 
 HELPED_TEXT = {
@@ -36,7 +36,7 @@ DAWN_TEXT = "Days with the dawn light are often followed by brighter check-ins (
 
 CLINIC_SEES = [
     "Numbers from your sessions compared with your own baseline",
-    "Sleep and rest pattern from the bed sensor",
+    "Sleep and rest pattern, simulated in this demo (there is no bed sensor)",
     "A weekly summary written from those numbers",
     "Never camera images, sound or messages",
 ]

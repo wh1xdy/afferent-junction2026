@@ -377,6 +377,25 @@ def test_privacy(client):
     assert client.post("/api/patients/anna/privacy", json={"sensor": "nope", "on": True}).status_code == 400
 
 
+def test_no_bed_sensor_is_claimed(client):
+    # Hardware (Alex A6, A9): no bed-presence sensor, and the bedside light is one small KY-016 LED.
+    privacy = client.get("/api/patients/anna").json()["privacy"]
+    assert privacy["sensors"]["presence"] is False
+    assert client.post("/api/patients/anna/privacy", json={"sensor": "presence", "on": True}).status_code == 400
+    assert client.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+    view = client.get("/api/patients/anna/patient-view").json()
+    rows = {s["id"]: s for s in view["privacy"]["sensors"]}
+    assert "presence" not in rows
+    assert rows["bedside_light"]["shares"] == "Nothing. It is one small LED on the bedside unit and only receives colours."
+    shown = [t for s in rows.values() for t in (s["label"], s["shares"])] + view["clinic_sees"]
+    for text in shown:
+        low = text.lower().replace("no bed sensor", "")
+        for claim in ("bed sensor", "bed presence", "time in bed", "lamp", "room"):
+            assert claim not in low, text
+    fixture = load("patient_view_anna.json")
+    assert view["privacy"]["sensors"] == fixture["privacy"]["sensors"] and view["clinic_sees"] == fixture["clinic_sees"]
+
+
 def test_patient_view_is_gentle(client):
     pv = client.get("/api/patients/anna/patient-view").json()
     assert pv["simulated"] is True and len(pv["week"]) == 7 and pv["week"][-1]["today"]

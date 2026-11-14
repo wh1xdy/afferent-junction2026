@@ -144,7 +144,7 @@ const tests = {
     run(A, tick, s, 5, null, () => ble(A));
     assert.strictEqual(S.pulse(A.now()).source, 'finger_ppg');
     run(A, tick, s, 6);
-    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: null, quality: 0, source: null });
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: null, quality: null, source: null });
     assert.deepStrictEqual(Object.keys(s.sig.pulseSources), ['finger_ppg']);
     let doc = finish(A, s);
     assert.strictEqual(S.pulseMode, null);
@@ -338,7 +338,7 @@ const tests = {
     S.setFingerLink('unauthorized');
     assert.deepStrictEqual(lines(V.model(A.now())).pop(), ['Sensor', null, 'Bluetooth is off for Afferent in Settings']);
     connect(A);
-    assert.deepStrictEqual(lines(V.model(A.now())), [['Pulse', null, 'No reading right now'], ['Sensor', null, 'Connected. Place a finger in the clip to start.']]);
+    assert.deepStrictEqual(lines(V.model(A.now())), [['Pulse', null, 'No reading right now'], ['Sensor', null, 'Connected. Place a finger in each of the two clips to start.']]);
 
     S.feedFingerBle(hrm()); S.feedFingerBle(aff6({ breathing_per_min: 0, rmssd_ms: 0 }));
     m = V.model(A.now());
@@ -354,7 +354,7 @@ const tests = {
     S.feedFingerBle(aff6({ presence: 'idle', finger_bpm: [0, 0], breathing_per_min: 0, rmssd_ms: 0 }));
     assert.deepStrictEqual(lines(V.model(A.now())), [
       ['Pulse', null, 'No reading right now'], ['Finger 1 and finger 2', null, 'No reading right now'], ['Breathing', null, 'No reading right now'],
-      ['Beat-to-beat variation', null, 'No reading right now'], ['Sensor', null, 'Resting. Place a finger in the clip to start.'],
+      ['Beat-to-beat variation', null, 'No reading right now'], ['Sensor', null, 'Resting. Place a finger in each of the two clips to start.'],
     ]);
 
     S.feedFingerBle(hrm()); S.feedFingerBle(aff4());
