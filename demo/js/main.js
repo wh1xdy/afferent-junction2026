@@ -24,6 +24,7 @@
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
     signalsOverlay: saved.signalsOverlay ?? false,
+    breathFeedback: saved.breathFeedback ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -156,7 +157,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, breathFeedback: A.config.breathFeedback, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -171,6 +172,7 @@
     $('quietSw').checked = A.config.quietNight;
     $('checkinSw').checked = A.config.checkin;
     $('sigSw').checked = A.config.signalsOverlay;
+    $('breathSw').checked = A.config.breathFeedback;
     camGlyph();
   };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
@@ -192,6 +194,7 @@
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
+  $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
@@ -300,8 +303,11 @@
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
     log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
-    show('closeBtn', false); show('simBadge', false); show('liveChip', false); cue('');
-    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) { A.lastVitals = r.vitals; A.lastVitalsAt = Date.now(); }
+    show('closeBtn', false); show('simBadge', false); show('liveChip', false); $('breathLine').classList.remove('on'); cue('');
+    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) {
+      A.lastVitals = r.vitals; A.lastVitalsAt = Date.now();
+      A.lastBreath = [...(r.tasks || [])].reverse().find(t => t.extra?.breathing)?.extra.breathing ?? null;
+    }
     if (S.camera()) S.stop();
     camGlyph();
     if (leaving || r.status === 'declined') return;
@@ -404,6 +410,9 @@
     const chip = A.config.signalsOverlay ? A.Vitals.chip(s, p) : null;
     if (chip) $('liveChip').textContent = chip;
     show('liveChip', !!chip);
+    const breath = A.Vitals.breath(s, now);
+    if (breath) { $('breathMain').textContent = breath[0]; $('breathSub').textContent = breath[1]; }
+    $('breathLine').classList.toggle('on', !!breath);
   }
 
   let last = A.now(), frame = 0, lastLive = 0;

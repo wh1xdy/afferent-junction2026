@@ -25,6 +25,7 @@
     { title: 'Sensors', hint: 'Only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
       { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Finger sensor', supId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
       { icon: 'lightbulb', label: 'Bedside light', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'sensor_occupied', label: 'Presence sensor', sw: 'data-sensor="presence"' },

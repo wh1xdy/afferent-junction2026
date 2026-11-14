@@ -14,7 +14,7 @@
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
   const DAWN_S = 8, PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 102, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
-  const MEASURE_RIDE_S = 20;
+  const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8;
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
   const RP = () => A.PRESENT?.reaction || {};
@@ -345,6 +345,8 @@
         const out = { completed_by: by, completed: g.done, items: g.items, errors: g.errors, sessionT0: this.t0 };
         if (g.id === 'breath') out.breath_sync = g.sync;
         if (g.kind !== 'measurement' && g.extra && Object.keys(g.extra).length) out.extra = { ...g.extra };
+        const breathing = g.id === 'breath' ? g.fb?.result() ?? null : null;
+        if (breathing) { out.extra = { ...out.extra, breathing }; this.breathResult = { ...breathing, until: now + BREATH_RESULT_S }; }
         const dda = g.kind === 'measurement' ? null : A.Skill?.finish(g.id);
         if (dda) out.extra = { ...out.extra, dda };
         if (g.id === 'fork') { this.forkRec = A.Record.fork(g); out.extra = { glows: g.glows, hard_sides: g.choices.map(c => c.hard_side), ...A.PRESENT?.fork?.extra?.(g) }; out.completed = g.done && this.forkRec.choices.every(c => c.completed); }
