@@ -31,7 +31,7 @@ def make(tmp_path, **over):
 def test_vendored_files_match_manifest():
     rows = resync.entries()
     listed = {r["path"] for r in rows}
-    on_disk = {str(p.relative_to(TEAM)) for p in TEAM.rglob("*.py") if "__pycache__" not in p.parts}
+    on_disk = {p.relative_to(TEAM).as_posix() for p in TEAM.rglob("*.py") if "__pycache__" not in p.parts}
     assert on_disk == listed
     for r in rows:
         assert resync.blob_id((TEAM / r["path"]).read_bytes()) == r["blob"], r["path"]

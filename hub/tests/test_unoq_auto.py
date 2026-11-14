@@ -4,7 +4,6 @@ The resolver here is a fake and the device is httpx.MockTransport: no socket is 
 packet is sent. The real lookup (zeroconf on the mesh interface) was checked on the Jetson, not here.
 """
 import asyncio
-import socket
 from types import SimpleNamespace
 
 import httpx
@@ -15,16 +14,9 @@ from afferent_hub.bedside.unoq_http import UnoQHttp
 from afferent_hub.service import make_source
 from afferent_hub.settings import Settings
 
-from test_unoq_http import FakeUnoQ, Sink, by_type, until
+from test_unoq_http import FakeUnoQ, Sink, by_type, no_network, until  # noqa: F401 (no_network: autouse)
 
 
-@pytest.fixture(autouse=True)
-def no_network(monkeypatch):
-    def refuse(self, *a, **k):
-        raise AssertionError("a test tried to open a network connection")
-
-    monkeypatch.setattr(socket.socket, "connect", refuse)
-    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
 
 
 class FakeResolver:
