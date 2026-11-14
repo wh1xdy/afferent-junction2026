@@ -1,14 +1,15 @@
-// Measured breathing next to the breathing guide (Decisions I53). Logic only: no drawing and no words.
-// The rate is derived on the finger sensor from the heart rhythm, so it follows the breathing by tens of seconds:
-// it can describe a pace, never a single breath. A simulated frame never counts here.
+// Measured breathing next to the breathing guide. Logic only: no drawing and no words.
+// The finger sensor derives the rate from the heart rhythm of its last 40 s (uno-q/modulino-hub/app.py, rsa_breathing),
+// so a value describes that window and runs behind the breathing: a pace, never a single breath.
+// A simulated frame never counts here.
 (() => {
-  const { clamp } = A;
-  const MIN_QUALITY = 0.3, FRESH_S = 3, NEAR_BAND = 1, FAR_SPAN = 6, MIN_S = 5, MIN_SHARE = 1 / 3, EDGE_S = 3;
+  const { clamp, ema } = A;
+  const MIN_QUALITY = 0.3, FRESH_S = 3, WINDOW_S = 40, NEAR_BAND = 1, FAR_SPAN = 6, MIN_S = 5, MIN_SHARE = 1 / 3, EDGE_S = 3;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
 
   // What the finger clips give right now, read from a frame of A.Sensors.fingerFrame, which already drops every
   // value whose notification is older than 3 s. null means no real reading: no sensor, stale, simulated, no finger
-  // in the clip, zeros only, or a signal quality that is below 0.3 or not reported (the rule of the game pulse, I53).
+  // in the clip, zeros only, or a signal quality that is below 0.3 or not reported (the rule of the game pulse).
   // Over the hub the frame also says how old the heartbeats behind it are; older than 3 s is not a current reading.
   const reading = f => {
     if (!f || f.source !== 'finger_ppg' || f.simulated) return null;
@@ -34,20 +35,39 @@
     return { start: r1(pulses.slice(0, EDGE_S).find(has)), end: r1(pulses.slice(Math.max(EDGE_S, n - EDGE_S)).reverse().find(has)) };
   };
 
-  // One per breathing task. frame() runs every game frame: the live state follows the frame at once, the samples
-  // for the average are taken once a second.
+  // The finger frame a session may use. A session whose pulse is locked to the simulator stays simulated to its
+  // end, so real breathing is not mixed into it.
+  const current = now => A.Sensors.pulseMode === 'simulated' ? null : A.Sensors.fingerFrame(now);
+
+  // One per breathing task. tick() runs every game frame while the task is live: the live state follows the frame
+  // at once, the samples for the average are taken once a second, the ring settles slowly.
   const track = guide => ({
-    guide, next: null, seconds: 0, rates: [], pulses: [], live: null,
-    frame(now, f) {
+    guide, next: null, seconds: 0, rates: [], pulses: [], live: null, ring: { a: 0, near: null, solid: false },
+    tick(now, dt) { this.frame(now, current(now), dt); },
+    frame(now, f, dt = 0) {
       const r = this.live = reading(f);
+      this.settle(dt);
       if (this.next != null && now < this.next) return;
       this.next = this.next == null || now - this.next >= 1 ? now + 1 : this.next + 1;
       this.seconds++; this.rates.push(r?.rate ?? null); this.pulses.push(r?.pulse ?? null);
     },
-    // null: say nothing. measuring: the clips read a pulse but have no breathing rate yet. reading: a current rate.
+    // null: no real reading. measuring: the clips read a pulse but have no breathing rate yet. reading: a current rate.
     view() {
       const r = this.live;
       return r ? { state: r.rate == null ? 'measuring' : 'reading', rate: r.rate, guide: this.guide, near: closeness(r.rate, this.guide) } : null;
+    },
+    // What the task may draw and say. A current rate shows unless the setting "Breathing pace" is off; the wait for
+    // a first rate only shows where body numbers are asked for during play (Developer, "Signals during play").
+    shown() {
+      const v = this.view();
+      return v && A.config?.breathFeedback !== false && (v.state === 'reading' || !!A.config?.signalsOverlay) ? v : null;
+    },
+    settle(dt) {
+      const v = this.shown(), g = this.ring;
+      g.a = ema(g.a, v ? 1 : 0, dt, 0.8);
+      if (!v) return;
+      g.solid = v.state === 'reading';
+      if (v.near != null) g.near = g.near == null ? v.near : ema(g.near, v.near, dt, 3);
     },
     result() {
       if (!enough(this.rates.filter(x => x != null).length, this.seconds)) return null;
@@ -59,5 +79,5 @@
     },
   });
 
-  A.Breathing = { reading, closeness, enough, ends, track };
+  A.Breathing = { WINDOW_S, reading, current, closeness, enough, ends, track };
 })();

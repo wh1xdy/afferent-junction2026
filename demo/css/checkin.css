@@ -3,7 +3,7 @@
 @font-face { font-family: "Google Sans Flex"; src: url("../fonts/GoogleSansFlex-latin.woff2") format("woff2"); font-weight: 200 700; font-display: swap; unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+2000-206F, U+20AC, U+2122, U+2190-2193, U+2212, U+2215; }
 @font-face { font-family: "Google Sans Flex"; src: url("../fonts/GoogleSansFlex-latin-ext.woff2") format("woff2"); font-weight: 200 700; font-display: swap; unicode-range: U+0100-024F, U+1E00-1EFF; }
 
-.ll-kaamos, .ci {
+.ci {
   --ll-primary: #F2C230; --ll-on-primary: #3E2E00;
   --ll-primary-container: #594400; --ll-on-primary-container: #FFDF91;
   --ll-secondary: #B6C7EA; --ll-secondary-container: #374764; --ll-on-secondary-container: #D6E3FF;
@@ -25,7 +25,7 @@
   --ll-sun: #F2C230; --ll-on-sun: #3E2E00; --ll-sun-container: #FFDF91;
   --ll-scrim: #0A0703;
 }
-.ll-kaamos, .ll-kevat, .ci {
+.ll-kevat, .ci {
   --ll-font: "Google Sans Flex", system-ui, -apple-system, "Segoe UI", sans-serif;
   --ll-brand: "Jost", "Google Sans Flex", system-ui, sans-serif;
   --ll-ease: cubic-bezier(0.2, 0, 0, 1);

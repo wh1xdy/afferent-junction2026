@@ -1,0 +1,3 @@
+# The service itself is stdlib-only (sqlite3, http.server, statistics in stats.py).
+zeroconf==0.154.0   # optional: mDNS advertisement on Wendy Net (role=data-manager)
+tzdata              # IANA time zones for TZ_NAME inside the slim image

@@ -538,6 +538,13 @@
             "valid": {
               "type": "boolean",
               "description": "5 trials and at least 3 taps with rt >= 150"
+            },
+            "stimulus": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Presentation version of the reaction stimulus, name/version: flare/0 (lantern flare, until v3 minigames), bite/1 (Bite float). Absent or null means flare/0. Pool RT baselines within one stimulus only"
             }
           }
         }
@@ -1350,7 +1357,7 @@
     },
     "task_breathing": {
       "type": "object",
-      "description": "breath only: the breathing rate the finger sensor measured while the breathing task ran, next to the pace of its guide (Decisions I53). Present only when real readings covered a meaningful part of the task (at least 5 s and a third of it). Always measured: a simulated value is never written here.",
+      "description": "breath only: the breathing rate the finger sensor measured while the breathing task ran, next to the pace of its guide. Present only when real readings covered a meaningful part of the task (at least 5 s and a third of it). Always measured: a simulated value is never written here.",
       "required": [
         "source",
         "method",
@@ -1381,7 +1388,7 @@
         },
         "rate_per_min": {
           "$ref": "#/$defs/stat",
-          "description": "Measured breaths per minute over the ticks of the task that had a current reading. The sensor derives each value from its last 40 s of heartbeats, so in a task shorter than that the mean mostly describes the breathing before the task"
+          "description": "Measured breaths per minute over the ticks of the task that had a current reading. The sensor derives each value from its last 40 s of heartbeats, so the mean covers the task and the 40 s before it"
         },
         "pulse_bpm": {
           "$ref": "#/$defs/stat",
@@ -1434,7 +1441,7 @@
           ]
         },
         "rmssd_vs_baseline": {
-          "description": "RMSSD relative to the wearer's own median on the sensor, as a fraction (-0.3 is 30% below); null over Bluetooth (the HTTP path only)",
+          "description": "RMSSD relative to the sensor's running median of its last 10 minutes of readings (at least 2 minutes of them; kept on the sensor, not per person), as a fraction (-0.3 is 30% below); null over Bluetooth (the HTTP path only)",
           "oneOf": [
             {
               "$ref": "#/$defs/stat"

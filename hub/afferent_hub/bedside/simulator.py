@@ -10,10 +10,8 @@ from .source import OnEvent
 FW = "afferent-sim-0.1"
 log = logging.getLogger("afferent.bedside")
 
-
 def _in_bed_hours(hour: float) -> bool:
     return hour >= 22.5 or hour < 7.5
-
 
 class BedsideSimulator:
     name = "simulator"
@@ -27,13 +25,10 @@ class BedsideSimulator:
         self._on_event: OnEvent | None = None
         self._task: asyncio.Task | None = None
         self.session_active = False
-        self.finger = False
-        self.in_bed_override: bool | None = None
         self.in_bed: bool | None = None
         self.motion_until = 0
         self.knob = self.rng.choice([10, 15, 20])
         self.light = {"rgb": "#000000", "level": 0, "fade_ms": 0}
-        self.camera = False
         self.temp = 20.6 + self.rng.uniform(-0.5, 0.5)
         self.humidity = 32 + self.rng.uniform(-3, 3)
         self.hr_base = 64 + self.rng.uniform(-2, 4)
@@ -74,29 +69,9 @@ class BedsideSimulator:
             warmth = (r - b) / 255.0
             level = (msg.get("level") or 0) / 100.0
             self.hr_light = -1.5 * warmth * min(1.0, level * 4) + 2.0 * max(0.0, -warmth) * level
-        elif msg.get("type") == "camera":
-            self.camera = bool(msg.get("on"))
 
     def set_session_active(self, active: bool) -> None:
         self.session_active = active
-
-    def set_finger(self, on: bool) -> None:
-        self.finger = on
-
-    async def inject(self, cmd: dict) -> None:
-        if "knob" in cmd:
-            self.knob = max(0, min(100, int(cmd["knob"])))
-            await self._line(f"K turn {self.knob}")
-        if cmd.get("press"):
-            await self._line("K press")
-        if "in_bed" in cmd:
-            self.in_bed_override = cmd["in_bed"]
-            await self._presence(force=True)
-        if cmd.get("motion"):
-            self.motion_until = self.tick + 10
-            await self._presence(force=True)
-        if "finger" in cmd:
-            self.finger = bool(cmd["finger"])
 
     async def _line(self, line: str) -> None:
         msg = parse_line(line)
@@ -114,8 +89,6 @@ class BedsideSimulator:
         return now.hour + now.minute / 60
 
     def _want_in_bed(self) -> bool:
-        if self.in_bed_override is not None:
-            return self.in_bed_override
         return self.session_active or _in_bed_hours(self._hour())
 
     async def _presence(self, force: bool = False) -> None:
@@ -139,8 +112,6 @@ class BedsideSimulator:
         return self.hr_base + self.hr_drift + self.hr_light + resp + self.rng.gauss(0, 0.4)
 
     def _wants_contact(self) -> bool:
-        if self.finger:
-            return True
         if not self.pulse:
             return False
         if self.session_active:

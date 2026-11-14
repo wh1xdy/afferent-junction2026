@@ -12,12 +12,15 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 jetson/presence/data/
+jetson/data_manager/data/
 node_modules/
 graphify-out/
 art/raw/
 .env
 art/spend.json
 art/batch.log
+art/.spend.lock
+__pycache__/
 hub/.venv/
 hub/data/
 demo/design/
@@ -28,3 +31,20 @@ demo/design/
 *.db
 *.db-wal
 *.db-shm
+
+# posture-analysis/posture POC runtime data (models, db, dev recordings)
+posture-analysis/posture/models/*
+posture-analysis/posture/data/*
+posture-analysis/posture/recordings/*
+!posture-analysis/posture/models/.gitkeep
+!posture-analysis/posture/models/custom/
+!posture-analysis/posture/models/custom/*.onnx
+!posture-analysis/posture/models/custom/*.json
+!posture-analysis/posture/data/.gitkeep
+!posture-analysis/posture/recordings/.gitkeep
+art/experiments/
+art/final/
+art/v5review/
+art/final2/raw/
+art/final2/hires/
+art/final2/sheets/

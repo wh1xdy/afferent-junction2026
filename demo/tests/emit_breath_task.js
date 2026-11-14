@@ -1,5 +1,5 @@
 // Run: node demo/tests/emit_breath_task.js
-// Prints {task}: the record of one breathing task made by the real code (minigames.js, breathing.js, engine.js, record.js)
+// Prints {task}: the record of one breathing task made by the real code (tasks/breath.js, breathing.js, engine.js, record.js)
 // while finger_ppg readings arrive, so the contract tests can validate tasks[].extra.breathing as the phone writes it.
 // Nothing else goes to stdout. The numbers fed here (pulse 72, breathing 9, quality 0.6) are test inputs, not measurements.
 const { load, run } = require('./harness');

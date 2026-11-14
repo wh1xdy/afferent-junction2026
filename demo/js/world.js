@@ -133,6 +133,7 @@
       phase: 0, walk: 0, swing: 0, lx: 0, ly: 0, lastX: null, rings: [], steps: [], lastStep: 0,
       flashPrev: 0, flashAt: -9, flare: 0, frame: 0, panelFrame: -9, panelA: 0, focus: 0, heavy: 0,
       snow: Array.from({ length: N }, () => ({ x: rs(), y: rs(), z: 0.35 + rs() * 1.15, p: rs() * 6.28 })),
+      hk: { breath: null, pose: null, poseS: 0, flare: 0, lamp: 0, marks: [], lit: {} },
     };
   }
 
@@ -223,6 +224,7 @@
   }
 
   const haptic = () => {
+    if (A.J) { A.J.hap.seq([['light', 0], ['light', 140]]); return; }
     try {
       const Hp = window.Capacitor?.Plugins?.Haptics;
       if (Hp?.impact) { Hp.impact({ style: 'LIGHT' }); setTimeout(() => Hp.impact({ style: 'LIGHT' }), 140); return; }
@@ -257,6 +259,8 @@
     st.walk = ema(st.walk, S.walking ? 1 : 0, dt || 0.016, 0.18);
     st.phase += dt * 8.5 * n0(S.stride, 1) * (0.3 + 0.7 * st.walk) * (S.walking ? 1 : 0.0);
     st.rings = st.rings.filter(r => t - r.t < r.dur + 0.4);
+    st.hk.flare = dt ? ema(st.hk.flare, 0, dt, 0.7) : st.hk.flare;
+    st.hk.poseS = dt ? ema(st.hk.poseS, st.hk.pose === null ? 0 : 1, dt, rm ? 0.05 : 0.18) : st.hk.poseS;
     if (S.walking && Math.floor(st.phase / Math.PI) !== st.lastStep) {
       st.lastStep = Math.floor(st.phase / Math.PI);
       st.steps.push({ x: wx - 2, side: st.lastStep % 2, t });
@@ -540,8 +544,10 @@
     ctx.beginPath(); ctx.moveTo(x - wb / 2, base - h * 0.15); ctx.lineTo(x - wt / 2, base - h); ctx.lineTo(x + wt / 2, base - h); ctx.lineTo(x + wb / 2, base - h * 0.15); ctx.fill();
     tower(ctx, x, base, h, wb, wt);
     }
-    const day = Math.max(st.ds.dawn, st.sun, ease(n0(S.sweep, 0))), beam = n0(S.beam, 0) * (1 - day), lamp = clamp(0.35 + beam, 0, 1) * (1 - 0.7 * day);
-    glow(ctx, x, lampY, h * 0.5 * (0.6 + lamp), P.flame, 0.7 * lamp);
+    const day = Math.max(st.ds.dawn, st.sun, ease(n0(S.sweep, 0))), beam = n0(S.beam, 0) * (1 - day), fl = st.hk.flare, lamp = clamp(0.35 + beam + st.hk.lamp + fl, 0, 1) * (1 - 0.7 * day);
+    st.hk.lh = [x, lampY];
+    glow(ctx, x, lampY, h * 0.5 * (0.6 + lamp + 2.5 * fl), P.flame, 0.7 * lamp);
+    if (fl > 0.01) glow(ctx, x, lampY, h * (1.5 + 3 * fl), P.glow, 0.35 * fl, 'soft');
     if (beam > 0.02) {
       ctx.save(); ctx.translate(x, lampY); ctx.globalCompositeOperation = 'lighter';
       const ang = Math.PI + Math.sin(t * (rm ? 0.4 : 0.8)) * 0.5;
@@ -675,7 +681,8 @@
     lake: [() => mixc(P.ice, P.silver200, 0.35), 'blue'], sauna: [() => mixc(P.snow, P.bark, 0.5), 'yellow'], shore: [() => mixc(P.snow, P.peach, 0.45 * st.ds.dawn), 'base'],
   };
   const groundAt = type => GROUND[type] || GROUND.shore;
-  const gyAt = wx => gy + 3 * u * noise(wx * 0.012) - 2 * u;
+  const terr = wx => (typeof S.terrain === 'function' ? S.terrain(wx) * u : 0);
+  const gyAt = wx => gy - terr(wx) + 3 * u * noise(wx * 0.012) - 2 * u;
 
   const GTOP = { forest: 0.36, shore: 0.16, sauna: 0.06, harbour: 0.03, lake: 0.03 }, GF = 60, PW = 560;
   function groundArt(ctx, c) {
@@ -717,24 +724,29 @@
       else if (c.x1 - wx < blend && k < cs.length - 1) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
       g.addColorStop(i / 16, rgb(cc));
     }
-    ctx.beginPath(); ctx.moveTo(-step, H);
+    ctx.beginPath(); ctx.moveTo(-step, H + 2);
     for (let x = -step; x <= W + step; x += step) ctx.lineTo(x, gyAt(S.worldX + x - fx));
-    ctx.lineTo(W + step, H); ctx.closePath();
+    ctx.lineTo(W + step, H + 2); ctx.closePath();
     ctx.fillStyle = g; ctx.fill();
+    const gpath = () => { ctx.beginPath(); ctx.moveTo(-step, H + 2); for (let x = -step; x <= W + step; x += step) ctx.lineTo(x, gyAt(S.worldX + x - fx)); ctx.lineTo(W + step, H + 2); ctx.closePath(); };
     const painted = new Set();
+    ctx.save(); gpath(); ctx.clip();
     for (const c of vs) if (groundArt(ctx, c)) painted.add(c);
     groundPly(ctx, vs.filter(c => !painted.has(c)));
     ctx.globalAlpha = 1 - 0.6 * st.ds.dawn;
-    ctx.fillStyle = vgrad(ctx, 'gshade' + H, gy, H, [[0, 'rgba(14,26,62,0)'], [0.2, 'rgba(14,26,62,0.16)'], [1, 'rgba(10,18,44,0.55)']]);
-    ctx.fillRect(0, gy - 4 * u, W, H - gy + 4 * u);
+    ctx.fillStyle = vgrad(ctx, 'gshade' + H + ':' + Math.round(gy), gy - H * 0.2, H + H * 0.3, [[0, 'rgba(14,26,62,0)'], [0.3, 'rgba(14,26,62,0.16)'], [1, 'rgba(10,18,44,0.55)']]);
+    ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
+    ctx.restore();
     const o = S.worldX, dc = grade(P.silver050, 'base'), sh = grade(P.night600, 'blue');
     if (painted.size < vs.length) for (let i = 0; i < 5; i++) {
       const y = gy + (H - gy) * (0.16 + i * 0.17), amp = (3 + i * 2) * u, f = 1 + i * 0.12;
       ctx.beginPath();
-      for (let x = -step; x <= W + step; x += step * 2) { const q = (x + o * f) / u; const yy = y - amp * noise(q * 0.008 + i * 13); x === -step ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
+      const pts = [];
+      for (let x = -step; x <= W + step; x += step * 2) { const q = (x + o * f) / u; const yy = y - terr(S.worldX + x - fx) - amp * noise(q * 0.008 + i * 13); pts.push(x, yy); x === -step ? ctx.moveTo(x, yy) : ctx.lineTo(x, yy); }
       ctx.strokeStyle = rgb(dc, 0.07); ctx.lineWidth = 1.2 * u; ctx.stroke();
-      ctx.lineTo(W + step, y + 14 * u); ctx.lineTo(-step, y + 14 * u); ctx.closePath();
+      for (let j = pts.length - 2; j >= 0; j -= 2) ctx.lineTo(pts[j], pts[j + 1] + 14 * u);
+      ctx.closePath();
       ctx.fillStyle = rgb(sh, 0.07); ctx.fill();
     }
     if (!painted.size) {
@@ -756,7 +768,7 @@
         const cl = grade(c.type === 'lake' ? P.silver050 : P.silver200, 'blue');
         ctx.fillStyle = rgb(cl);
         for (let i = 0; i < 18; i++) {
-          const wx = c.x0 + (i * 131) % (c.x1 - c.x0), y = gy + 6 * u + (i * 37 % 100) / 100 * (H - gy) * 0.8, x = sx(wx);
+          const wx = c.x0 + (i * 131) % (c.x1 - c.x0), y = gyAt(wx) + 6 * u + (i * 37 % 100) / 100 * (H - gy) * 0.8, x = sx(wx);
           if (x < x0 - 30 || x > x1) continue;
           ctx.globalAlpha = c.type === 'lake' ? 0.18 : 0.1 + 0.08 * Math.sin(t * (rm ? 0.3 : 1.1) + i);
           ctx.fillRect(x, y, (12 + (i * 53) % 40) * u * (0.6 + (y - gy) / (H - gy)), 1);
@@ -792,7 +804,7 @@
     const t = n0(S.t, 0), span = 1400 * u, c = mixc(P.silver050, P.glow, 0.25), lx = st.lx, ly = st.ly, R = n0(S.lanternRadius, 70) * u * 2.6;
     const img = tint('glint', c), night = 1 - 0.6 * n0(S.daylight, 0);
     for (const g of GLINTS) {
-      const x = ((g.x * u - S.worldX) % span + span) % span - 40 * u, y = gy + 6 * u + g.y * (H - gy - 10 * u);
+      const x = ((g.x * u - S.worldX) % span + span) % span - 40 * u, y = gyAt(S.worldX + x - fx) + 6 * u + g.y * Math.max(10 * u, H - gy - 10 * u);
       if (x < -10 || x > W + 10) continue;
       const ty = chunkAtX(S.worldX + x - fx)?.type;
       if (ty === 'harbour') continue;
@@ -813,7 +825,7 @@
       if (ty === 'harbour' || ty === 'lake') continue;
       const x = sx(p.x), a = 0.32 * clamp(1 - (t - p.t) / 40, 0, 1);
       if (x < -10 || x > W + 10 || a <= 0.01) continue;
-      ctx.globalAlpha = a; ctx.beginPath(); ctx.ellipse(x, gy + (p.side ? 3.5 : 6) * u, 3.2 * u, 1.1 * u, 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = a; ctx.beginPath(); ctx.ellipse(x, gyAt(p.x) + (p.side ? 3.5 : 6) * u, 3.2 * u, 1.1 * u, 0, 0, 6.283); ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
@@ -852,9 +864,9 @@
     const rr = rng((c.seed | 0) + 3), base = gy - 2 * u;
     ctx.strokeStyle = col(P.spruce, 'green', 0.8, 0.1); ctx.lineWidth = 1.2; ctx.beginPath();
     for (let i = 0; i < 26; i++) {
-      const x = fx + (c.x0 + rr() * (c.x1 - c.x0) - S.worldX) * 0.9, h = (8 + rr() * 16) * u;
+      const wx = c.x0 + rr() * (c.x1 - c.x0), x = fx + (wx - S.worldX) * 0.9, h = (8 + rr() * 16) * u, by = base - terr(wx) * 0.9;
       if (x < -20 || x > W + 20) continue;
-      ctx.moveTo(x, base); ctx.quadraticCurveTo(x + 2 * u, base - h * 0.6, x + (rr() - 0.5) * 8 * u, base - h);
+      ctx.moveTo(x, by); ctx.quadraticCurveTo(x + 2 * u, by - h * 0.6, x + (rr() - 0.5) * 8 * u, by - h);
     }
     ctx.stroke();
   }
@@ -865,7 +877,7 @@
       ART.draw(ctx, 'pier_boat', x - w / 2, gy - h * 0.62, w, h, satOf('yellow'), Math.min(1, lightOf('yellow')), 1);
       return;
     }
-    const p0 = c.x1 - 560, p1 = c.x1 - 190, a = sx(p0), b = sx(p1), t = n0(S.t, 0), y = gy - 3 * u;
+    const p1 = c.pierEnd ?? c.x1 - 190, p0 = p1 - 370, a = sx(p0), b = sx(p1), t = n0(S.t, 0), y = gyAt(p1) - 3 * u - 2 * u * noise(p1 * 0.012) + 2 * u;
     ctx.fillStyle = col(mixc(P.wood, P.night700, 0.3), 'yellow', 1);
     for (let wx = p0 + 10; wx < p1; wx += 48) { const x = sx(wx); if (x > -10 && x < W + 10) ctx.fillRect(x, y, 4 * u, 34 * u); }
     ctx.fillStyle = col(P.wood, 'yellow', 1);
@@ -877,7 +889,7 @@
       ctx.fillStyle = col(mixc(P.wood, P.night700, 0.35), 'yellow', 1); ctx.fillRect(px, y - 16 * u, 5 * u, 50 * u);
       ctx.fillStyle = col(P.snow, 'base', 0.9); ctx.beginPath(); ctx.ellipse(px + 2.5 * u, y - 16 * u, 3.6 * u, 1.8 * u, 0, Math.PI, 0); ctx.fill();
     }
-    const bx = sx(c.x1 - 100), by = gy + 18 * u + Math.sin(t * (rm ? 0.4 : 1.1)) * 1.6 * u, rock = Math.sin(t * (rm ? 0.4 : 1.1) + 1) * 0.03;
+    const bx = sx(c.boatX ?? c.x1 - 100), by = gy + 18 * u + Math.sin(t * (rm ? 0.4 : 1.1)) * 1.6 * u, rock = Math.sin(t * (rm ? 0.4 : 1.1) + 1) * 0.03;
     if (bx > -80 && bx < W + 80) {
       ctx.save(); ctx.translate(bx, by); ctx.rotate(rock);
       ctx.fillStyle = col(mixc(P.wood, P.night900, 0.55), 'yellow', 1);
@@ -907,7 +919,7 @@
       if (b.back !== back) continue;
       const f = back ? 0.82 : 1, x = fx + (b.x - S.worldX) * f;
       if (x < -70 || x > W + 70) continue;
-      const h = H * b.h * (back ? 0.82 : 1), w = b.w * u * (back ? 0.75 : 1), base = gy + (back ? -3 : 3) * u, top = base - h, haze = back ? 0.4 : 0;
+      const h = H * b.h * (back ? 0.82 : 1), w = b.w * u * (back ? 0.75 : 1), base = gy - terr(b.x) * f + (back ? -3 : 3) * u, top = base - h, haze = back ? 0.4 : 0;
       const lean = b.lean + Math.sin(t * 0.5 + b.seed) * 0.006 * sway, tx = x + lean * h;
       ctx.fillStyle = col(P.bark, 'yellow', 1, haze);
       ctx.beginPath(); ctx.moveTo(x - w / 2, base); ctx.quadraticCurveTo(x - w * 0.4, base - h * 0.5, tx - w * 0.12, top); ctx.lineTo(tx + w * 0.12, top); ctx.quadraticCurveTo(x + w * 0.4, base - h * 0.5, x + w / 2, base); ctx.fill();
@@ -941,8 +953,10 @@
   }
 
   function hut(ctx, c) {
-    const x = sx(c.x0 + (c.x1 - c.x0) * 0.74), w = 96 * u, h = 52 * u, y = gy - h, t = n0(S.t, 0), stove = n0(S.stove, 0);
+    const hx = c.x0 + (c.x1 - c.x0) * 0.74, x = sx(hx), w = 96 * u, h = 52 * u, t = n0(S.t, 0), stove = n0(S.stove, 0);
     if (x < -160 || x > W + 160) return;
+    if (Math.abs(terr(hx + 40 * u) - terr(hx - 40 * u)) > 6 * u) return;
+    const gy = gyAt(hx) + 2 * u, y = gy - h;
     const lit = 0.55 + 0.45 * stove, flick = 0.9 + 0.1 * noise(t * 4.5);
     let smx = x + w * 0.26, smy = y - 34 * u;
     glow(ctx, x - w * 0.22, y + h * 0.42, 90 * u * (0.8 + 0.4 * stove), P.amber, 0.22 * lit * flick, 'soft');
@@ -983,12 +997,13 @@
       const wx = c.x0 + 60 + rr() * (c.x1 - c.x0 - 120), x = sx(wx), w = (24 + rr() * 40) * u, h = (10 + rr() * 16) * u;
       if (x < -60 || x > W + 60) continue;
       ctx.fillStyle = col(P.rock, 'base');
+      const gy = gyAt(wx) + 4 * u;
       ctx.beginPath(); ctx.ellipse(x, gy + 2 * u, w, h, 0, Math.PI, 0); ctx.fill();
       ctx.fillStyle = col(P.snow, 'base', 0.95);
       ctx.beginPath(); ctx.ellipse(x - w * 0.1, gy + 2 * u - h * 0.72, w * 0.62, h * 0.32, 0, Math.PI, 0); ctx.fill();
     }
-    const cx = sx(c.x0 + (c.x1 - c.x0) * 0.62);
-    if (cx > -40 && cx < W + 40) {
+    const cwx = c.x0 + (c.x1 - c.x0) * 0.62, cx = sx(cwx), gy = gyAt(cwx) + 2 * u;
+    if (cx > -40 && cx < W + 40 && Math.abs(terr(cwx + 20 * u) - terr(cwx - 20 * u)) < 5 * u) {
       ctx.fillStyle = col(P.rock, 'base');
       for (let i = 0; i < 4; i++) { const r = (9 - i * 1.8) * u; ctx.beginPath(); ctx.ellipse(cx + (i % 2 ? 1 : -1) * u, gy - 2 * u - i * 7 * u - r * 0.3, r * 1.2, r * 0.7, 0, 0, 6.283); ctx.fill(); }
     }
@@ -997,18 +1012,29 @@
   function rig() {
     const k = H * 0.086 / 60, walk = st.walk, ph = st.phase, t = n0(S.t, 0);
     const bob = walk * Math.abs(Math.sin(ph)) * 1.8;
-    const breath = (1 - walk) * Math.sin(t * 1.6);
+    const breath = st.hk.breath !== null ? st.hk.breath * 2 - 1 : (1 - walk) * Math.sin(t * 1.6);
     const swing = walk * 0.22 * Math.sin(ph + 0.9) + (1 - walk) * 0.05 * Math.sin(t * 0.9) * (rm ? 0.4 : 1);
     const hx = 13 + walk * 1.5 * Math.sin(ph), hy2 = -24 + breath * 0.3;
-    st.fig = { k, walk, ph, bob, breath, swing, hx, hy: hy2 };
-    st.lx = fx + k * (hx + Math.sin(swing) * 5);
-    st.ly = gy + 1 + k * (-bob + hy2 + Math.cos(swing) * 5);
+    const pa = st.hk.pose ?? st.hk.lastPose ?? 0, pp = st.hk.poseS, tx = hx + pp * 24 * Math.cos(pa), ty = hy2 - pp * 24 * Math.sin(pa);
+    if (st.hk.pose !== null) st.hk.lastPose = st.hk.pose;
+    const Rd = S.ride, air = Rd ? n0(Rd.air, 0) * u : 0, sq = Rd?.squash || [1, 1];
+    const a = Rd ? -n0(Rd.angle, 0) * 0.6 : 0, sxk = k * (rm ? 1 : sq[0]), syk = k * (rm ? 1 : sq[1]) * (1 - 0.12 * n0(Rd?.crouch, 0)) * (1 - 0.3 * n0(Rd?.sit, 0));
+    const ox = fx, oy = gyAt(S.worldX) + 1 - air, ca = Math.cos(a), sa = Math.sin(a);
+    const map = (px, py) => { const X = sxk * px, Y = syk * (py - bob); return [ox + ca * X - sa * Y, oy + sa * X + ca * Y]; };
+    const swing2 = swing + (Rd ? -0.5 * n0(Rd.speed01, 0) * (rm ? 0.3 : 1) : 0);
+    st.fig = { k, walk, ph, bob, breath, swing: swing2, hx, hy: hy2, tx, ty, pole: pp, a, sxk, syk, ox, oy, air, map, spread: n0(Rd?.spread, 0), speed: n0(Rd?.speed01, 0) };
+    st.hand = map(hx, hy2); st.tip = map(tx, ty);
+    st.lx = st.tip[0] + k * Math.sin(swing2) * 5;
+    st.ly = st.tip[1] + k * Math.cos(swing2) * 5;
     const sp = figSprite();
     if (sp) {
-      const [n, ax, , lx, ly] = sp, fh = H * FIG_H, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = gy + 3 * u - fh - bob * k;
+      const [n, ax, , lx, ly] = sp, fh = H * FIG_H, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = oy + 2 * u - fh - bob * k;
       st.fig.sp = { n, x0, y0, fw, fh };
-      st.lx = x0 + fw * lx + Math.sin(swing) * 1.5 * u;
-      st.ly = y0 + fh * ly;
+      const qx = (x0 + fw * lx - ox) * sxk / k, qy = (y0 + fh * ly - oy) * syk / k;
+      st.hand = [ox + ca * qx - sa * qy, oy + sa * qx + ca * qy];
+      st.tip = [st.hand[0] + pp * 24 * k * Math.cos(pa), st.hand[1] - pp * 24 * k * Math.sin(pa)];
+      st.lx = st.tip[0] + Math.sin(swing2) * 1.5 * u;
+      st.ly = st.tip[1];
     }
   }
   const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4] };
@@ -1017,10 +1043,11 @@
   function figure(ctx) {
     const F = st.fig, { k, walk, ph, bob, breath } = F, t = n0(S.t, 0), sway = rm ? 0.3 : 1;
     const bright = n0(S.lanternBright, 1), warm = mixc(P.glow, P.amber, 0.3);
-    sprite(ctx, 'soft', P.night950, fx - 16 * k, gy - 2 * k, 32 * k, 7 * k, 0.6, false);
+    const sh = clamp(1 - F.air / (160 * u), 0.25, 1), gyF = gyAt(S.worldX);
+    sprite(ctx, 'soft', P.night950, fx - 16 * k * sh, gyF - 2 * k, 32 * k * sh, 7 * k, 0.6 * sh, false);
     if (F.sp) {
       const { n, x0, y0, fw, fh } = F.sp, lean = walk * 0.025 * Math.sin(ph * 2) * sway, sq = 1 + 0.012 * breath;
-      ctx.save(); ctx.translate(fx, y0 + fh); ctx.rotate(lean); ctx.scale(1, sq); ctx.translate(-fx, -(y0 + fh));
+      ctx.save(); ctx.translate(F.ox, F.oy); ctx.rotate(lean + F.a); ctx.scale(F.sxk / k, sq * F.syk / k); ctx.translate(-F.ox, -F.oy);
       ART.draw(ctx, n, x0, y0, fw, fh, Math.max(0.3, satOf('yellow')), Math.min(1, lerp(0.62, 1, Math.max(st.ds.dawn, 0.5 * n0(S.daylight, 0))) + 0.1 * bright), 1);
       ctx.restore();
       return;
@@ -1033,7 +1060,7 @@
     const { k, walk, ph, bob, breath } = F, by = 1 + breath * 0.012;
     const fl = (Math.sin(t * 1.4) * 0.6 * sway + walk * Math.sin(ph * 2) * 1.1), wind = (noise(t * 0.6) - 0.5) * 1.2 * sway;
     const pool = 0.75 * (1 - satOf('yellow')) * Math.min(1, bright), wool = mixc(grade(P.cloak, 'yellow'), WOOL_LIT, pool), shade = mixc(wool, grade(P.kaamos, 'base'), 0.6), lit = Math.min(1, 0.8 * bright);
-    ctx.save(); ctx.translate(fx, gy + 1); ctx.scale(k, k); ctx.translate(0, -bob);
+    ctx.save(); ctx.translate(F.ox, F.oy); ctx.rotate(F.a); ctx.scale(F.sxk, F.syk); ctx.translate(0, -bob);
     ctx.fillStyle = rgb(grade(P.night800, 'base'));
     for (const s of [-1, 1]) {
       const step = walk * Math.sin(ph + (s > 0 ? 0 : Math.PI)), lift = Math.max(0, step) * 2.2;
@@ -1067,20 +1094,22 @@
     ctx.strokeStyle = rgb(mixc(wool, shade, 0.3)); ctx.lineWidth = 3.4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(6, -29 * by); ctx.quadraticCurveTo(10, -26, F.hx, F.hy); ctx.stroke();
     ctx.restore();
-    glow(ctx, fx + 7 * k, gy - 24 * k, 22 * k, warm, Math.min(0.3, 0.16 * bright), 'soft');
+    const gp = F.map(7, -24);
+    glow(ctx, gp[0], gp[1], 22 * k, warm, Math.min(0.3, 0.16 * bright), 'soft');
   }
 
   function lantern(ctx) {
     const F = st.fig, k = F.k, t = n0(S.t, 0), x = st.lx, y = st.ly;
     const f = st.flare, fl = (0.88 + 0.12 * noise(t * (rm ? 2 : 7)) + 0.05 * noise(t * 19)) * n0(S.flame, 1) * (1 + 1.4 * f), br = n0(S.lanternBright, 1);
-    const hx = fx + k * F.hx, hy2 = gy + 1 + k * (F.hy - F.bob);
+    const [hx, hy2] = st.hand, [px, py] = st.tip;
+    if (F.pole > 0.02) { ctx.strokeStyle = col(P.wood, 'yellow', F.pole); ctx.lineWidth = 1.6 * k; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(hx, hy2); ctx.lineTo(px, py); ctx.stroke(); }
     if (F.sp) {
       glow(ctx, x, y, 5 * k * fl, P.daylight, 0.85 * br);
       glow(ctx, x, y, 22 * k * fl, P.glow, 0.55 * br);
       for (const sp of S.sparks || []) { const age = t - sp.born; if (age >= 0 && age <= 1) glow(ctx, x + sp.dx * age * 34, y + sp.dy * age * 40 - age * 10, 2.4 * k, P.flame, 1 - age); }
       return;
     }
-    ctx.strokeStyle = rgb(P.night950, 0.9); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, hy2); ctx.lineTo(x, y - 3.5 * k); ctx.stroke();
+    ctx.strokeStyle = rgb(P.night950, 0.9); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y - 3.5 * k); ctx.stroke();
     ctx.save(); ctx.translate(x, y); ctx.rotate(F.swing);
     ctx.fillStyle = rgb(P.night900); ctx.beginPath(); ctx.ellipse(0, -3.2 * k, 2.4 * k, 1.3 * k, 0, Math.PI, 0); ctx.fill(); ctx.fillRect(-2.2 * k, 3 * k, 4.4 * k, 1.2 * k);
     ctx.fillStyle = rgb(mixc(P.glow, P.flame, 0.5)); ctx.beginPath(); ctx.ellipse(0, 0.4 * k, 2.4 * k, 2.9 * k, 0, 0, 6.283); ctx.fill();
@@ -1099,10 +1128,11 @@
     const fl = 0.93 + 0.07 * noise(t * (rm ? 1.5 : 5)), warm = mixc(mixc(P.amber, P.glow, 0.4), P.amber2, clamp(n0(S.warm, 0) * 2, 0, 0.35));
     glow(ctx, x, y, R * 3.2 * fl * (1 + 0.5 * f), warm, 0.17 * br, 'soft');
     const pr = R * 2.4 * (1 + 0.25 * f);
-    sprite(ctx, 'soft', warm, x - pr, gy - pr * 0.17, 2 * pr, pr * 0.44, 0.42 * br * fl, true);
+    const gyL = gyAt(S.worldX), airK = clamp(1 - (gyL - y) / (180 * u), 0, 1);
+    sprite(ctx, 'soft', warm, x - pr, gyL - pr * 0.17, 2 * pr, pr * 0.44, 0.42 * br * fl * airK, true);
     if (f > 0.01) glow(ctx, x, y, H * 0.2, mixc(P.glow, P.amber, 0.3), 0.34 * f, 'soft');
     const under = chunkAtX(S.worldX)?.type;
-    if (under === 'harbour' || under === 'lake') sprite(ctx, 'soft', P.glow, x - R * 0.25, gy, R * 0.5, R * 1.6, 0.25 * br * fl, true);
+    if (under === 'harbour' || under === 'lake') sprite(ctx, 'soft', P.glow, x - R * 0.25, gyL, R * 0.5, R * 1.6, 0.25 * br * fl * airK, true);
   }
   const chunkAtX = wx => chunks().find(c => wx >= c.x0 && wx < c.x1);
 
@@ -1128,17 +1158,6 @@
     const c = mixc(P.amber, P.aurora, 0.5 * st.ds.green);
     glow(ctx, x, y, R * 1.7, c, (0.25 + 0.35 * n0(o.hold, 0)) * o.alpha, 'soft');
     sprite(ctx, 'halo', c, x - R * 1.2, y - R * 1.2, R * 2.4, R * 2.4, (0.12 + 0.1 * n0(o.sync, 0)) * o.alpha, true);
-    // Measured breathing (finger sensor): dots while there is no rate yet, then dashes that close, warm and draw in as
-    // the measured pace nears the guide. The radius never follows the breath.
-    const f = o.ring, fa = f ? n0(f.a, 0) * o.alpha : 0;
-    if (fa <= 0.01) return;
-    const near = clamp(n0(f.near, 0), 0, 1), gap = 9 * u * (1 - near);
-    ctx.save();
-    ctx.strokeStyle = rgb(mixc(P.silver300, P.glow, f.solid ? near : 0), (f.solid ? 0.22 + 0.33 * near : 0.36) * fa);
-    ctx.lineWidth = (f.solid ? 1.6 : 2) * u; ctx.lineCap = 'round';
-    ctx.setLineDash(!f.solid ? [0.1, 7 * u] : gap > 0.5 ? [10 * u, gap] : []);
-    ctx.beginPath(); ctx.arc(x, y, (86 + (rm ? 0 : 20 * (1 - near))) * u, 0, 6.283); ctx.stroke();
-    ctx.restore();
   }
 
   function tapHint(ctx) {
@@ -1248,7 +1267,7 @@
   }
 
   function scene(ctx) {
-    sky(ctx); stars(ctx); moon(ctx); aurora(ctx); sun(ctx);
+    sky(ctx); stars(ctx); skyMarks(ctx); moon(ctx); aurora(ctx); sun(ctx);
     mountains(ctx);
     sea(ctx);
     islands(ctx);
@@ -1256,17 +1275,34 @@
     shoreLights(ctx);
     midHills(ctx);
     props(ctx, true);
+    const env = travEnv(ctx);
+    if (env) A.Traverse.cur?.drawBack?.(ctx, env);
     ground(ctx);
     footprints(ctx);
     props(ctx, false);
+    landmarkLights(ctx);
     fog(ctx, true);
     darkness(ctx);
     lanternLight(ctx);
     glints(ctx);
     orb(ctx);
-    figure(ctx); lantern(ctx); tapHint(ctx); rings(ctx);
+    figure(ctx); lantern(ctx);
+    if (env) A.Traverse.cur?.drawFront?.(ctx, env);
+    tapHint(ctx); rings(ctx);
     snow(ctx);
     foreground(ctx);
+  }
+
+  function travEnv(ctx) {
+    if (!A.Traverse?.cur || A.session?.V !== S) return null;
+    return {
+      ctx, u, W, H, gy, hy, fx, night: !!I.night, t: n0(S.t, 0),
+      col: (c, g = 'base', a = 1) => col(typeof c === 'string' ? hex(c) : c, g, a),
+      glow: (cx, x, y, r, c, a, name) => glow(cx, x, y, r, typeof c === 'string' ? hex(c) : c, a, name),
+      soft: (cx, x, y, r, c, a) => sprite(cx, 'soft', typeof c === 'string' ? hex(c) : c, x - r, y - r, 2 * r, 2 * r, a, false),
+      art: (name, x, y, w, h) => A.Art.draw(ctx, name, x, y, w, h, satOf('yellow'), Math.min(1, lightOf('yellow')), 1),
+      rgb: (c, a = 1) => rgb(c, a), mix: (a, b, t) => mixc(a, b, t),
+    };
   }
 
   function panel(ctx, b, o = {}) {
@@ -1283,12 +1319,68 @@
     ctx.fillRect(b.x, b.y, b.w, 28);
     ctx.restore();
     ctx.lineWidth = done ? 1.8 : 1;
-    ctx.strokeStyle = rgb(accent, done ? 0.75 : 0.2); ctx.stroke();
+    ctx.strokeStyle = rgb(accent, done ? 0.75 : lerp(0.2, 0.75, clamp(o.warmth || 0, 0, 1))); ctx.stroke();
     if (done) glow(ctx, b.x + b.w / 2, b.y + b.h, b.w * 0.5, accent, 0.25, 'soft');
     ctx.restore();
   }
 
+  function landmarkList() {
+    if (!st) return [];
+    const out = [], len = c => c.x1 - c.x0;
+    if (st.hk.lh) out.push({ id: 'lighthouse', kind: 'lighthouse', x: st.hk.lh[0], y: st.hk.lh[1] });
+    for (const c of visible()) {
+      const at = {
+        sauna: [sx(c.x0 + len(c) * 0.74) - 21 * u, gy - 30 * u], harbour: [sx(c.x1 - 190), gy - 20 * u], forest: [sx(c.x0 + len(c) * 0.5), gy - H * 0.2],
+        lake: [sx(c.x0 + len(c) * 0.5), gy - 6 * u], shore: [sx(c.x0 + len(c) * 0.5), gy - 4 * u],
+      }[c.type];
+      if (at && at[0] > -40 && at[0] < W + 40) out.push({ id: c.type + ':' + c.seed, kind: c.type, x: at[0], y: at[1] });
+    }
+    return out;
+  }
+
+  function landmarkLights(ctx) {
+    const lit = st.hk.lit, ids = Object.keys(lit);
+    if (!ids.length) return;
+    for (const m of landmarkList()) {
+      const a = lit[m.id];
+      if (!a || m.kind === 'lighthouse') continue;
+      glow(ctx, m.x, m.y, 70 * u, P.amber, 0.28 * a, 'soft');
+      glow(ctx, m.x, m.y, 18 * u, P.glow, 0.7 * a);
+      sprite(ctx, 'soft', P.glow, m.x - 60 * u, gy - 4 * u, 120 * u, 14 * u, 0.3 * a, true);
+    }
+  }
+
+  function skyMarks(ctx) {
+    const t = n0(S.t, 0), nightA = 1 - 0.8 * st.sun;
+    for (const m of st.hk.marks) {
+      const a = Math.min(1, (t - m.born) / 0.8) * nightA, x = m.x * W, y = m.y * H;
+      if (a <= 0.01) continue;
+      const c = m.kind === 'cool' ? P.silver100 : m.kind === 'aurora' ? P.aurora : P.glow;
+      glow(ctx, x, y, 14 * u, c, 0.45 * a, 'soft');
+      glow(ctx, x, y, 4 * u, P.daylight, 0.95 * a);
+      if (m.kind === 'star' || !m.kind) glow(ctx, x, y, 10 * u, c, 0.6 * a, 'glint');
+    }
+  }
+
+  const hooks = {
+    setBreath(b) { if (st) st.hk.breath = b == null ? null : clamp(b, 0, 1); },
+    landmarks: () => landmarkList(),
+    lightLandmark(i, a = 1) {
+      if (!st) return;
+      const id = typeof i === 'number' ? landmarkList()[i]?.id : i;
+      if (id) st.hk.lit[id] = clamp(a, 0, 1);
+    },
+    addSkyMark(kind, x, y) {
+      if (!st) return;
+      st.hk.marks.push({ kind, x: clamp(x, 0, 1), y: clamp(y, 0, 1), born: n0(S.t, 0) });
+      if (st.hk.marks.length > 24) st.hk.marks.shift();
+    },
+    flareLighthouse(a = 1) { if (st) { st.hk.flare = Math.max(st.hk.flare, clamp(a, 0, 1)); st.hk.lamp = Math.max(st.hk.lamp, 0.4 * clamp(a, 0, 1)); } },
+    lanternPose(angle) { if (st) st.hk.pose = angle == null ? null : angle; },
+  };
+
   A.World = {
+    hooks,
     panel,
     lanternPos: () => [st ? st.lx : fx + 20, st ? st.ly : gy - 30],
     wave,
@@ -1296,8 +1388,10 @@
     tintStats: () => ({ ...tintStats, size: tints.size }),
     draw(ctx, w, h, state) {
       S = state; W = w; H = h; ctxRef = ctx;
-      gy = H * 0.82; hy = H * 0.6; fx = W * 0.35; u = H / 844;
+      u = H / 844;
       rm = !!(A.config && A.config.reducedMotion) || !!(MQ && MQ.matches);
+      const cam = !rm && S.cam ? S.cam : null;
+      gy = H * 0.82 + n0(cam?.y, 0); hy = H * 0.6; fx = W * 0.35 + n0(cam?.x, 0);
       pm = rm ? 0.5 : 1;
       st = states.get(S); if (!st) { st = newState(); states.set(S, st); }
       const sess = A.session && A.session.V === S ? A.session : null;

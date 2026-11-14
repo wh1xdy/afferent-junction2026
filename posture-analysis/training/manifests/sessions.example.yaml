@@ -1,0 +1,24 @@
+# Copy to manifests/sessions.yaml. Contains pseudonymous ids only (P01, P02...),
+# never real names, never images. One entry per recording.
+sessions:
+  - video: 2026-11-10_P01_walk.mp4      # relative to --videos-dir
+    session_id: S001
+    person_ids: [P01]
+    consent: true                       # frames are only extracted if true
+    situation: walk                     # walk | sit_to_stand | turn | seated | posture
+    date: 2026-11-10
+    camera: livingroom_c920
+  - video: 2026-11-10_P02_sit2stand.mp4
+    session_id: S002
+    person_ids: [P02]
+    consent: true
+    situation: sit_to_stand
+    date: 2026-11-10
+    camera: livingroom_c920
+  - video: 2026-11-11_P01_P03_posture.mp4
+    session_id: S003
+    person_ids: [P01, P03]              # co-occurring people are kept in the same split
+    consent: true
+    situation: posture
+    date: 2026-11-11
+    camera: livingroom_c920

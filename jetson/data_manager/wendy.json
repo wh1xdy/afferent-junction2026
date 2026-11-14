@@ -1,0 +1,37 @@
+{
+  "appId": "afferent-data-manager",
+  "version": "0.2.0",
+  "platform": "linux",
+  "isolation": "isolated",
+  "env": {
+    "TZ_NAME": "${TZ_NAME}",
+    "API_TOKEN": "${API_TOKEN}",
+    "RAW_RETENTION_DAYS": "180",
+    "ALLOW_NO_AUTH": "${ALLOW_NO_AUTH}"
+  },
+  "entitlements": [
+    {
+      "type": "network",
+      "mode": "mesh",
+      "serviceCIDR": "10.99.0.0/16",
+      "ports": [
+        {
+          "host": 8100,
+          "container": 8100,
+          "protocol": "tcp"
+        }
+      ]
+    },
+    {
+      "type": "persist",
+      "name": "afferent-data-manager",
+      "path": "/data"
+    }
+  ],
+  "readiness": {
+    "tcpSocket": {
+      "port": 8100
+    },
+    "timeoutSeconds": 30
+  }
+}

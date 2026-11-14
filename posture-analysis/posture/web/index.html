@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>afferent posture</title>
+<style>
+  :root { --bg:#0f1420; --panel:#1a2132; --fg:#e6e9f0; --dim:#8b93a7;
+          --acc:#4cc38a; --warn:#ffb454; --bad:#ff6b6b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui,sans-serif; background:var(--bg);
+         color:var(--fg); }
+  header { padding:12px 18px; display:flex; gap:14px; align-items:center;
+           border-bottom:1px solid #2a3350; }
+  header h1 { font-size:17px; margin:0; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); }
+  .dot.ok { background:var(--acc); }
+  main { display:grid; grid-template-columns: minmax(0,1fr) 360px; gap:14px;
+         padding:14px; }
+  .panel { background:var(--panel); border:1px solid #2a3350;
+           border-radius:10px; padding:12px; }
+  .panel h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+              color:var(--dim); margin:0 0 8px; }
+  #video-wrap { position:relative; }
+  #stream { width:100%; border-radius:8px; display:block; background:#000; }
+  #calib-layer { position:absolute; inset:0; cursor:crosshair; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin:6px 0; }
+  button { background:#26314d; color:var(--fg); border:1px solid #3a4767;
+           border-radius:7px; padding:7px 12px; cursor:pointer; font-size:13px; }
+  button:hover { background:#31405f; }
+  button.primary { background:#1f5138; border-color:#2e7d55; }
+  button.danger { background:#5a2330; border-color:#8a3550; }
+  button:disabled { opacity:.45; cursor:default; }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th,td { text-align:left; padding:4px 6px; border-bottom:1px solid #2a3350; }
+  th { color:var(--dim); font-weight:600; }
+  .kv { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; }
+  .kv b { color:var(--dim); font-weight:600; }
+  .badge { padding:2px 8px; border-radius:10px; font-size:11.5px;
+           background:#26314d; }
+  .badge.locked { background:#1f5138; color:#b8f5d4; }
+  .badge.lost, .badge.recherche { background:#5a2330; color:#ffd7d7; }
+  canvas { width:100%; background:#0b0f1a; border-radius:8px; }
+  input[type=number], input[type=text] { width:90px; background:#0b0f1a;
+                       color:var(--fg);
+                       border:1px solid #3a4767; border-radius:6px;
+                       padding:5px 7px; }
+  #site-in { width:110px; }
+  .hint { color:var(--dim); font-size:12px; }
+  .err { color:var(--bad); }
+  .ok { color:var(--acc); }
+</style>
+</head>
+<body>
+<header>
+  <h1>afferent posture</h1>
+  <span class="dot" id="dot"></span>
+  <span id="models">models: …</span>
+  <span style="flex:1"></span>
+  <span class="hint">site</span>
+  <input type="text" id="site-in" placeholder="default">
+  <button id="btn-site">Switch site</button>
+  <span class="hint" id="clock"></span>
+</header>
+<main>
+  <section>
+    <div class="panel">
+      <h2>Live view</h2>
+      <div id="video-wrap">
+        <img id="stream" src="/stream.mjpg" alt="live">
+        <canvas id="calib-layer" width="1280" height="720"></canvas>
+      </div>
+      <div class="row">
+        <button id="btn-enroll" class="primary">Enroll target</button>
+        <button id="btn-gallery-del" class="danger">Delete gallery</button>
+        <button id="btn-upright">Calibrate upright</button>
+        <button id="btn-floor">Calibrate floor (4 clicks)</button>
+        <button id="btn-floor-send" disabled>Send floor calib</button>
+        <button id="btn-session">Start session</button>
+        <label class="hint"><input type="checkbox" id="simulated"> simulated</label>
+        <button id="btn-record">Record (dev)</button>
+      </div>
+      <div class="hint" id="floor-hint"></div>
+    </div>
+
+    <div class="panel" style="margin-top:14px">
+      <h2>Minute angles (last 120 min)</h2>
+      <canvas id="chart" width="900" height="220"></canvas>
+      <div class="hint">median per minute — trunk inclination (deg),
+        neck flexion (deg), slump index · dominant activity×orientation
+        context per minute</div>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2>Status</h2>
+      <div class="kv" id="status"></div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h2>Sessions vs baseline</h2>
+      <table id="sessions">
+        <thead><tr><th>start</th><th>sim</th><th>speed</th><th>cadence</th>
+          <th>step m</th><th>bounce</th><th>trunk°</th><th>arm°</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="hint">mean±sd columns compare each session to the mean of
+        non-simulated sessions.</div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h2>Days</h2>
+      <table id="days">
+        <thead><tr><th>day</th><th>min</th><th>coverage</th>
+          <th>slump</th><th>trunk°</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="row"><button id="btn-days">Refresh days</button></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let status = {};
+let calibMode = false, calibPts = [], floorPtsDefault =
+  [[0,0],[3,0],[3,4],[0,4]];   // metres, edit below if needed
+let frameW = 0, frameH = 0;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+async function refresh() {
+  try {
+    status = await api('/api/status');
+    frameW = status.frame_w || frameW;
+    frameH = status.frame_h || frameH;
+    const si = $('site-in');
+    if (document.activeElement !== si) si.value = status.site || '';
+    renderStatus();
+    $('dot').className = 'dot' + (status.models_ready ? ' ok' : '');
+    $('models').textContent = status.models_ready
+      ? `models ready · gallery ${status.gallery_size}`
+      : (status.models_error ? 'models: ' + status.models_error : 'loading models…');
+  } catch (e) { /* server restarting */ }
+}
+
+function renderStatus() {
+  const s = status, kv = [];
+  const idBadge = `<span class="badge ${s.identity}">${s.identity}</span>`;
+  kv.push(['identity', idBadge]);
+  kv.push(['site', s.site || '-']);
+  kv.push(['match score', s.match_score != null ? s.match_score.toFixed(3) : '-']);
+  kv.push(['activity', s.activity || '-']);
+  kv.push(['orientation', s.orientation || '-']);
+  kv.push(['pose fps', s.pose_fps]);
+  kv.push(['burst', s.burst_mode ? 'yes' : 'no']);
+  kv.push(['capture', `${s.capture_frames} frames${s.capture_error ? ' ERR ' + s.capture_error : ''}`]);
+  kv.push(['persons frames', s.persons_frames]);
+  kv.push(['target frames', s.target_frames]);
+  kv.push(['floor calib', s.floor_calibrated ? 'yes' : 'no']);
+  kv.push(['refs', `trunk ${fmt(s.ref_trunk_len_px)}px · sh-hip ${fmt(s.ref_shoulder_hip_px)}px`]);
+  kv.push(['session', s.session && s.session.active
+      ? `${s.session.phase}${s.session.simulated ? ' (sim)' : ''}`
+      : (s.session && s.session.gait_undersampled ? 'idle (last gait: low fps)' : 'idle')]);
+  kv.push(['gait sampling', s.last_gait_undersampled == null
+      ? '-' : (s.last_gait_undersampled ? 'undersampled' : 'ok')]);
+  kv.push(['recording', s.recording || '-']);
+  kv.push(['db rows', `min ${s.minute_rows} · sess ${s.sessions} · ep ${s.episodes}`]);
+  $('status').innerHTML = kv.map(([k,v]) => `<b>${k}</b><span>${v}</span>`).join('');
+}
+const fmt = v => v == null ? '-' : (+v).toFixed(1);
+
+/* ---------- buttons ---------- */
+$('btn-site').onclick = async () => {
+  const v = $('site-in').value.trim();
+  if (!v) return;
+  const r = await api('/api/site/' + encodeURIComponent(v), {method:'POST'});
+  $('floor-hint').innerHTML = r.ok
+    ? `<span class="ok">site → ${r.site} (floor calib: ${r.floor_calibrated ? 'yes' : 'none'})</span>`
+    : `<span class="err">${r.detail || 'switch failed'}</span>`;
+  refresh();
+};
+
+$('site-in').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('btn-site').click();
+});
+$('btn-enroll').onclick = async () => {
+  if (enrolling) {
+    const r = await api('/api/enroll/stop', {method:'POST'});
+    enrolling = false; $('btn-enroll').textContent = 'Enroll target';
+    $('floor-hint').innerHTML = `<span class="ok">enrollment stopped: ${r.collected} embeddings, gallery=${r.gallery_size}</span>`;
+  } else {
+    await api('/api/enroll/start', {method:'POST'});
+    enrolling = true; $('btn-enroll').textContent = 'Stop enroll';
+    $('floor-hint').textContent = 'enrolling… keep face visible & centered';
+  }
+};
+let enrolling = false;
+
+$('btn-gallery-del').onclick = async () => {
+  if (!confirm('Delete all enrolled face embeddings?')) return;
+  await api('/api/gallery', {method:'DELETE'});
+  refresh();
+};
+
+$('btn-upright').onclick = async () => {
+  const r = await api('/api/calibration/upright', {method:'POST'});
+  $('floor-hint').innerHTML = r.ok
+    ? `<span class="ok">upright refs stored: trunk=${fmt(r.ref_trunk_len_px)}px sh-hip=${fmt(r.ref_shoulder_hip_px)}px (${r.n_samples} samples)</span>`
+    : `<span class="err">${r.detail || 'failed'}</span>`;
+};
+
+/* floor calibration: click 4 points on the video */
+$('btn-floor').onclick = () => {
+  calibMode = !calibMode; calibPts = [];
+  $('btn-floor').textContent = calibMode ? 'Click 4 floor points…' : 'Calibrate floor (4 clicks)';
+  $('btn-floor-send').disabled = !calibMode;
+  $('floor-hint').textContent = calibMode
+    ? 'click 4 points on the floor in the image (e.g. rectangle corners), then Send.' : '';
+  drawCalib();
+};
+$('btn-floor-send').onclick = async () => {
+  if (calibPts.length !== 4) { $('floor-hint').textContent = 'need 4 points'; return; }
+  const r = await api('/api/calibration/floor', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({img_pts: calibPts, floor_pts: floorPtsDefault})});
+  calibMode = false; calibPts = [];
+  $('btn-floor').textContent = 'Calibrate floor (4 clicks)';
+  $('btn-floor-send').disabled = true;
+  $('floor-hint').innerHTML = r.ok ? '<span class="ok">floor calibrated</span>'
+                                 : `<span class="err">${r.detail||'failed'}</span>`;
+  drawCalib(); refresh();
+};
+
+const layer = $('calib-layer');
+layer.addEventListener('click', e => {
+  if (!calibMode) return;
+  const rect = layer.getBoundingClientRect();
+  const fx = (e.clientX - rect.left) / rect.width;
+  const fy = (e.clientY - rect.top) / rect.height;
+  // map displayed fraction to image pixels
+  const img = $('stream');
+  const iw = frameW || img.naturalWidth, ih = frameH || img.naturalHeight;
+  // account for object-fit: img is width:100%, height auto -> same aspect
+  calibPts.push([Math.round(fx * iw), Math.round(fy * ih)]);
+  if (calibPts.length > 4) calibPts.shift();
+  drawCalib();
+});
+function drawCalib() {
+  const c = $('calib-layer'), ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const img = $('stream');
+  const iw = frameW || img.naturalWidth, ih = frameH || img.naturalHeight;
+  const sx = c.width / iw, sy = c.height / ih;
+  calibPts.forEach((p,i) => {
+    ctx.fillStyle = '#4cc38a'; ctx.font = '16px sans-serif';
+    ctx.fillText(i+1, p[0]*sx+4, p[1]*sy-4);
+    ctx.beginPath(); ctx.arc(p[0]*sx, p[1]*sy, 6, 0, 7);
+    ctx.fill();
+  });
+}
+
+$('btn-session').onclick = async () => {
+  const active = status.session && status.session.active;
+  if (active) {
+    const r = await api('/api/session/stop', {method:'POST'});
+    $('btn-session').textContent = 'Start session';
+    $('floor-hint').innerHTML = `<span class="ok">session done</span>`;
+  } else {
+    const r = await api('/api/session/start', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({simulated: $('simulated').checked})});
+    if (r.ok) $('btn-session').textContent = 'Stop session';
+    else $('floor-hint').innerHTML = `<span class="err">${r.error||'failed'}</span>`;
+  }
+  refresh();
+};
+
+$('btn-record').onclick = async () => {
+  if (status.recording) {
+    const r = await api('/api/record/stop', {method:'POST'});
+    $('floor-hint').textContent = `recording saved: ${r.path||''}`;
+  } else {
+    const r = await api('/api/record/start', {method:'POST'});
+    $('floor-hint').innerHTML = r.ok ? `<span class="ok">recording → ${r.path}</span>`
+      : `<span class="err">${r.error||'failed'}</span>`;
+  }
+  refresh();
+};
+
+$('btn-days').onclick = async () => {
+  await api('/api/days/refresh', {method:'POST'});
+  loadDays(); loadSessions();
+};
+
+/* ---------- charts & tables ---------- */
+async function loadMinutes() {
+  const all = await api('/api/minutes?limit=240');
+  // one minute can hold several activity x orientation context rows;
+  // plot the dominant context (most valid frames) per minute
+  const byTs = {};
+  all.forEach(r => {
+    const p = byTs[r.ts];
+    if (!p || (r.n_valid_frames || 0) > (p.n_valid_frames || 0)) byTs[r.ts] = r;
+  });
+  const rows = Object.values(byTs).sort((a, b) => a.ts - b.ts);
+  const c = $('chart'), ctx = c.getContext('2d');
+  ctx.clearRect(0,0,c.width,c.height);
+  const series = [
+    ['trunk_inclination','med','#4cc38a'],
+    ['neck_flexion','med','#ffb454'],
+    ['slump_index','med','#6ea8ff'],
+  ];
+  if (!rows.length) { ctx.fillStyle='#8b93a7'; ctx.fillText('no minute rows yet',20,40); return; }
+  const W=c.width,H=c.height,pad=30;
+  // slump has its own scale note; normalise each series to its own min/max
+  series.forEach(([key,stat,color],si)=>{
+    const pts = rows.map(r=>{
+      let v=null;
+      if (key==='slump_index') v=r.slump; else {
+        const a=r.angles&&r.angles[key]; v=a?a[stat]:null;
+      }
+      return v;
+    }).filter(v=>v!=null);
+    if (!pts.length) return;
+    const lo=Math.min(...pts), hi=Math.max(...pts);
+    const span=(hi-lo)||1;
+    ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.beginPath();
+    let started=false;
+    rows.forEach((r,i)=>{
+      let v=null;
+      if (key==='slump_index') v=r.slump; else {
+        const a=r.angles&&r.angles[key]; v=a?a[stat]:null;
+      }
+      if (v==null){started=false;return;}
+      const x=pad+i*(W-2*pad)/Math.max(1,rows.length-1);
+      const y=H-pad-((v-lo)/span)*(H-2*pad);
+      started?ctx.lineTo(x,y):ctx.moveTo(x,y); started=true;
+    });
+    ctx.stroke();
+    ctx.fillStyle=color; ctx.font='11px sans-serif';
+    ctx.fillText(key, pad+4+si*120, 14);
+  });
+}
+
+async function loadSessions() {
+  const rows = await api('/api/sessions');
+  const tb = document.querySelector('#sessions tbody');
+  tb.innerHTML='';
+  // baseline = mean/sd over non-simulated sessions with gait vars
+  const gait = r => { try { return JSON.parse(r.variables||'{}').gait||{}; } catch(e){ return {}; } };
+  const real = rows.filter(r=>!r.simulated).map(gait).filter(g=>g.speed_m_s!=null);
+  const mean = k => real.length? real.reduce((a,g)=>a+(g[k]||0),0)/real.length : null;
+  const sd = k => { if(!real.length)return null; const m=mean(k);
+    return Math.sqrt(real.reduce((a,g)=>a+((g[k]||0)-m)**2,0)/real.length); };
+  const keys=[['speed_m_s','speed_m_s'],['cadence_steps_min','cad'],
+              ['step_length_m','step'],['bounce_mid_hip','bounce'],
+              ['mean_trunk_inclination_deg','trunk'],['arm_swing_amp_deg','arm']];
+  rows.slice(0,30).forEach(r=>{
+    const g=gait(r); const tr=document.createElement('tr');
+    // session.start is epoch ms
+    const when=r.start?new Date(r.start).toLocaleString():'';
+    const cells=[when+(g.undersampled?' · low-fps':''), r.simulated?'sim':'',
+      fmt(g.speed_m_s), fmt(g.cadence_steps_min),
+      fmt(g.step_length_m), fmt(g.bounce_mid_hip), fmt(g.mean_trunk_inclination_deg),
+      fmt(g.arm_swing_amp_deg)];
+    // mean±sd comparison for non-sim rows
+    if(!r.simulated){
+      const cmp=keys.map(([k])=>{const m=mean(k),s=sd(k);
+        return m==null?'-':`${m.toFixed(2)}±${(s||0).toFixed(2)}`;});
+      cells.push(cmp.join(' | '));
+    } else cells.push('');
+    tr.innerHTML=cells.map(c=>`<td>${c}</td>`).join('');
+    tb.appendChild(tr);
+  });
+  // add mean±sd header note row
+  if(real.length){
+    const note=document.createElement('tr');
+    note.innerHTML=`<td colspan="9" class="hint">baseline (n=${real.length}): `+
+      keys.map(([k,lab])=>`${lab} ${mean(k).toFixed(2)}±${(sd(k)||0).toFixed(2)}`).join(' · ')+'</td>';
+    tb.appendChild(note);
+  }
+}
+
+async function loadDays(){
+  const rows=await api('/api/days');
+  const tb=document.querySelector('#days tbody'); tb.innerHTML='';
+  rows.forEach(r=>{
+    let agg={}; try{agg=JSON.parse(r.aggregates||'{}');}catch(e){}
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${r.day}</td><td>${agg.minutes??'-'}</td>
+      <td>${agg.coverage!=null?(100*agg.coverage).toFixed(1)+'%':'-'}</td>
+      <td>${fmt(agg.slump_median)}</td>
+      <td>${fmt(agg.angle_medians&&agg.angle_medians.trunk_inclination)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+setInterval(refresh, 2000);
+setInterval(loadMinutes, 15000);
+setInterval(loadSessions, 15000);
+refresh(); loadMinutes(); loadSessions(); loadDays();
+setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
+</script>
+</body>
+</html>

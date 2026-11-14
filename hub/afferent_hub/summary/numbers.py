@@ -1,11 +1,6 @@
-from statistics import mean, median
+from statistics import mean
 
-
-def _r(value, digits):
-    if value is None or isinstance(value, bool):
-        return None
-    return round(float(value), digits)
-
+from ..analytics.stats import rnd
 
 def _feature(analytics, key):
     for f in analytics.get("features") or []:
@@ -13,29 +8,25 @@ def _feature(analytics, key):
             return f
     return None
 
-
 def _feature_pair(analytics, key, digits):
     f = _feature(analytics, key)
     if not f:
         return None, None
     latest = f.get("latest") or {}
-    now = None if latest.get("stale") else _r(latest.get("value"), digits)
-    base = _r((f.get("baseline") or {}).get("median"), digits)
+    now = None if latest.get("stale") else rnd(latest.get("value"), digits)
+    base = rnd((f.get("baseline") or {}).get("median"), digits)
     return now, base
-
 
 def _delta(now, base, digits):
     if now is None or base is None:
         return None
     return round(now - base, digits)
 
-
 def _unwrap_patient(patient):
     patient = patient or {}
     inner = patient.get("patient") if isinstance(patient.get("patient"), dict) else patient
     daily = patient.get("daily") or inner.get("daily") or []
     return inner, daily
-
 
 def _daily_means(daily, lo, hi, getter):
     vals = []
@@ -47,7 +38,6 @@ def _daily_means(daily, lo, hi, getter):
         if isinstance(v, (int, float)) and not isinstance(v, bool):
             vals.append(float(v))
     return mean(vals) if vals else None
-
 
 def _activity(daily, week_start, week_end):
     steps_week = _daily_means(daily, week_start, week_end, lambda d: d.get("steps"))
@@ -70,16 +60,14 @@ def _activity(daily, week_start, week_end):
         out["daily_simulated"] = bool(simulated)
     return out
 
-
-def _top_contributors(composite, n=3):
+def _top_contributors(composite):
     rows = [c for c in composite.get("contributions") or [] if (c.get("contribution") or 0) > 0]
     rows.sort(key=lambda c: c.get("contribution") or 0, reverse=True)
     return [
-        {"key": c.get("key"), "label": c.get("label"), "signed_z": _r(c.get("signed_z"), 2),
-         "contribution": _r(c.get("contribution"), 3)}
-        for c in rows[:n]
+        {"key": c.get("key"), "label": c.get("label"), "signed_z": rnd(c.get("signed_z"), 2),
+         "contribution": rnd(c.get("contribution"), 3)}
+        for c in rows[:3]
     ]
-
 
 def _best_calm(bandit):
     calm = (bandit.get("by_mode") or {}).get("calm") or {}
@@ -87,29 +75,19 @@ def _best_calm(bandit):
     arm = next((a for a in bandit.get("arms") or [] if a.get("mode") == "calm" and a.get("task_id") == best), {})
     return {
         "best_calm_task": calm.get("label"),
-        "best_calm_p_best": _r(calm.get("p_best"), 3),
+        "best_calm_p_best": rnd(calm.get("p_best"), 3),
         "best_calm_helped": arm.get("helped"),
         "best_calm_n": arm.get("n"),
     }
 
-
 def _pre_post(analytics):
     s = analytics.get("pre_post_summary") or {}
-    out = {
+    return {
         "pre_post_n": s.get("n"),
-        "pre_post_pulse_delta_median": _r(s.get("pulse_delta_median"), 1),
-        "pre_post_mood_delta_median": _r(s.get("mood_delta_median"), 1),
-        "pre_post_settled_share": _r(s.get("settled_share"), 2),
+        "pre_post_pulse_delta_median": rnd(s.get("pulse_delta_median"), 1),
+        "pre_post_mood_delta_median": rnd(s.get("mood_delta_median"), 1),
+        "pre_post_settled_share": rnd(s.get("settled_share"), 2),
     }
-    if out["pre_post_n"] is None and analytics.get("pre_post"):
-        rows = analytics["pre_post"]
-        pulses = [r["pulse"]["delta"] for r in rows if (r.get("pulse") or {}).get("delta") is not None]
-        moods = [r["mood"]["delta"] for r in rows if (r.get("mood") or {}).get("delta") is not None]
-        out["pre_post_n"] = len(rows)
-        out["pre_post_pulse_delta_median"] = _r(median(pulses), 1) if pulses else None
-        out["pre_post_mood_delta_median"] = _r(median(moods), 1) if moods else None
-    return out
-
 
 def summary_numbers(analytics: dict, patient: dict) -> dict:
     analytics = analytics or {}
@@ -139,9 +117,9 @@ def summary_numbers(analytics: dict, patient: dict) -> dict:
         "state": state,
         "state_label": analytics.get("state_label") or cusum.get("state_label") or "Stable",
         "state_since_day": since,
-        "composite": _r(composite.get("value"), 3),
-        "composite_trend_7d": _r(composite.get("trend_7d"), 3),
-        "completeness": _r(composite.get("completeness", completeness.get("overall")), 2),
+        "composite": rnd(composite.get("value"), 3),
+        "composite_trend_7d": rnd(composite.get("trend_7d"), 3),
+        "completeness": rnd(composite.get("completeness", completeness.get("overall")), 2),
         "confidence": composite.get("confidence"),
         "sessions_7d": completeness.get("sessions_7d"),
         "missed_7d": completeness.get("missed_7d"),

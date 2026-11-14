@@ -1,0 +1,22 @@
+# Installed AFTER torch + mmcv (see Dockerfile). Versions chosen to match the
+# mmpose 1.3.2 / mmdet 3.2.0 / mmcv 2.1.0 / torch 2.1.2 era (py3.10, numpy 1.x).
+mmengine==0.10.4
+mmdet==3.2.0
+# mmpose itself is installed with --no-deps (its `chumpy` dep has a broken
+# setup.py on modern pip and is only needed for SMPL tooling); its real
+# runtime deps are listed here instead:
+json_tricks==3.17.3
+munkres==1.1.4
+xtcocotools==1.14.3
+scipy==1.13.1
+matplotlib==3.8.4
+pillow==10.4.0
+# Albumentation transform in the RTMPose pipelines uses the pre-2.0 API
+# (CoarseDropout max_holes/max_height...), so stay on 1.3.x.
+albumentations==1.3.1
+# export / evaluation
+onnx==1.16.2
+onnxruntime==1.18.1
+tqdm==4.66.5
+pyyaml==6.0.2
+pytest==8.3.3

@@ -16,8 +16,7 @@
   const NO_QUALITY = 'This sensor version does not report signal quality yet, so the game does not use this pulse.';
   const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
   const BREATH_WAIT = 'Takes about half a minute of steady signal', BREATH_LAG = 'From your heart rhythm, about half a minute behind';
-  // The finger sensor derives the breathing rate from its last 40 s of heartbeats (uno-q/modulino-hub/app.py, rsa_breathing).
-  const BREATH_WINDOW_S = 40;
+  const BREATH_SPAN = `Covers the task and the ${A.Breathing.WINDOW_S} seconds before it`;
 
   const sensorLines = ph => {
     if (!S.enabled.pulse_stone) return ['Switched off'];
@@ -53,7 +52,6 @@
     ];
   };
 
-  // Pulse at the start and at the end of a breathing task, only when there was a reading at both ends of it.
   const pulseSpan = r => r.pulse_start_bpm != null && r.pulse_end_bpm != null ? `Pulse ${int(r.pulse_start_bpm)} at the start, ${int(r.pulse_end_bpm)} at the end` : null;
 
   const cameraRow = cam => {
@@ -71,9 +69,8 @@
     else if (cam?.pulse_bpm?.mean != null) rows.push(row('videocam', 'Pulse', int(cam.pulse_bpm.mean), [over(BPM), SOURCE.rppg]));
     if (f && v.breathing?.rate_per_min?.mean != null) rows.push(row('air', 'Breathing', int(v.breathing.rate_per_min.mean), [over('breaths per minute')]));
     if (f && v.hrv?.rmssd_ms?.mean != null) rows.push(row('vital_signs', 'Beat-to-beat variation', int(v.hrv.rmssd_ms.mean), [over('ms (RMSSD)')]));
-    // The average of a breathing task mostly describes the breathing before it unless the task outlasts the sensor's window.
     const b = f ? A.lastBreath : null;
-    if (b) rows.push(row('air', 'Breathing around the breathing task', int(b.rate_per_min.mean), [over('breaths per minute'), BREATH_LAG, b.seconds >= BREATH_WINDOW_S && `Guide: ${int(b.guide_per_min)}`, pulseSpan(b)]));
+    if (b) rows.push(row('air', 'Breathing around the breathing task', int(b.rate_per_min.mean), [over('breaths per minute'), BREATH_SPAN, b.seconds >= A.Breathing.WINDOW_S && `Guide: ${int(b.guide_per_min)}`, pulseSpan(b)]));
     return rows.length ? { title: new Date(at).getHours() < 12 ? 'This morning' : 'Earlier today', rows } : null;
   };
 
@@ -127,19 +124,16 @@
     return p.source === 'simulated' ? 'SIMULATED' : `${int(p.bpm)} bpm · ${CHIP[p.source] || 'sensor'}`;
   };
 
-  // The breathing task, during play: [line, small print] while the finger clips give a real, current reading, then the
-  // average of the task until the next task starts. null when there is nothing measured to say. The caller applies
-  // the "Signals during play" switch, as it does for chip().
   const breaths = x => `${int(x)} ${int(x) === '1' ? 'breath' : 'breaths'} a minute`;
   const breath = (s, now) => {
-    if (!s || s.done || s.gameMode === 'measure') return null;
-    const v = s.phase === 'game' && s.game?.id === 'breath' ? s.game.fb?.view() : null, r = s.breathResult;
+    if (!s || s.done || s.gameMode === 'measure' || A.config?.breathFeedback === false) return null;
+    const v = s.phase === 'game' && s.game?.id === 'breath' && !s.game.done ? s.game.fb?.shown() : null, r = s.breathResult;
     if (v) {
       return v.state === 'reading' ? [`You: ${breaths(v.rate)} · Guide: ${int(v.guide)}`, `${SOURCE.finger_ppg}. ${BREATH_LAG}`]
         : [`You: measuring… · Guide: ${breaths(v.guide)}`, `${SOURCE.finger_ppg}. ${BREATH_WAIT}`];
     }
     if (!r || now >= r.until || !['walk', 'dawn'].includes(s.phase)) return null;
-    return [`Measured: ${breaths(r.rate_per_min.mean)} on average`, [SOURCE.finger_ppg, BREATH_LAG, pulseSpan(r)].filter(Boolean).join('. ')];
+    return [`Measured: ${breaths(r.rate_per_min.mean)} on average`, [SOURCE.finger_ppg, BREATH_SPAN, pulseSpan(r)].filter(Boolean).join('. ')];
   };
 
   if (typeof document !== 'undefined') {

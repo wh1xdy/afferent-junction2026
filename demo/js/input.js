@@ -32,24 +32,25 @@
 
     init(el) {
       const pos = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      const stamp = e => { const t = A.now(), ts = A.fromPerf && e.timeStamp > 0 ? A.fromPerf(e.timeStamp) : t; return { t, ts: ts <= t + 0.001 && ts > t - 1 ? Math.min(ts, t) : t }; };
       el.addEventListener('pointerdown', e => {
         el.setPointerCapture(e.pointerId);
         [Pointer.x, Pointer.y] = pos(e); Pointer.down = true;
-        A.bus.emit('pdown', { x: Pointer.x, y: Pointer.y, t: A.now(), real: true });
+        A.bus.emit('pdown', { x: Pointer.x, y: Pointer.y, ...stamp(e), real: true });
       });
       el.addEventListener('pointermove', e => {
         [Pointer.x, Pointer.y] = pos(e);
-        if (Pointer.down) A.bus.emit('pmove', { x: Pointer.x, y: Pointer.y, t: A.now(), real: true });
+        if (Pointer.down) A.bus.emit('pmove', { x: Pointer.x, y: Pointer.y, ...stamp(e), real: true });
       });
       const up = e => {
         if (!Pointer.down) return;
         [Pointer.x, Pointer.y] = pos(e); Pointer.down = false;
-        A.bus.emit('pup', { x: Pointer.x, y: Pointer.y, t: A.now(), real: true });
+        A.bus.emit('pup', { x: Pointer.x, y: Pointer.y, ...stamp(e), real: true });
       };
       el.addEventListener('pointerup', up);
       el.addEventListener('pointercancel', up);
       addEventListener('keydown', e => {
-        if (e.code === 'Space' && !e.repeat) { e.preventDefault(); Pointer.key = true; A.bus.emit('key', { t: A.now() }); }
+        if (e.code === 'Space' && !e.repeat) { e.preventDefault(); Pointer.key = true; A.bus.emit('key', stamp(e)); }
         if (e.code === 'Escape') A.bus.emit('exit');
       });
       addEventListener('keyup', e => { if (e.code === 'Space') Pointer.key = false; });

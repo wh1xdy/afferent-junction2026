@@ -1,0 +1,386 @@
+# afferent — pose fine-tuning scaffold (phase 4)
+
+This folder fine-tunes **RTMPose-m Halpe-26 (body + feet)**, the pose model that
+`rtmlib.BodyWithFeet(mode="balanced")` runs in `posture-analysis/posture`, on our own
+annotated home recordings. It then exports an ONNX that drops into rtmlib
+unchanged.
+
+It covers the 8 steps of phase 4 in the plan (collect, annotate, split, train,
+evaluate, export, calibrate, loop) and the rules added there:
+
+- annotate the **6 foot points** (big toe, small toe, heel ×2), not only COCO-17;
+- collect **walking and sit-to-stand** sequences, not only static postures;
+- split **by person**, never by frame or by day;
+- judge the model on the **final variables** (walking-speed error...), not only on keypoint error.
+
+```
+record ──► extract ──► prelabel ──► correct (CVAT) ──► split ──► train
+   ▲                                                              │
+   │                                                              ▼
+ install-model ◄── evaluate (keypoints + variables) ◄── export ONNX
+```
+
+## Layout
+
+| path | what |
+|---|---|
+| `Dockerfile`, `docker-compose.yml` | MMPose training image (CPU or cu121), plus a `train-gpu` service using `gpus: all` |
+| `constraints.txt`, `requirements-train.txt` | pinned training stack |
+| `requirements-tools.txt` | light host env for extract/prelabel/split/evaluate (no torch) |
+| `configs/rtmpose-m_halpe26_finetune.py` | fine-tune config (inherits the official one) |
+| `scripts/extract_frames.py` | video → sampled frames + `frames.csv` (person/session metadata) |
+| `scripts/prelabel.py` | rtmlib BodyWithFeet → COCO Halpe-26 JSON + CVAT skeleton label |
+| `scripts/split.py` | person-disjoint train/val/test split, with a fixed seed |
+| `scripts/train.py` | MMEngine runner entry point (`tools/train.py` equivalent) |
+| `scripts/export_onnx.py` | checkpoint → rtmlib ONNX (no mmdeploy), with a parity check |
+| `scripts/evaluate.py` | baseline vs fine-tuned ONNX: torso-PCK@0.05, per-keypoint/feet, NME, OKS-AP |
+| `scripts/eval_variables.py` | final-variable agreement (MAE, bias, Bland-Altman, within-5 %) |
+| `scripts/make_synthetic_dataset.py` | fake data for plumbing smoke tests |
+| `scripts/halpe26.py` | keypoint layout, skeleton, sigmas, metric functions |
+| `manifests/sessions.example.{yaml,csv}` | recording manifest template |
+| `tests/` | pytest: split leakage/determinism, PCK/OKS on synthetic data, helpers |
+
+## Version set
+
+| component | version | why |
+|---|---|---|
+| Python | 3.10 | mmcv 2.1.0 wheels exist for cp38–cp311 |
+| torch / torchvision | 2.1.2 / 0.16.2 (`cu121` or `cpu` index) | mmcv 2.1.0 prebuilt for `torch2.1.0` (and 2.1.x) |
+| mmcv | 2.1.0 | mmdet 3.x asserts `mmcv < 2.2.0`; prebuilt at `download.openmmlab.com/mmcv/dist/{cu121,cpu}/torch2.1.0/` |
+| mmengine | 0.10.4 | mmpose needs `<1.0.0` |
+| mmdet | 3.2.0 | `mmpose/requirements/mminstall.txt`: `mmdet>=3.0.0,<3.3.0` (the config uses `mmdet.CSPNeXt` and `mmdet.PipelineSwitchHook`) |
+| mmpose | 1.3.2 | `mmcv>=2.0.0,<3.0.0`; the wheel ships configs under `mmpose/.mim/configs` |
+| numpy | 1.26.4 | the compiled OpenMMLab extensions are built against NumPy 1.x |
+| albumentations | 1.3.1 | the RTMPose pipeline uses the pre-2.0 `CoarseDropout(max_holes=...)` API |
+| onnx / onnxruntime | 1.16.2 / 1.18.1 | export + parity check |
+
+Sources: mmpose v1.3.2 `mmpose/__init__.py` and `requirements/mminstall.txt`,
+mmdet v3.3.0 `mmdet/__init__.py` (`mmcv_maximum_version = '2.2.0'`), the mmcv
+wheel index pages above, and the mmcv install docs.
+
+`mmpose` is installed with `--no-deps` because its `chumpy` dependency has a
+setup.py that breaks on modern pip. chumpy is only used for SMPL tooling. The
+other dependencies are listed in `requirements-train.txt`.
+
+## Build and run
+
+```bash
+cd posture-analysis/training
+# CPU image (local; verified on the dev laptop)
+docker build -t afferent-train:cpu --build-arg TORCH_VARIANT=cpu .
+# or: docker compose build train
+
+# GPU image (default arg). Needs only an NVIDIA driver >= 525 on the host:
+# torch cu121 wheels ship their own CUDA runtime and cuDNN.
+docker build -t afferent-train:cu121 .
+docker compose --profile gpu run --rm train-gpu make train AMP=1   # needs nvidia-container-toolkit
+```
+
+The dev laptop (RTX 3070) has **no nvidia-container-toolkit**, so GPU-in-Docker
+is untested there. Two options:
+
+- run without Docker: make a py3.10 venv, run the same `pip install` lines as the
+  Dockerfile, then `make train`; or
+- run on remote GPUs:
+  - **Modal (recommended):** scripted end-to-end in `modal/` — see the next
+    section. Serverless: no VM lifecycle, no ssh, billing only while training runs.
+  - **Verda:** scripted end-to-end in `verda/` — PAYG VM, see below.
+
+  In both cases, ship only `data/annotations` and `data/frames` of
+  consenting participants, over an encrypted transport. Delete them afterwards.
+
+## Remote training on Modal
+
+`modal/` + `modal_app.py` implement the push → train → pull loop on
+[Modal](https://modal.com) serverless GPUs. `modal_app.py` builds a native
+Modal image that mirrors `Dockerfile` pip layer for pip layer (torch 2.1.2
+cu121, mmcv 2.1.0, mmpose 1.3.2 — not `from_dockerfile`, whose `RUN --mount`
+and build-arg support is restricted). One `modal.Volume` carries the dataset
+in and the checkpoints out; it is mounted at `/vol` and symlinked into the
+exact local layout, so the Makefile runs unchanged remotely.
+
+```bash
+# once: install the client + authenticate (any one of)
+uv tool install modal        # or: pipx install modal / pip install modal
+                             # (no install needed: the wrappers fall back to uvx)
+modal token new              # web OAuth — or `modal token set`, or
+                             # MODAL_TOKEN_ID / MODAL_TOKEN_SECRET env vars
+
+cp modal/config.env.example modal/config.env   # optional overrides (gitignored)
+
+make modal-push    # data/ + rtmlib ONNX cache -> volume afferent-train
+make modal-train   # image build + `make train test` on a GPU (default A10)
+make modal-pull    # volume /work -> work_dirs/ (checkpoints, ONNX, reports)
+make modal-ls      # list the volume contents
+```
+
+GPU is chosen with `MODAL_GPU` (`T4` cheaper, `L40S`/`A100`/`H100` faster;
+note: no V100 on Modal). Timeout `MODAL_TIMEOUT` (default 24 h). Checkpoints
+commit to the volume every 5 min during the run and after each make target,
+so a timeout or preemption loses at most a few minutes.
+
+**Cost:** billed per second only while the function runs — there is nothing
+to shut down afterwards (no `down` step exists, unlike `verda/`). Storage on
+the volume is billed per GB-day; `modal volume rm` deletes data when the run
+is done. Check rates on the Modal pricing page / `modal cost` equivalents.
+
+## Remote training on Verda
+
+`verda/` contains the full up → sync → train → pull → down loop against a
+[Verda](https://verda.com) PAYG GPU instance, driven by the
+[verda CLI](https://github.com/verda-cloud/verda-cli) — **full runbook:
+[docs/verda_training.md](../../docs/verda_training.md)** (setup, stock
+check, validated commands, every gotcha hit live):
+
+```bash
+# once: install the CLI, then authenticate. Credentials are stored in
+# ~/.verda/credentials — never committed, never copied to the instance.
+verda auth login
+verda doctor                        # credentials + API reachability
+verda ssh-key add --name laptop --public-key "$(cat ~/.ssh/id_ed25519.pub)"
+verda instance-types --gpu          # pick a type (default 1A100.40S.22V; V100
+                                    # 1V100.4V is cheapest when back in stock)
+verda availability --type 1A100.40S.22V   # is it actually in stock, and where?
+
+cp verda/config.env.example verda/config.env   # optional overrides (gitignored)
+
+make verda-up        # create the instance (cuda docker image, --ssh-key, --wait)
+make verda-sync      # rsync training/ + rtmlib ONNX + dataset -> ~/afferent/
+make verda-train     # docker build + `make train test` on the instance (AMP=1 in config)
+make verda-pull      # rsync work_dirs/ back (checkpoints, ONNX, eval reports)
+make verda-down      # pulls again (unless SKIP_PULL=1), confirms, deletes VM + volumes
+```
+
+Validated end-to-end on CLI v1.10.0 (Nov 2026) with a spot V100 — the
+cheapest working combo, overridden on the command line:
+
+```bash
+INSTANCE_TYPE=1V100.4V LOCATION=FIN-01 OS_IMAGE=24.04.cuda12.9-v100.docker \
+  SPOT=1 bash verda/up.sh          # ~$0.11/h spot
+bash verda/sync.sh                 # or DATA_DIR=/path/to/data for a custom dataset
+MAKE_TARGETS="check-env train" AMP=1 \
+  EXTRA="--cfg-options train_cfg.max_epochs=1" bash verda/train.sh
+bash verda/pull.sh && bash verda/down.sh
+```
+
+Notes from the live run: `verda ssh` needs the host key in `known_hosts`
+(`up.sh` seeds it via `ssh-keyscan`); `verda vm delete` needs `--agent` for
+non-tty use and its `--with-volumes` alone left the OS volume behind, so
+`down.sh` sweeps volumes explicitly. Stock shifts fast — check
+`verda availability` before `up.sh`.
+
+`sync.sh` needs direct ssh for rsync: it resolves the instance ID then the IP
+from `verda vm list`/`describe -o json` and connects as `root@<ip>` with the
+key registered at creation (`SSH_USER`/`SSH_KEY`/`SSH_DEST` overrides, see
+`verda/config.env.example`). `train.sh` forwards `MAKE_TARGETS`
+(default `train test`; add `export evaluate` once `data/annotations/test.json`
+exists) and `AMP`.
+
+**Cost:** PAYG instances are billed per started 10 min while they exist.
+Deleting the instance alone is *not* enough — a detached OS volume keeps
+billing, and `--with-volumes` was observed to leave it behind on CLI
+v1.10.0, so `down.sh` also sweeps leftover volumes explicitly (verified:
+`verda volume list` empty after teardown). Spot instances are cheaper but
+evictable (lost work_dirs if evicted mid-run); they stay opt-in via `SPOT=1`
+(`--is-spot`), default is on-demand. Check current rates with
+`verda instance-types --gpu` / `verda cost estimate`.
+
+**Privacy:** the instance receives the same payload `make train` uses —
+annotated frames of **consenting** participants only (`data/frames`,
+`data/annotations`, pseudonymous `Pxx` ids), pushed over ssh/rsync. Nothing
+else is uploaded. `down.sh` destroys the instance's OS volume, including the
+dataset copy; still, prefer pulling results and deleting promptly rather than
+leaving a warm VM running.
+
+Every script also runs on the host with `pip install -r requirements-tools.txt`,
+except `train.py` and `export_onnx.py`, which need the training image.
+
+## The loop (`make help`)
+
+```bash
+# 0. record: walking, sit-to-stand, turn, seated, standing posture, ideally
+#    several people (age, sex, body type, skin tone, glasses, beard). Save to
+#    posture-analysis/posture/recordings/*.mp4 and describe each file in
+#    manifests/sessions.yaml (copy the example). Use pseudonymous ids only.
+#    Frames are extracted only for entries with consent: true.
+make extract  FPS=2                 # -> data/frames/<session>/*.jpg + frames.csv
+make prelabel DEVICE=cpu            # -> data/annotations/prelabel.json + cvat_skeleton.json
+# 1. correct in CVAT (below)        # -> data/annotations/corrected.json
+make split SEED=0                   # -> data/annotations/{train,val,test}.json + split_report.json
+make train AMP=1                    # in the image, GPU -> work_dirs/rtmpose-m_halpe26_ft/best_coco_AP_*.pth
+make test                           # mmpose CocoMetric AP + bbox-PCK on test
+make export                         # -> work_dirs/export/rtmpose-m_halpe26_ft.onnx (+ .json)
+make evaluate                       # baseline (stock rtmlib) vs fine-tuned ONNX on test
+python scripts/eval_variables.py --csv work_dirs/eval/variables.csv   # final-variable criterion
+make install-model                  # -> posture-analysis/posture/models/custom/rtmpose-m_halpe26_ft.onnx
+```
+
+Then loop: pre-label the next batch with the fine-tuned model
+(`prelabel.py --pose-onnx ...`), correct it, and retrain.
+
+### Correcting in CVAT (COCO Keypoints 1.0)
+
+1. Create a project. In the **Raw** label editor, paste
+   `data/annotations/cvat_skeleton.json`. It defines a skeleton `person` with the 26
+   Halpe points in Halpe order. Check it once in the constructor.
+2. Create a task. Upload `data/frames` as a zip that keeps the
+   `<session_id>/<file>.jpg` paths, so names match `images[].file_name`.
+3. *Actions → Upload annotations → COCO Keypoints 1.0* → `prelabel.json`.
+   Keypoints with `v=1` are low-confidence pre-labels: check every one, and every foot point.
+4. *Export task dataset → COCO Keypoints 1.0*. Save
+   `annotations/person_keypoints_default.json` as `data/annotations/corrected.json`.
+   CVAT drops the custom `person_ids` field, so `split.py` joins back on
+   `frames.csv` (full path, then basename).
+
+Label Studio works too: use its COCO keypoints import via
+`label-studio-converter`. The exported COCO JSON just needs the same 26-point order.
+
+Annotation guidelines:
+
+- Annotate every person in a frame. Visitors appear in the person list of the session.
+- `v=1` means occluded but inferable. `v=0` means not inferable.
+- Heel and toe points go on the shoe when shod.
+
+### Splitting rules
+
+`split.py` merges people who appear together in any frame into one group
+(union-find). Each group goes into exactly one split, and the seed fixes the
+assignment. Use `--test-persons P07 P08` to hold out a fixed panel across
+iterations: **keep the test panel frozen** so successive models stay comparable.
+`split_report.json` lists the persons per split. Never tune on `test`; use `val`.
+
+## Model I/O contract with rtmlib
+
+Checked against `Tau-J/rtmlib` (`tools/solution/body_with_feet.py`,
+`tools/pose_estimation/rtmpose.py`, `tools/base.py`) and the official
+`onnx_sdk` zip (`detail.json`):
+
+- **input** `input`: float32 `[batch, 3, 256, 192]` (NCHW). rtmlib's
+  `pose_input_size=(192, 256)` is (W, H).
+- **outputs** `simcc_x`: `[batch, 26, 384]` and `simcc_y`: `[batch, 26, 512]`
+  (input size × `simcc_split_ratio=2.0`). opset 11, dynamic batch axis.
+- **rtmlib post-processing:**
+  - bbox → center/scale with padding 1.25, then affine warp;
+  - `(img - mean) / std` with mean (123.675, 116.28, 103.53) and std (58.395, 57.12, 57.375);
+  - argmax over each simcc axis, then `/ 2.0`, then back to image coordinates.
+  - score = the max simcc value.
+- **BGR quirk:** rtmlib feeds the cv2 **BGR** frame, normalised with RGB-order
+  statistics. It ignores `to_rgb` in `pipeline.json`. MMPose trains with
+  `bgr_to_rgb=True`, so `export_onnx.py` by default bakes an exact BGR→RGB
+  re-normalisation into the graph: a flip plus a per-channel affine, tested in
+  `tests/test_cli_helpers.py`. `--no-bgr-fix` gives the vanilla graph.
+  - Re-exporting the official `.pth` with `--no-bgr-fix` matches the official
+    ONNX to 1.5e-7 (max abs diff).
+  - The fixed graph moves predictions on real images by about 1 % of torso length.
+
+To use the model, call
+`BodyWithFeet(pose="<models>/custom/rtmpose-m_halpe26_ft.onnx", pose_input_size=(192, 256), mode="balanced")`.
+`posture-analysis/posture/afferent/pose.py` does not yet accept a custom pose path;
+that hook belongs to the runtime code.
+
+## Evaluation criteria
+
+- **Keypoints** (`evaluate.py`):
+  - Measured on the test split with ground-truth boxes, so detector errors don't count.
+  - Metrics: torso-normalised PCK@0.05, overall / body-17 / feet, per keypoint;
+    NME; OKS-AP with Halpe-26 sigmas; per-situation breakdown.
+  - Pass condition: the fine-tuned model is ≥ baseline on PCK_feet and PCK_overall.
+- **Final variables** (`eval_variables.py`, plan item 53): walking speed, cadence,
+  step length, sit-to-stand time...
+  - Reference sequences: person-disjoint, with external ground truth (stopwatch
+    over marked distance, goniometer).
+  - Run the posture pipeline once per pose model and write
+    `sequence_id,person_id,variable,ground_truth,model,value`.
+  - Reports MAE, bias, Bland-Altman limits, and the fraction within 5 %.
+  - A model passes only if its MAE ≤ baseline on every retained variable. A
+    keypoint gain that does not show up there is not a gain.
+- **Calibrate:** after installing a new model, redo the phase-3 checks (ICC,
+  smallest detectable change) before comparing against older days. A model
+  change is a measurement-instrument change, so log the model version with
+  every measurement.
+
+## Licensing notes
+
+- **Code and models:**
+  - MMPose / RTMPose code and configs: Apache-2.0.
+  - rtmlib: Apache-2.0.
+  - YOLOX: Apache-2.0.
+  - Our fine-tuned weights are a derivative of the official checkpoint.
+- **Training data behind the pretrained weights:** COCO (annotations CC BY 4.0,
+  images under Flickr terms), AIC, CrowdPose, MPII, JHMDB, Halpe, PoseTrack18.
+  Several of these, including Halpe-FullBody, are released for
+  **non-commercial research**. The "commercial stack" in the plan must get the
+  weights' licensing checked by a lawyer (deferred item 12). If you mix
+  public Halpe/COCO data into fine-tuning, the same terms apply. Don't
+  redistribute those images.
+- **Annotation tools:** CVAT Community is MIT. Label Studio Community is Apache-2.0.
+- **Runtime models** (for the record): InsightFace `buffalo_l` weights are
+  non-commercial research only. HSEmotion code is Apache-2.0, but its models are
+  trained on AffectNet (research-only licence).
+
+## Privacy
+
+- Record only **consenting** adults. The consent covers face, health data and
+  retention (phase 0). `extract_frames.py` skips manifest entries without
+  `consent: true`.
+- **Never commit images, videos, checkpoints or ONNX files.**
+  - `.gitignore` excludes `data/`, `work_dirs/`, `cache/`, `*.pth`, `*.onnx`,
+    `*.mp4`, `*.jpg`...
+  - `.dockerignore` keeps them out of image builds.
+- Manifests and annotations use pseudonymous ids (`P01`) only, with no names.
+  Keep the id-to-person key outside the repo.
+- Remote training: upload the minimum (frames + annotations), encrypted at
+  rest, then delete them after the run. Don't use public datasets/hubs for our data.
+- Withdrawal: drop the person's sessions from the manifest, delete their frames,
+  re-split and retrain. Any model trained on their data counts as derived data.
+
+## Later (stubs and notes only)
+
+### Face-expression classifier on our own data (HSEmotion)
+
+- The runtime uses `hsemotion-onnx`, an EfficientNet trained on AffectNet.
+- Fine-tuning plan:
+  - Take face crops from MediaPipe / InsightFace boxes on the same recordings.
+    Label short clips (neutral / positive / negative / flat affect), not single
+    frames, with two annotators and report Cohen's κ.
+  - Start from the PyTorch `hsemotion` `enet_b0_8_best_vgaf` checkpoint.
+    Replace the head, freeze the backbone first, and evaluate with the same
+    person-wise split (`split.py` works unchanged on a COCO-like image list).
+  - Export with `torch.onnx.export` (224×224 or 260×260 depending on the
+    model), keeping the hsemotion-onnx preprocessing.
+- More useful for the plan than discrete emotions: regress the
+  **expressivity variables** directly from MediaPipe blendshapes. That needs no
+  CNN fine-tuning.
+
+### Per-person daily index model
+
+- Inputs: the daily aggregates of the frozen reliable variables (phase 3),
+  each z-scored against **the person's own baseline**, plus coverage and
+  context covariates.
+- Model: a regularised linear model (ridge / elastic-net, or a mixed model with
+  a per-person intercept). Target: PHQ-9 or its change.
+- Validation:
+  - Across people: **leave-one-person-out CV**.
+  - Within a person: forward-chaining CV by time, never random day shuffling,
+    with a gap of ≥ 7 days between train and test to avoid autocorrelation leakage.
+- Report calibration and the per-variable coefficient stability across folds.
+  No alerting from the model (plan scope).
+
+## Tests
+
+```bash
+uv venv /tmp/trainvenv && VIRTUAL_ENV=/tmp/trainvenv uv pip install numpy pytest pyyaml
+/tmp/trainvenv/bin/python -m pytest -q tests
+# inside the image: docker compose run --rm train make tests
+```
+
+Smoke test of the whole training path on fake data (inside the image, CPU, about 2 min):
+
+```bash
+python scripts/make_synthetic_dataset.py --out /cache/synth --n 16
+AFFERENT_DATA_ROOT=/cache/synth/ python scripts/train.py configs/rtmpose-m_halpe26_finetune.py \
+  --work-dir /cache/synth_work --cfg-options train_cfg.max_epochs=1 train_cfg.val_interval=1 \
+  train_dataloader.batch_size=4 train_dataloader.num_workers=0 train_dataloader.persistent_workers=False \
+  val_dataloader.num_workers=0 val_dataloader.persistent_workers=False
+python scripts/export_onnx.py configs/rtmpose-m_halpe26_finetune.py /cache/synth_work/epoch_1.pth --out /cache/synth_work/ft.onnx
+```

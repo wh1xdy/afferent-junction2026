@@ -1,10 +1,8 @@
 def _num(s):
     return float(s)
 
-
 def _bool(s):
     return s.strip() not in ("0", "", "false")
-
 
 def parse_line(line: str) -> dict | None:
     line = (line or "").strip()
@@ -31,7 +29,6 @@ def parse_line(line: str) -> dict | None:
         return None
     return None
 
-
 def hex_rgb(hex_str: str) -> tuple[int, int, int]:
     h = (hex_str or "#000000").lstrip("#")
     if len(h) == 3:
@@ -40,7 +37,6 @@ def hex_rgb(hex_str: str) -> tuple[int, int, int]:
         return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     except (ValueError, IndexError):
         return 0, 0, 0
-
 
 def format_line(msg: dict) -> str | None:
     t = msg.get("type")

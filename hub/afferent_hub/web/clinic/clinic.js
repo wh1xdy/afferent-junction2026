@@ -7,7 +7,7 @@
     base: (qs.get('hub') || (location.protocol.startsWith('http') ? location.origin : '')).replace(/\/$/, ''),
     fixtures: qs.has('fixtures'),
     list: null, analytics: {}, detail: {}, summary: {}, missing: {}, validation: null,
-    live: {}, ui: { feature: null, filter: 'all', q: '', theme: readTheme() }, route: null, ws: null, stamp: '',
+    ui: { feature: null, filter: 'all', q: '', theme: readTheme() }, route: null, ws: null, stamp: '',
   };
   C.state = S;
   const FX = '/contracts/fixtures/';
@@ -61,6 +61,7 @@
   function parseRoute() {
     const h = location.hash.replace(/^#\/?/, '');
     if (h.startsWith('p/')) return { name: 'patients', id: decodeURIComponent(h.slice(2)), explicit: true };
+    if (h.startsWith('codes/')) return { name: 'code', id: decodeURIComponent(h.slice(6)) };
     for (const n of ['validation', 'exports', 'settings']) if (h.startsWith(n)) return { name: n };
     return { name: 'patients', id: null, explicit: false };
   }
@@ -68,7 +69,7 @@
   const selectedId = () => S.route.id || (S.list ? V.visible(S)[0]?.id || V.sorted(S.list)[0]?.id : null);
 
   function setNav() {
-    document.querySelectorAll('.dest').forEach((a) => (a.dataset.tab === S.route.name ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
+    document.querySelectorAll('.dest').forEach((a) => (a.dataset.tab === (S.route.name === 'code' ? 'exports' : S.route.name) ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
     document.body.dataset.route = S.route.name === 'patients' ? (S.route.explicit ? 'detail' : 'list') : S.route.name;
     if (S.list) $('#global-sim').hidden = !S.list.simulated;
     $('#search-wrap').hidden = S.route.name !== 'patients';
@@ -102,7 +103,9 @@
     } else if (r.name === 'validation') { view.innerHTML = V.validation(S); V.drawValidation(S); }
     else if (r.name === 'exports') view.innerHTML = V.exports(S);
     else if (r.name === 'settings') view.innerHTML = V.settings(S);
+    else if (r.name === 'code') { view.innerHTML = V.imported(S, r.id); V.drawImported(S, r.id); }
   }
+  C.rerender = render;
 
   async function loadDetail(id) {
     if (!id) return;
@@ -191,15 +194,12 @@
         if (m.patients && S.list) { S.list.patients = m.patients; if (m.now_day != null) S.list.now_day = m.now_day; touchStamp(); if (S.route.name === 'patients') renderList(); }
         break;
       case 'session_started': {
-        S.live[m.patient_id] = { active: true, at: Date.now() };
         const row = S.list?.patients.find((p) => p.id === m.patient_id);
         if (row) row.live_now = true;
         break;
       }
       case 'session_interrupted':
       case 'session_added': {
-        const L = S.live[m.patient_id];
-        if (L) L.active = false;
         const row = S.list?.patients.find((p) => p.id === m.patient_id);
         if (row) row.live_now = false;
         refreshDetail(m.patient_id);
@@ -241,7 +241,7 @@
         if (S.detail[m.patient_id]) { S.detail[m.patient_id].privacy = m.privacy; if (S.route.name === 'patients' && selectedId() === m.patient_id) renderDetail(); }
         break;
       case 'demo_reset':
-        S.analytics = {}; S.detail = {}; S.summary = {}; S.live = {};
+        S.analytics = {}; S.detail = {}; S.summary = {};
         boot(true);
         break;
     }
@@ -390,7 +390,7 @@
       if (!menu.hidden) return closeMenu();
       C.tipHide();
     }
-    if (S.route.name === 'patients' && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.target.closest('input, .dialog') && S.list) {
+    if (S.route.name === 'patients' && (e.key === 'ArrowDown' || e.key === 'ArrowUp') && !e.target.closest('input, .dialog, .scan') && S.list) {
       const rows = V.visible(S);
       const i = rows.findIndex((r) => r.id === selectedId());
       const n = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
@@ -404,11 +404,13 @@
     rz = setTimeout(() => {
       if (S.route.name === 'patients') V.drawDetail(S, selectedId());
       if (S.route.name === 'validation') V.drawValidation(S);
+      if (S.route.name === 'code') V.drawImported(S, S.route.id);
     }, 120);
   });
 
   async function boot(reset) {
     S.route = parseRoute();
+    await C.codes?.ready;
     if (!S.fixtures && S.base) {
       try { await getJSON('/api/health', 3000); } catch { S.fixtures = true; }
     } else if (!S.base) S.fixtures = true;

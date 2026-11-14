@@ -9,11 +9,10 @@ from .numbers import summary_numbers
 DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
 
 _cache: dict[tuple[str, str], dict] = {}
-
+checks: list = []
 
 def _key(patient_id, numbers):
     return patient_id, hashlib.sha256(json.dumps(numbers, sort_keys=True).encode()).hexdigest()
-
 
 def _gemma(numbers):
     if os.environ.get("AFFERENT_SUMMARY", "").lower() == "template":
@@ -26,11 +25,10 @@ def _gemma(numbers):
         text = guard.normalize(ollama.generate(model, system, user))
     except Exception as exc:
         return None, model, f"ollama error: {type(exc).__name__}"
-    reason = guard.check(text, numbers)
+    reason = guard.check(text, numbers) or next((r for c in checks if (r := c(text))), None)
     if reason:
         return None, model, f"rejected: {reason}"
     return text, model, None
-
 
 def weekly_summary(analytics: dict, patient: dict, refresh: bool = False) -> dict:
     numbers = summary_numbers(analytics, patient)
@@ -49,12 +47,10 @@ def weekly_summary(analytics: dict, patient: dict, refresh: bool = False) -> dic
         "week_start_day": numbers["week_start_day"],
         "week_end_day": numbers["week_end_day"],
         "generated_iso": generated,
-        "generated_at": generated,
         "text": text,
         "source": source,
         "model": model,
         "numbers": numbers,
-        "inputs_used": numbers,
         "simulated": numbers["simulated"],
         "disclaimer": DISCLAIMER,
         "fallback_reason": reason,
@@ -63,10 +59,8 @@ def weekly_summary(analytics: dict, patient: dict, refresh: bool = False) -> dic
         _cache[key] = result
     return dict(result)
 
-
 def clear_cache() -> None:
     _cache.clear()
     ollama.reset()
 
-
-__all__ = ["weekly_summary", "summary_numbers", "clear_cache", "DISCLAIMER"]
+__all__ = ["weekly_summary", "summary_numbers", "clear_cache", "checks", "DISCLAIMER"]

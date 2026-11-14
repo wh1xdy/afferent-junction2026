@@ -1,0 +1,12 @@
+# afferent posture POC — pinned to releases >= 7 days old (as of 2026-11-13).
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+numpy==2.3.5
+opencv-python==4.14.0.94
+opencv-contrib-python==4.14.0.94
+onnxruntime==1.31.0
+rtmlib==0.0.16
+insightface==2.1
+mediapipe==1.1.1
+hsemotion-onnx==0.3.1
+pytest==9.1.1

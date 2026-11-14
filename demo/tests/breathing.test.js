@@ -2,7 +2,7 @@
 // Measured breathing next to the breathing guide: closeness, freshness, averaging, and the real breath task in the engine.
 // All numbers are test inputs, not measurements.
 const assert = require('assert');
-const { load, run, plain } = require('./harness');
+const { load, run, plain, recorder } = require('./harness');
 
 const hrm = (bpm = 72) => ({ kind: 'hrm', bpm, t_ms: Date.now() });
 const aff = (o = {}) => ({ kind: 'aff1', finger_bpm: [71, 73], breathing_per_min: 9, rmssd_ms: 46, quality: 0.6, presence: 'active', payload_len: 6, t_ms: Date.now(), ...o });
@@ -14,39 +14,49 @@ const connect = A => A.Sensors.setFingerLink('connected', 'Afferent Finger');
 const ble = (A, o = {}, bpm = 72) => { A.Sensors.feedFingerBle(hrm(bpm)); A.Sensors.feedFingerBle(aff(o)); };
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg || ''} ${a} != ${b}`);
 const LAG = 'Finger sensor. From your heart rhythm, about half a minute behind';
-// The sensors and the tasks draw from Math.random; a fixed sequence makes a whole task record comparable.
+const SPAN = 'Covers the task and the 40 seconds before it', AFTER = `Finger sensor. ${SPAN}`;
+// The sensors and the tasks draw from Math.random; a fixed sequence makes two runs of a task comparable frame by frame.
 const seeded = fn => {
   const random = Math.random;
   let seed = 12345;
   Math.random = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
   try { return fn(); } finally { Math.random = random; }
 };
-// The record of the first breathing task of breathSession() without any sensor, as commit 01fc956 (the app before
-// the measured breathing) writes it with the seeded sequence above.
-const BEFORE = {
-  id: 'breath', slot: 1, kind: 'adaptive', mode: 'flow', director_mode: 'flow', intensity: 0.4, weight_used: null, t_start_ms: 4550, duration_ms: 19950,
-  completed_by: 'auto', completed: false, items: 0, errors: 0, intended_direction: 'none',
-  pulse: { start_bpm: 68.7, min_bpm: 65.4, max_bpm: 70.8, end_bpm: 68.5, delta_bpm: -0.2, time_to_target_s: null, recovery_slope_bpm_per_min: null, quality: 0.9 },
-  pulse_samples: 21, helped: null, head_pitch_start_deg: -5.5, head_pitch_delta_deg: 2.8, upright_s: 20, eye_openness_mean: 0.73, perclos: 0.05,
-  long_closures: 0, skip_reason: null, breath_sync: 0.5, eyes_closed_s: 1,
-};
 
-// A session whose every task is the real breathing task (minigames.js) at its full two cycles, stopped at the first frame of the first one.
-const breathSession = ({ overlay = false } = {}) => {
-  const { A, tick } = load({ games: true, vitals: true }), S = A.Sensors;
-  A.config.signalsOverlay = overlay;
+// A session whose every task is the real breathing task (tasks/breath.js) at its full two cycles, stopped at the first frame of the first one.
+// clips: the finger clips are connected before the session starts, so the session runs on real readings only.
+// hub: the same, with the clips reaching the phone through the home hub.
+// breathing: false loads the app without breathing.js. overlay: the Developer switch "Signals during play".
+const breathSession = ({ clips = false, hub = false, overlay = false, breathing = true, config = {} } = {}) => {
+  const { A, tick } = load({ games: true, vitals: breathing, breathing }), S = A.Sensors;
+  Object.assign(A.config, { signalsOverlay: overlay }, config);
+  if (clips) connect(A);
+  if (hub) S.feedFingerHub(hubFrame());
   const s = A.session = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
   s.slots = { fork: -1, lanterns: -1 }; s.pick = () => ({ id: 'breath', weight: null });
   for (let i = 0; i < 400 && s.game?.id !== 'breath'; i++) { tick(0.05); A.Input.update(A.now(), 0.05); s.update(A.now(), 0.05); }
   assert.strictEqual(s.game?.id, 'breath', 'the breathing task did not start');
+  assert.strictEqual(S.pulseMode, clips || hub ? 'real' : 'simulated');
   return { A, tick, s, S, g: s.game };
 };
-// Runs until the first breathing task has closed; `second(i)` is called once per second of that task.
-const playOut = ({ A, tick, s }, second) => {
-  for (let i = 0; i < 40 && !s.tasks.length; i++) run(A, tick, s, 1, null, () => second?.(i));
+// Runs until the first breathing task has closed; `second(i)` is called once per second of that task, `each` before every frame.
+const playOut = ({ A, tick, s }, second, each) => {
+  for (let i = 0; i < 40 && !s.tasks.length; i++) run(A, tick, s, 1, each, () => second?.(i));
   assert.strictEqual(s.tasks[0]?.id, 'breath', 'the breathing task did not close');
   return plain(s.tasks[0]);
 };
+// Plays the first breathing task with a fixed random sequence and keeps what it left behind: the task record, the
+// state and every canvas call of every frame (frames), the words of every frame, and whether the pace ring was drawn.
+// The task itself never sets a line dash, the pace ring always does.
+const film = (opts, feed) => seeded(() => {
+  const t = breathSession(opts), { A, s } = t, log = [], ctx = recorder(log), words = [];
+  const rec = playOut(t, i => feed?.(t, i), () => {
+    log.push(['frame', JSON.stringify(s.orb)]);
+    s.game?.drawWorld(ctx, A.J.at);
+    words.push(A.Vitals ? A.Vitals.breath(s, A.now()) : null);
+  });
+  return { ...t, rec, words, frames: JSON.stringify(log), calls: log.length, ring: log.some(c => c[0] === 'setLineDash') };
+});
 
 const tests = {
   'a: closeness is 1 at the guide, falls off evenly on both sides, and is null without a rate'() {
@@ -86,11 +96,11 @@ const tests = {
     ble(A, { presence: 'probing' });
     assert.strictEqual(read(), null);
     ble(A, { quality: 0.29 });
-    assert.strictEqual(read(), null, 'the sensor calls this signal unreliable (A7)');
+    assert.strictEqual(read(), null, 'the sensor calls this signal unreliable');
     ble(A, { quality: 0.3 });
     assert.deepStrictEqual(plain(read()), { rate: 9, pulse: 72 });
     ble(A, { quality: null, presence: null, payload_len: 4 });
-    assert.strictEqual(read(), null, 'a signal quality that is not reported never drives the game (I53), as for the game pulse');
+    assert.strictEqual(read(), null, 'a signal quality that is not reported is not a measurement here, as for the game pulse');
     assert.strictEqual(S.fingerFrame(A.now()).breathing_per_min, 9, 'the Your signals sheet still gets the number');
     const hub = { source: 'finger_ppg', transport: 'hub_http', simulated: false, presence: 'active', quality_reported: true, quality: 0.7, breathing_per_min: 9, pulse_bpm: 72, age_s: 0.4 };
     assert.deepStrictEqual(plain(A.Breathing.reading(hub)), { rate: 9, pulse: 72 });
@@ -164,114 +174,121 @@ const tests = {
     assert.deepStrictEqual([enough(0, 0), enough(4, 10), enough(5, 10), enough(5, 15), enough(5, 16), enough(7, 21), enough(6, 21)], [false, false, true, true, false, true, false]);
   },
 
-  'f: without a real reading the task runs as before: no ring, no words, the record of the app before this feature'() {
-    let shown = 0;
-    const [quiet, rec] = seeded(() => {
-      const t = breathSession({ overlay: true });
-      assert.strictEqual(t.S.pulse(t.A.now()).source, 'simulated', 'the simulated pulse runs here');
-      return [t, playOut(t, () => { if (t.s.orb?.ring || t.s.V.orb.ring || t.A.Vitals.breath(t.s, t.A.now())) shown++; })];
-    });
-    assert.strictEqual(shown, 0, 'a simulated pulse never stands in for measured breathing');
-    assert.deepStrictEqual(rec, BEFORE, 'the record differs from the one commit 01fc956 writes');
-    assert.strictEqual(quiet.s.breathResult, undefined);
-
-    const hubSim = breathSession({ overlay: true });
-    const rec2 = playOut(hubSim, () => {
-      hubSim.S.feedFingerHub(hubFrame({ source: 'simulated', simulated: true }));
-      if (hubSim.s.orb?.ring || hubSim.A.Vitals.breath(hubSim.s, hubSim.A.now())) shown++;
-    });
-    assert.strictEqual(shown, 0, 'neither does the hub simulator');
-    assert.ok(!('extra' in rec2));
-
-    const live = breathSession({ overlay: true });
-    connect(live.A);
-    const rec3 = playOut(live, () => ble(live.A));
-    for (const k of ['completed_by', 'completed', 'items', 'errors', 'breath_sync', 'duration_ms']) assert.strictEqual(rec3[k], rec[k], `${k} changed with a sensor attached`);
+  'f: without a real reading the task is the task without this feature: same record, same frames, same canvas calls'() {
+    const real = t => ble(t.A);
+    const cases = {
+      'no sensor at all': [{}, null],
+      'the hub simulator': [{}, t => t.S.feedFingerHub(hubFrame({ source: 'simulated', simulated: true }))],
+      'clips on, nothing received': [{ clips: true }, null],
+      'clips on, no finger in them': [{ clips: true }, t => ble(t.A, { presence: 'idle' }, 0)],
+      'clips on, zeros only': [{ clips: true }, t => ble(t.A, { breathing_per_min: 0 }, 0)],
+      'clips on, signal quality below 0.3': [{ clips: true }, t => ble(t.A, { quality: 0.29 })],
+      'clips on, no signal quality reported': [{ clips: true }, t => ble(t.A, { quality: null, presence: null, payload_len: 4 })],
+      'the hub relays a frame without a quality value': [{ hub: true }, t => t.S.feedFingerHub(hubFrame({ quality: null }))],
+      'the hub relays heartbeats that are 45 s old': [{ hub: true }, t => t.S.feedFingerHub(hubFrame({ age_s: 45 }))],
+      'pulse stone switched off': [{ clips: true, config: { sensors: { bedside_light: false, pulse_stone: false, phone_camera: true } } }, t => { t.S.enabled.pulse_stone = false; real(t); }],
+      'clips connected after the session started on the simulator': [{}, (t, i) => { if (i === 0) connect(t.A); real(t); }],
+    };
+    for (const [name, [opts, feed]] of Object.entries(cases)) {
+      const without = film({ ...opts, overlay: true, breathing: false }, feed), now = film({ ...opts, overlay: true }, feed);
+      assert.strictEqual(without.g.fb, null, 'the comparison run has no measured breathing at all');
+      assert.ok(without.calls > 20000, `${name}: the task was not drawn (${without.calls} canvas calls)`);
+      assert.ok(now.frames === without.frames, `${name}: a frame or a canvas call differs from the task without this feature`);
+      assert.deepStrictEqual(now.rec, without.rec, `${name}: the record differs`);
+      assert.ok(!now.ring && now.words.every(w => w === null), `${name}: something was shown`);
+      assert.ok(!('breathing' in (now.rec.extra || {})) && now.s.breathResult === undefined, `${name}: something was recorded`);
+    }
+    const sim = film({ overlay: true }, null);
+    assert.strictEqual(sim.S.pulse(sim.A.now()).source, 'simulated', 'the simulated pulse runs in such a session and never stands in for measured breathing');
   },
 
-  'g: with the clips on, the task shows the measured pace, records the average, and says the truth about waiting'() {
-    const t = breathSession({ overlay: true }), { A, tick, s, g } = t, V = A.Vitals, texts = [];
-    connect(A);
-    const rec = playOut(t, i => {
-      if (i < 4) ble(A, { breathing_per_min: 0 }); else ble(A, { breathing_per_min: i < 12 ? 12 : 8 }, i < 12 ? 74 : 70);
-      if (s.game) texts.push(V.breath(s, A.now()));
-    });
-    assert.deepStrictEqual(plain(texts[1]), ['You: measuring… · Guide: 6 breaths a minute', 'Finger sensor. Takes about half a minute of steady signal']);
-    assert.deepStrictEqual(plain(texts[6]), ['You: 12 breaths a minute · Guide: 6', 'Finger sensor. From your heart rhythm, about half a minute behind']);
+  'g: with the clips on, the task shows the measured pace without any switch, records the average, and says what the number covers'() {
+    const feed = (t, i) => { if (i < 4) ble(t.A, { breathing_per_min: 0 }); else ble(t.A, { breathing_per_min: i < 12 ? 12 : 8 }, i < 12 ? 74 : 70); };
+    const t = film({ clips: true }, feed), { A, tick, s, g, rec } = t, V = A.Vitals, B = A.Breathing;
+    const texts = t.words.filter((_, i) => i % 20 === 10);
+    assert.deepStrictEqual([A.config.signalsOverlay, A.config.breathFeedback], [false, undefined], 'no switch was touched');
+    assert.strictEqual(texts[1], null, 'a pulse without a breathing rate yet: nothing is added to the task');
+    assert.deepStrictEqual(plain(texts[6]), ['You: 12 breaths a minute · Guide: 6', LAG]);
     assert.deepStrictEqual(plain(texts[texts.length - 1])[0], 'You: 8 breaths a minute · Guide: 6');
-    assert.ok(g.ringSolid && g.ringA > 0.9, 'the ring is drawn');
-    assert.ok(g.ringNear > A.Breathing.closeness(12, 6) && g.ringNear < A.Breathing.closeness(8, 6), `the ring settles slowly, got ${g.ringNear}`);
-    assert.deepStrictEqual(plain(s.V.orb.ring), plain(s.orb.ring), 'the world gets the ring');
+    assert.ok(t.ring && g.fb.ring.solid && g.fb.ring.a > 0.9, 'the ring is drawn');
+    assert.ok(g.fb.ring.near > B.closeness(12, 6) && g.fb.ring.near < B.closeness(8, 6), `the ring settles slowly, got ${g.fb.ring.near}`);
 
-    const b = rec.extra.breathing;
+    const without = film({ clips: true, breathing: false }, feed);
+    for (const k of ['completed_by', 'completed', 'items', 'errors', 'breath_sync', 'duration_ms', 'pulse']) assert.deepStrictEqual(rec[k], without.rec[k], `${k} changed with the measured breathing`);
+    const { breathing: b, ...rest } = rec.extra;
+    assert.deepStrictEqual(rest, without.rec.extra, 'the numbers of the task itself are untouched');
+    assert.ok(t.calls > without.calls && t.frames !== without.frames, 'only the ring is added to the drawing');
+
     assert.deepStrictEqual(Object.keys(b).sort(), ['guide_per_min', 'method', 'pulse_bpm', 'pulse_end_bpm', 'pulse_start_bpm', 'rate_per_min', 'seconds', 'source']);
     assert.deepStrictEqual([b.pulse_start_bpm, b.pulse_end_bpm], [72, 70], 'the pulse within 3 s of each end of the task');
     assert.deepStrictEqual([b.source, b.method, b.guide_per_min], ['finger_ppg', 'pulse_rhythm', 6]);
     assert.ok(b.seconds >= 19 && b.seconds <= 21, `seconds ${b.seconds}`);
-    assert.deepStrictEqual([b.rate_per_min.first, b.rate_per_min.last, b.rate_per_min.min, b.rate_per_min.max, b.rate_per_min.samples], [12, 8, 8, 12, b.seconds - 4]);
+    assert.deepStrictEqual([b.rate_per_min.first, b.rate_per_min.last, b.rate_per_min.min, b.rate_per_min.max], [12, 8, 8, 12]);
+    assert.ok([4, 5].includes(b.seconds - b.rate_per_min.samples), `the four seconds without a rate are not in the average: ${b.rate_per_min.samples} of ${b.seconds}`);
     assert.deepStrictEqual([b.pulse_bpm.first, b.pulse_bpm.last, b.pulse_bpm.samples], [72, 70, b.seconds - 1], 'the first tick came before the first reading');
     assert.ok(b.rate_per_min.mean > 8 && b.rate_per_min.mean < 12);
 
-    const mean = Math.round(b.rate_per_min.mean);
-    const result = [`Measured: ${mean} breaths a minute on average`, `${LAG}. Pulse 72 at the start, 70 at the end`];
+    const result = [`Measured: ${Math.round(b.rate_per_min.mean)} breaths a minute on average`, `${AFTER}. Pulse 72 at the start, 70 at the end`];
     assert.strictEqual(s.phase, 'walk');
-    assert.deepStrictEqual(plain(V.breath(s, A.now())), result, 'the result says how the number was measured and that it runs behind');
+    assert.deepStrictEqual(plain(V.breath(s, A.now())), result, 'the result names its source and the period the number covers');
     assert.strictEqual(V.breath({ ...s, gameMode: 'measure' }, A.now()), null, 'nothing over a measurement task');
     assert.strictEqual(V.breath(s, s.breathResult.until), null, 'the result line goes away by itself');
-    A.Sensors.setFingerLink('scanning');
-    let walked = 0;
-    for (let i = 0; i < 200 && s.phase === 'walk'; i++) { run(A, tick, s, 0.05); if (s.phase === 'walk') { walked++; assert.deepStrictEqual(plain(V.breath(s, A.now())), result); } }
-    assert.ok(walked > 20 && s.phase === 'game' && A.now() < s.breathResult.until, `walked ${walked}, phase ${s.phase}`);
-    assert.strictEqual(V.breath(s, A.now()), null, 'the result line ends when the next task starts');
-    for (const [line, small] of texts.filter(Boolean)) {
-      assert.ok(small.startsWith('Finger sensor'), 'every line names its source');
-      assert.ok(!/wrong|fail|bad|good|too |should|must|stress|score|[!]/i.test(line + small), line + small);
+    s.breathResult.until += 60;
+    let walked = 0, over = 0;
+    for (let i = 0; i < 400 && s.tasks.length < 2 && !s.done; i++) {
+      run(A, tick, s, 0.05, null, null);
+      const line = V.breath(s, A.now());
+      if (s.phase === 'walk') { walked++; assert.deepStrictEqual(plain(line), result); }
+      else { over++; assert.strictEqual(s.phase, 'game'); assert.strictEqual(line, null, 'the result line is never on top of the next task, also when its time is not up'); }
     }
+    assert.ok(walked > 20 && over > 20 && A.now() < s.breathResult.until, `walked ${walked}, next task ${over}`);
+    for (const [line, small] of [...t.words.filter(Boolean), result]) {
+      assert.ok(small.startsWith('Finger sensor'), 'every line names its source');
+      assert.ok(!/wrong|fail|bad|good|too |should|must|stress|strain|score|[!]/i.test(line + small), line + small);
+    }
+
+    const dev = film({ clips: true, overlay: true }, feed);
+    assert.deepStrictEqual(plain(dev.words[30]), ['You: measuring… · Guide: 6 breaths a minute', 'Finger sensor. Takes about half a minute of steady signal'], 'the wait for a first rate shows with the Developer switch only');
   },
 
   'h: readings that stop mid-task disappear from the screen within 3 s and still give an honest average'() {
-    const t = breathSession({ overlay: true }), { A, s, g } = t, seen = [];
-    connect(A);
-    const rec = playOut(t, i => {
-      if (i < 9) ble(A, { breathing_per_min: 10 }); else if (i === 9) A.Sensors.setFingerLink('scanning');
-      if (s.game) seen.push(g.fb.view()?.state ?? null);
-    });
-    assert.deepStrictEqual(seen.slice(1, 9), Array(8).fill('reading'));
-    assert.ok(seen.slice(10).every(x => x === null), JSON.stringify(seen));
-    assert.ok(g.ringA < 0.05, 'the ring fades out');
-    const b = rec.extra.breathing;
+    const dropped = film({ clips: true }, (t, i) => { if (i < 9) ble(t.A, { breathing_per_min: 10 }); else if (i === 9) t.S.setFingerLink('scanning'); });
+    const seen = dropped.words.filter((_, i) => i % 20 === 10).map(w => !!w);
+    assert.deepStrictEqual(seen.slice(0, 9), Array(9).fill(true));
+    assert.ok(seen.slice(10).every(x => !x), JSON.stringify(seen));
+    assert.ok(dropped.g.fb.ring.a < 0.05, 'the ring fades out');
+    const b = dropped.rec.extra.breathing;
     assert.deepStrictEqual([b.rate_per_min.mean, b.rate_per_min.samples], [10, 9]);
     assert.deepStrictEqual([b.pulse_bpm.last, b.pulse_start_bpm, b.pulse_end_bpm], [72, 72, null], 'the last pulse sample is 11 s before the end: not the pulse at the end');
-    assert.deepStrictEqual(plain(A.Vitals.breath(s, A.now())), ['Measured: 10 breaths a minute on average', LAG], 'so the line states no pulse');
+    assert.deepStrictEqual(plain(dropped.A.Vitals.breath(dropped.s, dropped.A.now())), ['Measured: 10 breaths a minute on average', AFTER], 'so the line states no pulse');
 
-    // The link stays up and the notifications just stop: the 3 s rule ends the reading, in the real task.
-    const quiet = breathSession({ overlay: true }), states = [], lines = [];
-    connect(quiet.A);
-    playOut(quiet, i => {
-      if (i < 5) ble(quiet.A, { breathing_per_min: 10 });
-      if (quiet.s.game) { states.push(quiet.g.fb.view()?.state ?? null); lines.push(quiet.A.Vitals.breath(quiet.s, quiet.A.now())?.[0] ?? null); }
-    });
-    assert.strictEqual(quiet.S.fingerLink.state, 'connected');
-    assert.deepStrictEqual(states.slice(1, 7), Array(6).fill('reading'), JSON.stringify(states));
-    assert.ok(states.length > 15 && states.slice(8).every(x => x === null), `still shown as current after 3 s: ${JSON.stringify(states)}`);
-    assert.deepStrictEqual(lines.map(x => !!x), states.map(x => !!x), 'the line follows');
-    assert.ok(quiet.g.ringA < 0.05, 'the ring fades out');
+    const quiet = film({ clips: true }, (t, i) => { if (i < 5) ble(t.A, { breathing_per_min: 10 }); });
+    assert.strictEqual(quiet.S.fingerLink.state, 'connected', 'the link stays up, the notifications just stop');
+    const at = quiet.words.map(w => !!w), lastFed = 4 * 20, gone = at.indexOf(false, lastFed);
+    assert.ok(at.slice(1, lastFed + 50).every(Boolean), 'shown while the last notification is under 3 s old');
+    assert.ok(gone > lastFed + 50 && gone <= lastFed + 61, `the line left ${(gone - lastFed) / 20} s after the last notification`);
+    assert.ok(at.length > 300 && at.slice(gone).every(x => !x), 'and stays away');
+    assert.strictEqual(quiet.g.fb.view(), null);
+    assert.ok(quiet.g.fb.ring.a < 0.05, 'the ring fades out');
+    const counted = quiet.g.fb.rates.filter(x => x != null).length;
+    assert.ok(counted >= 6 && counted <= 8 && quiet.g.fb.rates.slice(9).every(x => x == null), `only the seconds with a current reading are counted: ${JSON.stringify(quiet.g.fb.rates)}`);
 
-    const late = breathSession({ overlay: true });
-    connect(late.A);
-    const rec2 = playOut(late, i => { if (i >= 17) ble(late.A); });
-    assert.ok(!('extra' in rec2), 'three seconds at the very end are not a result');
+    const late = film({ clips: true }, (t, i) => { if (i >= 17) ble(t.A); });
+    assert.ok(!('breathing' in late.rec.extra), 'three seconds at the very end are not a result');
     assert.strictEqual(late.A.Vitals.breath(late.s, late.A.now()), null);
   },
 
-  'i: the "Signals during play" switch hides ring and words, never the recording'() {
-    const t = breathSession({ overlay: false }), { A, s } = t;
-    connect(A);
-    let ring = 0;
-    const rec = playOut(t, () => { ble(A); if (s.orb?.ring || s.V.orb.ring) ring++; });
-    assert.strictEqual(ring, 0);
-    assert.strictEqual(rec.extra.breathing.rate_per_min.mean, 9);
-    assert.strictEqual(rec.extra.breathing.source, 'finger_ppg');
+  'i: the setting "Breathing pace" turns ring and words off, never the recording'() {
+    const feed = t => ble(t.A);
+    const off = film({ clips: true, config: { breathFeedback: false } }, feed), without = film({ clips: true, breathing: false }, feed);
+    assert.ok(off.frames === without.frames, 'switched off, the task is drawn as without this feature');
+    assert.ok(!off.ring && off.words.every(w => w === null));
+    assert.strictEqual(off.A.Vitals.breath(off.s, off.A.now()), null, 'no result line either');
+    assert.strictEqual(off.rec.extra.breathing.rate_per_min.mean, 9);
+    assert.strictEqual(off.rec.extra.breathing.source, 'finger_ppg');
+    const on = film({ clips: true }, feed);
+    assert.ok(on.ring && on.words.filter(Boolean).length > 300, 'on by default');
+    assert.deepStrictEqual(on.rec.extra.breathing, off.rec.extra.breathing);
   },
 
   'j: the Your signals sheet (outside play) states the last breathing task of today'() {
@@ -281,7 +298,7 @@ const tests = {
     const rows = () => plain(V.model(A.now()).earlier.rows), row = () => rows().find(r => r.label === 'Breathing around the breathing task');
     assert.strictEqual(row(), undefined);
     A.lastBreath = { source: 'finger_ppg', method: 'pulse_rhythm', guide_per_min: 6, seconds: 20, rate_per_min: stat(12, 8, 16), pulse_bpm: stat(74, 70, 20), pulse_start_bpm: 74, pulse_end_bpm: 70 };
-    const behind = 'From your heart rhythm, about half a minute behind';
+    const behind = SPAN;
     assert.deepStrictEqual([row().value, row().lines], ['10', ['breaths per minute, average', behind, 'Pulse 74 at the start, 70 at the end']]);
     assert.ok(!rows().some(r => /with the guide|Guide:/.test(r.label + r.lines.join(' '))), 'a 20 s task is shorter than the 40 s the sensor looks back: no comparison with the guide');
     A.lastBreath.seconds = 60;
@@ -291,11 +308,11 @@ const tests = {
       Object.assign(A.lastBreath, { pulse_start_bpm: 74, pulse_end_bpm: 70 }, gone);
       assert.deepStrictEqual(row().lines, ['breaths per minute, average', behind], `first and last sample are not a start and an end: ${JSON.stringify(gone)}`);
       const after = { done: false, phase: 'walk', gameMode: null, game: null, breathResult: { ...A.lastBreath, until: 8 } };
-      assert.deepStrictEqual(plain(V.breath(after, 0)), ['Measured: 10 breaths a minute on average', LAG], 'and the line after the task leaves the pulse out too');
+      assert.deepStrictEqual(plain(V.breath(after, 0)), ['Measured: 10 breaths a minute on average', AFTER], 'and the line after the task leaves the pulse out too');
     }
     const after = { done: false, phase: 'walk', gameMode: null, game: null, breathResult: { ...A.lastBreath, pulse_start_bpm: 74, pulse_end_bpm: 70, until: 8 } };
-    assert.strictEqual(plain(V.breath(after, 0))[1], `${LAG}. Pulse 74 at the start, 70 at the end`);
-    assert.strictEqual(plain(V.breath({ ...after, phase: 'dawn' }, 0))[1], `${LAG}. Pulse 74 at the start, 70 at the end`);
+    assert.strictEqual(plain(V.breath(after, 0))[1], `${AFTER}. Pulse 74 at the start, 70 at the end`);
+    assert.strictEqual(plain(V.breath({ ...after, phase: 'dawn' }, 0))[1], `${AFTER}. Pulse 74 at the start, 70 at the end`);
     assert.strictEqual(V.breath({ ...after, phase: 'game', game: { id: 'fireflies' } }, 0), null, 'never over the next task');
     assert.strictEqual(V.breath({ ...after, phase: 'end' }, 0), null, 'nothing on the end screen');
     A.lastVitals.finger.source = 'simulated';
@@ -312,9 +329,9 @@ const tests = {
       const r = plain(t.result()), after = { done: false, phase: 'walk', gameMode: null, game: null, breathResult: { ...r, until: 999 } };
       return [r.pulse_start_bpm, r.pulse_end_bpm, r.pulse_bpm.first, r.pulse_bpm.last, plain(A.Vitals.breath(after, 0))[1]];
     };
-    assert.deepStrictEqual(task(i => 90 - i), [90, 71, 90, 71, `${LAG}. Pulse 90 at the start, 71 at the end`]);
-    assert.deepStrictEqual(task(i => i <= 8 ? 89 - i * 7 / 8 : null), [89, null, 89, 82, LAG], 'readings stopped after 8 s: 82 is not the pulse at the end');
-    assert.deepStrictEqual(task(i => i >= 8 ? 60 + i : null), [null, 79, 68, 79, LAG], 'readings began after 8 s: 68 is not the pulse at the start');
+    assert.deepStrictEqual(task(i => 90 - i), [90, 71, 90, 71, `${AFTER}. Pulse 90 at the start, 71 at the end`]);
+    assert.deepStrictEqual(task(i => i <= 8 ? 89 - i * 7 / 8 : null), [89, null, 89, 82, AFTER], 'readings stopped after 8 s: 82 is not the pulse at the end');
+    assert.deepStrictEqual(task(i => i >= 8 ? 60 + i : null), [null, 79, 68, 79, AFTER], 'readings began after 8 s: 68 is not the pulse at the start');
     assert.deepStrictEqual(task(i => i < 2 || i > 17 ? null : 70 + i).slice(0, 2), [72, 87], 'the third second and the third last still count');
     assert.deepStrictEqual(task(i => i < 3 || i > 16 ? null : 70 + i).slice(0, 2), [null, null], 'the fourth does not');
 

@@ -1,6 +1,34 @@
-// Run: node demo/tests/director.test.js
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
 const assert = require('assert');
-const { load } = require('./harness');
+
+const JS = path.join(__dirname, '..', 'js');
+const load = () => {
+  const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, URLSearchParams, crypto: { randomUUID: () => 'test' } };
+  ctx.window = ctx;
+  ctx.navigator = {};
+  ctx.location = { search: '', protocol: 'file:', pathname: '/' };
+  ctx.addEventListener = () => {};
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(JS, 'util.js'), 'utf8'), ctx);
+  let clock = 0;
+  vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
+  for (const f of ['sensors.js', 'input.js', 'record.js']) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx);
+  const noop = () => {};
+  ctx.A.Audio = new Proxy({}, { get: () => noop });
+  const game = id => ({ id, modes: [], make: () => ({ id, max: 12, t: 0, done: false, items: 0, errors: 0, update: noop, draw: noop, choices: [], trials: [], rewards: { rich: 0, lean: 0 }, counts: () => ({ rc: 0, ri: 0, lc: 0, li: 0 }) }) });
+  ctx.A.MINIGAMES = { breath: { ...game('breath'), modes: ['calm', 'rest'], world: true }, loyly: { ...game('loyly'), modes: ['calm'] }, threads: { ...game('threads'), modes: ['flow'] }, constellation: { ...game('constellation'), modes: ['flow'] }, fireflies: { ...game('fireflies'), modes: ['wake'] }, beacon: { ...game('beacon'), modes: ['wake', 'fatigue'] }, bells: { ...game('bells'), modes: ['wake', 'fatigue'] }, shutters: { ...game('shutters'), modes: ['fatigue'] } };
+  ctx.A.MEASURES = { fork: game('fork'), lanterns: game('lanterns') };
+  ctx.A.makeCheckin = () => ({ t: 0, done: false, update: noop, auto(dt, now) { this.done = true; this.finishedAt = now; this.choice = 3; this.decisionMs = 900; } });
+  ctx.A.pickGame = (mode, last, w) => {
+    const pool = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode) && id !== last && (!w || (w[id] ?? 0) > 0));
+    return { id: pool[0], weight: null };
+  };
+  vm.runInContext(fs.readFileSync(path.join(JS, 'traverse.js'), 'utf8'), ctx);
+  vm.runInContext(fs.readFileSync(path.join(JS, 'engine.js'), 'utf8'), ctx);
+  return { A: ctx.A, tick: dt => { clock += dt; } };
+};
 
 const lights = A => { const out = []; A.bus.on('light', d => out.push(d)); return out; };
 const run = (A, tick, s, seconds, each) => { for (let i = 0; i < seconds * 20; i++) { each?.(); tick(0.05); A.Input.update(A.now(), 0.05); s.update(A.now(), 0.05); } };

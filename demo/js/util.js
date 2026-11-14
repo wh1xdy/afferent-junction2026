@@ -6,13 +6,8 @@ A.ease = t => { t = A.clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 A.ema = (prev, x, dt, tau) => prev + (x - prev) * (1 - Math.exp(-dt / tau));
 
 A.hex = h => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
-A.toHex = c => '#' + c.map(v => Math.round(A.clamp(v, 0, 255)).toString(16).padStart(2, '0')).join('').toUpperCase();
 A.rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 A.mixc = (a, b, t) => [A.lerp(a[0], b[0], t), A.lerp(a[1], b[1], t), A.lerp(a[2], b[2], t)];
-A.desat = (c, s) => {
-  const l = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
-  return [A.lerp(l, c[0], s), A.lerp(l, c[1], s), A.lerp(l, c[2], s)];
-};
 
 A.rng = seed => () => {
   seed |= 0; seed = seed + 0x6D2B79F5 | 0;
