@@ -1,6 +1,6 @@
 # Afferent: what exists
 
-As of Saturday 14 November, evening. Everything below is on `main` unless it says otherwise. Point your agents at this file and at `uno-q/SENSORS.md`.
+As of Sunday 15 November. Everything below is on `main` unless it says otherwise. Point your agents at this file and at `uno-q/SENSORS.md`.
 
 ## The phone app (`demo/`, Capacitor; iOS and Android)
 
@@ -10,7 +10,7 @@ As of Saturday 14 November, evening. Everything below is on `main` unless it say
 - Greetings and the check-in question follow the real time of day (morning, afternoon, evening, night) (#60).
 - Instructions stay until the first touch, and the dots between games say "Tap the light to go on" (#60).
 - Tap hints are a soft touch dot on the thing to touch (#43, #67). There's no headphones splash anymore (#50).
-- Cold start: a soft loading screen, the launch navy with an ember breathing where the fire will be. It shows only while the art, the fonts and the first world frame load, with no minimum time, then crossfades into the world; it never stays past 8 s (`demo/js/loader.js`). Please don't add a wait in front of the app.
+- Cold start: a soft loading screen, the launch navy with an ember breathing where the fire will be. It shows only while the art, the fonts and the first world frame load, with no minimum time, then crossfades into the world; it never stays past 8 s (`demo/js/loader.js`, #87). Please don't add a wait in front of the app.
 
 **Responds to the body (finger clips or camera pulse)**
 - The fire beats in a lub-dub to the real pulse. The connect moment (stronger first beats, a warm ring) plays when a pulse appears, also mid-session. With no reading the fire only breathes (#51).
@@ -21,15 +21,20 @@ As of Saturday 14 November, evening. Everything below is on `main` unless it say
   - Tired by day: gentle wake-up games. Tired at night: wind-down.
 - Live vitals overlay (on by default, switch in Settings): pulse, HRV, breathing, the state and why ("Pulse up, HRV down → calmer breathing game"), plus the calm response, music and room rows (#55).
 - Music follows the heart: generated in D, starts at the real pulse and glides at most 1 bpm per 12 s towards calm; it takes the bed's place and never plays on simulated data (#53).
-- Haptics: one vocabulary across every game (touch, tick, hit, bright, miss, land, rise, success, complete, rhythm, breath, drag, heart) through `demo/js/haptics.js`, on top of Core Haptics on iOS and a matching Android plugin. Calm and night are softer. There's a Vibration switch, plus a separate Heartbeat touch switch (#58, #51).
+- Haptics: one vocabulary across every game (touch, tick, hit, bright, miss, land, rise, success, complete, rhythm, breath, drag, heart) through `demo/js/haptics.js`, on top of Core Haptics on iOS and a matching Android plugin. Calm and night are softer (#58, #51).
+- The whole app is haptic: every control answers a tap with one touch or tick, and a swipe ticks once where it closes (`demo/js/gui/feel.js`, #89).
+- Settings: a Vibration switch, and Heartbeat touch with four levels, Off, Soft, Medium and Strong, felt on the start screen and in calm moments (#80); every level is stronger since #88.
 
 **Sensors and checks**
 - Clip check before a session: "put a finger in each clip", a live OK, and the camera pulse as fallback (#46).
 - Room temperature and humidity come from the box through the home hub. "Your signals" shows them, and on a warm night there's one gentle line before the wind-down (#59).
-- Heart Duel (Settings → Together): two people, one clip each, whoever calms down first wins. Nothing is saved or sent (#49, haptics #74).
+- Heart Duel (Settings → Sessions → Together): two people, one clip each, whoever calms down first wins. Nothing is saved or sent (#49, haptics #74).
 - Simulated sensors are off by default on phones and on in the browser demo (#67).
 
 **Menus**
+- Settings is a short list of categories, each opening its own page; the hub address has a Paste button and a "Key missing" status (#76).
+- "Show to my doctor" shows a link, not the numbers: the phone encrypts the dashboard and uploads only ciphertext to the voice relay; the key stays after `#`, and links end after 7 days or when the patient takes them back (#82). Without a relay that has the current `voice-relay` (one instance), the phone falls back to the hub's dashboard (same Wi-Fi only).
+- iOS keyboard: no zoom into a field, no accessory bar; Return and a tap outside close it (#84).
 - Sheets close on a swipe down and slide out when closed; pages go back from the left edge (#66, #71).
 - Layout keeps clear of the Dynamic Island: use `--af-top`, `--af-ceiling` and `--af-bottom` for anything new (#54). Portrait only (#74).
 
@@ -47,18 +52,17 @@ As of Saturday 14 November, evening. Everything below is on `main` unless it say
 - **Reaching the hub from a phone right now**: the Mac bridges it.
   1. `wendy net forward 18000:18000 --device <jetson>`.
   2. `socat TCP-LISTEN:8000,bind=<Mac Wi-Fi IP>,fork,reuseaddr TCP:127.0.0.1:18000`.
-  3. `jetson/home_hub/pair.sh <Mac Wi-Fi IP>` gives the address for the app's Settings → Hub address. It must end in `/k/<token>`.
+  3. `jetson/home_hub/pair.sh <Mac Wi-Fi IP>` gives the address for the app's Settings → Home hub (Paste). It must end in `/k/<token>`.
 
   The phone and the Mac must be on the same Wi-Fi.
 
 ## In progress
-- **QR → encrypted dashboard link.** "Show to my doctor" will show a link, not the numbers. The phone encrypts the dashboard and uploads only ciphertext to a small share endpoint on the voice relay; the key stays after `#`, and links expire after 7 days. David needs to deploy that endpoint on Cloud Run; until then the phone falls back to the hub's dashboard (same Wi-Fi only).
-- **Settings as categories** with sub-pages, a Paste button and a "Key missing" status for the hub address.
+- **Finger clips that forgive pressure** (#91): a pressed, partly clipping sensor still gives a pulse, and the first pulse comes after about 6 s instead of 11.
 
 ## Rules our code follows (please keep them)
-- Nothing is sent or streamed live to a doctor. The patient hands data over when they choose to.
+- Nothing is sent or streamed live to a doctor. The patient hands data over when they choose to. That includes "Talk to someone" and check-in safety answers: the hub keeps them for the handover and sends nothing to a clinic socket, and no screen says the clinic has been told.
 - Face images and meshes never leave the phone; only numbers do.
 - A finger reading counts for 3 s. Quality below 0.3, or no quality, is not a measurement. Missing stays missing, never 0.
 - Simulated data is never shown or stored as real, and a session never mixes simulated and real pulse.
-- Commits and pull requests carry no AI credit: no AI author, no `Co-Authored-By`/`Claude-Session` lines, no "Generated with" or session links. The `No AI credit` check fails a PR that has them; fix your own branch, never rewrite main.
+- Commits and pull requests carry no AI credit: no AI author, no `Co-Authored-By`/`Claude-Session` lines, no "Generated with" or session links. The `No AI credit` check fails a PR that has them (#90); fix your own branch, never rewrite main.
 - Hardware that exists: two finger clips, a thermometer, a buzzer, an LED, a knob, a Jetson with one camera. There is no bed sensor.
