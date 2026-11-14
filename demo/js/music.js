@@ -135,7 +135,8 @@
     },
 
     session() {
-      try { if (navigator.audioSession && navigator.audioSession.type !== 'ambient') navigator.audioSession.type = 'ambient'; } catch {}
+      const type = A.Voice?.s ? 'play-and-record' : 'ambient';
+      try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch {}
     },
 
     wake() {

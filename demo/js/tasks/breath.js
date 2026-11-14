@@ -489,7 +489,7 @@
           if (a <= 0.01) return;
           const pulse = 0.75 + 0.25 * Math.sin(at * Math.PI);
           J.sprite(ctx, 'glow', C.flame, gx, gy, 26 * u, 0.4 * a * press * pulse, true);
-          J.finger(ctx, gx + 2 * u, gy + (2 + 12 * (1 - press)) * u, 34 * u, a * 0.9);
+          J.touch(ctx, gx, gy, u, a * 0.9, press);
         },
       });
       cur = g;

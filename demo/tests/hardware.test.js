@@ -226,11 +226,12 @@ const tests = {
   },
 
   'j2: the blink quality of a camera session is the measured share of tracked rest frames, not that share times a constant'() {
-    const rest = track => {
+    const rest = (track, window = true) => {
       const { A, tick } = load(), S = A.Sensors;
       S.enabled.simulator = false;
       if (track) S.source = 'arkit';
       const s = A.startSession({ clock: 'morning', input: 'touch', profile: 'live' });
+      if (window) s.startRest();
       let i = 0;
       run(A, tick, s, 9, () => { if (track) { S.native = { blink_l: 0.1, blink_r: 0.1, openness: 0.9, tracked: i++ % 4 !== 0, pitch_deg: -5, ambient: 0.3 }; S.nativeAt = A.now(); } });
       const doc = finish(A, s);
@@ -242,6 +243,8 @@ const tests = {
     assert.deepStrictEqual([r.blink_quality, r.eye_quality], [r.eyes_tracked_ratio, r.eyes_tracked_ratio]);
     const none = rest(false);
     assert.deepStrictEqual([none.blink_quality, none.eye_quality, none.blink_rate_per_min], [null, null, null], 'no camera, no quality');
+    const skipped = rest(true, false);
+    assert.deepStrictEqual([skipped.blink_quality, skipped.eye_quality, skipped.eyes_tracked_ratio], [null, null, null], 'the kindle goes straight to the reaction task, no rest frames, no quality');
     assert.strictEqual(/_quality:[^,\n]*\d\s*\*/.test(read(JS, 'engine.js')), false, 'engine.js scales a quality by a constant');
   },
 
