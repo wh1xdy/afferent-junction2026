@@ -69,6 +69,10 @@ def day_date(patient: dict, day: int) -> dt.date:
     return tms_end(patient) + dt.timedelta(days=day)
 
 
+def day_index(patient: dict, date: str) -> int:
+    return (dt.date.fromisoformat(date) - tms_end(patient)).days
+
+
 def _get(d, *path, default=None):
     for k in path:
         if not isinstance(d, dict):
@@ -202,38 +206,88 @@ def _arc(session: dict | None) -> list[float]:
     return [round(start + (end - start) * (i / (n - 1)) ** 0.8, 2) for i in range(n)]
 
 
-STREAK_STATUSES = ("completed", "fell_asleep")
-FREEZE_EVERY, FREEZE_MAX = 7, 2
+LIT_STATUSES = ("completed", "fell_asleep")
+FREEZE_START, FREEZE_EVERY, FREEZE_MAX, REPAIR_DAYS = 2, 7, 2, 3
+PAUSE_SOURCES = ("patient", "clinician")
+PATIENT_PAUSE_MAX_DAYS = 14
 
 
-def streak(sessions: list[dict], daily: list[dict], nd: int, paused: bool = False) -> dict:
-    status_by: dict[int, set] = {}
-    for s in sessions:
-        if s.get("day_index") is not None:
-            status_by.setdefault(s["day_index"], set()).add(s.get("status"))
+def lit(session: dict) -> bool:
+    status = session.get("status")
+    if status in LIT_STATUSES:
+        return True
+    core = session.get("core")
+    if status != "partial" or not isinstance(core, dict):
+        return False
+    trials = _get(core, "rt", "trials", default=[])
+    return len(trials) >= 5 and (core.get("mood_start") is not None or any(t.get("rt_ms") is not None for t in trials))
+
+
+def pause_on(pauses: list[dict], day: int) -> dict | None:
+    hits = [p for p in pauses or [] if p["from_day"] <= day <= p["until_day"]]
+    return next((p for p in hits if p["source"] == "clinician"), hits[0] if hits else None)
+
+
+def streak(sessions: list[dict], daily: list[dict], nd: int, pauses: list[dict] | None = None) -> dict:
+    lit_days = {s["day_index"] for s in sessions if s.get("day_index") is not None and lit(s)}
+    seen = {s["day_index"] for s in sessions if s.get("day_index") is not None}
+    declined = {s["day_index"] for s in sessions if s.get("day_index") is not None and s.get("status") == "declined"}
     daily_by = {d["day_index"]: d for d in daily}
-    days = set(status_by) | set(daily_by)
-    count, freezes, frozen = 0, 0, []
-    for day in range(min(days), (max(days) if paused else nd) + 1) if days else ():
-        statuses, rec = status_by.get(day, set()), daily_by.get(day) or {}
-        if statuses & set(STREAK_STATUSES):
-            count += 1
-            if count % FREEZE_EVERY == 0:
+    first = min(seen | set(daily_by) | {p["from_day"] for p in pauses or []}, default=None)
+    count, freezes, mornings, gap = 0, FREEZE_START, 0, []
+    states, protection, by_day = {}, {}, {}
+    for day in range(first, nd + 1) if first is not None else ():
+        rec = daily_by.get(day) or {}
+        if day in lit_days:
+            mornings += 1
+            if mornings % FREEZE_EVERY == 0:
                 freezes = min(FREEZE_MAX, freezes + 1)
-        elif day == nd or rec.get("declined") or rec.get("played") or statuses:
-            continue
-        elif freezes:
+            for g in gap:
+                protection[g] = "repair"
+            count, gap, states[day] = count + 1, [], "lit"
+        elif (pause_on(pauses, day) or rec.get("pause_source") or rec.get("declined") or day in declined
+              or (day != nd and (day in seen or rec.get("played")))):
+            states[day] = "rest"
+        elif day == nd:
+            states[day] = "today"
+        elif count and freezes:
             freezes -= 1
-            frozen.append(day)
+            protection[day], states[day] = "freeze", "frozen"
         else:
-            count = 0
-    return {"streak": count, "freezes": freezes, "frozen_days": frozen}
+            states[day] = "missed"
+            if count:
+                gap.append(day)
+                if len(gap) > REPAIR_DAYS:
+                    count, gap = 0, []
+        by_day[day] = {"streak_len": count, "freezes_held": freezes, "repair_active": bool(gap)}
+    return {"streak": count if count >= 2 else None, "streak_len": count, "freezes": freezes,
+            "mornings_lit": mornings, "repair_active": bool(gap), "states": states, "protection": protection,
+            "by_day": by_day,
+            "frozen_days": sorted(d for d, v in protection.items() if v == "freeze"),
+            "repaired_days": sorted(d for d, v in protection.items() if v == "repair")}
+
+
+def annotate_daily(daily: list[dict], st: dict, pauses: list[dict], patient: dict) -> list[dict]:
+    out = []
+    for rec in daily:
+        day = rec["day_index"]
+        pause = pause_on(pauses, day)
+        out.append({**rec, "streak_protection": st["protection"].get(day),
+                    "pause_source": pause["source"] if pause else rec.get("pause_source"),
+                    "pause_until": day_date(patient, pause["until_day"]).isoformat() if pause else rec.get("pause_until"),
+                    **st["by_day"].get(day, {"streak_len": 0, "freezes_held": FREEZE_START, "repair_active": False})})
+    return out
+
+
+def current_pause(patient: dict, nd: int) -> dict | None:
+    p = pause_on(patient.get("pauses") or [], nd)
+    return {"source": p["source"], "until": day_date(patient, p["until_day"]).isoformat()} if p else None
 
 
 def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict) -> dict:
     nd = now_day(patient)
     daily_by = {d["day_index"]: d for d in daily}
-    st = streak(sessions, daily, nd, privacy.get("sharing") in ("paused", "nothing_tonight"))
+    st = streak(sessions, daily, nd, patient.get("pauses") or [])
     week = []
     for day in range(nd - 6, nd + 1):
         if day < 0:
@@ -243,13 +297,14 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         rec = daily_by.get(day) or {}
         mood = _get(s, "core", "mood_start") if s else None
         date = day_date(patient, day)
+        state = st["states"].get(day, "today" if day == nd else "missed")
         week.append({
-            "day": day, "date": date.isoformat(), "weekday": WEEKDAYS[date.weekday()],
+            "day": day, "date": date.isoformat(), "weekday": WEEKDAYS[date.weekday()], "state": state,
             "played": bool(s) or bool(rec.get("played")),
-            "missed": (not s) and bool(rec.get("missed")) and day != nd,
+            "missed": state in ("missed", "frozen"),
             "today": day == nd, "mood": mood, "colour": MOOD_HEX.get(mood),
             "dawn_reached": bool(s and s.get("status") == "completed"),
-            "frozen": day in st["frozen_days"],
+            "frozen": state == "frozen",
         })
     today_s = (day_sessions(sessions, nd) or [None])[-1]
     pp = (today_s or {}).get("pre_post") or {}
@@ -270,7 +325,8 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         "patient": {"id": patient["id"], "display_name": patient.get("display_name")},
         "simulated": bool(patient.get("simulated", True) or (today_s or {}).get("simulated")),
         "date": day_date(patient, nd).isoformat(),
-        "today": today, "week": week, "streak": st["streak"], "freezes": st["freezes"],
+        "today": today, "week": week, "mornings_lit": st["mornings_lit"], "streak": st["streak"],
+        "freezes": st["freezes"], "pause": current_pause(patient, nd),
         "what_helped": what_helped(analytics),
         "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": CRISIS,
     }

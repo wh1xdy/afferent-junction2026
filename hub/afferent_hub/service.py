@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from jsonschema import Draft202012Validator
 
-from . import modules, views
+from . import export, modules, views
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
@@ -123,9 +123,14 @@ class Hub:
         self.recompute_all()
         return ids
 
+    def daily(self, pid: str) -> list[dict]:
+        p = self.patient(pid)
+        sessions, daily, pauses = self.store.sessions(pid), self.store.daily(pid), p.get("pauses") or []
+        return views.annotate_daily(daily, views.streak(sessions, daily, views.now_day(p), pauses), pauses, p)
+
     def recompute(self, pid: str) -> dict:
         p = self.patient(pid)
-        args = (self.store.sessions(pid), self.store.daily(pid), views.now_day(p))
+        args = (self.store.sessions(pid), self.daily(pid), views.now_day(p))
         try:
             analytics = modules.fn["analyze_patient"](*args)
         except Exception as e:
@@ -192,13 +197,50 @@ class Hub:
             "privacy": self.privacy(pid),
             "latest_session": sessions[-1] if sessions else None,
             "sessions": [views.compact_session(s) for s in sessions],
-            "daily": self.store.daily(pid),
+            "daily": self.daily(pid),
             "checkins": self.store.checkins(pid),
         }
 
+    def export(self, pid: str) -> tuple[str, bytes]:
+        p = self.patient(pid)
+        return export.build(p, self.store.sessions(pid), self.daily(pid), self.analytics(pid), self.store.checkins(pid))
+
+    async def set_pause(self, pid: str, body: dict) -> dict:
+        p = self.patient(pid)
+        nd = views.now_day(p)
+        source = body.get("source", "patient")
+        if source not in views.PAUSE_SOURCES:
+            raise HubError(400, "bad_request", f"source must be one of {', '.join(views.PAUSE_SOURCES)}")
+        try:
+            from_day = views.day_index(p, body["from"]) if body.get("from") else nd
+            until_day = views.day_index(p, body["until"]) if body.get("until") else None
+        except (TypeError, ValueError):
+            raise HubError(400, "bad_request", "from and until must be dates YYYY-MM-DD")
+        pauses = [q for q in p.get("pauses") or [] if q["source"] != source or q["until_day"] < from_day]
+        for q in p.get("pauses") or []:
+            if q["source"] == source and q["from_day"] < from_day <= q["until_day"]:
+                pauses.append({**q, "until_day": from_day - 1})
+        if until_day is not None:
+            if until_day < from_day:
+                raise HubError(400, "bad_request", "until is before from")
+            if source == "patient":
+                until_day = min(until_day, from_day + views.PATIENT_PAUSE_MAX_DAYS - 1)
+            pauses.append({"source": source, "from_day": from_day, "until_day": until_day,
+                           "set_iso": views.now_iso()})
+        async with self.lock(pid):
+            self.store.put_patient({**p, "pauses": sorted(pauses, key=lambda q: q["from_day"])})
+            analytics = await asyncio.to_thread(self.recompute, pid)
+        pause = views.current_pause(self.patient(pid), nd)
+        await self.to_clinic({"type": "pause", "patient_id": pid, "pause": pause})
+        await self.rooms.broadcast("app", {"type": "pause", "pause": pause}, patient_id=pid)
+        await self.broadcast_analytics(pid, analytics)
+        return {"ok": True, "pause": pause,
+                "pauses": [{"source": q["source"], "from": views.day_date(p, q["from_day"]).isoformat(),
+                            "until": views.day_date(p, q["until_day"]).isoformat()} for q in pauses]}
+
     def patient_view(self, pid: str) -> dict:
         p = self.patient(pid)
-        return views.patient_view(p, self.privacy(pid), self.store.sessions(pid), self.store.daily(pid),
+        return views.patient_view(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid),
                                   self.analytics(pid))
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
@@ -511,6 +553,11 @@ class Hub:
         elif t == "privacy":
             change = {k: msg[k] for k in ("sensor", "on", "sharing") if k in msg}
             await self.set_privacy(msg.get("patient_id") or pid, change)
+        elif t == "pause":
+            try:
+                await self.set_pause(msg.get("patient_id") or pid, {**msg, "source": "patient"})
+            except HubError as e:
+                log.warning("pause rejected: %s", e.detail)
         elif t == "weekly_checkin":
             try:
                 await self.add_checkin(msg.get("patient_id") or pid, msg)

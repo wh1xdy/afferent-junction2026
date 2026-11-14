@@ -69,6 +69,12 @@
     "missed": { "type": "boolean", "description": "day_complete and not played and not declined" },
     "session_time_h": { "type": ["number", "null"], "description": "Local hour of the first session that day" },
     "session_ids": { "type": "array", "items": { "type": "string" } },
-    "reminder_h": { "type": ["number", "null"], "description": "Local hour of the daily reminder" }
+    "reminder_h": { "type": ["number", "null"], "description": "Local hour of the daily reminder" },
+    "streak_protection": { "enum": ["freeze", "repair", null], "description": "Set by the hub. freeze: a Streak Freeze kept the streak on this missed day. repair: the next lit morning silently repaired this unprotected missed day. The day stays missed either way (engagement.md 6.7)" },
+    "pause_source": { "enum": ["patient", "clinician", null], "description": "Set by the hub when a streak pause covers this day. Separate from sharing (a privacy control). A paused day without a session is neither missed nor in the missed denominator" },
+    "pause_until": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "Last day of the pause covering this day" },
+    "streak_len": { "type": ["integer", "null"], "minimum": 0, "description": "Set by the hub. Streak length at the end of this day. Covariate for the stats agent, never shown to the clinic as a target" },
+    "freezes_held": { "type": ["integer", "null"], "minimum": 0, "maximum": 2, "description": "Set by the hub. Freezes held at the end of this day" },
+    "repair_active": { "type": ["boolean", "null"], "description": "Set by the hub. true while unprotected missed days wait for the silent repair" }
   }
 }

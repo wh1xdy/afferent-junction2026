@@ -31,80 +31,98 @@
    "day": 50,
    "date": "2026-11-09",
    "weekday": "Mon",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 51,
    "date": "2026-11-10",
    "weekday": "Tue",
+   "state": "frozen",
    "played": false,
    "missed": true,
    "today": false,
    "mood": null,
    "colour": null,
-   "dawn_reached": false
+   "dawn_reached": false,
+   "frozen": true
   },
   {
    "day": 52,
    "date": "2026-11-11",
    "weekday": "Wed",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 1,
    "colour": "#34476E",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 53,
    "date": "2026-11-12",
    "weekday": "Thu",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 54,
    "date": "2026-11-13",
    "weekday": "Fri",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 55,
    "date": "2026-11-14",
    "weekday": "Sat",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 56,
    "date": "2026-11-15",
    "weekday": "Sun",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": true,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   }
  ],
+ "mornings_lit": 52,
+ "streak": 41,
+ "freezes": 1,
+ "pause": null,
  "what_helped": [
   {
    "task_id": "breath",

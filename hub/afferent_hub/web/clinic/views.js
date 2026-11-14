@@ -147,7 +147,7 @@
     const head = `<div class="p-head">
         <div class="p-id">
           <a class="back" href="#/"><svg width="14" height="14" viewBox="0 0 16 16"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>All patients</a>
-          <div class="p-id-row"><h1>${esc(name)}</h1>${sim(simOn)}
+          <div class="p-id-row"><h1>${esc(name)}</h1>${sim(simOn)}<a class="ghost-btn small export" href="/api/patients/${encodeURIComponent(id)}/export" download title="Sessions, daily records, features and codebook as one zip">Export data</a>
           <p class="muted meta">Week ${weeks + 1} after TMS${tms ? ` (ended ${dateTiny(tms)})` : ''} · day ${A.now_day} · ${dateShort(A.date)}${sAll ? ` · sharing ${esc(D.privacy.sharing)}, ${sOn} of ${sAll} sensors on ${info('Sensors on: ' + Object.entries(sensors).filter(([, v]) => v).map(([k]) => k.replace(/_/g, ' ')).join(', ') + '. Patients can switch each sensor off in the app.')}` : ''}</p></div>
         </div>
       </div>

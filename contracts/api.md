@@ -104,12 +104,15 @@ Exactly the output of `analyze_patient` (section 5.1). Shape: `fixtures/analytic
 
 Gentle, wordless-where-possible data for `demo/patient.html`. Shape: `fixtures/patient_view_anna.json`. Rules: no pulse numbers, no composite, no state label, no z-scores. `today.arc` is 2 to 12 values in 0 to 1 (warmth through today's session, for drawing). `week` is the last 7 days ending today. `what_helped` comes from the bandit (top arm per mode with `p_best >= 0.5`, max 3, plus the dawn light association when its `mood_diff > 0`); texts are fixed templates per task id, never generated. `crisis` is fixed text (section 7).
 
-Streak (Duolingo pattern), top-level `streak` (int) and `freezes` (0 to 2), plus `week[].frozen` (bool):
+Streak (`design/engagement.md` section 6), computed by `views.streak()`:
 
-- `streak` counts days with a `completed` or `fell_asleep` session, walking from the first day with any data to today.
-- Today without such a session yet never breaks it. Declined days (daily `declined`, which covers `nothing_tonight` and `paused`), days with only a `partial` or `declined` session, and every day after the last record while sharing is `paused` or `nothing_tonight` are neutral: they neither count nor break.
-- Any other past day is missed. A missed day uses one freeze automatically (streak kept, day marked `frozen`); with no freeze left the streak drops to 0.
-- One freeze is earned at every 7th streak day, holding at most 2.
+- Top level: `mornings_lit` (int, lifetime, never decreases; the number the patient view shows), `streak` (int, or `null` below 2: the app never shows 0 or 1, and the patient view never shows it at all), `freezes` (0 to 2), `pause` (`{"source": "patient" | "clinician", "until": "YYYY-MM-DD"}` or `null`).
+- `week[].state`: `lit` (lantern in that day's mood colour), `missed` (same lantern, unlit), `frozen` (unlit with a frost rim), `rest` (lantern set down: Not today, a streak pause, or a session that did not light), `today` (outline with an ember, not yet lit). `week[].missed` and `week[].frozen` follow `state`.
+- A **lit morning** is a session with status `completed` or `fell_asleep`, or `partial` with a finished core (5 trials) and the player's own input (start mood or any tap). Mood, reaction time, Fork and Two lanterns values never change it (firewall test in `hub/tests/test_api.py`).
+- The walk starts at the first day with any data. 2 freezes are held at the start; 1 more is earned at every 7th morning lit (cumulative, not streak days), cap 2.
+- Today never breaks anything. Rest days (daily `declined`, a `declined` session, a streak pause, or a past day with only a non-lit session) hold the streak without growing it and use no freeze.
+- Any other past day is missed. With a streak running and a freeze held, the freeze is used automatically (`frozen`). Without a freeze, up to 3 unprotected missed days are silently repaired by the next lit morning: the streak continues, the days stay `missed` (history is not rewritten, `streak_protection: "repair"` in the daily record). A 4th unprotected day ends the streak; `streak` is then `null` until a new streak reaches 2.
+- Sharing (`summary`, `nothing_tonight`, `paused`) is a privacy setting and no longer touches the streak. Withheld days arrive as `declined` daily records.
 
 ### GET /api/patients/{id}/summary
 
@@ -175,6 +178,27 @@ Body `{"rgb": "#FFC98A", "level": 15, "fade_ms": 2000, "reason": "manual"}`. Sen
 
 Body `{"sensor": "phone_camera", "on": false}` or `{"sharing": "paused"}`. Stores it, broadcasts `privacy` on `/ws/clinic` and sends `privacy` to the app. Response: the new `privacy` object.
 
+### POST /api/patients/{id}/pause
+
+Streak pause, the Apple Pause Rings menu (Today, Until Monday, Until next month, Custom date). Body `{"source": "patient" | "clinician", "until": "YYYY-MM-DD", "from": "YYYY-MM-DD"}`; `from` defaults to today, `until: null` ends the current pause of that source from `from` on. A patient pause is capped at 14 days per pause (the hub clamps `until`) and can be renewed; a clinician pause has no cap. Paused days hold the streak, are `rest` in the week and are left out of the missed-session window. Stored on the patient document as `pauses: [{"source", "from_day", "until_day", "set_iso"}]`. Broadcasts `pause` on `/ws/clinic` and to the app, then `analytics_updated`. Response: `{"ok": true, "pause": {"source": "patient", "until": "2026-11-16"} | null, "pauses": [{"source", "from", "until"}]}`. The app may send the same as a `pause` WebSocket message (always `source: "patient"`).
+
+### GET /api/patients/{id}/export
+
+Clinic data export, one action and one zip (Apple Health "Export All Health Data", HL7 FHIR Bulk Data NDJSON per record type). `Content-Disposition: attachment; filename="SIMULATED_afferent_anna_2026-11-15.zip"` (the prefix only when any data is simulated). Contents:
+
+| File | Holds |
+|---|---|
+| `README.txt` | Starts with "SIMULATED DATA." when any data is simulated |
+| `manifest.json` | `patient_id`, `simulated`, `tms_end_date`, `now_day`, `date`, `generated_iso`, schema versions, counts, `pauses` |
+| `sessions.ndjson` | Every full session v3 document, one per line, `simulated` kept |
+| `daily.csv` | Every daily v1 record flattened to dotted columns, including `streak_protection`, `pause_source`, `pause_until`, `streak_len`, `freezes_held`, `repair_active`, `reminder_h` and `simulated`; lists joined with `;` |
+| `features.csv` | Per day: `simulated`, every composite feature as `<key>.value`, `<key>.z`, `<key>.ewma_z`, plus `composite`, `cusum`, `state`, `completeness` |
+| `checkins.ndjson` | Weekly check-ins |
+| `codebook.csv` | `file`, `column`, `description`, `unit` for every column, from the daily schema and the feature table |
+| `SessionSchema.md` | The session field reference |
+
+The dashboard patient detail has an "Export data" button that downloads it.
+
 ### POST /api/patients/{id}/flags/clear
 
 Clears `flags` after the clinician has seen them. Response `{"ok": true}`.
@@ -204,6 +228,7 @@ Phone to hub:
 | `light` | `rgb`, `level` (0 to 100), `fade_ms`, `reason` (`mode`, `dawn`, `asleep`, `idle`) | game wants the bedside light changed |
 | `session_end` | `session`: the full session v3 document | session over (any status, including declined) |
 | `privacy` | `patient_id`, `sensor` or `sharing`, `on` | patient changes a switch |
+| `pause` | `patient_id`, `until` (`YYYY-MM-DD` or null to end), optional `from` | patient sets or ends a streak pause in Settings or from the "Pause 7 days" notification action |
 | `crisis` | `patient_id`, `source` (`talk_button`, `mood`, `weekly_checkin`), `t_iso` | the fixed crisis card was opened; the hub stores a flag of type `talk_request`, `low_mood_twice` or `weekly_checkin` |
 | `weekly_checkin` | `patient_id`, `answers` (`interest`, `down`, `self_harm`, each 0 to 3), `phq2`, `self_harm`, `t_iso` | daytime weekly check-in answered; the hub stores it (`checkins` in `GET /api/patients/{id}`) and, when `self_harm > 0`, adds a `weekly_checkin` flag (the follow-up `crisis` with the same source within 60 s is merged into it) |
 
@@ -232,6 +257,7 @@ Hub to phone:
 | `knob` | `level` (0 to 100) or `press: true` | knob events |
 | `profile` | `profile` (`good_day`, `bad_day`, `live`) | `POST /api/demo/profile` |
 | `privacy` | `privacy` object as in `GET /api/patients/{id}` | after a change from any client |
+| `pause` | `pause` (`{"source", "until"}` or null) | after a streak pause change |
 | `demo_reset` | none | after `POST /api/demo/reset` |
 
 `config`:
@@ -267,6 +293,7 @@ Hub to dashboard:
 | `pose` | `patient_id`, `keypoints`, `trunk_angle_deg`, `quality`, `simulated` | relayed from `/ws/bedside` (stick figure) |
 | `crisis_flag` | `patient_id`, `type`, `source`, `t_iso` | phone `crisis` or the low-mood rule |
 | `privacy` | `patient_id`, `privacy` | change |
+| `pause` | `patient_id`, `pause` (`{"source", "until"}` or null) | streak pause change |
 | `demo_reset` | none | reset |
 
 Dashboard to hub: `{"type": "ping"}` (hub answers `{"type": "pong"}`). Nothing else is required.

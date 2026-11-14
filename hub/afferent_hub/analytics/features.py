@@ -106,7 +106,7 @@ def missed_flag(rec: dict | None):
         return None
     if rec.get("played") or rec.get("declined"):
         return False
-    if not rec.get("day_complete", True):
+    if rec.get("pause_source") or not rec.get("day_complete", True):
         return None
     return bool(rec.get("missed"))
 

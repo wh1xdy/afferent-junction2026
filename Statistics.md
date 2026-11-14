@@ -58,7 +58,8 @@ Fields are in `contracts/daily.v1.schema.json`: one record per patient and day, 
 | Steps | Phone accelerometer step-like activity | plausible; SIMULATED tonight | Context only |
 | Room temperature, humidity | Modulino thermo | context only | Context |
 | Bedside light | Minutes on, knob dawn level, minutes of morning dawn light | exploratory (low-intensity dawn light is not light therapy) | Next-day association "Bedside dawn light" (association, not causation) |
-| Played, declined, missed | missed = day complete and not played and not declined. Declined ("Not tonight", sharing paused) never counts as missed | plausible | **Composite: "Missed sessions (7 d)"** = missed days in the trailing 7 days, scaled to 7 known days (needs 4), weight 1.0, worse when high |
+| Played, declined, missed | missed = day complete and not played and not declined. Declined ("Not today", sharing paused) never counts as missed. A day under a streak pause (`pause_source` patient or clinician) without a session is unknown: neither missed nor in the denominator. Frozen and repaired days stay missed (`streak_protection`) | plausible | **Composite: "Missed sessions (7 d)"** = missed days in the trailing 7 days, scaled to 7 known days (needs 4), weight 1.0, worse when high |
+| Streak context | `streak_len`, `freezes_held`, `repair_active`, `streak_protection`, `pause_source`, `pause_until` on every daily record, computed by the hub (`views.streak()`) from lit mornings (core finished with the player's own input) | covariate | Context only, never a target. Use to check whether missed sessions lose sensitivity in long-streak patients (engagement.md 6.7, 10) |
 | Knob uses, session time, reminder time | From the bedside unit and the app | exploratory | Context |
 
 ## Dimension 3: analytics (the brain)
@@ -114,6 +115,10 @@ k was lowered from 0.5 (first contract draft) to 0.35 after the synthetic sensit
 - **Next-day association** (`bandit.next_day`): for each task (the 4 with the most "with" days, each side needs >= 5 days) and for the bedside dawn light: mean next-day mood check-in and mean next-day composite change, on days with versus without it. Always labelled "association, not causation": tasks are not randomised across days, and the bandit itself makes good tasks more frequent.
 
 Evidence: Thompson sampling is an established method; the "helped" outcome and the associations are exploratory.
+
+### 5b. Pauses and the missed denominator
+
+A patient pause (Settings, at most 14 days per pause, renewable) and a clinician pause (booster course, admission, travel, no cap) both remove the paused days from the missed-session window: `missed_flag()` returns `null` for a paused day without a session, so the 7-day count is scaled over the remaining known days. A paused day with a session counts as played. The dashboard can draw patient pauses as a "paused by patient" band (context, not an alert); clinician pauses are excluded entirely. Open for the stats agent: whether patient pauses should instead count as non-missed known days.
 
 ### 6. Completeness and data quality
 

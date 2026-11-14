@@ -249,6 +249,7 @@ b { font-weight: 600; }
 .p-head { margin-bottom: 18px; }
 .p-id-row { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .p-id-row .af-simulated { align-self: center; }
+.p-id-row .export { order: 1; align-self: center; margin-left: auto; text-decoration: none; color: inherit; }
 .p-id h1 { font-family: var(--af-font-display); font-weight: 300; font-size: 40px; line-height: 1.1; letter-spacing: -0.01em; }
 .p-id .meta { font-size: var(--af-text-sm); }
 

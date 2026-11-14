@@ -225,22 +225,111 @@ def test_weekly_checkin_flag(client):
     assert [c["phq2"] for c in checkins] == [2, 3] and checkins[0]["self_harm"] == 1
 
 
-def test_streak_and_freezes():
+def run_streak(statuses, declined=(), pauses=None):
     from afferent_hub.views import streak
 
-    def run(statuses, declined=()):
-        sessions = [{"day_index": d, "status": s} for d, s in enumerate(statuses) if s]
-        daily = [{"day_index": d, "declined": True} for d in declined]
-        return streak(sessions, daily, len(statuses) - 1)
+    sessions = [{"day_index": d, "status": s} for d, s in enumerate(statuses) if s]
+    daily = [{"day_index": d, "declined": True} for d in declined]
+    return streak(sessions, daily, len(statuses) - 1, pauses)
 
+
+def test_streak_and_freezes():
     ok = "completed"
-    assert run([ok] * 6 + [None]) == {"streak": 6, "freezes": 0, "frozen_days": []}
-    assert run([ok] * 6 + [None, ok, None]) == {"streak": 1, "freezes": 0, "frozen_days": []}
-    assert run([ok] * 7 + [None, "fell_asleep", None])["streak"] == 8
-    assert run([ok] * 7 + [None, "fell_asleep", None])["frozen_days"] == [7]
-    assert run([ok] * 21 + [None])["freezes"] == 2
-    assert run([ok] * 3 + ["declined", None, ok, None], declined=[4])["streak"] == 4
-    assert run([ok] * 3 + [None, None, ok, None])["streak"] == 1
+    st = run_streak([ok] * 6 + [None])
+    assert (st["streak"], st["freezes"], st["mornings_lit"], st["frozen_days"]) == (6, 2, 6, [])
+    assert run_streak([ok])["streak"] is None and run_streak([ok])["freezes"] == 2
+    st = run_streak([ok] * 6 + [None, ok, None])
+    assert (st["streak"], st["freezes"], st["frozen_days"]) == (7, 2, [6])
+    assert run_streak([ok] * 2 + [None] * 6 + [ok, None])["streak"] is None
+    assert run_streak(["fell_asleep"] * 21 + [None])["freezes"] == 2
+    assert run_streak([ok] * 3 + ["declined", None, ok, None], declined=[4])["streak"] == 4
+    assert run_streak([ok] * 3 + [None] * 5 + [ok, None])["streak"] == 4
+    assert run_streak([ok] * 3 + [None] * 6 + [ok, ok, None])["streak"] == 2
+    paused = run_streak([ok] * 3 + [None] * 10 + [ok, None], pauses=[{"source": "patient", "from_day": 3, "until_day": 12}])
+    assert (paused["streak"], paused["freezes"], paused["states"][5]) == (4, 2, "rest")
+
+
+def test_streak_worked_example():
+    ok, no = "completed", None
+    st = run_streak([ok, ok, "declined", no, ok, no, no, no, ok, ok, ok, ok] + [no] * 5 + [ok, no])
+    assert st["frozen_days"] == [3, 5, 12] and st["repaired_days"] == [6, 7]
+    assert [st["by_day"][d]["streak_len"] for d in (1, 2, 3, 4, 7, 8, 11, 16, 17)] == [2, 2, 2, 3, 3, 4, 7, 0, 1]
+    assert st["by_day"][7]["repair_active"] and not st["by_day"][8]["repair_active"]
+    assert (st["streak"], st["mornings_lit"], st["freezes"]) == (None, 8, 0)
+    assert [st["states"][d] for d in (2, 3, 6, 8, 18)] == ["rest", "frozen", "missed", "lit", "today"]
+
+
+def test_streak_firewall():
+    import random
+    from afferent_hub.views import annotate_daily, streak
+
+    rng = random.Random(3)
+    statuses = ["completed", "partial", None, "fell_asleep", "declined", None, None, "partial", "completed", None]
+
+    def sessions(variant):
+        out = []
+        for d, status in enumerate(statuses):
+            if not status:
+                continue
+            s = new_session(day_index=d, status=status)
+            s["core"]["mood_start"] = rng.randint(1, 5)
+            s["mood_end"] = rng.choice([None, 1, 3, 5])
+            for t in s["core"]["rt"]["trials"]:
+                t["rt_ms"] = rng.randint(90, 1400)
+            s["core"]["rt"]["median_ms"] = rng.randint(250, 900)
+            s["core"]["rt"]["valid"] = rng.random() < 0.5
+            for c in s["fork"]["choices"]:
+                c["path"] = rng.choice(["hard", "easy"])
+            s["fork"]["hard_prop"] = rng.random()
+            for t in s["two_lanterns"]["trials"]:
+                t["response"], t["rewarded"] = rng.choice(["rich", "lean", None]), rng.random() < 0.5
+            s["pre_post"] = {"variant": variant}
+            out.append(s)
+        return out
+
+    def outcome(variant):
+        st = streak(sessions(variant), [], len(statuses) - 1)
+        return st, annotate_daily([{"day_index": d} for d in range(len(statuses))], st, [], {"tms_end_date": "2026-09-20"})
+
+    first = outcome(0)
+    assert first[0]["mornings_lit"] == 5
+    for v in range(1, 6):
+        assert outcome(v) == first
+
+
+def test_pause_and_export(client):
+    import io
+    import zipfile
+
+    pv = client.get("/api/patients/anna/patient-view").json()
+    today = pv["date"]
+    r = client.post("/api/patients/anna/pause", json={"source": "patient", "until": "2027-03-01"}).json()
+    assert r["pause"]["source"] == "patient" and r["pause"]["until"] < "2026-12-01"
+    pv = client.get("/api/patients/anna/patient-view").json()
+    assert pv["week"][-1]["state"] in ("rest", "lit") and pv["pause"]["source"] == "patient"
+    assert client.post("/api/patients/anna/pause", json={"until": None}).json()["pause"] is None
+    assert client.post("/api/patients/anna/pause", json={"source": "nurse"}).status_code == 400
+    r = client.post("/api/patients/anna/pause", json={"source": "clinician", "from": pv["week"][0]["date"],
+                                                      "until": pv["week"][2]["date"]}).json()
+    daily = {d["day_index"]: d for d in client.get("/api/patients/anna").json()["daily"]}
+    assert daily[pv["week"][1]["day"]]["pause_source"] == "clinician"
+    assert {d["state"] for d in client.get("/api/patients/anna/patient-view").json()["week"][:3]} <= {"rest", "lit"}
+    assert all(set(d) >= {"streak_protection", "streak_len", "freezes_held", "repair_active"} for d in daily.values())
+
+    r = client.get("/api/patients/anna/export")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+    assert "SIMULATED_afferent_anna_" in r.headers["content-disposition"] and today in r.headers["content-disposition"]
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    assert {"README.txt", "manifest.json", "sessions.ndjson", "daily.csv", "features.csv", "codebook.csv",
+            "SessionSchema.md"} <= set(z.namelist())
+    assert z.read("README.txt").decode().startswith("SIMULATED DATA.")
+    header = z.read("daily.csv").decode().splitlines()[0].split(",")
+    assert {"streak_protection", "pause_source", "pause_until", "simulated", "missed"} <= set(header)
+    assert "rt_median.z" in z.read("features.csv").decode().splitlines()[0]
+    first = json.loads(z.read("sessions.ndjson").decode().splitlines()[0])
+    assert first["schema"] == "afferent.session/3" and "simulated" in first
+    cols = {row.split(",")[1] for row in z.read("codebook.csv").decode().splitlines()[1:]}
+    assert set(header) <= cols
 
 
 def test_privacy(client):
@@ -265,7 +354,9 @@ def test_patient_view_is_gentle(client):
     for phrase in FORBIDDEN:
         assert phrase not in text.lower()
     assert len(pv["what_helped"]) <= 3
-    assert isinstance(pv["streak"], int) and 0 <= pv["freezes"] <= 2
+    assert (pv["streak"] is None or pv["streak"] >= 2) and 0 <= pv["freezes"] <= 2
+    assert isinstance(pv["mornings_lit"], int) and pv["mornings_lit"] > 0
+    assert {d["state"] for d in pv["week"]} <= {"lit", "missed", "frozen", "rest", "today"}
 
 
 def test_summary_and_config(client):
