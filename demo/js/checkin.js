@@ -43,7 +43,7 @@
   const cfg = () => {
     const h = hubCfg();
     return {
-      enabled: A.config.checkin !== false && h.enabled !== false,
+      enabled: A.config?.checkin !== false && h.enabled !== false,
       cadence: h.cadence_days || CADENCE,
       always: h.always_ask_cssrs === true,
       licensed: h.cssrs_licensed === true || q.get('cssrs') === '1',
@@ -157,52 +157,82 @@
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const btn = (cls, text, fn) => { const b = el('button', cls, text); b.type = 'button'; b.onclick = e => { if (!gesture?.moved) fn(e); }; return b; };
+  const ICON = {
+    support: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6"/><path d="M6 6l3.45 3.45M18 6l-3.45 3.45M6 18l3.45-3.45M18 18l-3.45-3.45"/>',
+    schedule: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    doc: '<path d="M7 3.5h6.5L18 8v11.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-15a1 1 0 0 1 1-1z"/><path d="M13.5 3.5V8H18M9 12.5h6M9 16h4"/>',
+    swipe: '<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M6 19.5h12"/>',
+    shield: '<path d="M12 3.5l7 2.8v5.2c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6.3z"/><path d="M9 12l2.2 2.2L15.5 10"/>',
+    checklist: '<path d="M4.5 7.5l1.8 1.8 3.2-3.3M4.5 15.5l1.8 1.8 3.2-3.3M13 8h6.5M13 16h6.5"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  };
+  const CALL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.95 21q-3.12 0-6.17-1.36t-5.55-3.86q-2.5-2.5-3.86-5.55T3 4.05q0-.45.3-.75t.75-.3H8.1q.35 0 .62.24t.33.56l.65 3.5q.05.4-.02.68T9.4 8.45L6.98 10.9q.5.93 1.19 1.79t1.51 1.66q.78.78 1.63 1.44T13.1 17l2.35-2.35q.23-.23.59-.34t.71-.06l3.45.7q.35.1.58.36T21 15.9v4.05q0 .45-.3.75t-.75.3z"/></svg>';
+  const LANTERN = '<svg class="lantern" viewBox="0 0 26 40" aria-hidden="true"><circle cx="13" cy="3.6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 10.5h10l-2-4.2h-6z" fill="currentColor"/><rect x="6.5" y="10.5" width="13" height="20" rx="4.5" fill="color-mix(in srgb, currentColor 22%, transparent)" stroke="currentColor" stroke-width="1.5"/><ellipse cx="13" cy="21.5" rx="2.7" ry="4.3" fill="currentColor"/><rect x="8.5" y="30.5" width="9" height="3.2" rx="1.2" fill="currentColor"/></svg>';
+  const icon = (name, cls = 'g') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
+  const html = (tag, cls, markup) => { const e = el(tag, cls); e.innerHTML = markup; return e; };
+  const tile = markup => html('div', 'ci-tile', markup);
   const talkIcon = () => {
-    const b = btn('icon ci-talk', null, talk);
+    const b = btn('ci-talk', null, talk);
     b.setAttribute('aria-label', 'Talk to someone');
-    b.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>';
+    b.innerHTML = icon('support');
     return b;
   };
-  const bar = () => { const b = el('div', 'ci-bar'); b.append(el('span', 'spacer'), talkIcon()); return b; };
+  const bar = () => { const b = el('div', 'ci-bar'); b.append(talkIcon()); return b; };
 
-  const contacts = (crisis) => {
+  const contacts = (kind) => {
     const c = cfg().clinic;
     const list = [
-      ['Emergency', '112', '112'],
-      ['MIELI Crisis Helpline, in Finnish, 24 h', '09 2525 0111', '0925250111'],
-      ['Medical Helpline, 24 h', '116117', '116117'],
-      [c?.name ? `${c.name}, ${c.hours || 'office hours'}` : 'Your clinic, office hours', c?.number || '09 000 0000 (demo placeholder)', (c?.number || '0900000000').replace(/[^\d+]/g, '')],
+      ['Emergency', '112', null, '112'],
+      ['MIELI Crisis Helpline', '09 2525 0111', 'in Finnish, 24 h', '0925250111'],
+      ['Medical Helpline', '116117', '24 h', '116117'],
+      [c?.name || 'Your clinic', c?.number || '09 000 0000', c?.number ? (c.hours || 'office hours') : 'office hours, demo placeholder', (c?.number || '0900000000').replace(/[^\d+]/g, '')],
     ];
+    const main = kind === 'crisis' ? 0 : 1;
     const box = el('div', 'ci-contacts');
-    list.forEach(([label, shown, tel], i) => {
-      const a = el('a', 'ci-contact' + (crisis && i === 0 ? ' main' : ''));
+    list.forEach(([label, number, hours, tel], i) => {
+      const a = el('a', 'ci-contact' + (i === main ? ' main' : ''));
       a.href = 'tel:' + tel;
-      a.append(el('span', null, label), el('small', null, shown));
+      a.setAttribute('aria-label', `Call ${i === 3 && !c?.name ? 'your clinic' : label}, ${number}${hours ? ', ' + hours : ''}`);
+      const t = el('span', 'ci-ct');
+      t.append(el('span', 'ci-cl', label), el('span', 'ci-cn', hours ? `${number} · ${hours}` : number));
+      a.append(t, html('span', 'ci-call', CALL));
       box.append(a);
     });
     return box;
   };
 
+  const scheme = () => {
+    const d = document.documentElement.dataset;
+    return forcedScheme || (d.scheme === 'kevat' || d.sky === 'day' || d.sky === 'dawn' ? 'kevat' : 'kaamos');
+  };
   const screen = (kind, gestures) => {
     sheet.replaceChildren();
     sheet.className = 'ci-sheet ' + kind;
+    root.classList.toggle('kevat', scheme() === 'kevat');
     root.dataset.gestures = gestures ? '1' : '';
     current = kind;
     return sheet;
   };
   const focusFirst = () => requestAnimationFrame(() => sheet.querySelector('[data-focus]')?.focus({ preventScroll: true }));
 
-  const info = (kind, { title, lines = [], buttons = [], body, gestures = false, pre } = {}) => {
+  const info = (kind, { title, sub, lines = [], items = [], buttons = [], body, lead, gestures = false, pre, talkBar = true } = {}) => {
     const s = screen('ci-info ci-' + kind, gestures);
-    s.append(bar());
+    if (talkBar) s.append(bar());
     const main = el('div', 'ci-body');
-    if (pre) main.append(el('p', 'ci-pre', pre));
+    if (lead) main.append(lead);
+    if (pre) main.append(html('p', 'ci-pre', CALL.replace('<svg', '<svg class="call"') + `<span>${pre}</span>`));
     if (title) { const h = el('h2', 'ci-title', title); h.tabIndex = -1; h.dataset.focus = ''; main.append(h); }
-    lines.forEach(l => main.append(el('p', 'ci-line', l)));
+    if (sub) main.append(el('p', 'ci-sub', sub));
+    if (lines.length) { const box = el('div', 'ci-lines'); lines.forEach(l => box.append(el('p', 'ci-line', l))); main.append(box); }
+    if (items.length) {
+      const box = el('div', 'ci-lines');
+      items.forEach(([ic, text]) => { const r = el('div', 'ci-li'); r.innerHTML = icon(ic); r.append(el('p', null, text)); box.append(r); });
+      main.append(box);
+    }
     if (body) main.append(body);
     s.append(main);
-    const row = el('div', 'ci-actions' + (buttons.length > 1 ? ' two' : ''));
-    buttons.forEach(([text, fn, quiet]) => row.append(btn('primary' + (quiet ? ' quiet' : ''), text, fn)));
+    const row = el('div', 'ci-actions');
+    buttons.forEach(([text, fn, style = 'filled']) => row.append(btn('ci-btn ' + style, text, fn)));
     s.append(row);
     focusFirst();
   };
@@ -215,7 +245,7 @@
     if (header) head.append(el('p', 'ci-stem', header));
     const m = text.match(/^(.*?) (\(For example.*\))$/s);
     const lead = m ? m[1] : text;
-    const h = el('h2', 'ci-item' + (lead.length > 120 ? ' long' : ''), lead);
+    const h = el('h2', 'ci-item' + (lead.length > 230 ? ' xlong' : lead.length > 120 || m ? ' long' : ''), lead);
     h.id = 'ciItem'; h.tabIndex = -1; h.dataset.focus = '';
     head.append(h);
     if (m) head.append(el('p', 'ci-example', m[2]));
@@ -223,11 +253,14 @@
     group.setAttribute('role', 'radiogroup');
     group.setAttribute('aria-labelledby', 'ciItem');
     const options = phq ? PHQ_OPTS.map((o, i) => [o, i]) : YES_NO;
-    options.forEach(([label, v]) => {
-      const b = btn('ci-opt', label, () => pick(k, v));
+    options.forEach(([label, v], i) => {
+      const b = btn('ci-opt', null, () => pick(k, v));
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', String(run.answers[k] === v));
+      b.setAttribute('aria-label', phq ? `${label}, ${i} of 3` : label);
       b.dataset.v = String(v);
+      if (phq) b.append(html('span', 'ci-dots', [0, 1, 2].map(d => `<i class="${d < i ? 'on' : ''}"></i>`).join('')));
+      b.append(el('span', 'lb', label), html('span', 'ci-check', icon('check')));
       group.append(b);
     });
     const stop = btn('ci-sr', 'Stop check-in', () => finish('stop'));
@@ -241,9 +274,13 @@
     if (!k) return finish('end');
     if (run.stack[run.stack.length - 1] !== k) run.stack.push(k);
     saveDraft();
-    if (k === 'cssrs_intro') return info('cssrs-intro', { lines: ['A few more questions, so your clinic can understand. Answer yes or no.'], buttons: [['Continue', () => go('c1')]], gestures: true });
+    if (k === 'cssrs_intro') {
+      const [t, sub] = sentences('A few more questions, so your clinic can understand. Answer yes or no.');
+      return info('cssrs-intro', { title: t, sub, buttons: [['Continue', () => go('c1')]], gestures: true });
+    }
     question(k);
   };
+  const sentences = s => s.match(/[^.]+\.(\s|$)/g).map(x => x.trim());
 
   const pick = (k, v) => {
     if (!run || current !== 'ci-question') return;
@@ -276,9 +313,13 @@
 
   const intro = () => {
     const c = cfg();
-    const lines = ['Nine short questions about the last 2 weeks.', c.protocol ? 'Your clinic sees your answers on the next working day.' : 'Your clinic will see your answers.', 'This is not watched around the clock.', 'You can stop at any time by swiping down.'];
-    if (A.config.sharing === 'paused') lines.push('Sharing is paused, but answers about your safety still reach your clinic.');
-    info('intro', { title: 'Check-in', lines, buttons: [['Later', later, true], ['Start', begin]] });
+    const items = [
+      ['schedule', 'Nine short questions about the last 2 weeks.'],
+      ['doc', (c.protocol ? 'Your clinic sees your answers on the next working day.' : 'Your clinic will see your answers.') + ' This is not watched around the clock.'],
+      ['swipe', 'You can stop at any time by swiping down.'],
+    ];
+    if (A.config?.sharing === 'paused') items.push(['shield', 'Sharing is paused, but answers about your safety still reach your clinic.']);
+    info('intro', { lead: tile(icon('checklist')), title: 'Check-in', items, buttons: [['Start', begin], ['Later', later, 'text']] });
   };
 
   const later = () => { patch({ snooze: Date.now() + SNOOZE }); opts.log('check-in snoozed 24 h'); close(); };
@@ -286,22 +327,33 @@
   const render = kind => {
     const c = cfg();
     const support = (c.protocol ? 'Your clinic will see your answers on the next working day.' : 'Your clinic will see your answers.') + ' If you need someone now, call 112 or a helpline below.';
-    const fixed = crisis => {
+    const fixed = variant => {
       const body = el('div');
-      body.append(contacts(crisis), el('p', 'ci-footer', FOOTER));
-      info(crisis ? 'crisis' : 'support', { pre: crisis ? 'If you might act on these thoughts, call 112 now.' : null, title: 'If today is heavy, you do not have to carry it alone.', lines: [support], body, buttons: [['Close', close, true]] });
+      body.append(contacts(variant), el('p', 'ci-footer', FOOTER));
+      info(variant === 'talk' ? 'talk-screen' : variant, {
+        lead: variant === 'crisis' ? null : tile(LANTERN),
+        pre: variant === 'crisis' ? 'If you might act on these thoughts, call 112 now.' : null,
+        title: 'If today is heavy, you do not have to carry it alone.',
+        sub: variant === 'talk' ? null : support,
+        body, buttons: [['Close', close, 'tonal']], talkBar: false,
+      });
     };
-    if (kind === 'thank_you') info('thanks', { title: 'Thank you.', buttons: [['Close', close, true]] });
-    else if (kind === 'saved') info('saved', { title: 'Saved.', buttons: [['Close', close, true]] });
-    else if (kind === 'support') fixed(false);
-    else if (kind === 'crisis') fixed(true);
-    else if (kind === 'anchor') info('anchor', { lines: [ANCHOR], buttons: [['Got it', () => { patch({ anchor: ANCHOR_VERSION }); opts.log('lantern anchor seen'); close(); }]] });
+    const done = title => info(title === 'Thank you.' ? 'thanks' : 'saved', { lead: html('div', 'ci-glow', LANTERN), title, buttons: [['Close', close, 'tonal']] });
+    if (kind === 'thank_you') done('Thank you.');
+    else if (kind === 'saved') done('Saved.');
+    else if (kind === 'support' || kind === 'crisis' || kind === 'talk') fixed(kind);
+    else if (kind === 'anchor') {
+      const [t, ...rest] = sentences(ANCHOR);
+      info('anchor', { title: t, lines: [rest[0], rest[1] + ' ' + rest[2], rest[3]], buttons: [['Got it', () => { patch({ anchor: ANCHOR_VERSION }); opts.log('lantern anchor seen'); close(); }, 'tonal']] });
+    }
     else if (kind === 'intro') intro();
   };
 
-  const siblings = () => [...root.parentElement.children].filter(n => n !== root);
+  let lastFocus = null, forcedScheme = null;
+  const siblings = () => [...root.parentElement.children].filter(n => n !== root && n.tagName !== 'SCRIPT');
   const openRoot = () => {
     if (!root.classList.contains('hidden')) return;
+    lastFocus = document.activeElement;
     root.classList.remove('hidden', 'leaving');
     siblings().forEach(n => { n.inert = true; });
   };
@@ -310,15 +362,30 @@
     root.classList.add('hidden');
     sheet.style.transform = '';
     current = null;
+    forcedScheme = null;
     siblings().forEach(n => { n.inert = false; });
+    lastFocus?.focus?.({ preventScroll: true });
     refresh();
   };
   const show = kind => { openRoot(); render(kind); };
 
   const talk = () => {
-    if (run) return finish('stop');
+    if (run) {
+      finish('stop');
+      if (current === 'ci-info ci-support' || current === 'ci-info ci-crisis') return;
+    }
     close();
     A.bus.emit('talk');
+  };
+
+  const openSupport = (kind = 'talk', o = {}) => {
+    ensureRoot();
+    if (o.scheme) forcedScheme = o.scheme;
+    if (o.source) {
+      A.bus?.emit('ws', { type: 'crisis', patient_id: A.config?.patientId, ...(A.session?.rec?.session_id ? { session_id: A.session.rec.session_id } : {}), source: o.source, t_iso: iso() });
+      opts.log(`talk screen opened (${o.source})`);
+    }
+    show(kind === 'support' || kind === 'crisis' ? kind : 'talk');
   };
 
   const stopGesture = () => {
@@ -378,6 +445,21 @@
     p.classList.toggle('overdue', st.overdue);
   };
 
+  const ensureRoot = mount => {
+    if (root) return;
+    root = el('div', 'ci hidden');
+    root.id = 'checkin';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+    root.setAttribute('aria-label', 'Check-in');
+    root.setAttribute('aria-live', 'polite');
+    sheet = el('div', 'ci-sheet');
+    root.append(sheet);
+    (mount || document.body).append(root);
+    bindGestures();
+  };
+
+  A.Support = { open: openSupport, close: () => root && close() };
   A.Checkin = {
     anchorVersion: ANCHOR_VERSION,
     status, refresh,
@@ -385,15 +467,7 @@
     anchor: () => show('anchor'),
     init(o = {}) {
       opts = { ...opts, ...o };
-      root = el('div', 'ci hidden');
-      root.id = 'checkin';
-      root.setAttribute('role', 'dialog');
-      root.setAttribute('aria-modal', 'true');
-      root.setAttribute('aria-label', 'Check-in');
-      sheet = el('div', 'ci-sheet');
-      root.append(sheet);
-      (document.getElementById('phone') || document.body).append(root);
-      bindGestures();
+      ensureRoot(document.getElementById('phone'));
       pill()?.addEventListener('click', () => show('intro'));
       document.getElementById('anchorBtn')?.addEventListener('click', () => show('anchor'));
       A.bus.on('hubConfig', refresh);
