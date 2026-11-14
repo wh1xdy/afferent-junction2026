@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Afferent session demo</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <section id="phone">
+      <canvas id="game"></canvas>
+
+      <div id="start" class="overlay">
+        <div class="bar">
+          <button id="soundBtn" class="icon" aria-label="Sound">
+            <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a4.5 4.5 0 0 1 0 7"/></svg>
+          </button>
+          <span class="spacer"></span>
+          <button class="icon" data-open="info" aria-label="Controls">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
+          </button>
+          <button class="icon" data-open="crisis" aria-label="Talk to someone">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>
+          </button>
+        </div>
+        <div class="choices">
+          <button id="begin" class="primary">Begin</button>
+          <button id="decline" class="primary">Not tonight</button>
+        </div>
+        <div class="chips">
+          <button id="profileChip" class="chip"></button>
+          <button id="inputChip" class="chip"></button>
+          <button id="stageChip" class="chip"></button>
+        </div>
+      </div>
+
+      <div id="end" class="overlay hidden">
+        <div class="bar">
+          <span class="spacer"></span>
+          <button class="icon" data-open="crisis" aria-label="Talk to someone">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>
+          </button>
+        </div>
+        <p id="endText" class="rest">Rest well.</p>
+        <div class="choices"><button id="again" class="primary quiet">Back</button></div>
+      </div>
+
+      <div id="crisis" class="card hidden">
+        <p class="lead">If tonight is heavy, you do not have to carry it alone.</p>
+        <a class="primary" href="tel:">Call your clinic</a>
+        <a class="primary" href="tel:112">Call 112</a>
+        <a class="primary" href="tel:0925250111">MIELI Crisis Helpline</a>
+        <p class="small">Afferent is not monitored around the clock and is not an emergency service.</p>
+        <button class="primary quiet" data-close="crisis">Close</button>
+      </div>
+
+      <div id="info" class="card hidden">
+        <dl class="keys">
+          <dt>Space</dt><dd>close eyes (tap = blink, hold 0.4 to 1.5 s = long blink)</dd>
+          <dt>W</dt><dd>eyes wide</dd>
+          <dt>Arrow up</dt><dd>lift your gaze</dd>
+          <dt>A / D, arrows</dt><dd>turn head, step lantern or path</dd>
+          <dt>Enter</dt><dd>confirm</dd>
+          <dt>H</dt><dd>raise pulse (simulated)</dd>
+          <dt>T</dt><dd>lose the face</dd>
+          <dt>S</dt><dd>skip station</dd>
+          <dt>Esc</dt><dd>exit</dd>
+          <dt>Touch</dt><dd>tap = blink, hold = gaze up or eyes wide, two-finger hold = skip, swipe down = exit</dd>
+        </dl>
+        <button class="primary quiet" data-close="info">Close</button>
+      </div>
+    </section>
+
+    <aside id="panel">
+      <h2>Bedside unit <span class="tag">simulated</span></h2>
+      <div class="bedside">
+        <div id="led"></div>
+        <div class="readouts">
+          <div class="metric"><span id="pulseVal">--</span> bpm <span id="pulseSrc" class="tag">simulated</span></div>
+          <div class="metric small">light <span id="ledLevel">5%</span> <span id="haptic" class="tag">haptic</span></div>
+          <label class="small">dawn level <input id="knob" type="range" min="0" max="25" value="15"> <span id="knobVal">15%</span></label>
+        </div>
+      </div>
+      <h2>Signals <span class="tag">clinic side</span></h2>
+      <pre id="signals"></pre>
+      <h2>Events</h2>
+      <ol id="events"></ol>
+      <h2>Session JSON <button id="download" class="link">download</button></h2>
+      <pre id="json"></pre>
+    </aside>
+  </main>
+
+  <script src="js/util.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
