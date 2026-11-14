@@ -703,6 +703,7 @@
   const groundAt = type => GROUND[type] || GROUND.shore;
   const terr = wx => (typeof S.terrain === 'function' ? S.terrain(wx) * u : 0);
   const gyAt = wx => gy - terr(wx) + 3 * u * noise(wx * 0.012) - 2 * u;
+  const terrAt = x => terr(S.worldX + x - fx);
 
   const GTOP = { forest: 0.36, shore: 0.16, sauna: 0.06, harbour: 0.03, lake: 0.03 }, GF = 60, PW = 560;
   function groundArt(ctx, c) {
@@ -720,11 +721,23 @@
       });
     }
     const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, y = gy - 3 * u - gh * top;
+    const bent = typeof S.terrain === 'function', SW = 16 * u;
     for (let i = 0; i < k; i++) {
       const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f;
       if (x > W || x + w < 0) continue;
-      if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8); ctx.restore(); }
-      else art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8);
+      const piece = () => {
+        if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8); ctx.restore(); }
+        else art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8);
+      };
+      if (!bent) { piece(); continue; }
+      const a0 = Math.max(x, -SW), a1 = Math.min(x + w, W + SW);
+      for (let x0 = Math.floor(a0 / SW) * SW; x0 < a1; x0 += SW) {
+        const d0 = -terr(S.worldX + x0 - fx), d1 = -terr(S.worldX + x0 + SW - fx), kk = (d1 - d0) / SW;
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, -H, SW + 0.75, 3 * H); ctx.clip();
+        ctx.transform(1, kk, 0, 1, 0, d0 - kk * x0);
+        piece();
+        ctx.restore();
+      }
     }
     return true;
   }
@@ -743,6 +756,11 @@
       if (wx - c.x0 < blend && k > 0) cc = mixc(cOf(cs[k - 1]), cc, 0.5 + 0.5 * (wx - c.x0) / blend);
       else if (c.x1 - wx < blend && k < cs.length - 1) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
       g.addColorStop(i / 16, rgb(cc));
+    }
+    if (typeof S.terrain === 'function') {
+      ctx.fillStyle = g; ctx.fillRect(0, gy - 4 * u, W, H - gy + 4 * u);
+      ctx.fillStyle = vgrad(ctx, 'vale' + H + ':' + Math.round(gy), gy - 4 * u, H, [[0, 'rgba(14,26,62,0.55)'], [0.4, 'rgba(14,26,62,0.4)'], [1, 'rgba(10,18,44,0.6)']]);
+      ctx.fillRect(0, gy - 4 * u, W, H - gy + 4 * u);
     }
     ctx.beginPath(); ctx.moveTo(-step, H + 2);
     for (let x = -step; x <= W + step; x += step) ctx.lineTo(x, gyAt(S.worldX + x - fx));
@@ -854,13 +872,13 @@
     if (!ART.has(n)) return false;
     const w = h * ART.aspect(n), x = at(wx, f) - w / 2;
     if (x > W + 20 || x + w < -20) return true;
-    return art(n, x, gy + h * sink - h, w, h, g, 1, lt);
+    return art(n, x, gy - terrAt(x + w / 2) + h * sink - h, w, h, g, 1, lt);
   }
   function backProps(c) {
     const m = (c.x0 + c.x1) / 2, cw = c.x1 - c.x0;
     if (c.type === 'harbour') prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
     if (c.type === 'shore' && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
-      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = gy + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
+      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = gy - terrAt(lx) + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
       glow(ctxRef, lx, ly, lh * 0.12, P.flame, 0.6 * on); glow(ctxRef, lx, ly, lh * 0.035, P.daylight, 0.8 * on);
     }
     if (c.type === 'sauna') prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
@@ -1012,6 +1030,7 @@
   }
 
   function shore(ctx, c) {
+    if (S.ride) return;
     const rr = rng((c.seed | 0) + 7);
     for (let i = 0; i < 5; i++) {
       const wx = c.x0 + 60 + rr() * (c.x1 - c.x0 - 120), x = sx(wx), w = (24 + rr() * 40) * u, h = (10 + rr() * 16) * u;
@@ -1038,8 +1057,8 @@
     const pa = st.hk.pose ?? st.hk.lastPose ?? 0, pp = st.hk.poseS, tx = hx + pp * 24 * Math.cos(pa), ty = hy2 - pp * 24 * Math.sin(pa);
     if (st.hk.pose !== null) st.hk.lastPose = st.hk.pose;
     const Rd = S.ride, air = Rd ? n0(Rd.air, 0) * u : 0, sq = Rd?.squash || [1, 1];
-    const a = Rd ? -n0(Rd.angle, 0) * 0.6 : 0, sxk = k * (rm ? 1 : sq[0]), syk = k * (rm ? 1 : sq[1]) * (1 - 0.12 * n0(Rd?.crouch, 0)) * (1 - 0.3 * n0(Rd?.sit, 0));
-    const ox = fx, oy = gyAt(S.worldX) + 1 - air, ca = Math.cos(a), sa = Math.sin(a);
+    const a = Rd ? -n0(Rd.angle, 0) : 0, sxk = k * (rm ? 1 : sq[0]), syk = k * (rm ? 1 : sq[1]) * (1 - 0.12 * n0(Rd?.crouch, 0)) * (1 - 0.3 * n0(Rd?.sit, 0));
+    const ox = fx, oy = gyAt(S.worldX) + 1 - air + n0(Rd?.dip, 0) * u, ca = Math.cos(a), sa = Math.sin(a);
     const map = (px, py) => { const X = sxk * px, Y = syk * (py - bob); return [ox + ca * X - sa * Y, oy + sa * X + ca * Y]; };
     const swing2 = swing + (Rd ? -0.5 * n0(Rd.speed01, 0) * (rm ? 0.3 : 1) : 0);
     st.fig = { k, walk, ph, bob, breath, swing: swing2, hx, hy: hy2, tx, ty, pole: pp, a, sxk, syk, ox, oy, air, map, spread: n0(Rd?.spread, 0), speed: n0(Rd?.speed01, 0) };
@@ -1048,7 +1067,7 @@
     st.ly = st.tip[1] + k * Math.cos(swing2) * 5;
     const sp = figSprite();
     if (sp) {
-      const [n, ax, , lx, ly] = sp, fh = H * FIG_H, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = oy + 2 * u - fh - bob * k;
+      const [n, ax, , lx, ly, fs = 1] = sp, fh = H * FIG_H * fs, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = oy + 2 * u - fh - bob * k;
       st.fig.sp = { n, x0, y0, fw, fh };
       const qx = (x0 + fw * lx - ox) * sxk / k, qy = (y0 + fh * ly - oy) * syk / k;
       st.hand = [ox + ca * qx - sa * qy, oy + sa * qx + ca * qy];
@@ -1057,8 +1076,8 @@
       st.ly = st.tip[1];
     }
   }
-  const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4] };
-  const figSprite = () => { const s = st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
+  const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4], ski: ['figure_crouch', 0.42, 0, 0.89, 0.8, 1.02], air: ['figure_ride', 0.42, 0, 0.89, 0.7, 1.22] };
+  const figSprite = () => { const p = S.ride?.pose, s = p && FIGS[p] && ART.has(FIGS[p][0]) ? FIGS[p] : st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
 
   function figure(ctx) {
     const F = st.fig, { k, walk, ph, bob, breath } = F, t = n0(S.t, 0), sway = rm ? 0.3 : 1;
@@ -1304,6 +1323,7 @@
     waymarks(ctx);
     footprints(ctx);
     props(ctx, false);
+    if (env) A.Traverse.cur?.drawMid?.(ctx, env);
     landmarkLights(ctx);
     fog(ctx, true);
     darkness(ctx);
@@ -1325,7 +1345,7 @@
       glow: (cx, x, y, r, c, a, name) => glow(cx, x, y, r, typeof c === 'string' ? hex(c) : c, a, name),
       soft: (cx, x, y, r, c, a) => sprite(cx, 'soft', typeof c === 'string' ? hex(c) : c, x - r, y - r, 2 * r, 2 * r, a, false),
       art: (name, x, y, w, h) => A.Art.draw(ctx, name, x, y, w, h, satOf('yellow'), Math.min(1, lightOf('yellow')), 1),
-      rgb: (c, a = 1) => rgb(c, a), mix: (a, b, t) => mixc(a, b, t),
+      rgb: (c, a = 1) => rgb(c, a), mix: (a, b, t) => mixc(a, b, t), surf: wx => gyAt(wx),
     };
   }
 
@@ -1423,8 +1443,9 @@
       I = { night: S.night ?? !!sess?.night, mode: S.mode ?? sess?.mode ?? null, phase: S.phase ?? sess?.phase ?? null };
       if (sized.W !== W || sized.H !== H || !vign) resize();
       step(); rig();
+      const z = Math.max(1, n0(cam?.z, 1));
       ctx.save();
-      scene(ctx);
+      if (z > 1.0005) { ctx.save(); ctx.translate(fx, gy); ctx.scale(z, z); ctx.translate(-fx, -gy); scene(ctx); ctx.restore(); } else scene(ctx);
       overlays(ctx);
       ctx.restore();
     },
