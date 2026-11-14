@@ -7,15 +7,20 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   };
   const pid = q.get('patient') || 'anna';
+  // Same as patient.js: the /k/<key> part is kept (the home hub turns /api away without it), and Settings saves the
+  // address as a plain string, not JSON.
   const norm = s => {
     if (!s) return null;
     try {
       const u = new URL(s);
-      if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host;
-      return u.origin;
+      const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
+      if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
+      return u.origin + key;
     } catch { return null; }
   };
-  const hubBase = norm(q.get('hub')) || norm(q.get('ws')) || norm(store.get('afferent.hub'))
+  let savedHub = null;
+  try { savedHub = localStorage.getItem('afferent.hub'); } catch {}
+  const hubBase = norm(q.get('hub')) || norm(q.get('ws')) || norm(savedHub)
     || (/^https?:$/.test(location.protocol) ? location.origin : null);
   const record = body => (body && typeof body === 'object' && body.period) ? { body, saved_iso: body.cached_iso || null } : null;
 

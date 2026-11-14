@@ -1,6 +1,8 @@
 (() => {
   const q = new URLSearchParams(location.search);
   const OUTBOX = 'afferent.outbox';
+  // talk requests (type crisis) made while the hub is out of reach; the hub has no ack for them, so they go once on the next link
+  const TALKS = 'afferent.outbox.talk';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch {} },
@@ -42,6 +44,9 @@
         this.connected = true; this.retry = 0;
         this.raw({ type: 'hello', device_id: A.config.deviceId, app_version: A.config.appVersion, patient_id: this.patientId, role: this.role, ...this.hello });
         for (const doc of this.outbox()) this.raw({ type: 'session_end', session: doc });
+        const talks = this.talks();
+        store.set(TALKS, '[]');
+        for (const msg of talks) if (!this.raw(msg)) this.pushTalk(msg);
         this.emit('connected', true);
       };
       ws.onmessage = m => {
@@ -70,7 +75,9 @@
 
     send(msg) {
       if (msg.type === 'session_end' && this.url) this.pushOutbox(msg.session);
-      return this.raw(msg);
+      const sent = this.raw(msg);
+      if (!sent && msg.type === 'crisis' && this.url) this.pushTalk(msg);
+      return sent;
     },
 
     on(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
@@ -82,6 +89,8 @@
       box.push(doc);
       store.set(OUTBOX, JSON.stringify(box.slice(-20)));
     },
+    talks() { try { const t = JSON.parse(store.get(TALKS) || '[]'); return Array.isArray(t) ? t : []; } catch { return []; } },
+    pushTalk(msg) { store.set(TALKS, JSON.stringify([...this.talks(), msg].slice(-20))); },
     dropOutbox(id) { store.set(OUTBOX, JSON.stringify(this.outbox().filter(d => d.session_id !== id))); },
   };
 
