@@ -1,6 +1,6 @@
 (() => {
   const { clamp, lerp, rgb, mixc } = A;
-  const J = A.J, { C, sprite, fx, hap, finger } = J, E = J.ease, rm = J.rm, R = Math.random;
+  const J = A.J, { C, sprite, fx, hap, touch } = J, E = J.ease, rm = J.rm, R = Math.random;
   const AMBER = C.amber, SILVER = C.silver200, GOLD = C.gold, WHITE = C.silver050;
   const POST = mixc(C.wood, C.night800, 0.45), POST_L = mixc(C.woodL, C.night800, 0.35), POST_D = mixc(C.woodD, C.night950, 0.3);
   const METAL = mixc(C.silver700, C.night900, 0.35), ROPE = mixc(C.amberDeep, C.night800, 0.5), ROPE_HI = mixc(C.warm, C.night800, 0.35);
@@ -395,7 +395,7 @@
     const t = L.rt - INTRO, show = clamp((t - 0.7) / 0.2, 0, 1) * (P.resp && !P.ghost ? 0 : 1) * (P.resp ? 1 - clamp((L.rt - P.respRt) / 0.3, 0, 1) : 1);
     if (show <= 0) return;
     const i = P.big === 'left' ? 0 : 1, x = G.hx[i], y = G.gy + 0.04 * G.b.h, press = rm() ? 1 : E.inOut(clamp((t - 0.95) / 0.35, 0, 1));
-    finger(ctx, x + 2 * G.U, y + (4 + 16 * (1 - press)) * G.U, 34 * G.U, show);
+    touch(ctx, x, y, G.U, show, press);
   };
 
   A.definePresenter('lanterns', {
