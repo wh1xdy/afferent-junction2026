@@ -55,6 +55,12 @@ class HeartRateBroadcaster:
         await server.add_new_service(AFF_SVC)
         await server.add_new_characteristic(AFF_SVC, AFF_BOTH, P.notify | P.read,
                                             bytearray([0, 0, 0]), GATTAttributePermissions.readable)
+        # bless (BlueZ backend) marks only the first service primary; secondary services are not
+        # returned by a normal service discovery, so iOS/macOS never saw AFF0 (verified with a
+        # macOS probe: only Device Information + Heart Rate). BlueZ reads the flag at registration.
+        for svc in getattr(getattr(server, "app", None), "services", []):
+            if hasattr(svc, "_primary"):
+                svc._primary = True
         await server.start()
         self._server = server
         self.status = "advertising"
