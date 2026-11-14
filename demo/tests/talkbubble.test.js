@@ -58,6 +58,7 @@ const page = () => {
   const started = [];
   const session = { rec: { session_id: 'test', sensors: {}, started_iso: '' }, liveMetrics: () => ({ simulated: true }), done: false };
   A.startSession = o => { started.push(o); return new Proxy(session, { get: (t, k) => k in t ? t[k] : noop }); };
+  vm.runInContext(fs.readFileSync(path.join(JS, 'guide.js'), 'utf8'), ctx, { filename: 'guide.js' });
   vm.runInContext(fs.readFileSync(path.join(JS, 'main.js'), 'utf8'), ctx, { filename: 'main.js' });
   return { ...h, doc, phone, start, bubble, voice, sent, started };
 };

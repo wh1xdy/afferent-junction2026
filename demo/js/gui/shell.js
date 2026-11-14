@@ -107,7 +107,7 @@
     if (!btn) return;
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
     const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
-    let p = 0, t0 = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
+    let p = 0, t0 = 0, heldFrom = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
     const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 && v < 1 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
     const buzz = n => (A.J ? A.J.hap(n) : navigator.vibrate?.(n === 'success' ? [12, 60, 22] : n === 'light' ? 6 : 3));
     const fire = () => { lit = true; btn.classList.add('lit'); const H = smoothHap(); if (H) H.success().catch(() => buzz('success')); else buzz('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
@@ -126,6 +126,10 @@
       const step = () => { if (holding || lit) return; const k = Math.min(1, (performance.now() - s) / 320); set(from * (1 - k)); if (k < 1) raf = requestAnimationFrame(step); };
       raf = requestAnimationFrame(step);
     };
+    // When the finger really went down or up. A busy frame (as right after launch) can run the pointerdown handler late,
+    // and the ring times the hold from the handler, so a 1.3 s hold could end with the ring barely started and drain.
+    // On release the event times decide; the ring itself still counts from the handler, so a stall never fills it early.
+    const at = e => { const n = performance.now(), t = e?.timeStamp; return t > 0 && t <= n + 1 && t > n - 5000 ? t : n; };
     btn.addEventListener('pointerdown', e => {
       if (btn.disabled || lit || e.button > 0) return;
       e.preventDefault();
@@ -135,10 +139,16 @@
       holding = true; btn.classList.add('holding'); buzzAt = performance.now() + buildGap(p); swell = p >= 0.75;
       const H = smoothHap();
       if (H) H.holdStart({ durationMs: (1 - p) * HOLD_MS, from: p }).catch(() => {}); else buzz('tick');
-      t0 = performance.now() - p * HOLD_MS;
+      t0 = performance.now() - p * HOLD_MS; heldFrom = at(e) - p * HOLD_MS;
       raf = requestAnimationFrame(tick);
     });
-    const release = () => { if (!holding) return; holding = false; btn.classList.remove('holding'); if (!lit) { smoothHap()?.holdStop().catch(() => {}); drain(); hint(); } };
+    const release = e => {
+      if (!holding) return;
+      holding = false; btn.classList.remove('holding');
+      if (lit) return;
+      if ((at(e) - heldFrom) / HOLD_MS >= 1) { cancelAnimationFrame(raf); set(1); fire(); return; }
+      smoothHap()?.holdStop().catch(() => {}); drain(); hint();
+    };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => btn.addEventListener(t, release));
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
