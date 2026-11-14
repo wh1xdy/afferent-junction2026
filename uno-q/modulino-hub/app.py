@@ -328,19 +328,33 @@ def fused_period(curves, qualities):
 # the app and the data manager need, and no pulse went out; clip 2 alone gave 87 at 0.63. A
 # weighted average of two curves is never clearer than the clearer one, so a noisy clip only
 # ever drags the good one down. Each clip is therefore judged on its own every second:
-#   clean = a real rhythm peak inside 0.33-1.6 s (rhythm_peak's edge rule), quality >= 0.3,
-#           a pulse swing of at least CLIP_MIN_AMP, samples not stuck at the rails, DC on scale.
+#   clean = a real rhythm peak inside 0.33-1.6 s (rhythm_peak's edge rule), quality >= 0.5,
+#           a pulse swing of at least CLIP_MIN_AMP, samples not stuck at the rails, DC on scale,
+#           and the clip's own beat detector following that rhythm (most of its last locked
+#           intervals within 20 % of the period), all of it for CLIP_CLEAN_S seconds in a row
+#           with a period that stays within 12 %. Noise with a periodic part (light, a loose
+#           seat) can reach a rhythm quality of 0.4 at 135 BPM, but its period wanders and the
+#           detector on it fires off the rhythm every few seconds: that is what tells it from a
+#           second person's pulse. A clip stops being clean at once.
 # One clean clip next to one that is not: only the clean one is trusted. The fused rhythm, the
 # fused pulse and its quality then come from that clip alone, and the other is named in /state
 # finger.untrusted (AFF1 flag bits 1-2, its BPM byte 0). Both clean: both trusted, as before (the
 # same rhythm is fused, two different rhythms are two people). Neither clean: both used, as
 # before (two weak curves of one heart still add up).
-CLIP_CLEAN_Q = 0.3            # rhythm quality of a clean clip (= TWO_HEARTS_MIN_Q, = MIN_QUALITY)
+CLIP_CLEAN_Q = 0.5            # rhythm quality of a clean clip. A finger on its own: 0.6-0.9 (data
+                              # manager, 2026-11-14; clip 2 alone 0.63); the false rhythm: ~0.4
 CLIP_MIN_AMP = 200            # p5-p95 of the detrended signal (raw counts): a pulse, not the
                               # noise of an empty clip (measured: empty ~50-150, finger 1500-3000)
 CLIP_RAIL_LO, CLIP_RAIL_HI = 200, 13500   # beyond these the amplifier is saturated
 CLIP_MAX_RAILED = 0.05        # more than 5 % of the samples at a rail = saturated
 CLIP_DC_LO, CLIP_DC_HI = 1000, 14500      # mean outside this = off scale (amp stuck, sensor off)
+CLIP_BEATS_N = 8              # the last this many locked intervals of the clip's own detector...
+CLIP_BEATS_S = 8.0            # ...from the last this many seconds
+CLIP_BEATS_MIN = 4            # fewer intervals than this: not (yet) clean
+CLIP_BEATS_ON = 0.75          # at least this share within CLIP_BEATS_TOL of the period (6 of 8)
+CLIP_BEATS_TOL = 0.2
+CLIP_CLEAN_S = 3              # seconds in a row a clip must pass before it counts as clean
+CLIP_STEADY = 0.12            # ...with its period within 12 % (max/min) over those seconds
 
 
 def clip_signal(ch=0, window_ms=6000):
@@ -364,9 +378,21 @@ def clip_signal(ch=0, window_ms=6000):
             "railed": round(railed, 2), "dc": round(sum(v) / n)}
 
 
-def clip_clean(period, sig):
+def clip_beats(ch, period_ms):
+    """Share of one finger's last locked beat intervals that follow its own rhythm, or None when
+    it has fewer than CLIP_BEATS_MIN of them."""
+    b = list(beats[ch])
+    if not b or not period_ms:
+        return None
+    ibis = [i for t, i in b if t >= b[-1][0] - CLIP_BEATS_S * 1000 and i > 0][-CLIP_BEATS_N:]
+    if len(ibis) < CLIP_BEATS_MIN:
+        return None
+    return round(sum(1 for i in ibis if abs(i - period_ms) <= CLIP_BEATS_TOL * period_ms) / len(ibis), 2)
+
+
+def clip_clean(period, sig, beats_on=None):
     """(clean, reason): is one finger's own signal a pulse one can trust on its own?
-    period = period_state[c] (period_ms, quality); sig = clip_signal(). reason says why not."""
+    period = period_state[c] (period_ms, quality); sig = clip_signal(); beats_on = clip_beats()."""
     if not sig:
         return False, "no samples"
     if sig["railed"] > CLIP_MAX_RAILED:
@@ -379,6 +405,10 @@ def clip_clean(period, sig):
         return False, "weak rhythm"
     if sig["amplitude"] < CLIP_MIN_AMP:
         return False, "flat"
+    if beats_on is None:
+        return False, "no beats"
+    if beats_on < CLIP_BEATS_ON:
+        return False, "beats off rhythm"
     return True, None
 
 
@@ -390,8 +420,10 @@ def clip_trust(cleans):
     return [True] * len(cleans)
 
 
-clip_state = [{"clean": None, "trusted": True, "reason": None, "amplitude": None, "railed": None, "dc": None}
-              for _ in range(CHANNELS)]
+clip_state = [{"clean": None, "trusted": True, "reason": None, "amplitude": None, "railed": None, "dc": None,
+               "beats_on_rhythm": None} for _ in range(CHANNELS)]
+clip_passes = [collections.deque(maxlen=CLIP_CLEAN_S) for _ in range(CHANNELS)]  # period_ms of the
+                                                                                 # last passes in a row
 
 
 def untrusted_fingers():
@@ -401,7 +433,10 @@ def untrusted_fingers():
 def reset_clips():
     with lock:
         for s in clip_state:
-            s.update(clean=None, trusted=True, reason=None, amplitude=None, railed=None, dc=None)
+            s.update(clean=None, trusted=True, reason=None, amplitude=None, railed=None, dc=None,
+                     beats_on_rhythm=None)
+        for p in clip_passes:
+            p.clear()
 
 
 def judge_clips():
@@ -414,11 +449,23 @@ def judge_clips():
         except Exception as e:
             print(f"clip signal failed (ch {c}): {e}", flush=True)
             sig = None
-        judged.append((sig, *clip_clean(period_state[c], sig)))
-    trusted = clip_trust([ok for _, ok, _ in judged])
+        per = period_state[c].get("period_ms")
+        on = clip_beats(c, per)
+        ok, why = clip_clean(period_state[c], sig, on)
+        passes = clip_passes[c]
+        if ok:
+            passes.append(per)
+            if len(passes) < CLIP_CLEAN_S:
+                ok, why = False, "settling"
+            elif max(passes) > (1 + CLIP_STEADY) * min(passes):
+                ok, why = False, "rhythm unsteady"
+        else:
+            passes.clear()
+        judged.append((sig, on, ok, why))
+    trusted = clip_trust([ok for _, _, ok, _ in judged])
     with lock:
-        for c, (sig, ok, why) in enumerate(judged):
-            clip_state[c].update(clean=ok, trusted=trusted[c], reason=why, **(sig or
+        for c, (sig, on, ok, why) in enumerate(judged):
+            clip_state[c].update(clean=ok, trusted=trusted[c], reason=why, beats_on_rhythm=on, **(sig or
                                  {"amplitude": None, "railed": None, "dc": None}))
     return trusted
 
