@@ -53,13 +53,22 @@ wendy net forward 3005:3005 --device <jetson>   # keep running
 open http://localhost:3005
 ```
 
+## Heart-rate variability (HRV)
+
+The UNO Q computes **RMSSD** (and SDNN, mean BPM) over the last 60 s of finger beats — the standard
+short-term HRV / stress marker; lower than your own baseline = more stressed. Beats are re-timed at
+the steepest point of each upstroke with sub-sample interpolation (the ADC runs at ~45 Hz, so a raw
+beat time is only ±11 ms), and artefacts are dropped (off-period intervals, > 20 % jumps). Synthetic
+check: true 18 / 40 / 68 ms → 22 / 44 / 67 ms (raw detection times: 27 / 51 / 70). After 2 min it
+also reports `vs_baseline` (relative to the median of your own readings). `GET /state` → `hrv`.
+
 ## Finger pulse over Bluetooth
 
 Two PulseSensors: finger 1 on **A1**, finger 2 on **A2** (each `+` 3.3V, `-` GND), each with its
 own beat detector (beep 880 Hz / 660 Hz, LED red / blue when `led_beat` is on).
 The UNO Q advertises **"Afferent Finger"** with the standard BLE Heart Rate Service (0x180D,
 measurement 0x2A37 = finger 1, body location = finger) plus a custom service `AFF0`/`AFF1`
-carrying `[bpm finger 1, bpm finger 2]`, notified on every locked beat. The iPhone app
+carrying `[bpm finger 1, bpm finger 2, breaths/min, RMSSD ms]`, notified on every locked beat. The iPhone app
 (`ios/`) connects automatically and shows `Finger 83 · Δ 1` under the camera reading.
 Any heart-rate app that talks to chest straps can read it too.
 
