@@ -123,12 +123,43 @@
     if (m && !/:\d+$/.test(m[1])) v = m[1] + ':8000' + (m[2] || '');
     return v;
   };
-  try { $('hubAddr').value = localStorage.getItem(hubKey) || ''; } catch {}
+  let savedHub = '';
+  try { savedHub = localStorage.getItem(hubKey) || ''; } catch {}
+  $('hubAddr').value = savedHub;
+  // The hub's state under its address (Settings, Home hub), and the line under the category. The key is the /k/<code>
+  // part of the address the hub screen shows; without it the hub turns the phone away.
+  const hubHasKey = v => /\/k\/[^/?#\s]+/.test(v || '');
+  const hubStatus = () => {
+    const typed = $('hubAddr').value.trim(), changed = !!typed && normHub(typed) !== savedHub;
+    const addr = typed || (A.Hub.url ? A.Hub.httpBase() : '');
+    if (A.Hub.connected && !changed) return ['on', 'Connected'];
+    if (!addr) return ['none', 'Not set'];
+    if (!hubHasKey(addr)) return ['warn', 'Key missing'];
+    if (changed || !A.Hub.url) return ['none', 'Not connected yet. Tap Connect'];
+    return A.Hub.retry > 0 ? ['warn', "Can't reach the hub"] : ['none', 'Connecting…'];
+  };
+  const hubLine = () => {
+    const [state, text] = hubStatus(), el = $('hubState');
+    if (el.textContent !== text) el.textContent = text;
+    el.dataset.state = state;
+  };
+  A.Shell.settings?.hook(hubLine);
+  $('hubAddr').addEventListener('input', hubLine);
+  // iOS shows its Paste bubble for readText(); a long address with its key is easy to get wrong by hand
+  $('hubPaste').onclick = async () => {
+    let t = '';
+    try { t = (await navigator.clipboard.readText()) || ''; } catch { A.Shell.toast('Could not paste. Hold the field and choose Paste.'); return; }
+    t = (t.match(/(https?|wss?):\/\/\S+/)?.[0] || t).replace(/\s+/g, '');
+    if (!t) { A.Shell.toast('Nothing to paste. Copy the address on the hub screen first.'); return; }
+    $('hubAddr').value = t;
+    hubLine(); A.Shell.settings?.refresh();
+  };
   $('hubForm').onsubmit = e => {
     e.preventDefault();
-    show('hubDialog', false);
     const v = normHub($('hubAddr').value);
     try { v ? localStorage.setItem(hubKey, v) : localStorage.removeItem(hubKey); } catch {}
+    // back on the Home hub page after the reload, to see it connect
+    try { sessionStorage.setItem('afferent.reopen', 'hub'); } catch {}
     location.reload();
   };
 
@@ -151,7 +182,7 @@
     A.bus.emit('home');
   };
 
-  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog', 'voice'];
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'voice'];
   const opener = {};
   const show = (id, on) => {
     const el = $(id), cls = FADES.has(id) ? 'off' : 'hidden', card = CARDS.includes(id);
@@ -394,7 +425,7 @@
   for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + $(id).textContent); };
 
   const Hub = A.Hub;
-  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = (on ? 'Connected' : 'Offline') + (Hub.url ? ' · ' + Hub.httpBase().replace(/^https?:\/\//, '').replace(/\/k\/[^/]+$/, '') : ''); log(on ? 'hub connected' : 'hub disconnected'); });
+  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); hubLine(); A.Shell.settings?.refresh(); log(on ? 'hub connected' : 'hub disconnected'); });
   Hub.on('config', c => {
     if (c.baseline_pulse_bpm) A.config.baselinePulse = c.baseline_pulse_bpm;
     if (Number.isFinite(c.dawn_level)) setDawn(c.dawn_level);
@@ -408,8 +439,17 @@
   Hub.on('profile', d => setProfile(d.profile, 'hub'));
   Hub.on('privacy', d => applyPrivacy(d.privacy));
   Hub.on('demo_reset', () => log('hub demo reset'));
-  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) { log('no hub, offline mode'); $('hubState').textContent = 'Not set'; }
-  else { log('hub ' + Hub.url.replace(/\/k\/[^/]+/, '')); $('hubState').textContent = 'Connecting to ' + Hub.httpBase().replace(/^https?:\/\//, '').replace(/\/k\/[^/]+$/, ''); }
+  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) log('no hub, offline mode');
+  else log('hub ' + Hub.url.replace(/\/k\/[^/]+/, ''));
+  hubLine();
+  // Connect reloads the app; it comes back on the Home hub page
+  try {
+    if (sessionStorage.getItem('afferent.reopen') === 'hub') {
+      sessionStorage.removeItem('afferent.reopen');
+      document.querySelector('[data-open="settings"]')?.click();
+      A.Shell.settings?.open('hub', { instant: true });
+    }
+  } catch {}
 
   const MODE_COL = { ...Object.fromEntries(Object.entries(A.MODES).map(([k, v]) => [k, v.colour])), measure: '#B4A6CE' };
   const tl = $('timeline'), tctx = tl.getContext('2d');

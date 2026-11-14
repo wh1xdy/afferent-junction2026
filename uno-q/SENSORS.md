@@ -47,7 +47,7 @@ repository sends 7 bytes (v3); the first four are unchanged, so a client that re
 | 3 | HRV RMSSD, ms (rounded) | 1–254, **0 = no reading**, **255 = above 254 ms** |
 | 4 | `quality_pct` = fused rhythm quality × 100 (the same number as `finger.quality` in `/state`) | 0–100, **255 = not available** (no finger, or sensors still warming up) |
 | 5 | `presence_code` (`presence.mode` in `/state`) | 1 idle · 2 probing · 3 active · 0 unknown |
-| 6 | flags (v3, see below) | bit 0 = two people on the clips (`finger.two_hearts`); the other bits are 0 |
+| 6 | flags (v3, see below) | bit 0 = two people on the clips (`finger.two_hearts`); bit 1 / bit 2 = finger 1 / finger 2 left out of the fused pulse (`finger.untrusted`, see "One noisy clip"); the other bits are 0 |
 
 - A client tells the versions apart by the length: 4 bytes = v1 (no quality, no presence),
   6 bytes = v2, 7 bytes = v3 (v2 plus the flags byte; bytes 0–5 are unchanged, so a v2 client
@@ -82,6 +82,8 @@ repository sends 7 bytes (v3); the first four are unchanged, so a client that re
 | `finger.bpm` | int | **the** finger pulse (both sensors fused) |
 | `finger.sources` | [int] | which sensors contributed (`[0, 1]` = both agree) |
 | `finger.quality` | 0–1 | rhythm strength (autocorrelation); < 0.3 = unreliable |
+| `finger.untrusted` | [int] | fingers left out of the fused pulse because they are noisy next to a clean one (`[0]` = finger 1) |
+| `finger.clips[0..1]` | object | each clip as judged once a second: `clean`, `trusted`, `reason` (why not clean), `amplitude`, `railed`, `dc`, `beats_on_rhythm` |
 | `fingers[0..1]` | object | per sensor: `bpm_live`, `locked`, `ibi_ms`, `t` |
 | `breathing.per_minute` | int | breathing rate from the heart-rate rhythm (respiratory sinus arrhythmia) |
 | `breathing.snr` | dB | > 0 = clear; values are only set when > 0 |
@@ -160,12 +162,46 @@ Tested offline with the stored values of that day and with a synthetic finger ru
 hub end to end (a port of the STM32 beat detector, the real autocorrelation, fusion, Bluetooth
 payloads and data manager hand-over): `tests/test_pulse_guard.py`.
 
+## One noisy clip
+
+Seen on 2026-11-14 with the new printed case: clip 1 showed a false 131–139 BPM (light into the
+clip or a bad seat), clip 2 a plausible 87–99. The fusion averaged both rhythms, the fused quality
+fell to 0.08–0.35 and the app (limit 0.3) showed no pulse; clip 2 alone gave 87 at 0.63. A
+weighted average of two rhythms is never clearer than the clearer one, so a noisy clip can only
+drag a good one down. Each clip is now judged on its own every second (`judge_clips` in
+`modulino-hub/app.py`). A clip is **clean** when, for 3 s in a row:
+
+- its rhythm has a real peak inside 0.33–1.6 s (not at the edge: a drift) with quality ≥ 0.5
+  (a finger on its own gives 0.6–0.9; the false rhythm about 0.4),
+- the period stays within 12 % over those 3 s,
+- its own beat detector follows that rhythm (at least 6 of its last 8 locked intervals within 20 %),
+- the signal swings (5–95 % of the detrended signal ≥ 200; an empty clip ~50–150), at most 5 % of
+  the samples sit at a rail, and its mean is on scale (1000–14500).
+
+One clean clip next to one that is not: only the clean one is used. The fused pulse, its quality
+(2A37, AFF1 byte 4, `finger.quality`, the data manager) and the combined rhythm sent to the beat
+detectors come from that clip alone; the other is named in `finger.untrusted` and AFF1 byte 6
+bit 1/2, and its own BPM byte is 0. Both clean: as before (one rhythm fused, two rhythms = two
+people). Neither clean: as before (two weak curves of one heart still add up).
+
+Two people (below) now need both clips clean, so a noisy clip next to a finger is never a second
+person; it takes ~3 s longer to decide than before.
+
+**Presence:** without a finger the probe saw single events above its limit (a dip in the tail of
+the power-on transient, spikes on finger 2's lead, spikes on both clips at once) and the box said
+"finger detected" about every 17 s. A finger swings on every beat, so the probe now keeps the
+LEDs on 1.3 s longer and wants the swing in the look window (> 800, as before) and again in the
+1.3 s after it (> 700 within any 250 ms; the empty clip 1 in the new case swings 400–620 there).
+Either clip can now switch the sensors on, so a finger in clip 2 alone is found. Offline, every
+synthetic pulse of 48–140 BPM that the old check found is still found. `presence.last_probe_swings`
+has the (look, confirm) swing per clip.
+
 ## Two people on the two clips (Heart Duel)
 
 In the repository, not yet deployed to the board.
 
-The fusion assumes both clips sit on one person. When both fingers show a clear rhythm
-(quality >= 0.3) and the rhythms stay more than 12 % apart for 3 s (a ratio near 2 is treated
+The fusion assumes both clips sit on one person. When both clips are clean ("One noisy clip"
+above: quality >= 0.5, a steady rhythm the detector follows) and the rhythms stay more than 12 % apart for 3 s (a ratio near 2 is treated
 as one heart with a double-counting sensor), `GET /state` reports `finger.two_hearts: true` and:
 
 - each beat detector keeps its own rhythm (never the combined one),

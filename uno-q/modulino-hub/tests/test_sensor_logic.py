@@ -73,6 +73,7 @@ def reset():
         app.sent_bpm[c] = 0
     app.last_ppg = 0.0
     app.reset_guards()
+    app.reset_clips()
 
 
 def beats_with_breathing(rate_per_min, base_bpm=72, swing_bpm=8, n=70):
@@ -339,6 +340,53 @@ class Presence(unittest.TestCase):
         beats = [t_on + 1300 + k * 800 for k in range(4)]
         app.ppgs[0].extend((t + t_on - t_on, v) for t, v in ppg_for_beats([b for b in beats]) if t >= t_on)
         self.assertGreater(app._probe_range(t_on), app.PRESENCE_RANGE)
+
+    # one probe of each clip as recorded on the board on 2026-11-14 with no finger, every other
+    # sample of the look window (1250-2250 ms after power-on), then what followed
+    TAIL_DIP = [7738, 7919, 7830, 7464, 7072, 7212, 7294, 7333, 7373, 7316, 7366, 7375, 7481, 7481, 7451,
+                7348, 7276, 7313, 7354, 7419, 7328, 7353, 7392]            # range 891: "finger"
+    SPIKE = [8208, 8239, 8248, 8268, 8211, 8229, 8254, 8241, 8220, 8180, 8176, 8211, 8292, 8614, 9536, 9267,
+             8661, 8307, 8236, 8036, 7960, 8023, 8153, 8256]               # clip 2's lead, range 1250
+
+    @staticmethod
+    def _probe(look, after, t_on=10000, dt=22.2):
+        """a probe: look window from the record (every other sample), then `after` samples"""
+        vals = [v for x in look for v in (x, x)] + after
+        start = t_on + app.PROBE_SETTLE_MS
+        return [(int(start + i * dt), v) for i, v in enumerate(vals)]
+
+    def test_a_single_event_without_a_finger_is_not_a_finger(self):
+        rnd = random.Random(4)
+        for c, rec, dc in ((0, self.TAIL_DIP, 7400), (1, self.SPIKE, 8200)):
+            reset()
+            app.ppgs[c].extend(self._probe(rec, [dc + int(rnd.gauss(0, 40)) for _ in range(70)]))
+            self.assertGreater(app._probe_range(10000, c), app.PRESENCE_RANGE, "the old check said finger")
+            found, swings = app.probe_finger(10000)
+            self.assertFalse(found, swings)
+
+    def test_a_finger_in_either_clip_is_found(self):
+        t_on = 10000
+        beats = [t_on + 1300 + k * 800 for k in range(6)]
+        for c in range(app.CHANNELS):
+            reset()
+            app.ppgs[c].extend((t, v) for t, v in ppg_for_beats(beats) if t >= t_on)
+            found, swings = app.probe_finger(t_on)
+            self.assertTrue(found, (c, swings))
+            self.assertGreater(swings[c][0], app.PRESENCE_RANGE)
+
+    def test_a_slow_or_fast_pulse_is_found(self):
+        t_on = 10000
+        for bpm in (48, 55, 60, 75, 100, 120, 140):        # a person at rest
+            for offset in (900, 1100, 1300, 1500):            # where the first beat falls
+                reset()
+                per = 60000 / bpm
+                beats = [t_on + offset + k * per for k in range(8)]
+                app.ppgs[0].extend((t, v) for t, v in ppg_for_beats(beats) if t >= t_on)
+                found, swings = app.probe_finger(t_on)
+                if app._probe_range(t_on) > app.PRESENCE_RANGE:   # what the old single look found...
+                    self.assertTrue(found, (bpm, offset, swings))  # ...is still found
+                if 60 <= bpm <= 140:
+                    self.assertTrue(found, (bpm, offset, swings))
 
     def test_railed_power_on_transient_is_not_a_finger(self):
         t_on = 10000
