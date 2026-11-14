@@ -70,6 +70,7 @@ class Hub:
         self.settings = settings
         self.store = Store(settings.db)
         self.rooms = Rooms()
+        self.rooms.default_patient = settings.bound_patient
         self.session_v = _validator("session.v3.schema.json")
         self.daily_v = _validator("daily.v1.schema.json")
         self.checkin_v = _validator("checkin.v1.schema.json")
@@ -525,7 +526,9 @@ class Hub:
         if decline_report["level"] == "low":
             level = "bad"
         facts = wellbeing.hub_facts(analytics, phq) if level != "ok" else []
-        if level == "bad" and self.sensors is not None and self.sensors.enabled:
+        # the data manager holds the bound patient's home only (as in decline())
+        if (level == "bad" and pid == self.settings.bound_patient and self.sensors is not None
+                and self.sensors.enabled):
             facts += await asyncio.to_thread(wellbeing.sensor_facts, self.sensors.get)
         decline_facts = decline.facts(decline_report)
         facts = (decline_facts + facts)[:wellbeing.FACT_MAX]
