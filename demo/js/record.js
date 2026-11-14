@@ -189,6 +189,8 @@
     if (ph.finger?.source === 'simulated') simFields.push(...['finger', 'breathing', 'hrv', 'series'].filter(k => ph[k]).map(k => 'vitals.' + k));
     if (eyesSrc === 'simulated') simFields.push('signal.eyes_source', 'core.rest.eye_openness', 'core.rest.blink_rate_per_min', 'core.rest.head_pitch_deg', 'tasks.eye_openness_mean', 'tasks.perclos', 'tasks.head_pitch_delta_deg', 'pre_post.eye_openness', 'pre_post.head_pitch');
     if (s.auto) simFields.push('player', 'core.rt', 'core.mood_start', 'mood_end', 'fork', 'two_lanterns');
+    const pres = A.Presence?.sessionContext?.() ?? { home: null, visitors_present: null, simulated: false };
+    if (pres.simulated) simFields.push('context.home', 'context.visitors_present');
     const end = s.endWindow(), rest = core?.rest;
     const ps = sig.pulse, pq = sig.pulseQ.filter(x => x != null), done = s.tasks.filter(t => t.completed_by !== 'skipped');
     const doc = {
@@ -229,7 +231,7 @@
         pulse_mean_bpm: r1(mean(ps)), pulse_min_bpm: ps.length ? r1(Math.min(...ps)) : null, pulse_max_bpm: ps.length ? r1(Math.max(...ps)) : null,
         pulse_source: ps.length ? pulseSrc : null, ...ph,
       } : null,
-      context: { room_temp_c: null, home: null, visitors_present: null, bedside_light_level: s.lastLightLevel ?? null },
+      context: { room_temp_c: null, home: pres.home, visitors_present: pres.visitors_present, bedside_light_level: s.lastLightLevel ?? null },
     };
     return doc;
   };

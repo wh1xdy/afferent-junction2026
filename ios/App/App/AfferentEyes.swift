@@ -72,6 +72,7 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
 class AfferentViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(AfferentFingerPlugin())
+        bridge?.registerPluginInstance(AfferentPresencePlugin())
         bridge?.registerPluginInstance(AfferentEyesPlugin())
     }
 }

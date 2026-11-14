@@ -241,5 +241,5 @@
   const sheet = document.querySelector('.end-sheet');
   if (sheet) sheet.prepend(frag(G.wave()));
   buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped();
-  A.Shell = { toast, week, phase };
+  A.Shell = { toast, week, phase, row, group };
 })();
