@@ -284,6 +284,26 @@ h1, h2, h3, p { margin: 0; }
 .erow .v small { display: block; color: var(--c-on-surface-variant); font-size: 12px; }
 .bars { display: block; width: 100%; }
 
+.signals .sig-block + .sig-block, .signals .sig-empty + .sig-block { margin-top: 18px; }
+.sig-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+.sig-h h3 { margin: 0; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.4px; color: var(--c-on-surface-variant); white-space: nowrap; }
+.sig-h .muted { font-size: 12px; line-height: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sig-rows { display: grid; }
+.sig-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--c-outline-variant); font-size: 14px; line-height: 20px; }
+.sig-row:last-child { border-bottom: 0; }
+.sig-l { grid-column: 1; font-size: 15px; }
+.sig-spark { grid-column: 2; display: block; }
+.sig-spark .spark { overflow: hidden; }
+.sig-spark .spark rect { display: none; }
+.sig-v { grid-column: 3; justify-self: end; text-align: right; font-size: 17px; line-height: 24px; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sig-v small { font-size: 13px; font-weight: 400; color: var(--c-on-surface-variant); }
+.sig-row.none .sig-v { font-size: 14px; line-height: 24px; font-weight: 400; color: var(--c-on-surface-variant); }
+.sig-s { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; font-size: 12px; line-height: 16px; color: var(--c-on-surface-variant); font-variant-numeric: tabular-nums; }
+.sig-s .sim-badge { height: 18px; padding: 0 6px; font-size: 10px; }
+.sig-note { margin-top: 8px; font-size: 13px; line-height: 18px; color: var(--c-on-surface-variant); }
+.sig-empty { font-size: 14px; line-height: 20px; }
+.sig-foot { margin-top: 12px; font-size: 12px; line-height: 18px; color: var(--c-on-surface-variant); }
+
 .dp-foot { font-size: 12px; line-height: 18px; color: var(--c-on-surface-variant); }
 
 .loading { padding: 40px 28px; color: var(--c-on-surface-variant); display: flex; align-items: center; gap: 12px; }
