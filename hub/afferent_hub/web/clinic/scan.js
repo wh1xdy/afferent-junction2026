@@ -229,7 +229,7 @@
 
   let held = null;
   async function handle(text) {
-    const c = parts.add(String(text || ''));
+    const c = parts.add(C.qr.clean(text));
     if (c.status === 'part') {
       pill.textContent = `${c.have} of ${c.n} scanned`;
       pill.hidden = false;
@@ -359,7 +359,7 @@
 
   async function fromScanner(text) {
     text = String(text || '').replace(/[\r\n\t]+/g, '');
-    if (!text.trim()) return;
+    if (!text) return;
     open();
     live = false;
     processing = true;
