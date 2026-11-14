@@ -289,14 +289,19 @@
 
   const scoped = () => {
     const local = () => A.Theme.local();
+    const follow = el => {
+      if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
+      else delete el.dataset.scheme;
+    };
     document.addEventListener('click', e => {
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals', 'voice', 'hubDialog'].includes(id)) return;
-      if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
-      else delete el.dataset.scheme;
+      if (!el || !['settings', 'info', 'signals', 'voice', 'hubDialog', 'crisis'].includes(id)) return;
+      follow(el);
     }, true);
+    // Talk to someone also opens from the check-in and the end screen's offer, without a button; it says so on the bus.
+    A.bus.on('ws', m => { if (m?.type === 'crisis' && $('crisis')) follow($('crisis')); });
   };
 
   const sheet = document.querySelector('.end-sheet');
