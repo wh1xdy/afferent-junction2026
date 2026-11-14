@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>afferent audition</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  --bg: #f6f5f2; --fg: #1d1d1f; --mute: #6b6b70; --line: #e2e0da; --row: #ffffff; --acc: #2f6fde; --on: #e8f0fd;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0d121b; --fg: #e9ecf1; --mute: #8b93a1; --line: #222b39; --row: #141b27; --acc: #7aa7ff; --on: #1b2a44; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.35 system-ui, -apple-system, sans-serif; }
+header { position: sticky; top: 0; z-index: 1; background: var(--bg); border-bottom: 1px solid var(--line); padding: 10px 16px; display: grid; gap: 8px; }
+.bar { display: flex; gap: 8px; align-items: center; }
+input[type=search] { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--row); color: var(--fg); }
+input[type=range] { flex: 1; accent-color: var(--acc); }
+button { font: inherit; color: var(--fg); background: var(--row); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.vol { font-variant-numeric: tabular-nums; color: var(--mute); width: 4.5em; text-align: right; }
+main { padding: 0 16px 40px; max-width: 760px; margin: 0 auto; }
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--mute); margin: 20px 0 6px; }
+ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+li { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; background: var(--row); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px 6px 6px; }
+li.playing { background: var(--on); border-color: var(--acc); }
+li .play { width: 40px; height: 40px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+li .play svg { width: 16px; height: 16px; fill: currentColor; }
+.name { font-weight: 600; overflow-wrap: anywhere; }
+.meta { color: var(--mute); font-size: 13px; overflow-wrap: anywhere; }
+.loop { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--mute); user-select: none; }
+.loop input { width: 18px; height: 18px; accent-color: var(--acc); margin: 0; }
+.empty { color: var(--mute); padding: 6px 2px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <input type="search" id="q" placeholder="Filter" autocomplete="off">
+    <button id="stop">Stop</button>
+  </div>
+  <div class="bar">
+    <label for="vol" class="meta">Master</label>
+    <input type="range" id="vol" min="-40" max="12" step="1" value="0">
+    <span class="vol" id="volv">0 dB</span>
+  </div>
+</header>
+<main id="list"></main>
+<script>
+(() => {
+  const DB = d => Math.pow(10, d / 20);
+  const COLOUR_DB = { yellow: -8, blue: -11, green: -9 };
+  const PLAY = '<svg viewBox="0 0 16 16"><path d="M4 2.5v11l9.5-5.5z"/></svg>';
+  const STOP = '<svg viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg>';
+  const $ = s => document.querySelector(s);
+  let ctx, master, current;
+  const bufs = {};
+  const items = [];
+
+  const audio = () => {
+    if (!ctx) {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain();
+      master.gain.value = DB(+$('#vol').value);
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+
+  const load = async it => {
+    if (!bufs[it.url]) bufs[it.url] = fetch(it.url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(d => new Promise((ok, no) => audio().decodeAudioData(d, ok, no)));
+    return bufs[it.url];
+  };
+
+  const stop = () => {
+    if (!current) return;
+    try { current.src.stop(); } catch {}
+    current.it.li.classList.remove('playing');
+    current.it.btn.innerHTML = PLAY;
+    current = null;
+  };
+
+  const play = async it => {
+    const was = current?.it;
+    stop();
+    if (was === it) return;
+    audio();
+    let buf;
+    try { buf = await load(it); } catch (e) { it.meta.textContent = 'missing: ' + it.url; return; }
+    stop();
+    const src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = buf;
+    g.gain.value = DB(it.gainDb);
+    src.connect(g); g.connect(master);
+    const loop = it.loop && it.loopBox.checked;
+    let at = 0;
+    if (loop) {
+      src.loop = true;
+      if (it.loopStart != null) { src.loopStart = it.loopStart; src.loopEnd = Math.min(buf.duration, it.loopEnd); at = it.loopStart; }
+    }
+    src.start(0, at);
+    src.onended = () => { if (current?.src === src) stop(); };
+    current = { src, it };
+    it.li.classList.add('playing');
+    it.btn.innerHTML = STOP;
+    if (!it.dur) { it.dur = buf.duration; it.meta.textContent = it.info + ' · ' + buf.duration.toFixed(1) + ' s'; }
+  };
+
+  const row = it => {
+    const li = document.createElement('li');
+    li.innerHTML = `<button class="play" aria-label="Play">${PLAY}</button><div><div class="name"></div><div class="meta"></div></div>`;
+    li.querySelector('.name').textContent = it.name;
+    it.meta = li.querySelector('.meta');
+    it.meta.textContent = it.info;
+    if (it.loop) {
+      const l = document.createElement('label');
+      l.className = 'loop';
+      l.innerHTML = '<input type="checkbox" checked> loop';
+      it.loopBox = l.querySelector('input');
+      li.appendChild(l);
+    }
+    it.li = li;
+    it.btn = li.querySelector('.play');
+    it.btn.onclick = () => play(it);
+    it.text = (it.name + ' ' + it.info + ' ' + it.group).toLowerCase();
+    return li;
+  };
+
+  const section = (title, list, empty) => {
+    const h = document.createElement('h2');
+    h.textContent = title;
+    const ul = document.createElement('ul');
+    list.forEach(it => { it.group = title; it.h = h; ul.appendChild(row(it)); items.push(it); });
+    $('#list').append(h, ul);
+    if (!list.length) { const p = document.createElement('p'); p.className = 'empty'; p.textContent = empty; $('#list').appendChild(p); }
+    h.ul = ul;
+  };
+
+  const getJson = url => fetch(url, { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).catch(() => null);
+  const fmt = d => (d > 0 ? '+' : '') + d + ' dB';
+
+  const musicDefault = t => t.role === 'stinger' ? -6 : t.role === 'colour' ? COLOUR_DB[t.group] ?? -9 : t.role === 'bed' && t.mode === 'kaamos' ? -4 : 0;
+
+  (async () => {
+    const [sfx, mus] = await Promise.all([getJson('audio/manifest.json'), getJson('audio/music/manifest.json')]);
+    const files = Object.entries(sfx?.files || {});
+    const amb = pre => files.filter(([k, f]) => k.startsWith(pre)).map(([k, f]) => ({
+      name: k, url: `audio/${f.path}.m4a`, gainDb: f.gainDb ?? -12, loop: f.kind === 'loop',
+      loopStart: f.loopStart, loopEnd: f.loopEnd, info: [f.role, fmt(f.gainDb ?? -12)].filter(Boolean).join(' · '),
+    }));
+    const pad = mus?.pad_s ?? 0.5;
+    const music = Object.entries(mus?.tracks || {}).filter(([, t]) => t.files?.m4a).map(([k, t]) => {
+      const bed = t.role === 'bed', gainDb = t.gain_db ?? musicDefault(t);
+      return {
+        name: k, url: 'audio/music/' + t.files.m4a, gainDb, loop: bed || t.role === 'colour',
+        loopStart: bed ? pad : null, loopEnd: bed ? pad + (t.len_s || 0) : null,
+        info: [t.role, t.mode || t.group, t.layer, t.bpm && t.bpm + ' bpm', fmt(gainDb)].filter(Boolean).join(' · '),
+      };
+    });
+    section('Music', music, 'No music imported yet.');
+    section('Ambience', amb('amb_'), 'None.');
+    section('SFX', amb('sfx_'), 'None.');
+  })();
+
+  $('#q').oninput = e => {
+    const words = e.target.value.toLowerCase().split(/\s+/).filter(Boolean);
+    for (const it of items) it.li.hidden = !words.every(w => it.text.includes(w));
+    for (const h of document.querySelectorAll('h2')) h.hidden = h.ul.children.length > 0 && ![...h.ul.children].some(li => !li.hidden);
+  };
+  $('#vol').oninput = e => {
+    $('#volv').textContent = fmt(+e.target.value);
+    if (master) master.gain.setTargetAtTime(DB(+e.target.value), ctx.currentTime, 0.03);
+  };
+  $('#stop').onclick = stop;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') stop(); });
+})();
+</script>
+</body>
+</html>

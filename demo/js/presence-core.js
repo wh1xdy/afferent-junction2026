@@ -375,7 +375,10 @@
     }
 
     // ── calibration: patient alone at home, normal day ──────────────────
-    start_calibration(now, durationS) { this._cal = { until: now + durationS, snapshots: [] }; }
+    // phone: `need` is new. core.py ends on the clock alone, which is right for a box that is
+    // always on. A phone only watches while the app is open, so it also needs this many
+    // snapshots (one per watched tick); a locked phone cannot finish the learning.
+    start_calibration(now, durationS, need = 0) { this._cal = { until: now + durationS, snapshots: [], need }; }
 
     calibrating() { return this._cal !== null; }
 
@@ -384,7 +387,7 @@
       const near = new Set();
       for (const [k, d] of this._dev) if (this._near(now, d) && !this.ignore.has(k)) near.add(k);
       c.snapshots.push([now, near]);
-      if (now < c.until) return;
+      if (now < c.until || c.snapshots.length < c.need) return;
       const snaps = c.snapshots;
       const seen = new Map();
       for (const [, s] of snaps) for (const k of s) seen.set(k, (seen.get(k) || 0) + 1);
@@ -548,25 +551,29 @@
   // phone; here the phone looks for the home. Each returns true / false / null like a probe.
   // ───────────────────────────────────────────────────────────────────────────
 
-  // The bedside unit (UNO Q "Afferent Finger") seen over BLE. Same rule as probes.py
-  // BleProbe.patient_seen: unknown until the token exists, could-not-look while BLE is down,
-  // otherwise seen = an advert within the window.
+  // The bedside unit (UNO Q "Afferent Finger") seen over BLE: an advert (or a notification on
+  // an open link) within the window is a sighting. Silence is could-not-look, never "not seen":
+  // the unit stops advertising while any phone or laptop is connected to it, so its silence
+  // says nothing about where the patient is. Leaving home is decided by the Wi-Fi source.
+  // (probes.py BleProbe.patient_seen says false here; on the Jetson the token was the phone.)
   const bleSighting = ({ known, ok, lastAt, now, windowS = Math.max(120, SCAN_INTERVAL_S * 3) }) => {
     if (!known || !ok) return null;
-    return lastAt !== null && lastAt !== undefined && now - lastAt <= windowS;
+    return lastAt !== null && lastAt !== undefined && now - lastAt <= windowS ? true : null;
   };
 
   // The home Wi-Fi, recognised by the devices that stay on it (TV, speakers, printer: Bonjour
   // names, stored only as hashes). iOS gives a free-team app no SSID, ARP table or Wi-Fi scan.
   // Logic from the stopped presence-ios work (HomeNetwork.sighting).
-  const homeWifiMatchesNeeded = learnedCount => learnedCount >= 3 ? 2 : 1;
+  // Two devices, always: one name ("Living Room", "Kitchen") is the same in many homes.
+  const HOME_WIFI_MIN = 2;
+  const homeWifiMatchesNeeded = () => HOME_WIFI_MIN;
   const wifiSighting = ({ learned, visible, onWifi, browse }) => {
-    if (!learned || !learned.length) return null;            // not set up (Jetson: PHONE_MACS unset)
+    if (!learned || learned.length < HOME_WIFI_MIN) return null; // not set up (Jetson: PHONE_MACS unset)
     if (browse === 'denied' || browse === 'failed') return null; // Local Network permission off
     if (!onWifi) return false;                               // looked: not on any Wi-Fi
     if (browse !== 'ready') return null;
     const vis = new Set(visible || []);
-    return learned.filter(k => vis.has(k)).length >= homeWifiMatchesNeeded(learned.length);
+    return learned.filter(k => vis.has(k)).length >= HOME_WIFI_MIN;
   };
 
   // Private, link-local or .local addresses only: a hub reached over the internet says nothing
@@ -623,7 +630,7 @@
     HOME, AWAY, UNKNOWN, DAY, SCAN_INTERVAL_S, PROFILES,
     pyRound, localHour, localMidnight,
     presenceConfig, guestConfig, PresenceTracker, GuestTracker, classify, maker_name, applyProfile, tick,
-    uuidPrefix, bleSighting, wifiSighting, homeWifiMatchesNeeded, isLanHost, hostOf, hubSighting,
+    uuidPrefix, bleSighting, wifiSighting, homeWifiMatchesNeeded, HOME_WIFI_MIN, isLanHost, hostOf, hubSighting,
     manufacturerFromHex, sessionContext, tickRow,
   };
   if (typeof module === 'object' && module.exports) module.exports = api;

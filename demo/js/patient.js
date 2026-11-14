@@ -42,7 +42,6 @@
     pulse_stone: '<path d="M12 19.5s-7.5-4.6-7.5-9.7A4.1 4.1 0 0 1 12 7.6a4.1 4.1 0 0 1 7.5 2.2c0 5.1-7.5 9.7-7.5 9.7z"/><path d="M7.5 12h2l1.2-2 1.8 4 1.2-2h2.8"/>',
     bedside_camera: '<circle cx="12" cy="5.5" r="2"/><path d="M5 9.5l7 1.5 7-1.5M12 11v4.5M9 20.5l3-5 3 5"/>',
     bedside_light: '<path d="M8.5 15a5.5 5.5 0 1 1 7 0c-.8.6-1 1.4-1 2.5h-5c0-1.1-.2-1.9-1-2.5z"/><path d="M10 20.5h4"/>',
-    presence: '<path d="M7 12a5 5 0 0 1 10 0M4 12a8 8 0 0 1 16 0"/><circle cx="12" cy="12" r="1.6"/><path d="M12 13.6v6"/>',
     phone_presence: '<path d="M4.5 11L12 4.5l7.5 6.5"/><path d="M6.5 9.5v10h11v-10"/><path d="M10.5 19.5v-5h3v5"/>',
     phone_motion: '<path d="M8 4.5c1.7 0 2.5 1.8 2.5 4s-.8 4-2.5 4-2.5-1.8-2.5-4 .8-4 2.5-4z"/><path d="M6.5 15.5h3v1.5a1.5 1.5 0 0 1-3 0z"/><path d="M16 8.5c1.7 0 2.5 1.8 2.5 4s-.8 4-2.5 4-2.5-1.8-2.5-4 .8-4 2.5-4z"/><path d="M14.5 19.5h3V21a1.5 1.5 0 0 1-3 0z"/>',
   };
@@ -125,6 +124,7 @@
     $('sim').hidden = !view?.simulated;
     const t = view?.today || {};
     renderLifetime();
+    renderPause();
     renderWeek();
     renderStrata();
     renderHelped(view?.what_helped || []);
@@ -145,6 +145,12 @@
     const { n, first } = lifetime();
     const d = first ? parseDate(first) : null;
     $('lifetime').textContent = !n ? 'Your first layer is waiting.' : `${plural(n, 'morning')} lit${d ? ` since ${d.getDate()} ${MONTHS[d.getMonth()]}` : ''}`;
+  }
+
+  function renderPause() {
+    const until = A.Streak?.pausedUntil?.() || view?.pause?.until || null;
+    $('pauseCard').hidden = !until;
+    if (until) $('pauseUntil').textContent = `Until ${longDate(parseDate(until))}`;
   }
 
   function renderToday(t) {

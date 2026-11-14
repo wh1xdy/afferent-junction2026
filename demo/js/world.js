@@ -394,7 +394,7 @@
   function aurora(ctx) {
     const a = clamp(0.2 * (1 - st.heavy) + 1.1 * n0(S.aurora, 0) + 0.55 * st.ds.green, 0, 1) * (I.night ? 1 - 0.4 * st.ds.dawn : Math.pow(1 - Math.max(st.ds.dawn, st.sun), 2)) * (1 - n0(S.daylight, 0)) * (1 - 0.9 * st.heavy);
     if (a < 0.02) return;
-    const q = 4, w = Math.ceil(W / q) + 2, h = Math.ceil(H * 0.42 / q);
+    const q = 2, s = Math.min(2, Math.abs(ctx.getTransform().d) || 1), w = Math.ceil(W / q) + 2, h = Math.ceil(H * 0.42 * s);
     if (!auroraC || auroraC.width !== w || auroraC.height !== h) [auroraC, auroraX] = mk(w, h);
     const x = auroraX, t = n0(S.t, 0) * (rm ? 0.4 : 1), o = off(LAYER.aurora), sg = Math.max(0.22, st.ds.green);
     x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; x.clearRect(0, 0, w, h);
@@ -407,12 +407,14 @@
         const hh = hgt * (0.65 + 0.5 * noise(wx * 0.004 + t * 0.12 + k * 3));
         const u0 = ((wx * 0.35 + t * 5 + k * 90) % 253 + 253) % 253;
         const fa = alpha * e * (0.75 + 0.25 * Math.sin(t * 0.9 + wx * 0.02));
-        if (sg < 0.98) { x.globalAlpha = fa * (1 - sg) * 0.9; x.drawImage(SPR.auroraGrey, u0, 0, 3, 128, i, (y - hh) / q, 1, hh * 1.08 / q); }
-        if (sg > 0.02) { x.globalAlpha = fa * sg; x.drawImage(SPR.aurora, u0, 0, 3, 128, i, (y - hh) / q, 1, hh * 1.08 / q); }
+        if (sg < 0.98) { x.globalAlpha = fa * (1 - sg) * 0.9; x.drawImage(SPR.auroraGrey, u0, 0, 3, 128, i, (y - hh) * s, 1, hh * 1.08 * s); }
+        if (sg > 0.02) { x.globalAlpha = fa * sg; x.drawImage(SPR.aurora, u0, 0, 3, 128, i, (y - hh) * s, 1, hh * 1.08 * s); }
       }
     }
     ctx.globalCompositeOperation = 'lighter';
-    ctx.drawImage(auroraC, -q, 0, w * q, h * q);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(auroraC, -q, 0, w * q, h / s);
+    ctx.imageSmoothingQuality = 'low';
     veneer(ctx, a, t, o, sg);
     if (ART.has('sky_aurora')) {
       const aw = W * 1.9, ah = aw / ART.aspect('sky_aurora'), span = aw * 1.25;

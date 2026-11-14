@@ -13,6 +13,10 @@ som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
   POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat (sketch default: muted)
   POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
   POST /led/beat?on=0|1            -> red flash on every heartbeat (default off: it fakes camera rPPG)
+
+Once a second the readings are also handed to the data manager on the Jetson, inside the home
+(data_manager_push.py: fused pulse, HRV, breathing while one person wears the clips; room
+climate once a minute). GET /state shows how that is going under "data_manager".
 """
 import collections
 import json
@@ -31,6 +35,7 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from network import interface_ipv4
 from ble import HeartRateBroadcaster
+import data_manager_push
 
 PORT = 8080
 lock = threading.Lock()
@@ -55,11 +60,20 @@ def on_climate(celsius, humidity):
 
 ppgs = [collections.deque(maxlen=3200) for _ in range(CHANNELS)]  # ~70 s at 45 Hz each (HRV window)
 ppg = ppgs[0]
+last_ppg = 0.0                # time.time() of the newest sample from the STM32
 
 
 def on_ppg(t_ms, *values):
+    global last_ppg
+    last_ppg = time.time()
     for c, v in enumerate(values[:CHANNELS]):
         ppgs[c].append((int(t_ms), int(v)))
+
+
+def stream_live(now):
+    """True while the STM32 delivers samples. When it stops, the buffers keep their last
+    seconds and the rhythm computed from them stays clear, but nothing is being measured."""
+    return now - last_ppg <= data_manager_push.LIVE_S
 
 
 def pulse_summary(window_ms=10000, ch=0):
@@ -113,9 +127,12 @@ def pulse_summary(window_ms=10000, ch=0):
 
 
 beats = [collections.deque(maxlen=90) for _ in range(CHANNELS)]  # (t_ms, ibi_ms), locked beats (~60 s)
+last_locked = [0.0] * CHANNELS    # time.time() of each finger's newest locked beat that gave a BPM
+sent_bpm = [0] * CHANNELS         # each finger's BPM as last handed to Bluetooth (0 = no reading)
 
 
 ble = HeartRateBroadcaster()
+dm = data_manager_push.Push()     # started in main(); until then nothing is handed over
 
 
 def on_beat(c, t_ms, ibi_ms, peak, locked):
@@ -133,10 +150,12 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
     with lock:
         state["fingers"][c] = info
     if locked and bpm:
+        last_locked[c] = time.time()
+        sent_bpm[c] = bpm
         ble.update_finger(c, bpm)
 
 
-period_state = [{"period_ms": None, "quality": None} for _ in range(CHANNELS)]
+period_state = [{"period_ms": None, "quality": None, "signal": None} for _ in range(CHANNELS)]
 
 
 def autocorr(ch=0, window_ms=6000):
@@ -155,14 +174,27 @@ def autocorr(ch=0, window_ms=6000):
     return [lag / fs * 1000 for lag in lags], [sum(x[i] * x[i + lag] for i in range(n - lag)) / e for lag in lags]
 
 
+def rhythm_peak(lags, r):
+    """(period_ms, quality, signal) from one autocorrelation curve.
+    signal is the highest value anywhere in the 0.33-1.6 s range: something structured is on the
+    sensor. period and quality count only when that maximum is a peak inside the range. A drifting
+    signal (a finger settling in the clip) correlates most at the shortest lag, which is the edge
+    of the range and not a heartbeat: measured on the board as "317 ms, quality 0.5-0.7", sent on
+    as 188 BPM for the first seconds after the clips went on."""
+    k = max(range(len(r)), key=r.__getitem__)
+    signal = max(r[k], 0.0)
+    if r[k] <= 0 or k == 0 or k == len(r) - 1:
+        return None, 0.0, signal
+    return round(lags[k]), signal, signal
+
+
 def pulse_period(ch=0, window_ms=6000):
     """Dominant period 0.33-1.6 s of one finger and its strength."""
     ac = autocorr(ch, window_ms)
     if not ac:
         return None, 0.0
-    lags, r = ac
-    k = max(range(len(r)), key=r.__getitem__)
-    return (round(lags[k]) if r[k] > 0 else None), max(r[k], 0.0)
+    ms, q, _ = rhythm_peak(*ac)
+    return ms, q
 
 
 def fused_period(curves, qualities):
@@ -177,11 +209,80 @@ def fused_period(curves, qualities):
     if not acc:
         return None, 0.0
     lag = max(acc, key=acc.get)
+    if lag in (min(acc), max(acc)):              # edge of the range: a drift, not a rhythm
+        return None, 0.0
     wsum = sum(q for q in qualities if q > 0) or 1.0
     return lag, max(acc[lag] / wsum, 0.0)
 
 
-fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None]}
+# ── one person or two? ───────────────────────────────────────────────────────────
+# Everything above assumes both clips sit on one person. In the Heart Duel game each clip is on
+# a different person. Two clear rhythms that stay apart for a few seconds mean two hearts; a
+# ratio near 2 is one heart with a sensor counting double or half, and is left to the fusion.
+TWO_HEARTS_MIN_Q = 0.3        # both rhythms must be this clear
+TWO_HEARTS_APART = 0.12       # periods more than 12 % apart
+TWO_HEARTS_HARMONIC = 0.15    # ...unless the ratio is within 15 % of 2
+TWO_HEARTS_ON_S, TWO_HEARTS_OFF_S, TWO_HEARTS_UNKNOWN_S = 3, 3, 10   # seconds (one tick = 1 s)
+FINGER_STALE_S = 4.0          # a finger's BPM leaves the Bluetooth packet after this long without
+                              # a locked beat of its own (the other finger's beats do not count)
+two_hearts = {"on": False, "apart": 0, "same": 0, "unknown": 0}
+
+
+def periods_apart(per):
+    """True: both fingers have a clear rhythm and the rhythms differ. False: both clear and the
+    same heart (equal, or half/double). None: cannot tell (a finger has no clear rhythm)."""
+    p = [x.get("period_ms") for x in per]
+    q = [x.get("quality") or 0 for x in per]
+    if len(p) != 2 or not all(p) or min(q) < TWO_HEARTS_MIN_Q:
+        return None
+    ratio = max(p) / min(p)
+    if ratio <= 1 + TWO_HEARTS_APART:
+        return False
+    return abs(ratio - 2) > 2 * TWO_HEARTS_HARMONIC
+
+
+def update_two_hearts(apart):
+    """One call per second with periods_apart(); returns whether the clips are on two people.
+    Switches on after TWO_HEARTS_ON_S s apart, off after TWO_HEARTS_OFF_S s the same or
+    TWO_HEARTS_UNKNOWN_S s without a second clear rhythm."""
+    t = two_hearts
+    if apart is True:
+        t.update(apart=t["apart"] + 1, same=0, unknown=0)
+        if t["apart"] >= TWO_HEARTS_ON_S:
+            t["on"] = True
+    elif apart is False:
+        t.update(same=t["same"] + 1, apart=0, unknown=0)
+        if t["same"] >= TWO_HEARTS_OFF_S:
+            t["on"] = False
+    else:
+        t.update(unknown=t["unknown"] + 1, apart=0, same=0)
+        if t["unknown"] >= TWO_HEARTS_UNKNOWN_S:
+            t["on"] = False
+    return t["on"]
+
+
+def reset_two_hearts():
+    two_hearts.update(on=False, apart=0, same=0, unknown=0)
+
+
+def detector_period(own, fp, fq, two):
+    """Period and quality for one finger's beat detector on the STM32. One person: the combined
+    rhythm when it is at least as clear as the finger's own. Two people: always its own, the
+    other person's rhythm would set the wrong refractory time."""
+    oq = own.get("quality") or 0
+    if two or fq < oq:
+        return own.get("period_ms"), oq
+    return fp, fq
+
+
+def stale_fingers(now):
+    """Fingers whose BPM is still in the Bluetooth packet although their own detector has had
+    no locked beat for FINGER_STALE_S: one clip came off while the other is still worn."""
+    return [c for c in range(CHANNELS) if sent_bpm[c] and now - last_locked[c] > FINGER_STALE_S]
+
+
+fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None],
+         "two_hearts": False}
 
 
 def fuse():
@@ -235,25 +336,28 @@ def period_loop(stopped):
             try:
                 ac = autocorr(c)
                 if ac:
-                    lags, r = ac
-                    k = max(range(len(r)), key=r.__getitem__)
-                    ms, q = (round(lags[k]) if r[k] > 0 else None), max(r[k], 0.0)
+                    ms, q, sig = rhythm_peak(*ac)
                     curves.append(ac); quals.append(q)
                 else:
-                    ms, q = None, 0.0
+                    ms, q, sig = None, 0.0, 0.0
                 with lock:
-                    period_state[c].update(period_ms=ms, quality=round(q, 2))
+                    period_state[c].update(period_ms=ms, quality=round(q, 2), signal=round(sig, 2))
             except Exception as e:
                 print(f"period failed (ch {c}): {e}", flush=True)
         fp, fq = fused_period(curves, quals) if curves else (None, 0.0)
+        if sensing():
+            two = update_two_hearts(periods_apart([dict(period_state[c]) for c in range(CHANNELS)]))
+        else:
+            reset_two_hearts()
+            two = False
         with lock:
-            fused.update(period_ms=fp, quality=round(fq, 2))
+            fused.update(period_ms=fp, quality=round(fq, 2), two_hearts=two)
         if state.get("bridge") == "connected":
             for c in range(CHANNELS):
                 try:
-                    # each detector gets the fused period when it's stronger than its own
-                    own = period_state[c]
-                    ms, q = (fp, fq) if fq >= (own.get("quality") or 0) else (own.get("period_ms"), own.get("quality") or 0)
+                    # each detector gets the fused period when it's stronger than its own,
+                    # unless the two clips are on two people
+                    ms, q = detector_period(period_state[c], fp, fq, two)
                     if not sensing():
                         ms, q = 0, 0.0                 # sensors off or settling: never lock/beep
                     bridge.call("pulse_period", c, int(ms or 0), int(q * 100), timeout=2)
@@ -269,6 +373,9 @@ def period_loop(stopped):
         ble.update_breathing(br or 0)
         ble.update_hrv(rm or 0)
         bpm = fuse() if sensing() else None
+        for c in stale_fingers(time.time()):
+            sent_bpm[c] = 0
+            ble.update_finger(c, 0)            # that clip came off; 0 = no reading
         if not sensing():
             with lock:
                 fused.update(bpm=None, sources=[], fingers=[None, None])
@@ -276,6 +383,37 @@ def period_loop(stopped):
         ble_status(tick)
         if bpm:
             ble.update(0, bpm)        # standard Heart Rate Measurement = the fused finger reading
+        push_readings(bpm, br, rm, two)
+
+
+def fingers_live(chans, now):
+    """True while samples arrive and every finger a number was computed from had a locked beat
+    of its own in the last LIVE_S seconds. HRV and breathing are computed from a finger's stored
+    beats, so they outlive a clip that came off; the pulse can come from the rhythm of both
+    buffers (no finger named), which outlives a sample stream that stopped. Such a number does
+    not go to the data manager."""
+    if chans is None or not stream_live(now):
+        return False
+    chans = range(CHANNELS) if chans == "both" else [chans] if isinstance(chans, int) else chans
+    return all(now - last_locked[c] <= data_manager_push.LIVE_S for c in chans)
+
+
+def push_readings(bpm, br, rm, two):
+    """Once a second from period_loop: this second's readings to the data manager on the Jetson.
+    dm.tick() only queues them (data_manager_push.py). Nothing here may stop the sensor loop:
+    a problem is logged once and that second's values are dropped."""
+    try:
+        now = time.time()
+        with lock:
+            climate = state.get("climate")
+            quality, sources = fused.get("quality"), list(fused.get("sources") or [])
+            hrv_ch, breath_ch = hrv.get("channel"), breathing.get("channel")
+        dm.tick(now, sensing(), two, rhythms_apart=two_hearts["apart"] > 0,
+                bpm=bpm if fingers_live(sources, now) else None, quality=quality,
+                rmssd_ms=rm if fingers_live(hrv_ch, now) else None,
+                breaths_per_min=br if fingers_live(breath_ch, now) else None, climate=climate)
+    except Exception as e:
+        dm.problem(f"push failed: {e}")
 
 
 # ── finger presence: LEDs off until a hand is in the holders ─────────────────────────
@@ -327,13 +465,14 @@ def _forget_beats():
         for c in range(CHANNELS):
             beats[c].clear()
             state["fingers"][c] = None
+            sent_bpm[c] = 0
     ble.clear_readings()      # AFF1 kept the last per-finger numbers after the finger left
 
 
 def reset_live_metrics():
     """No finger: forget the live breathing and HRV numbers. update_breathing / update_hrv run
     only while sensing, so without this /state kept the last values for as long as nobody wore
-    the clip. The personal RMSSD baseline (and the history behind it) is kept."""
+    the clip. The running RMSSD median (and the history behind it) is kept."""
     with lock:
         breathing.update(per_minute=None, snr=None, channel=None)
         hrv.update(rmssd_ms=None, sdnn_ms=None, mean_bpm=None, pairs=0, channel=None, vs_baseline=None)
@@ -357,7 +496,10 @@ def presence_loop(stopped):
         if presence["mode"] == "active":
             if time.time() - presence["since"] < WARMUP_S:
                 continue
-            q = max([period_state[c].get("quality") or 0 for c in range(CHANNELS)] + [fused.get("quality") or 0])
+            # "is something on the sensor": the raw signal strength, also when it is not (yet) a
+            # heartbeat, so a finger that takes a few seconds to settle does not switch the sensors off
+            q = max([period_state[c].get("signal") or period_state[c].get("quality") or 0 for c in range(CHANNELS)]
+                    + [fused.get("quality") or 0])
             if q >= 0.3:
                 weak_since = None
             elif weak_since is None:
@@ -458,15 +600,16 @@ def rsa_debug(c):
 
 
 # ── heart-rate variability (HRV) ─────────────────────────────────────────────────────
-# RMSSD (root mean square of successive beat-interval differences) over the last 60 s: the
-# standard short-term HRV / stress marker (lower = more stressed, relative to one's own baseline).
+# RMSSD (root mean square of successive beat-interval differences) over the last 60 s: a
+# short-term HRV number, read relative to one's own baseline.
 # The sensor samples at ~45 Hz, so a beat time is only known to +-11 ms, while RMSSD is typically
 # 20-80 ms. Each beat is therefore re-timed at the steepest point of its upstroke in the raw signal,
 # with parabolic sub-sample interpolation. Artefacts: intervals off the pulse period, or > 30 % off
 # the local median of their neighbours (missed / double beats), are dropped.
 hrv = {"rmssd_ms": None, "sdnn_ms": None, "mean_bpm": None, "pairs": 0, "channel": None,
        "baseline_rmssd_ms": None, "vs_baseline": None}
-_hrv_history = collections.deque(maxlen=600)          # (t, rmssd), ~10 min, for a personal baseline
+_hrv_history = collections.deque(maxlen=600)          # (t, rmssd), ~10 min, for the running median
+                                                      # (of this sensor, whoever wears it: not per person)
 
 
 def refine_beat(c, t_ms):
@@ -595,6 +738,7 @@ def state_snapshot() -> dict:
     out["hrv"] = dict(hrv)
     out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}
     out["ble"] = ble.status
+    out["data_manager"] = dm.status()
     # device clock: every "t" / "since" in this document is on the same clock, so an HTTP
     # consumer can judge staleness as now - t without comparing its own clock to the board's
     out["now"] = time.time()
@@ -665,6 +809,14 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def _mdns_interfaces():
+    """the mesh interface, for finding the data manager when DATA_MANAGER_URL is not set"""
+    try:
+        return [interface_ipv4()]
+    except Exception:
+        return None
+
+
 def main():
     stopped = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -673,6 +825,7 @@ def main():
     threading.Thread(target=bridge_loop, args=(stopped,), daemon=True).start()
     threading.Thread(target=period_loop, args=(stopped,), daemon=True).start()
     threading.Thread(target=presence_loop, args=(stopped,), daemon=True).start()
+    dm.start(mdns_interfaces=_mdns_interfaces())
 
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -703,6 +856,7 @@ def main():
             zc.close()
         server.shutdown()
         bridge.disconnect()
+        dm.close()
 
 
 if __name__ == "__main__":

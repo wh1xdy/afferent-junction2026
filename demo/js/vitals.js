@@ -4,24 +4,26 @@
   const DASH = '–', MIN_QUALITY = 0.3;
   const int = x => x == null ? null : String(Math.round(x));
 
-  const PRESENCE = { idle: 'Resting. Place a finger in the clip to start.', probing: 'Looking for your finger', active: 'Measuring' };
+  const PRESENCE = { idle: 'Resting. Place a finger in each of the two clips to start.', probing: 'Looking for your finger', active: 'Measuring' };
   const LINK = {
     scanning: 'Looking for the finger sensor', connecting: 'Looking for the finger sensor',
-    unauthorized: 'Bluetooth is off for Afferent in Settings', off: 'Switched off',
+    unauthorized: 'Bluetooth is off for Afferent in Settings', off: 'Not connected',
   };
-  const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in the clip to start.';
+  const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in each of the two clips to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
-  const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', rppg: 'Camera', simulated: SIM };
+  const SOURCE = { finger_ppg: 'Finger sensor', rppg: 'Camera', simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
-  const NO_QUALITY = 'This sensor version does not report signal quality yet, so the game does not use this pulse.';
-  const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
+  const NO_QUALITY = 'This sensor version does not report signal quality, so its pulse is not shown or used.';
+  const CHIP = { finger_ppg: 'finger sensor', rppg: 'camera' };
+  const BREATH_WAIT = 'Takes about half a minute of steady signal', BREATH_LAG = 'From your heart rhythm, about half a minute behind';
+  const BREATH_SPAN = `Covers the task and the ${A.Breathing.WINDOW_S} seconds before it`;
 
   const sensorLines = ph => {
     if (!S.enabled.pulse_stone) return ['Switched off'];
     const link = S.fingerLink.state;
     if (ph?.source) {
       const hub = ph.transport === 'hub_http';
-      const state = PRESENCE[ph.presence] || (hub ? VIA_HUB : ph.pulse_bpm != null ? PRESENCE.active : PLACE);
+      const state = PRESENCE[ph.presence] || (hub ? VIA_HUB : ph.contact ? PRESENCE.active : PLACE);
       return [ph.simulated ? `${SIM}. ${state}` : state, ...(hub && state !== VIA_HUB ? [VIA_HUB] : [])];
     }
     return [link === 'connected' ? PLACE : LINK[link] || NO_SENSOR];
@@ -31,24 +33,26 @@
 
   const pulseRow = (ph, p, now) => {
     const unsteady = !!ph?.source && ph.quality_reported && ph.quality != null && ph.quality < MIN_QUALITY;
-    if (ph?.pulse_bpm != null && !unsteady) return row('ecg_heart', 'Pulse', int(ph.pulse_bpm), [BPM, ph.simulated ? SIM : SOURCE.finger_ppg]);
+    if (ph?.pulse_bpm != null) return row('ecg_heart', 'Pulse', int(ph.pulse_bpm), [BPM, ph.simulated ? SIM : SOURCE.finger_ppg]);
     if (p.bpm != null && !(p.source === 'simulated' && S.realProducer(now))) return row('ecg_heart', 'Pulse', int(p.bpm), [BPM, SOURCE[p.source]]);
     return row('ecg_heart', 'Pulse', null, [unsteady ? 'Finger sensor. Waiting for a steady signal' : NONE]);
   };
 
   const fingerRows = ph => {
     if (!ph?.source) return [];
-    const sim = ph.simulated ? SIM : null, measuring = ph.presence === 'active' || ph.pulse_bpm != null;
+    const sim = ph.simulated ? SIM : null, measuring = ph.presence === 'active' || !!ph.contact;
     const [a, b] = ph.finger_bpm, wait = text => measuring ? text : NONE;
     return [
       a == null && b == null ? row('back_hand', 'Finger 1 and finger 2', null, [NONE])
         : row('back_hand', 'Finger 1 and finger 2', `${int(a) ?? DASH} · ${int(b) ?? DASH}`, [BPM, sim]),
-      ph.breathing_per_min == null ? row('air', 'Breathing', null, [wait('Takes about half a minute of steady signal')])
+      ph.breathing_per_min == null ? row('air', 'Breathing', null, [wait(BREATH_WAIT)])
         : row('air', 'Breathing', int(ph.breathing_per_min), ['breaths per minute', sim]),
       ph.rmssd_ms == null ? row('vital_signs', 'Beat-to-beat variation', null, [wait('Takes about a minute')])
         : row('vital_signs', 'Beat-to-beat variation', int(ph.rmssd_ms), ['ms (RMSSD)', sim]),
     ];
   };
+
+  const pulseSpan = r => r.pulse_start_bpm != null && r.pulse_end_bpm != null ? `Pulse ${int(r.pulse_start_bpm)} at the start, ${int(r.pulse_end_bpm)} at the end` : null;
 
   const cameraRow = cam => {
     if (!cam) return [];
@@ -65,6 +69,8 @@
     else if (cam?.pulse_bpm?.mean != null) rows.push(row('videocam', 'Pulse', int(cam.pulse_bpm.mean), [over(BPM), SOURCE.rppg]));
     if (f && v.breathing?.rate_per_min?.mean != null) rows.push(row('air', 'Breathing', int(v.breathing.rate_per_min.mean), [over('breaths per minute')]));
     if (f && v.hrv?.rmssd_ms?.mean != null) rows.push(row('vital_signs', 'Beat-to-beat variation', int(v.hrv.rmssd_ms.mean), [over('ms (RMSSD)')]));
+    const b = f ? A.lastBreath : null;
+    if (b) rows.push(row('air', 'Breathing around the breathing task', int(b.rate_per_min.mean), [over('breaths per minute'), BREATH_SPAN, b.seconds >= A.Breathing.WINDOW_S && `Guide: ${int(b.guide_per_min)}`, pulseSpan(b)]));
     return rows.length ? { title: new Date(at).getHours() < 12 ? 'This morning' : 'Earlier today', rows } : null;
   };
 
@@ -118,11 +124,23 @@
     return p.source === 'simulated' ? 'SIMULATED' : `${int(p.bpm)} bpm · ${CHIP[p.source] || 'sensor'}`;
   };
 
+  const breaths = x => `${int(x)} ${int(x) === '1' ? 'breath' : 'breaths'} a minute`;
+  const breath = (s, now) => {
+    if (!s || s.done || s.gameMode === 'measure' || A.config?.breathFeedback === false) return null;
+    const v = s.phase === 'game' && s.game?.id === 'breath' && !s.game.done ? s.game.fb?.shown() : null, r = s.breathResult;
+    if (v) {
+      return v.state === 'reading' ? [`You: ${breaths(v.rate)} · Guide: ${int(v.guide)}`, `${SOURCE.finger_ppg}. ${BREATH_LAG}`]
+        : [`You: measuring… · Guide: ${breaths(v.guide)}`, `${SOURCE.finger_ppg}. ${BREATH_WAIT}`];
+    }
+    if (!r || now >= r.until || !['walk', 'dawn'].includes(s.phase)) return null;
+    return [`Measured: ${breaths(r.rate_per_min.mean)} on average`, [SOURCE.finger_ppg, BREATH_SPAN, pulseSpan(r)].filter(Boolean).join('. ')];
+  };
+
   if (typeof document !== 'undefined') {
     document.addEventListener('click', e => { if (e.target.closest?.('[data-open="signals"]')) render(); }, true);
     setInterval(tick, 1000);
     addEventListener('load', tick);
   }
 
-  A.Vitals = { model, render, chip, sensorLines };
+  A.Vitals = { model, render, chip, breath, sensorLines };
 })();

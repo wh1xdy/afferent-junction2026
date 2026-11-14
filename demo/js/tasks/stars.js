@@ -62,7 +62,7 @@
         n, ratio, calm, stars, order, dust, magnet: ax('magnet', 1.38), twinkle: !calm && ax('twinkle', 0) > 0, win: ax('window', 0.78),
         a0: J.at, next: 0, fp: null, end: null, rest: null, touching: false, touched: false, prevT: null, flags: {}, inputs: new Set(),
         linkMs: [], firstMs: null, lifts: 0, passes: 0, gaps: [], hints: 0, hintAt: -9, recoil: null, haloAt: -9, moteAcc: 0, tier: 0, feverUntil: -9,
-        light: 1, wave: null, doneAt: null, marked: false, spilled: false, trailAcc: 0, b: null, L: null, bot: null, timeoutDone: false,
+        light: 1, wave: null, doneAt: null, marked: false, spilled: false, trailAcc: 0, b: null, L: null, bot: null, timeoutDone: false, rtId: null,
         outro: calm ? 2.0 : 1.8,
         extra: { v: 2, figure: 'swan', n_stars: n, size_ratio: r3(ratio), input: null, link_ms: [], first_touch_ms: null, lifts: 0, passes: 0, wrong_rank_gap: [], hints: 0 },
 
@@ -83,6 +83,7 @@
           return (this.L = { key, b, U, w, h, ox, oy, cx: ox + w / 2, py: oy + h * BODY });
         },
 
+        arm(t) { this.rt?.drop(this.rtId); this.rtId = (this.rtId ?? -1) + 1; this.rt?.cue(this.rtId, 'choice', t); },
         target() { return this.order[this.next] || null; },
         lastLit() { return this.next > 0 ? this.order[this.next - 1] : null; },
         starAt(x, y) {
@@ -106,6 +107,8 @@
           this.lastIn = this.t; this.touching = true; this.touched = true; this.fp = [x, y]; this.rest = { x, y, t }; this.haloAt = this.at ?? J.at; this.recoil = null;
           this.end = last && this.calm ? [last.x, last.y] : [x, y];
           if (this.firstMs === null) this.firstMs = Math.max(0, Math.round((t - (this.startAt ?? t)) * 1000));
+          if (this.rtId === null) this.arm(this.startAt ?? t);
+          this.rt?.hit(this.rtId, t);
           const s = this.starAt(x, y);
           if (s) { s.inside = true; s === this.target() ? this.commit(s, t, 'tap') : this.wrong(s, t); }
           if (this.next > 0 && !this.done) sfx('stars_hum', { on: true, tier: this.tier });
@@ -116,6 +119,8 @@
           if (this.done || !this.touching || !this.fp) return;
           const [x, y] = this.px(u, v), [x0, y0] = this.fp;
           this.lastIn = this.t; this.fp = [x, y];
+          const ll = this.lastLit();
+          if (ll && this.rt?.pending(this.rtId) && Math.hypot(x - ll.x, y - ll.y) > ll.hit) this.rt.drop(this.rtId);
           if (Math.hypot(x - this.rest.x, y - this.rest.y) > 6) { this.rest = { x, y, t }; for (const s of this.stars) s.dwell = 0; }
           const tg = this.target();
           if (tg && segDist(x0, y0, x, y, tg.x, tg.y) < tg.hit) { tg.snap = [x, y]; this.commit(tg, t, 'drag'); this.sync(); return; }
@@ -182,6 +187,7 @@
           }
           sfx('stars_link', { i, grade, piano: [soft ? 2 + i : 3 + i, soft ? 0.09 : 0.15] });
           if (this.items >= this.n) this.complete(t, at);
+          else this.arm(t);
         },
 
         complete(t, at) {
@@ -237,6 +243,7 @@
         update(dt, now) {
           this.lay();
           if (!this.done) {
+            if (this.rtId === null) this.arm(this.startAt ?? now);
             if (this.touching && this.fp) {
               const thr = this.calm ? 0.4 : 0.18;
               for (const s of this.stars) {
@@ -258,7 +265,7 @@
               this.hintAt = this.t; tg.breathe = this.at ?? J.at;
               if (this.items > 0) { this.flags.hint = true; this.hints++; this.sync(); }
             }
-            if (!this.timeoutDone && this.t >= this.max) { this.timeoutDone = true; this.marks('cool'); }
+            if (!this.timeoutDone && this.t >= this.max) { this.timeoutDone = true; this.marks('cool'); if (!this.touching) this.rt?.lapse(this.rtId); }
           }
           this.pay(dt);
         },

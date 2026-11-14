@@ -2,7 +2,7 @@
   const Au = A.Audio;
   const DB = d => Math.pow(10, d / 20);
   const R = Math.random;
-  const TEMPO = { kaamos: [60, 4], calm: [54, 3], flow: [66, 4], wake: [76, 4], fatigue: [84, 4], rest: [50, 4], dawn: [66, 4] };
+  const TEMPO = { kaamos: [70, 4], calm: [54, 3], flow: [100, 4], wake: [76, 4], fatigue: [84, 4], rest: [50, 4], dawn: [90, 4] };
   const BEAT_MODES = new Set(['flow', 'wake', 'fatigue']);
   const CORE = new Set(['fadein', 'rest', 'checkin', 'rt']);
   const LIGHT = [5500, 7500, 9500, 11000], DAWN_LIGHT = 16000;
@@ -462,9 +462,9 @@
     },
 
     chime(group, when) {
-      if (group === 'yellow') { Au.piano(7, 0.12, when); Au.piano(2, 0.08, when + 0.02); }
-      else if (group === 'blue') { Au.piano(6, 0.1, when); Au.piano(9, 0.08, when + 0.18); }
-      else [146.83, 185.0, 220.0].forEach((f, i) => Au.tone(f, 2.6, 0.1, 'triangle', when + i * 0.42));
+      if (group === 'yellow') { Au.piano(6, 0.12, when); Au.piano(2, 0.08, when + 0.02); }
+      else if (group === 'blue') { Au.piano(5, 0.1, when); Au.piano(7, 0.08, when + 0.18); }
+      else [146.83, 196.0, 220.0].forEach((f, i) => Au.tone(f, 2.6, 0.1, 'triangle', when + i * 0.42));
     },
 
     sway(now) {
@@ -485,7 +485,7 @@
       const when = BEAT_MODES.has(s.mode) && this.bed && !this.bed.procedural ? g.nextBeat(now) : now + 0.05;
       if (id === 'countin') {
         const beat = 60 / TEMPO.fatigue[0];
-        [3, 3, 5].forEach((n, i) => Au.piano(n, 0.1, when - now + i * beat));
+        [3, 3, 4].forEach((n, i) => Au.piano(n, 0.1, when - now + i * beat));
         return;
       }
       const buf = this.tracks[id] && this.buf[id];
@@ -496,7 +496,7 @@
         src.connect(gn); gn.connect(this.bus.stinger); src.start(when);
         len = buf.duration;
       } else if (id === 'st_open') Au.bell();
-      else (id === 'st_settle' ? [8, 7, 6, 5] : [5, 8, 9, 10]).forEach((n, i) => Au.piano(n, 0.1, when - now + i * 0.32));
+      else (id === 'st_settle' ? [7, 6, 5, 4] : [4, 6, 7, 8]).forEach((n, i) => Au.piano(n, 0.1, when - now + i * 0.32));
       s.stingerUntil = when + len;
       this.levels();
     },

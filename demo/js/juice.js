@@ -91,13 +91,13 @@
     ctx.shadowColor = rgb(C.night950, 0.7); ctx.shadowBlur = 10;
     ctx.fillStyle = rgb(C.silver100, 0.95);
     ctx.beginPath();
-    ctx.roundRect(-4.8, 0, 9.6, 27, 4.8);
-    ctx.roundRect(-6.5, 17, 25, 25, 9);
-    ctx.roundRect(-13, 23, 10, 15, 5);
+    ctx.roundRect(-4.8, 0, 9.6, 19, 4.8);
+    ctx.roundRect(-6.5, 9, 25, 25, 9);
+    ctx.roundRect(-13, 15, 10, 15, 5);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = rgb(C.silver400, 0.7); ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(6, 25); ctx.lineTo(16, 25); ctx.moveTo(6, 31); ctx.lineTo(16, 31); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6, 17); ctx.lineTo(16, 17); ctx.moveTo(6, 23); ctx.lineTo(16, 23); ctx.stroke();
     ctx.restore();
   };
 
@@ -293,7 +293,7 @@
   };
 
   const HAP = { tick: ['sel', 6], light: ['LIGHT', 10], medium: ['MEDIUM', 16], heavy: ['HEAVY', 24], success: ['SUCCESS', [10, 70, 14, 70, 22]] };
-  const hs = { tick: -9, impact: -9, sel: false };
+  const hs = { tick: -9, impact: -9, sel: false, end: 0 };
   const plugin = () => { const Cap = window.Capacitor; return Cap?.isNativePlatform?.() ? Cap.Plugins?.Haptics : null; };
   const fire = name => {
     const spec = HAP[name];
@@ -305,7 +305,11 @@
     try {
       const Hp = plugin();
       if (Hp) {
-        if (name === 'tick') { if (!hs.sel) { hs.sel = true; Hp.selectionStart?.(); } Hp.selectionChanged?.(); }
+        if (name === 'tick') {
+          if (!hs.sel) { hs.sel = true; Hp.selectionStart?.(); }
+          Hp.selectionChanged?.();
+          clearTimeout(hs.end); hs.end = setTimeout(() => { hs.sel = false; Hp.selectionEnd?.(); }, 400);
+        }
         else if (name === 'success') Hp.notification?.({ type: 'SUCCESS' });
         else Hp.impact?.({ style: spec[0] });
       } else navigator.vibrate?.(spec[1]);
