@@ -35,7 +35,7 @@
   const CSSRS_KEYS = Object.keys(CSSRS);
   const YES_NO = [['Yes', true], ['No', false]];
   const INSTRUMENTS = { phq9: 'PHQ-9 English, phqscreeners.com manual', cssrs: 'C-SSRS Screener Self-Report Recent 2026' };
-  const ANCHOR = 'Each time you play, you will see five lanterns. Tap the one that matches how you feel right now. The dimmest, coolest lantern is the lowest you feel. The brightest, warmest lantern is the best you feel. There is no right answer, and you can skip by waiting.';
+  const ANCHOR = 'Each time you play, you will see five lanterns. Tap the one that matches how you feel right now. The dimmest, coolest lantern is the lowest you feel. The brightest, warmest lantern is the best you feel. There is no wrong answer, and you can skip by waiting.';
   const FOOTER = 'Afferent is not an emergency service and is not watched around the clock.';
   const BANDS = [[20, 'severe'], [15, 'moderately_severe'], [10, 'moderate'], [5, 'mild'], [0, 'minimal']];
 

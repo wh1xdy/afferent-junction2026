@@ -47,7 +47,7 @@ Product rules this file follows: daily use stays effortless and kind. Each quest
 
 **Anchor (the only words, on its own onboarding screen, never together with the lanterns).** It is shown once at onboarding and can be reopened from Settings > How it works. `anchor_version = 1`.
 
-> Each time you play, you will see five lanterns. Tap the one that matches how you feel right now. The dimmest, coolest lantern is the lowest you feel. The brightest, warmest lantern is the best you feel. There is no right answer, and you can skip by waiting.
+> Each time you play, you will see five lanterns. Tap the one that matches how you feel right now. The dimmest, coolest lantern is the lowest you feel. The brightest, warmest lantern is the best you feel. There is no wrong answer, and you can skip by waiting.
 >
 > [Got it]
 
