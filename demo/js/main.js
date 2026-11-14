@@ -26,6 +26,7 @@
     signalsOverlay: saved.signalsOverlay ?? false,
     liveVitals: saved.liveVitals ?? true,
     breathFeedback: saved.breathFeedback ?? true,
+    heartTouch: saved.heartTouch ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -160,7 +161,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -177,6 +178,7 @@
     $('sigSw').checked = A.config.signalsOverlay;
     $('vitalsSw').checked = A.config.liveVitals;
     $('breathSw').checked = A.config.breathFeedback;
+    $('beatSw').checked = A.config.heartTouch;
     camGlyph();
   };
   const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
@@ -202,6 +204,7 @@
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
   $('vitalsSw').onchange = e => { A.config.liveVitals = e.target.checked; saveSettings(); };
   $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
+  $('beatSw').onchange = e => { A.config.heartTouch = e.target.checked; saveSettings(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
@@ -451,6 +454,7 @@
     const V = s ? s.V : idle;
     if (!s) {
       V.t = now; V.lanternBright = V.lanternGain; V.lanternRadius = 70 * V.lanternGain;
+      if (A.Heartbeat) { A.Heartbeat.step(now, dt, null); A.Heartbeat.paint(V, 1); A.Shell.kindleBeat(A.Heartbeat.st); }
       for (const tw of idleTweens) tw.obj[tw.key] = A.lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
       idleTweens = idleTweens.filter(tw => now - tw.start < tw.dur);
     }

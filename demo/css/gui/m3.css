@@ -206,8 +206,8 @@
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
   background: var(--af-grain), var(--md-sys-color-surface-container-low); background-size: var(--af-grain-size), auto; color: var(--md-sys-color-on-surface);
   border-radius: 28px 28px 0 0; box-shadow: var(--af-lift-sheet);
-  padding: 0 0 max(20px, env(safe-area-inset-bottom));
-  max-height: calc(100% - 48px); overflow: auto; overscroll-behavior: contain;
+  padding: 0 0 max(20px, calc(var(--af-bottom) - 4px));
+  max-height: calc(100% - var(--af-ceiling)); overflow: auto; overscroll-behavior: contain;
 }
 .sheet .handle { width: 36px; height: 4px; border-radius: 2px; background: var(--md-sys-color-on-surface-variant); opacity: 0.32; margin: 14px auto 10px; }
 .scrim { position: absolute; inset: 0; z-index: 5; background: linear-gradient(to bottom, color-mix(in srgb, var(--md-sys-color-scrim) 34%, transparent), color-mix(in srgb, var(--md-sys-color-scrim) 62%, transparent)); }

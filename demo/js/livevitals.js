@@ -57,7 +57,8 @@
   const model = (s, now) => {
     if (!s || s.done || !SHOWN.includes(s.phase) || A.config?.liveVitals === false) return null;
     const p = S.pulse(now), f = physio(now), tr = s.transitions?.[s.transitions.length - 1] ?? null;
-    const level = A.Biofeedback?.level;
+    // The calm response (heartbeat.js): shown in calm moments with real readings, where it moves the scene.
+    const bio = A.Biofeedback, level = bio && bio.calm !== false ? bio.level : null;
     return {
       pulse: { ...value(p.bpm, 'bpm'), sim: p.bpm != null && p.source === 'simulated', bpm: p.bpm ?? null },
       hrv: value(f.rmssd, 'ms'),

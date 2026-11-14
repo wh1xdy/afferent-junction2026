@@ -10,6 +10,7 @@ public class AfferentHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "holdStart", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "holdStop", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "success", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "beat", returnType: CAPPluginReturnPromise),
     ]
 
     private var engine: CHHapticEngine?
@@ -103,6 +104,34 @@ public class AfferentHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
             do {
                 try engine.start()
                 let player = try engine.makePlayer(with: CHHapticPattern(events: events, parameterCurves: [bloom]))
+                try player.start(atTime: CHHapticTimeImmediate)
+                call.resolve(["played": true])
+            } catch {
+                call.resolve(["played": false])
+            }
+        }
+    }
+
+    /// One heartbeat you can feel: a soft, round lub and a quieter dub (heartbeat.js, calm moments only).
+    /// Low sharpness keeps both thuds soft; it never interrupts a running hold.
+    @objc func beat(_ call: CAPPluginCall) {
+        let strength = Float(max(0.1, min(1, call.getDouble("strength") ?? 0.6)))
+        let gap = max(0.09, min(0.3, (call.getDouble("gapMs") ?? 160) / 1000))
+        DispatchQueue.main.async {
+            guard self.hold == nil, let engine = self.ready() else { call.resolve(["played": false]); return }
+            let events = [
+                CHHapticEvent(eventType: .hapticTransient, parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.55 * strength),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.12),
+                ], relativeTime: 0),
+                CHHapticEvent(eventType: .hapticTransient, parameters: [
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.32 * strength),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.06),
+                ], relativeTime: gap),
+            ]
+            do {
+                try engine.start()
+                let player = try engine.makePlayer(with: CHHapticPattern(events: events, parameters: []))
                 try player.start(atTime: CHHapticTimeImmediate)
                 call.resolve(["played": true])
             } catch {

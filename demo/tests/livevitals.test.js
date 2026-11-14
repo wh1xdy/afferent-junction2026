@@ -122,6 +122,8 @@ const tests = {
     A.MusicBio = { following: true, bpm: 72.4, target: 64 };
     A.Sensors.room = () => ({ celsius: 21.46, humidity: 40.2, source: 'modulino', at: 0 });
     assert.deepStrictEqual([t.m().calm, t.m().music, t.m().room], [0.4, 'Music: following your heart 72 → 64 bpm', 'Room 21.5 °C · 40 %']);
+    A.Biofeedback = { level: 0.4, beat: true, calm: false };
+    assert.strictEqual(t.m().calm, null, 'not a calm moment: the calm response is not moving the scene, so no row');
     A.Biofeedback = { level: null, beat: false };
     A.MusicBio = { following: false, bpm: 72, target: 64 };
     A.Sensors.room = () => null;
@@ -142,7 +144,11 @@ const tests = {
     assert.strictEqual(part('.lv-why').textContent, 'Pulse up, HRV down, breathing fast → calmer breathing game');
     assert.deepStrictEqual([p.chip.has('on'), p.chip.textContent, L.chipOn], [true, part('.lv-why').textContent, true]);
     assert.deepStrictEqual([part('.lv-heart').has('on'), part('.lv-heart').style.animationDuration], [true, '0.67s'], 'beats at 90 a minute');
-    assert.deepStrictEqual([part('.lv-calm').has('on'), part('.lv-music').has('on'), part('.lv-room').has('on'), part('.lv-sim').has('on')], [false, false, false, false]);
+    // calm mode with real clip readings: the live calm response of heartbeat.js shows, low while HRV is down and breathing fast
+    const bio = plain(A.Biofeedback);
+    assert.deepStrictEqual([bio.calm, typeof bio.level], [true, 'number'], JSON.stringify(bio));
+    assert.deepStrictEqual([part('.lv-calm').has('on'), part('.lv-fill').style.transform], [true, `scaleX(${bio.level.toFixed(2)})`]);
+    assert.deepStrictEqual([part('.lv-music').has('on'), part('.lv-room').has('on'), part('.lv-sim').has('on')], [false, false, false]);
     A.config.liveVitals = false;
     L.render(s, A.now());
     assert.deepStrictEqual([p.box.has('on'), p.chip.has('on')], [false, false]);

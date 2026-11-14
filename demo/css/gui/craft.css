@@ -3,6 +3,12 @@
   --af-safe-r: env(safe-area-inset-right, 0px);
   --af-safe-b: env(safe-area-inset-bottom, 0px);
   --af-safe-l: env(safe-area-inset-left, 0px);
+  /* The Dynamic Island ends about 11 pt above the top inset, also when a Live Activity widens it, and the
+     home indicator sits inside the bottom inset. Controls and text start at --af-top (19 pt or more under
+     the island), a sheet rising from below stops at --af-ceiling, and controls end at --af-bottom. */
+  --af-top: calc(var(--af-safe-t) + 8px);
+  --af-ceiling: max(48px, calc(var(--af-safe-t) + 16px));
+  --af-bottom: calc(var(--af-safe-b) + 16px);
   --af-gutter: 16px;
 
   --af-ease-glide: cubic-bezier(0.22, 1, 0.36, 1);
