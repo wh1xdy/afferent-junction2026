@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Afferent session demo</title>
+  <title>Afferent adaptive demo</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -12,13 +12,17 @@
     <section id="phone">
       <canvas id="game"></canvas>
 
+      <button id="closeBtn" class="icon close hidden" aria-label="End session">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+
       <div id="start" class="overlay">
         <div class="bar">
           <button id="soundBtn" class="icon" aria-label="Sound">
             <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a4.5 4.5 0 0 1 0 7"/></svg>
           </button>
           <span class="spacer"></span>
-          <button class="icon" data-open="info" aria-label="Controls">
+          <button class="icon" data-open="info" aria-label="How it works">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
           </button>
           <button class="icon" data-open="crisis" aria-label="Talk to someone">
@@ -30,9 +34,8 @@
           <button id="decline" class="primary">Not tonight</button>
         </div>
         <div class="chips">
-          <button id="profileChip" class="chip"></button>
           <button id="inputChip" class="chip"></button>
-          <button id="stageChip" class="chip"></button>
+          <button id="clockChip" class="chip"></button>
         </div>
       </div>
 
@@ -58,16 +61,10 @@
 
       <div id="info" class="card hidden">
         <dl class="keys">
-          <dt>Space</dt><dd>close eyes (tap = blink, hold 0.4 to 1.5 s = long blink)</dd>
-          <dt>W</dt><dd>eyes wide</dd>
-          <dt>Arrow up</dt><dd>lift your gaze</dd>
-          <dt>A / D, arrows</dt><dd>turn head, step lantern or path</dd>
-          <dt>Enter</dt><dd>confirm</dd>
-          <dt>H</dt><dd>raise pulse (simulated)</dd>
-          <dt>T</dt><dd>lose the face</dd>
-          <dt>S</dt><dd>skip station</dd>
-          <dt>Esc</dt><dd>exit</dd>
-          <dt>Touch</dt><dd>tap = blink, hold = gaze up or eyes wide, two-finger hold = skip, swipe down = exit</dd>
+          <dt>Start</dt><dd>tap when the lantern flares (5 times)</dd>
+          <dt>Tasks</dt><dd>tap, drag or swipe inside the panel, like Among Us tasks</dd>
+          <dt>Breathing</dt><dd>hold while the circle grows, let go while it shrinks (Space works too)</dd>
+          <dt>Adaptive</dt><dd>high pulse brings calm tasks, low pulse brings lively ones, closing eyes brings wake-up tasks</dd>
         </dl>
         <button class="primary quiet" data-close="info">Close</button>
       </div>
@@ -83,8 +80,25 @@
           <label class="small">dawn level <input id="knob" type="range" min="0" max="25" value="15"> <span id="knobVal">15%</span></label>
         </div>
       </div>
-      <h2>Signals <span class="tag">clinic side</span></h2>
-      <pre id="signals"></pre>
+
+      <h2>Simulate vitals</h2>
+      <label class="row">pulse <input id="pulseSlider" type="range" min="-15" max="30" step="1" value="0"> <span id="pulseSliderVal"></span></label>
+      <label class="row">drowsy <input id="drowsySlider" type="range" min="0" max="1" step="0.05" value="0"> <span id="drowsySliderVal"></span></label>
+      <div class="btns">
+        <button id="stressBtn" class="chip">stressed</button>
+        <button id="flatBtn" class="chip">flat</button>
+        <button id="tiredBtn" class="chip">tired</button>
+        <button id="normalBtn" class="chip">normal</button>
+      </div>
+
+      <h2>Director <span id="modePill" class="tag pill">idle</span></h2>
+      <div class="row small">arousal <div class="bar2"><div id="arousalBar"></div></div></div>
+      <div class="row small">fatigue <div class="bar2"><div id="fatigueBar"></div></div></div>
+      <pre id="gameVal">-</pre>
+      <pre id="eyesVal"></pre>
+      <canvas id="timeline"></canvas>
+      <div class="legend small"><span class="sw" style="background:#F2B544"></span>calm <span class="sw" style="background:#B9CAD6"></span>flow <span class="sw" style="background:#7FC8E8"></span>wake <span class="sw" style="background:#FFF3DC"></span>fatigue <span class="sw" style="background:#5E6873"></span>rest</div>
+
       <h2>Events</h2>
       <ol id="events"></ol>
       <h2>Session JSON <button id="download" class="link">download</button></h2>
@@ -96,7 +110,8 @@
   <script src="js/input.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/world.js"></script>
-  <script src="js/session.js"></script>
+  <script src="js/minigames.js"></script>
+  <script src="js/engine.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

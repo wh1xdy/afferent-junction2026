@@ -83,7 +83,7 @@ def generate(key, style, asset, quality):
         except ValueError:
             err = {"message": raw[:300]}
         code, etype, msg = err.get("code") or "", err.get("type") or "", redact(err.get("message") or "")
-        billing = any(w in f"{code} {etype} {msg}".lower() for w in ("quota", "billing", "credit", "payment"))
+        billing = e.code in (401, 403) or any(w in f"{code} {etype} {msg}".lower() for w in ("quota", "billing", "credit", "payment", "api_key"))
         if billing:
             raise BillingError(f"HTTP {e.code} {code or etype}: {msg}")
         raise RuntimeError(f"HTTP {e.code} {code or etype}: {msg}")
@@ -119,7 +119,7 @@ def main():
         except BillingError as e:
             led["calls"].append({"asset": a["name"], "ok": False, "error": str(e)})
             save_ledger(led)
-            print(f"BILLING {a['name']}: {e}")
+            print(f"STOP   {a['name']}: {e}")
             print("stopped, no retry")
             sys.exit(2)
         except Exception as e:

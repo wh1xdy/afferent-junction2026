@@ -122,3 +122,18 @@ pre { margin: 0; white-space: pre-wrap; font: 11px/1.5 ui-monospace, SFMono-Regu
   #phone { height: 100vh; height: 100dvh; width: 100vw; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
   #panel { display: none; }
 }
+
+.close { position: absolute; top: 18px; left: 16px; z-index: 2; }
+
+.row { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--dim); }
+.row input[type=range] { flex: 1; }
+.row span { min-width: 56px; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pill { text-transform: none; letter-spacing: 0.02em; font-size: 11px; }
+.bar2 { flex: 1; height: 6px; border-radius: 3px; background: #1a1d24; overflow: hidden; }
+.bar2 > div { height: 100%; background: var(--warm); width: 0; transition: width 0.2s; }
+#fatigueBar { background: #9fb7ff; }
+#gameVal, #eyesVal { margin-top: 6px; color: var(--dim); }
+#timeline { width: 100%; height: 90px; margin-top: 8px; background: #090a0d; border-radius: 10px; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-top: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right: -4px; }

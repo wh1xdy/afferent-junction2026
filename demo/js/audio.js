@@ -51,6 +51,7 @@
     },
 
     tone(freq, dur, vel, type = 'sine', when = 0) {
+      if (!Number.isFinite(freq) || !this.ctx) return;
       const ctx = this.ctx, t = ctx.currentTime + when;
       const o = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain();
       o.type = type; o.frequency.value = freq;
