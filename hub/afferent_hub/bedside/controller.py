@@ -26,13 +26,11 @@ DEFAULT_TOKENS = {
 
 Send = Callable[[dict], Awaitable[None]]
 
-
 def load_tokens() -> dict:
     try:
         return {**DEFAULT_TOKENS, **json.loads(TOKENS.read_text())["bedside"]}
     except Exception:
         return DEFAULT_TOKENS
-
 
 def schedule_light(schedule: list[dict], hour: float) -> dict:
     for slot in schedule:
@@ -40,7 +38,6 @@ def schedule_light(schedule: list[dict], hour: float) -> dict:
         if (a <= hour < b) if a < b else (hour >= a or hour < b):
             return slot
     return {"rgb": "#000000", "level": 0, "label": "off"}
-
 
 class Bedside:
     def __init__(self, source, to_app: Send, to_devices: Send, clock=None):

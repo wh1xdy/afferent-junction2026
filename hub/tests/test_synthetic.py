@@ -13,22 +13,18 @@ from afferent_hub.synthetic import GAME_RT, demo_roster, generate_patient
 CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
 TODAY = dt.date(2026, 11, 15)
 
-
 @pytest.fixture(scope="module")
 def validators():
     return (Draft202012Validator(json.loads((CONTRACTS / "session.v3.schema.json").read_text())),
             Draft202012Validator(json.loads((CONTRACTS / "daily.v1.schema.json").read_text())))
 
-
 @pytest.fixture(scope="module")
 def roster():
     return demo_roster(7, TODAY)
 
-
 @pytest.fixture(scope="module")
 def relapse():
     return generate_patient("relapse", 56, seed=3, start_date=dt.date(2026, 9, 1))
-
 
 def test_roster_ids_and_days(roster):
     assert [p["patient"]["id"] for p in roster] == ["anna", "mikko", "juha", "leena", "sofia", "eero"]
@@ -38,7 +34,6 @@ def test_roster_ids_and_days(roster):
         assert [r["day_index"] for r in p["daily"]] == list(range(56))
         assert p["daily"][-1]["date"] == "2026-11-14"
 
-
 def test_all_documents_valid(roster, validators):
     sv, dv = validators
     for p in roster:
@@ -47,13 +42,11 @@ def test_all_documents_valid(roster, validators):
         for r in p["daily"]:
             assert not list(dv.iter_errors(r)), (p["patient"]["id"], r["day_index"])
 
-
 def test_everything_flagged_simulated(roster):
     for p in roster:
         assert all(s["simulated"] and s["simulated_fields"] == ["*"] and s["profile"] == "live" for s in p["sessions"])
         assert all(r["simulated"] and r["day_complete"] for r in p["daily"])
         assert p["truth"]["simulated"]
-
 
 def test_session_ids_and_daily_links(roster):
     for p in roster:
@@ -66,18 +59,15 @@ def test_session_ids_and_daily_links(roster):
             assert r["played"] == (s is not None and s["status"] != "declined")
             assert r["declined"] == (s is not None and s["status"] == "declined")
 
-
 def test_deterministic():
     a = generate_patient("stable", 20, seed=11, start_date=dt.date(2026, 1, 1))
     b = generate_patient("stable", 20, seed=11, start_date=dt.date(2026, 1, 1))
     c = generate_patient("stable", 20, seed=12, start_date=dt.date(2026, 1, 1))
     assert json.dumps(a) == json.dumps(b) and json.dumps(a) != json.dumps(c)
 
-
 def test_default_start_date_ends_yesterday():
     p = generate_patient("stable", 5, seed=1)
     assert p["daily"][-1]["date"] == (dt.date.today() - dt.timedelta(days=1)).isoformat()
-
 
 def test_derived_numbers_consistent(relapse):
     for s in relapse["sessions"]:
@@ -103,14 +93,12 @@ def test_derived_numbers_consistent(relapse):
         assert {t["slot"] for t in s["tasks"] if t["id"] == "fork"} <= {1}
         assert {t["slot"] for t in s["tasks"] if t["id"] == "lanterns"} <= {3}
 
-
 def test_relapse_ramp_and_truth(relapse):
     sev = relapse["truth"]["severity"]
     assert sev[27] == 0 and sev[28] == 0 and sev[49] == 1 and 0 < sev[38] < 1
     assert relapse["truth"]["best_arm"]["calm"] == "breath"
     rates = relapse["truth"]["arm_rates"]
     assert rates["calm/breath"] - rates["calm/loyly"] >= 0.2 - 1e-9
-
 
 def test_relapse_moves_the_signals():
     early, late = {"rt": [], "mood": [], "miss": [], "pulse": []}, {"rt": [], "mood": [], "miss": [], "pulse": []}
@@ -137,7 +125,6 @@ def test_relapse_moves_the_signals():
     assert np.mean(late["miss"]) > np.mean(early["miss"]) + 0.1
     assert np.mean(late["pulse"]) > np.mean(early["pulse"]) + 3
 
-
 def test_realistic_missingness(roster):
     daily = [r for p in roster for r in p["daily"]]
     missed = np.mean([r["missed"] for p in roster if p["patient"]["kind"] == "stable" for r in p["daily"]])
@@ -147,7 +134,6 @@ def test_realistic_missingness(roster):
     assert any(r["sleep"]["presence_hourly"] is None for r in daily)
     assert any(s["status"] == "declined" for p in roster for s in p["sessions"])
 
-
 def test_weekend_sleep_later(roster):
     wk, we = [], []
     for p in roster:
@@ -155,7 +141,6 @@ def test_weekend_sleep_later(roster):
             if r["sleep"]["wake_time_h"] is not None and p["patient"]["kind"] == "stable":
                 (we if r["weekday"] >= 5 else wk).append(r["sleep"]["wake_time_h"])
     assert np.mean(we) > np.mean(wk) + 0.5
-
 
 def test_physiological_ranges(roster):
     for p in roster:
@@ -168,7 +153,6 @@ def test_physiological_ranges(roster):
             if s["status"] != "declined" and s["core"]["rest"]["pulse_bpm"] is not None:
                 assert 40 < s["core"]["rest"]["pulse_bpm"] < 130
 
-
 def test_night_patient_skips_measurements_in_rest_mode(roster):
     leena = next(p for p in roster if p["patient"]["id"] == "leena")
     clocks = [s["clock"] for s in leena["sessions"] if s["status"] != "declined"]
@@ -176,14 +160,12 @@ def test_night_patient_skips_measurements_in_rest_mode(roster):
     skipped = [t for s in leena["sessions"] for t in s.get("tasks") or [] if t.get("skip_reason") == "rest_mode"]
     assert skipped and all(t["id"] in ("fork", "lanterns") for t in skipped)
 
-
 def test_bandit_closed_loop_prefers_breath():
     p = generate_patient("stable", 56, seed=5, start_date=dt.date(2026, 9, 1))
     calm = [(s["day_index"], t["id"]) for s in p["sessions"] if s["status"] != "declined"
             for t in s["tasks"] if t["kind"] == "adaptive" and t["mode"] == "calm"]
     late = [tid for d, tid in calm if d >= 28]
     assert late.count("breath") / len(late) > 0.6
-
 
 def test_game_rt_extra(roster):
     tasks = [t for p in roster for s in p["sessions"] for t in s.get("tasks") or []]
@@ -200,7 +182,6 @@ def test_game_rt_extra(roster):
         if rt and rt["median_ms"] is not None:
             assert 150 <= rt["median_ms"] <= 2500 and rt["n"] >= 1
             assert sum(k["n"] for k in rt["by_kind"].values()) == rt["n"]
-
 
 def test_game_rt_slows_mildly_in_relapse(roster):
     anna = next(p for p in roster if p["patient"]["id"] == "anna")

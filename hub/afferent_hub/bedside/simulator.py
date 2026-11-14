@@ -10,10 +10,8 @@ from .source import OnEvent
 FW = "afferent-sim-0.1"
 log = logging.getLogger("afferent.bedside")
 
-
 def _in_bed_hours(hour: float) -> bool:
     return hour >= 22.5 or hour < 7.5
-
 
 class BedsideSimulator:
     name = "simulator"

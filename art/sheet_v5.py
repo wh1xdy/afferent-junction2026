@@ -1,7 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = ["pillow"]
-# ///
 import argparse
 import pathlib
 
@@ -10,12 +6,10 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BACKS = ("#0E1A2E", "#9DB9CC")
 
-
 def clamp(im):
     a = im.getchannel("A").point(lambda v: 255 if v >= 248 else v)
     im.putalpha(a)
     return im
-
 
 def sheet(name, raw, dest, current, cell=640):
     paths = sorted(raw.glob(f"{name}_v*.png"))
@@ -41,7 +35,6 @@ def sheet(name, raw, dest, current, cell=640):
     dest.parent.mkdir(parents=True, exist_ok=True)
     out.save(dest)
     print(dest)
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

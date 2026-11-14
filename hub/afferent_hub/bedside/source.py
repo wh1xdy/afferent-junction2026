@@ -2,7 +2,6 @@ from typing import Awaitable, Callable
 
 OnEvent = Callable[[dict], Awaitable[None]]
 
-
 class NullSource:
     def __init__(self, name: str = "off"):
         self.name = name

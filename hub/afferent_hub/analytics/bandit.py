@@ -24,7 +24,6 @@ BEST_TARGET = 0.8
 NEXT_DAY_MIN_N = 5
 NEXT_DAY_TASKS = 4
 
-
 def task_instances(sessions: list[dict]):
     for s in sorted(sessions, key=lambda s: (s.get("day_index") or 0, s.get("started_iso") or "")):
         if s.get("status") not in PLAYED:
@@ -32,7 +31,6 @@ def task_instances(sessions: list[dict]):
         for t in s.get("tasks") or []:
             if t.get("kind") == "adaptive" and t.get("id") in MODE_ARMS.get(t.get("mode"), []):
                 yield s, t
-
 
 def counts(sessions: list[dict]) -> dict[tuple[str, str], list[int]]:
     c = {(m, a): [0, 0] for m, arms in MODE_ARMS.items() for a in arms}
@@ -42,18 +40,15 @@ def counts(sessions: list[dict]) -> dict[tuple[str, str], list[int]]:
         c[(t["mode"], t["id"])][0 if t["helped"] else 1] += 1
     return c
 
-
 def posterior_draws(alpha: list[float], beta: list[float], draws: int = DRAWS, seed: int = SEED) -> np.ndarray:
     rng = np.random.default_rng(seed)
     return np.stack([rng.beta(a, b, draws) for a, b in zip(alpha, beta)])
-
 
 def p_best_from_counts(alpha: list[float], beta: list[float], draws: int = DRAWS, seed: int = SEED):
     x = posterior_draws(alpha, beta, draws, seed)
     best = np.argmax(x, axis=0)
     p = np.bincount(best, minlength=len(alpha)) / draws
     return p, x
-
 
 def arms(sessions: list[dict]) -> list[dict]:
     c = counts(sessions)
@@ -70,7 +65,6 @@ def arms(sessions: list[dict]) -> list[dict]:
                         "ci90": [stats.rnd(lo), stats.rnd(hi)], "p_best": stats.rnd(p[i])})
     return out
 
-
 def weights_from_arms(arm_list: list[dict]) -> dict[str, dict[str, float]]:
     w: dict[str, dict[str, float]] = {}
     for mode in MODES:
@@ -82,10 +76,8 @@ def weights_from_arms(arm_list: list[dict]) -> dict[str, dict[str, float]]:
         w[mode] = {k: stats.rnd(v / total) for k, v in raw.items()}
     return w
 
-
 def task_weights(sessions: list[dict]) -> dict[str, dict[str, float]]:
     return weights_from_arms(arms(sessions))
-
 
 def by_mode(arm_list: list[dict]) -> dict:
     out = {}
@@ -95,7 +87,6 @@ def by_mode(arm_list: list[dict]) -> dict:
         out[mode] = {"best": best["task_id"], "label": best["label"], "p_best": best["p_best"],
                      "n": sum(a["n"] for a in ms)}
     return out
-
 
 def headline(arm_list: list[dict]) -> dict:
     multi = [a for a in arm_list if len(MODE_ARMS[a["mode"]]) > 1 and a["n"] > 0]
@@ -107,7 +98,6 @@ def headline(arm_list: list[dict]) -> dict:
             f"{best['mode']} runs (P(best) {best['p_best']:.2f}).")
     return {"mode": best["mode"], "task_id": best["task_id"], "label": best["label"], "p_best": best["p_best"],
             "text": text}
-
 
 def immediate(sessions: list[dict]) -> list[dict]:
     rows: dict[tuple[str, str], dict[str, list]] = {}
@@ -134,7 +124,6 @@ def immediate(sessions: list[dict]) -> list[dict]:
                         "head_pitch_delta_median": stats.rnd(stats.median(r["pitch"]), 2),
                         "eye_openness_median": stats.rnd(stats.median(r["eyes"]), 3)})
     return out
-
 
 def next_day(main_sessions: list, daily: dict, composite: list, now_day: int) -> list[dict]:
     n = now_day + 1
@@ -175,7 +164,6 @@ def next_day(main_sessions: list, daily: dict, composite: list, now_day: int) ->
         light[d] = None if m is None else m > 0
     row = compare("stimulus", "dawn_light", "Bedside dawn light", light)
     return tasks + ([row] if row else [])
-
 
 def build(sessions: list[dict], main_sessions: list, daily: dict, composite: list, now_day: int) -> dict:
     arm_list = arms(sessions)

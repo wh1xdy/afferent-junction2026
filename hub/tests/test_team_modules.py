@@ -18,7 +18,6 @@ from afferent_hub.team_adapters import loader, resync
 
 TEAM = loader.TEAM
 
-
 def checkin(items, **over):
     doc = {"schema": "afferent.checkin/1", "checkin_id": str(uuid.uuid4()), "patient_id": "anna",
            "started_iso": "2026-11-10T12:00:00+02:00", "completed_iso": "2026-11-10T12:02:00+02:00",
@@ -26,10 +25,8 @@ def checkin(items, **over):
            "safety": {"tier": "none", "item9": items[8], "source": "item9_fallback", "shared": True}}
     return doc | over
 
-
 def make(tmp_path, **over):
     return TestClient(create_app(Settings(db=str(tmp_path / "t.db"), bedside="ws", validation=False, **over)))
-
 
 def test_vendored_files_match_manifest():
     rows = resync.entries()
@@ -40,20 +37,17 @@ def test_vendored_files_match_manifest():
         assert resync.blob_id((TEAM / r["path"]).read_bytes()) == r["blob"], r["path"]
         assert r["branch"].startswith("junction/") and r["commit"] and r["source"]
 
-
 @pytest.mark.parametrize("module", ["alex_hub", "data_manager"])
 def test_their_tests_pass_on_copied_code(module):
     r = subprocess.run([sys.executable, "-m", "unittest", "discover", "tests"], cwd=TEAM / module,
                        capture_output=True, text=True, timeout=120)
     assert r.returncode == 0, r.stderr[-2000:]
 
-
 def test_loader_leaves_no_bare_store_module():
     before = sys.modules.get("store")
     mods = loader.alex()
     assert sys.modules.get("store") is before
     assert mods["report"].METRICS is mods["store"].METRICS
-
 
 def test_phq9_mapping():
     full = checkin([1, 2, 0, 1, 1, 0, 2, 1, 1])
@@ -64,7 +58,6 @@ def test_phq9_mapping():
     s = team_alex.team_summary([full, partial], 14, now)
     assert [(q["score"], q["item9"], q["severity"]) for q in s["phq9"]] == [(9, 1, "mild")]
     assert s["phq9_item9_flag"] and all(d["finger_bpm"] is None for d in s["daily"])
-
 
 def test_fhir_endpoint_phq9_only(tmp_path):
     with make(tmp_path) as c:
@@ -84,7 +77,6 @@ def test_fhir_endpoint_phq9_only(tmp_path):
         r = c.get("/api/patients/anna/fhir")
         assert r.status_code == 404 and r.json()["error"] == "module_disabled"
 
-
 def test_report_off_by_default_and_on(tmp_path, monkeypatch):
     monkeypatch.setenv("AFFERENT_SUMMARY", "template")
     with make(tmp_path) as c:
@@ -97,7 +89,6 @@ def test_report_off_by_default_and_on(tmp_path, monkeypatch):
         assert "9/27" in r.text and "Anna" in r.text
         text = c.get("/api/patients/anna/summary").json()["text"]
         assert text and text[:40] in c.get("/api/patients/anna/report?narrative=1").text
-
 
 def test_ask_off_by_default_and_grounded(tmp_path, monkeypatch):
     with make(tmp_path) as c:
@@ -112,18 +103,15 @@ def test_ask_off_by_default_and_grounded(tmp_path, monkeypatch):
         assert r["mode"] == "llm" and r["grounded"] and r["sources"][-1] == "Q1"
         assert r["safety"].startswith("Safety: PHQ-9 item 9")
 
-
 def test_ask_unreachable_llm(tmp_path):
     with make(tmp_path, team_ask_url="http://127.0.0.1:9/v1/chat/completions") as c:
         r = c.post("/api/patients/anna/ask", json={"question": "What was the PHQ-9 score?"})
         assert r.status_code == 502 and r.json()["error"] == "llm_unreachable"
 
-
 def test_guard_check():
     assert team_alex.guard_check("Pulse rose from 70 to 64 BPM this week. That is all.").startswith("direction")
     assert team_alex.guard_check("A significant week. Nothing else.") == "judgement words: significant"
     assert team_alex.guard_check("Pulse went from 70 to 64 BPM. Anna played 5 mornings.") is None
-
 
 def test_guard_hook_wiring(tmp_path, monkeypatch):
     with make(tmp_path) as c:
@@ -142,7 +130,6 @@ def test_guard_hook_wiring(tmp_path, monkeypatch):
     monkeypatch.delenv("AFFERENT_SUMMARY", raising=False)
     assert summary._gemma({}) == (None, "gemma3", "rejected: team says no")
 
-
 def test_our_template_passes_team_guard(tmp_path, monkeypatch):
     monkeypatch.setenv("AFFERENT_SUMMARY", "template")
     with make(tmp_path) as c:
@@ -151,12 +138,10 @@ def test_our_template_passes_team_guard(tmp_path, monkeypatch):
             assert s["source"] == "template"
             assert team_alex.guard_check(s["text"]) is None, s["text"]
 
-
 def _free_port():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 @pytest.fixture()
 def data_manager(tmp_path):
@@ -185,12 +170,10 @@ def data_manager(tmp_path):
     proc.terminate()
     proc.wait(10)
 
-
 def test_sensors_off_by_default(tmp_path):
     with make(tmp_path) as c:
         assert c.get("/api/sensors/latest").json()["error"] == "module_disabled"
         assert c.get("/api/patients/anna/sensors/room").json()["error"] == "module_disabled"
-
 
 def test_sensors_via_data_manager(tmp_path, data_manager):
     with make(tmp_path, data_manager_url=data_manager, team_fhir_vitals=True) as c:

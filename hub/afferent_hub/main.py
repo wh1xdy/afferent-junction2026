@@ -19,7 +19,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 
 CLINIC = HUB / "afferent_hub" / "web" / "clinic"
 
-
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
 
@@ -61,6 +60,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.mount("/contracts", StaticFiles(directory=ROOT / "contracts"), name="contracts")
     app.mount("/clinic", StaticFiles(directory=CLINIC, html=True), name="clinic")
     return app
-
 
 app = create_app()

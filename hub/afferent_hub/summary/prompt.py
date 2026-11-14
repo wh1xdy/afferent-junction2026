@@ -24,11 +24,9 @@ GLOSSARY = """Field meanings:
 - best_calm_task, best_calm_helped of best_calm_n, best_calm_p_best: the calm task most often followed by a settling pulse.
 - sleep_regularity_*, time_in_bed_h_*, steps_*, home_only_days_*: everyday signals this week versus baseline."""
 
-
 def lead(numbers: dict) -> str:
     name = numbers["display_name"] + (" (simulated)" if numbers.get("simulated") else "")
     return f"{name}, week {numbers['week_since_tms']} after TMS."
-
 
 def build(numbers: dict) -> tuple[str, str]:
     data = json.loads(json.dumps({k: v for k, v in numbers.items() if v is not None and k != "state"}))

@@ -14,7 +14,6 @@ TOP = {"v", "sim", "generated_iso", "period", "mornings", "state", "composite", 
        "baseline", "phq", "safety", "talk", "complete", "pauses", "sensors"}
 SAFETY_FIELDS = {"day", "minute", "tier", "source", "screen", "c6_repeat"}
 
-
 def keys(obj, top=True):
     if isinstance(obj, dict):
         for k, v in obj.items():
@@ -24,7 +23,6 @@ def keys(obj, top=True):
         for v in obj:
             yield from keys(v, False)
 
-
 def assert_clean(body):
     for k, top in keys(body):
         assert k not in FORBIDDEN, k
@@ -32,16 +30,13 @@ def assert_clean(body):
     for e in body["safety"]:
         assert set(e) == SAFETY_FIELDS
 
-
 def iso_on(patient, day, hh=12, mm=0):
     d = dt.date.fromisoformat(patient["tms_end_date"]) + dt.timedelta(days=day)
     return f"{d.isoformat()}T{hh:02d}:{mm:02d}:00+02:00"
 
-
 def band(total):
     return next(b for cut, b in ((5, "minimal"), (10, "mild"), (15, "moderate"), (20, "moderately_severe"), (28, "severe"))
                 if total < cut)
-
 
 def checkin(patient, day, total, tier="none", source="item9_fallback", screen="thank_you", status="completed",
             item9=0, c6=False, mm=0):
@@ -59,7 +54,6 @@ def checkin(patient, day, total, tier="none", source="item9_fallback", screen="t
     else:
         doc["stopped_iso"] = iso_on(patient, day, 12, mm + 2)
     return doc
-
 
 def test_roster_bodies_have_the_shape(client):
     ids = [p["id"] for p in client.get("/api/patients").json()["patients"]]
@@ -84,7 +78,6 @@ def test_roster_bodies_have_the_shape(client):
         assert_clean(b)
     assert client.get("/api/patients/nobody/qr-body").status_code == 404
 
-
 def test_old_high_answer_and_todays_talk_request_travel(client):
     hub = client.app.state.hub
     p = hub.patient("anna")
@@ -100,7 +93,6 @@ def test_old_high_answer_and_todays_talk_request_travel(client):
     assert_clean(b)
     text = json.dumps(b)
     assert '"yes"' not in text and "c1" not in text
-
 
 def test_caps_and_omitted(client):
     hub = client.app.state.hub
@@ -122,7 +114,6 @@ def test_caps_and_omitted(client):
     assert b["omitted"] == {"safety_entries": 4, "talk_requests": 3, "phq_totals": 3}
     assert_clean(b)
 
-
 def test_phq_state_rules():
     assert qr.phq_state(None, [12]) is None
     assert qr.phq_state(6, []) is None
@@ -134,7 +125,6 @@ def test_phq_state_rules():
     assert qr.phq_state(4, [11, 12]) == "booster"
     assert qr.phq_state(18, [20]) == "booster"
 
-
 def test_phq_raises_the_shown_state(client):
     hub = client.app.state.hub
     p = hub.patient("mikko")
@@ -144,7 +134,6 @@ def test_phq_raises_the_shown_state(client):
     b = client.get("/api/patients/mikko/qr-body").json()
     assert b["state"]["phq_state"] == "booster" and b["state"]["shown"] == "booster"
     assert b["state"]["since_day"] == nd
-
 
 def test_fixture_matches_the_live_shape(client):
     fx = json.loads(FIXTURE.read_text())

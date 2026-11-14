@@ -7,7 +7,6 @@ from fastapi import WebSocket
 
 log = logging.getLogger("afferent.ws")
 
-
 @dataclass(eq=False)
 class Client:
     ws: WebSocket
@@ -15,7 +14,6 @@ class Client:
     patient_id: str | None = None
     session_id: str | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-
 
 class Rooms:
     def __init__(self):

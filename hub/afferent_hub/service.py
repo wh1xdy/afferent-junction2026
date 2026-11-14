@@ -25,28 +25,23 @@ CONTRACTS = ROOT / "contracts"
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
 
-
 class HubError(Exception):
     def __init__(self, status: int, code: str, detail: str):
         super().__init__(detail)
         self.status, self.code, self.detail = status, code, detail
 
-
 def _validator(name):
     schema = json.loads((CONTRACTS / name).read_text())
     return Draft202012Validator(schema)
-
 
 def schema_errors(validator, doc) -> list[str]:
     errs = sorted(validator.iter_errors(doc), key=lambda e: list(e.absolute_path))
     return [f"{e.json_path}: {e.message}"[:300] for e in errs[:5]]
 
-
 def require_valid(validator, doc):
     errs = schema_errors(validator, doc)
     if errs:
         raise HubError(422, "schema_invalid", "; ".join(errs))
-
 
 def make_source(settings: Settings):
     mode = settings.bedside
@@ -57,7 +52,6 @@ def make_source(settings: Settings):
 
         return UnoQSerial(mode.split(":", 1)[1])
     return NullSource("ws" if mode == "ws" else "off")
-
 
 class Hub:
     def __init__(self, settings: Settings):
