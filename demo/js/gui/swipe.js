@@ -12,7 +12,7 @@
     flick: 0.5,                                 // px per ms: a flick this fast closes from flickMin on
     flickMin: 24,
     window: 100,                                // ms of samples the release speed is read over
-    spring: 300, slide: 240,                    // ms
+    spring: 300, slide: 280,                    // ms; a sheet closed by a button leaves in `slide` too
   };
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -41,6 +41,14 @@
   // A sheet that cannot close gives less the further it is pulled (UIScrollView's rubber band).
   const rubber = (d, size) => (d <= 0 || !size ? 0 : (1 - 1 / (d * 0.55 / size + 1)) * size);
 
+  const EASE = 'cubic-bezier(0.2, 0, 0, 1)';
+  // One style write per frame however many touchmoves arrive (iOS sends them at 120 Hz on ProMotion phones).
+  const frame = f => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(f) : setTimeout(f, 16));
+  const unframe = id => (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame(id) : clearTimeout(id));
+  // Something is moving under a finger or on its way out: the world under it waits (main.js), so the phone spends the
+  // frame on the sheet. hold(ms) covers an animation that runs without a finger (a sheet opening or leaving).
+  let dragging = 0, still = 0;
+  const hold = ms => { still = Math.max(still, now() + ms); };
   const reduced = () => document.documentElement?.dataset?.motion === 'reduced' || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   // Swallow the click a mouse drag ends with (a touch drag does not make one), not the clicks this file sends itself.
@@ -66,7 +74,7 @@
   //           'spring' (spring back and down() at once: the check-in, which changes screen in place)
   //   keep    leave it where it slid to (a page that navigates away)
   const bind = (surface, resolve) => {
-    let g = null;
+    let g = null, raf = 0;
     const shown = d => (g.mode === 'back' || g.c.down ? Math.max(0, d) : rubber(d, g.size));
     const scrimOf = s => (s.mode === 'down' ? s.c.scrim : null);
 
@@ -76,12 +84,13 @@
       if (scrim && g.c.down) scrim.style.opacity = String((g.fade * (1 - 0.8 * clamp(d / g.size, 0, 1))).toFixed(3));
     };
     const reset = s => {
-      s.el.style.translate = ''; s.el.style.transition = '';
+      s.el.style.translate = ''; s.el.style.transition = ''; s.el.style.willChange = '';
       const scrim = scrimOf(s);
-      if (scrim) { scrim.style.opacity = ''; scrim.style.transition = ''; }
+      if (scrim) { scrim.style.opacity = ''; scrim.style.transition = ''; scrim.style.willChange = ''; }
     };
     const spring = s => {
       if (reduced() || !s.d) { reset(s); return; }
+      hold(T.spring + 40);
       const ease = `${T.spring}ms cubic-bezier(0.2, 0.9, 0.3, 1)`, scrim = scrimOf(s);
       s.el.style.transition = `translate ${ease}`;
       s.el.style.translate = '';
@@ -110,19 +119,23 @@
         g.size = (m === 'down' ? box.offsetHeight : box.offsetWidth) || (m === 'down' ? window.innerHeight : window.innerWidth) || 1;
         const scrim = scrimOf(g);
         g.fade = scrim && typeof getComputedStyle === 'function' ? Number(getComputedStyle(scrim).opacity) || 1 : 1;
-        g.el.style.transition = 'none';
-        if (scrim) scrim.style.transition = 'none';
+        // its own compositing layer for the drag, so a move is a translate on the GPU and not a repaint
+        g.el.style.transition = 'none'; g.el.style.willChange = 'transform';
+        if (scrim) { scrim.style.transition = 'none'; scrim.style.willChange = 'opacity'; }
+        dragging++;
       }
       if (e.cancelable !== false) e.preventDefault?.();
       const d = g.mode === 'down' ? g.dy : g.dx, t = now();
       g.samples.push([t, d]);
       while (g.samples.length > 2 && t - g.samples[0][0] > T.window) g.samples.shift();
       g.d = shown(d);
-      paint(g.d);
+      if (!raf) raf = frame(() => { raf = 0; if (g?.mode) paint(g.d); });
     };
     const end = cancelled => {
       const s = g; drop();
+      if (raf) { unframe(raf); raf = 0; }
       if (!s?.mode) return;
+      dragging = Math.max(0, dragging - 1);
       quietUntil = now() + 400;
       const { c, mode, size, samples, el } = s, scrim = scrimOf(s);
       const [t0, d0] = samples[0] || [0, 0], [t1, d1] = samples[samples.length - 1] || [0, 0];
@@ -130,11 +143,12 @@
       const go = mode === 'down' ? c.down : c.back;
       const verdict = cancelled || !go ? 'stay' : release({ d: s.d, v, size, axis: mode === 'down' ? 'y' : 'x' });
       if (verdict === 'stay') { spring(s); return; }
-      if (c.leaves === 'self') { el.style.transition = ''; if (scrim) { scrim.style.transition = ''; scrim.style.opacity = ''; } go(); return; }
+      if (c.leaves === 'self') { el.style.transition = ''; if (scrim) { scrim.style.transition = ''; scrim.style.opacity = ''; } hold(T.slide + 40); go(); return; }
       if (c.leaves === 'spring') { spring(s); go(); return; }
       if (reduced()) { go(); if (!c.keep) reset(s); return; }
       const ms = Math.round(clamp((size - s.d) / Math.max(Math.abs(v), 1.2), 120, T.slide));
-      const ease = `${ms}ms cubic-bezier(0.2, 0, 0, 1)`;
+      const ease = `${ms}ms ${EASE}`;
+      hold(ms + 40);
       el.style.transition = `translate ${ease}`;
       el.style.translate = mode === 'down' ? `0 ${size + 24}px` : `${size}px 0`;
       if (scrim) { scrim.style.transition = `opacity ${ease}`; scrim.style.opacity = '0'; }
@@ -181,7 +195,37 @@
     return back ? { sheet: page, back: () => back.click() } : null;
   });
 
-  A.Swipe = { T, threshold, decide, release, rubber, bind, app };
+  // A sheet closed any other way (its button, the scrim, Escape) leaves like a finished swipe: it slides down while the
+  // scrim fades, then done() hides it. A page with a back arrow slides out to the right, a dialog fades. Reduced motion:
+  // a quick fade. Returns false when there is nothing to animate (or it already slid out under the finger): the caller
+  // hides it at once.
+  const leaving = new Map();
+  const out = (layer, done) => {
+    if (!layer) return false;
+    if (leaving.has(layer)) return true;
+    const screen = layer.classList.contains('screen') || layer.classList.contains('ci');
+    const sheet = screen ? layer : kid(layer, 'sheet'), dialog = !screen && kid(layer, 'dialog'), scrim = !screen && kid(layer, 'scrim');
+    if (!sheet && !dialog) return false;
+    if (sheet && sheet.style.translate) return false;
+    const side = screen && !layer.classList.contains('talk') && !layer.classList.contains('ci');
+    const still = reduced(), ms = still ? 150 : sheet ? T.slide : 200, ease = `${ms}ms ${still ? 'linear' : EASE}`, parts = [];
+    if (still || !sheet) { layer.style.transition = `opacity ${ease}`; layer.style.opacity = '0'; parts.push(layer); }
+    else {
+      sheet.style.transition = `translate ${ease}`; sheet.style.willChange = 'transform';
+      sheet.style.translate = side ? `${sheet.offsetWidth || window.innerWidth || 400}px 0` : `0 ${(sheet.offsetHeight || window.innerHeight || 800) + 24}px`;
+      parts.push(sheet);
+      if (scrim) { scrim.style.transition = `opacity ${ease}`; scrim.style.opacity = '0'; parts.push(scrim); }
+    }
+    const clear = () => parts.forEach(n => { n.style.transition = ''; n.style.translate = ''; n.style.opacity = ''; n.style.willChange = ''; });
+    hold(ms + 40);
+    leaving.set(layer, { timer: setTimeout(() => { leaving.delete(layer); done(); clear(); }, ms), clear });
+    return true;
+  };
+  // Opened again while it was leaving: it stays.
+  const stay = layer => { const l = leaving.get(layer); if (!l) return; clearTimeout(l.timer); leaving.delete(layer); l.clear(); };
+
+  A.Swipe = { T, threshold, decide, release, rubber, bind, app, out, stay, hold, leaving: layer => leaving.has(layer),
+    get dragging() { return dragging > 0; }, get moving() { return dragging > 0 || now() < still; } };
   const phone = typeof document !== 'undefined' && document.getElementById('phone');
   if (phone) app(phone);
 })();

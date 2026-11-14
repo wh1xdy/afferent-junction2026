@@ -1,5 +1,5 @@
-#signals .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
-#signals .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+#signals .sheet { z-index: 7; animation: sheetIn var(--af-dur-sheet) var(--af-ease-std); }
+#signals .scrim { animation: fadeIn var(--af-dur-sheet) var(--af-ease-std); }
 
 .signals-body { padding-top: 4px; }
 .sig-group + .sig-group { margin-top: 4px; }
