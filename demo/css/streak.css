@@ -35,7 +35,7 @@
 @keyframes tkIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
 @keyframes tkFade { from { opacity: 0; } to { opacity: 1; } }
 
-.week-lights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 30px); }
+.week-lights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(22px, 30px)); }
 .week-lights .day { --c: var(--af-honey); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .week-lights .light { position: relative; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; }
 .week-lights .d { font: 600 11px/16px var(--af-font-ui); letter-spacing: 0.06em; color: var(--md-sys-color-on-surface-variant); }
