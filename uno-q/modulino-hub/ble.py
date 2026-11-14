@@ -5,7 +5,7 @@ iPhone app (and any app/watch that understands heart-rate straps) can read the f
 pulse live:
   0x2A37 Heart Rate Measurement  notify/read  [flags=0x00 (uint8 BPM, no contact bits), bpm]
   0x2A38 Body Sensor Location    read         0x03 = finger
-The standard service carries finger 1 (A1). Both fingers are on a custom service:
+The standard service carries the fused reading of both sensors. Each sensor is on a custom service:
   AFF0 / AFF1  notify/read  [bpm finger 1, bpm finger 2]  (0 = no reading)
 Runs its own asyncio loop in a thread; if Bluetooth isn't available the hub keeps working.
 """
@@ -62,17 +62,23 @@ class HeartRateBroadcaster:
         return characteristic.value
 
     def update(self, finger: int, bpm: int):
-        """Thread-safe: push a new BPM for finger 0 or 1 (called on every locked beat)."""
-        bpm = max(0, min(255, int(bpm)))
-        self._bpm[finger] = bpm
+        """Fused reading -> standard Heart Rate Measurement (finger arg kept for compatibility)."""
+        self._notify(hrm=max(0, min(255, int(bpm))))
+
+    def update_finger(self, finger: int, bpm: int):
+        """Per-sensor reading -> custom [finger 1, finger 2] characteristic."""
+        self._bpm[finger] = max(0, min(255, int(bpm)))
+        self._notify()
+
+    def _notify(self, hrm=None):
         if self._server is None:
             return
         both = bytearray(self._bpm)
 
         def _push():
             try:
-                if finger == 0:
-                    self._server.get_characteristic(HRM).value = bytearray([0x00, bpm])
+                if hrm is not None:
+                    self._server.get_characteristic(HRM).value = bytearray([0x00, hrm])
                     self._server.update_value(HRS, HRM)
                 self._server.get_characteristic(AFF_BOTH).value = both
                 self._server.update_value(AFF_SVC, AFF_BOTH)
