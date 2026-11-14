@@ -133,6 +133,22 @@ Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first bu
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
 6/min was recovered by both breathing sources.
 
+## Health-data hub (`jetson/hub`) — for the doctor, and the patient
+
+Local SQLite on the Jetson (persistent volume `afferent-data`); nothing leaves the hardware.
+Collects the finger readings from the UNO Q over Wendy Net (pulse, HRV, breathing — only while a
+finger is detected), takes expression sessions and PHQ-9 check-ins from the app, and serves:
+
+- `GET /report/clinician?days=14` — printable report: PHQ-9 with item 9 flagged at the top, data
+  coverage, daily trends (resting pulse, HRV, breathing) with last-7-vs-previous-7 days, facial
+  behaviour averages, and how every number is computed. No diagnosis.
+- `GET /report/patient?days=7` — the same week in plain words, with support lines if item 9 > 0.
+- `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
+
+From a laptop: `wendy net forward 8090:18090 --device <jetson>` → `http://localhost:8090/report/clinician`.
+Tests: `cd jetson/hub && python3 -m unittest discover tests`. Next: a local LLM answering the
+doctor's questions *from these numbers only* (grounded, with sources).
+
 ## Team access
 
 Both boards are enrolled in our Wendy Cloud org, so any org member can reach them from
