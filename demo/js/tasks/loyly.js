@@ -1,6 +1,6 @@
 (() => {
   const { clamp, lerp, rgb, mixc } = A;
-  const J = A.J, { C, sprite, disc, unit, finger, dots, base, finish, fx, hap, sfx } = J;
+  const J = A.J, { C, sprite, disc, unit, touch, dots, base, finish, fx, hap, sfx } = J;
   const E = J.ease, rm = J.rm, R = Math.random, TAU = Math.PI * 2;
   const ID = 'loyly', SLOW = 2.0, GRACE = 1.05, CARRY = 0.5, TILT = 0.3, HOME = 1.3, STALL = 0.6;
   const ART = { ladle: 'task_loyly_ladle', bucket: 'task_loyly_bucket', kiuas: 'task_loyly_kiuas', fog: 'task_loyly_panel_fog' };
@@ -534,7 +534,7 @@
           for (let i = 0; i <= 20; i++) { const x = lerp(L.x0, L.x1, i / 20), y = this.lineY(x); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
           ctx.stroke(); ctx.restore();
           this.drawLadle(ctx, G, CARRY + (sweep > 0 ? TILT : 0), 0.35 * vis, 1, -9);
-          finger(ctx, G[0] - 4 * U, G[1] - 2 * U, 30 * U, 0.85 * vis);
+          touch(ctx, G[0], G[1], U, 0.85 * vis, 1);
         },
 
         drawSteam(ctx, b, at) {

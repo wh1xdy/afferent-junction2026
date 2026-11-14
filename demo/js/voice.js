@@ -88,6 +88,7 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       const s = this.s = { playing: new Set(), nextT: 0, ready: false };
       this.log = transcript();
+      A.Music?.session();
       try {
         if (!AC || !navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') throw fail('unsupported');
         // Contexts are created before any await so they start inside the tap that opened the conversation.
@@ -169,6 +170,7 @@
       s.playing.forEach(n => { try { n.stop(); } catch {} });
       try { s.inCtx?.close(); s.outCtx?.close(); } catch {}
       this.save();
+      A.Music?.session();
       if (reason) this.set('error', { code: reason, text: detail }); else this.set('idle');
     },
 
