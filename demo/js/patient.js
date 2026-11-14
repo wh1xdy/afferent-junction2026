@@ -58,8 +58,9 @@
       if (!s) return null;
       try {
         const u = new URL(s);
-        if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host;
-        return u.origin;
+        const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
+        if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
+        return u.origin + key;
       } catch { return null; }
     };
     let ls = null;

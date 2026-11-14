@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!constraints.txt
+!start.sh
+!stage/
+**/__pycache__/
+**/.DS_Store

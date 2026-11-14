@@ -55,6 +55,10 @@ def make_source(settings: Settings):
         # UNO Q HTTP API through `wendy net forward 18081:18080 --device 169.254.3.42:50052`
         from .bedside.unoq_http import UnoQHttp
 
+        if mode == "unoq:auto":
+            from .bedside.unoq_auto import UnoQAuto
+
+            return UnoQAuto()
         return UnoQHttp(mode.split(":", 1)[1])
     return NullSource("ws" if mode == "ws" else "off")
 
