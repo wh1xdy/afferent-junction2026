@@ -121,6 +121,10 @@ Streak (`design/engagement.md` section 6), computed by `views.streak()`:
 - Any other past day is missed. With a streak running and a freeze held, the freeze is used automatically (`frozen`). Without a freeze, up to 3 unprotected missed days are silently repaired by the next lit morning: the streak continues, the days stay `missed` (history is not rewritten, `streak_protection: "repair"` in the daily record). A 4th unprotected day ends the streak; `streak` is then `null` until a new streak reaches 2.
 - Sharing (`summary`, `nothing_tonight`, `paused`) is a privacy setting and no longer touches the streak. Withheld days arrive as `declined` daily records.
 
+### GET /api/patients/{id}/qr-body
+
+The body of the "Show to my doctor" code (`design/qr-export.md` section 5), built by `afferent_hub.qr.build`. Shape: `fixtures/qr_body_anna.json` (also `demo/js/qr_body_fallback.json`). The phone caches it and never renders it; `demo/js/qrpayload.js` quantises, signs and encodes it. 8 weeks ending today (`period.from_day = to_day - 55`). `state.shown` is the higher of the CUSUM state and `state.phq_state` (PHQ-9 against the discharge baseline, `design/questions.md` section 6.1; `null` before a follow-up total). `weekly` holds 8 weekly medians per feature and for the composite, `null` for a week without data. `phq.history` is the 8 newest completed totals, oldest first; `phq.baseline` is `phq_baseline.value` from the patient record or else the first completed total. `safety` comes from the stored check-ins of the last 26 weeks with a tier other than `none`, newest first, the 8 newest, levels only (`day`, `minute`, `tier`, `source`, `screen`, `c6_repeat`): never item 9, C-SSRS answers or any `phq9` item. `talk` is the 10 newest `talk_request` flags in the period. `omitted` (`safety_entries`, `talk_requests`, `phq_totals`) appears only when a cap cut something. No names, no ids.
+
 ### GET /api/patients/{id}/summary
 
 Weekly clinician summary. `?refresh=1` regenerates. Shape: `fixtures/summary_example.json`.

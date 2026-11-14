@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from jsonschema import Draft202012Validator
 
-from . import export, modules, views
+from . import export, modules, qr, views
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
@@ -244,6 +244,11 @@ class Hub:
         p = self.patient(pid)
         return views.patient_view(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid),
                                   self.analytics(pid))
+
+    def qr_body(self, pid: str) -> dict:
+        p = self.patient(pid)
+        return qr.build(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid), self.analytics(pid),
+                        self.store.checkins(pid), self.store.flags(pid))
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
         await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics),
