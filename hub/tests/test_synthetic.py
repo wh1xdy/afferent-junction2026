@@ -8,7 +8,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from afferent_hub.analytics.stats import log_b, log_d
-from afferent_hub.synthetic import demo_roster, generate_patient
+from afferent_hub.synthetic import GAME_RT, demo_roster, generate_patient
 
 CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
 TODAY = dt.date(2026, 11, 15)
@@ -183,3 +183,32 @@ def test_bandit_closed_loop_prefers_breath():
             for t in s["tasks"] if t["kind"] == "adaptive" and t["mode"] == "calm"]
     late = [tid for d, tid in calm if d >= 28]
     assert late.count("breath") / len(late) > 0.6
+
+
+def test_game_rt_extra(roster):
+    tasks = [t for p in roster for s in p["sessions"] for t in s.get("tasks") or []]
+    for t in tasks:
+        extra = t.get("extra") or {}
+        if t["kind"] != "adaptive" or not t["completed"]:
+            assert not extra
+            continue
+        assert ("dda" in extra) == (t["mode"] != "rest")
+        if "dda" in extra:
+            assert extra["dda"]["d_start"] <= extra["dda"]["d_mean"] == t["intensity"] <= extra["dda"]["d_max"]
+        assert ("rt" in extra) == (t["id"] not in ("breath", "loyly"))
+        rt = extra.get("rt")
+        if rt and rt["median_ms"] is not None:
+            assert 150 <= rt["median_ms"] <= 2500 and rt["n"] >= 1
+            assert sum(k["n"] for k in rt["by_kind"].values()) == rt["n"]
+
+
+def test_game_rt_slows_mildly_in_relapse(roster):
+    anna = next(p for p in roster if p["patient"]["id"] == "anna")
+    base = {k: v[1] for k, v in GAME_RT.items()}
+
+    def mean_ratio(lo, hi):
+        return np.mean([t["extra"]["rt"]["median_ms"] / base[t["id"]] for s in anna["sessions"]
+                        if s["status"] != "declined" and lo <= s["day_index"] < hi for t in s["tasks"]
+                        if (t.get("extra") or {}).get("rt", {}).get("median_ms")])
+
+    assert 1.03 < mean_ratio(45, 56) / mean_ratio(0, 28) < 1.3
