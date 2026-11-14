@@ -3,6 +3,7 @@
   GET  /presence            HOME / AWAY / UNKNOWN + outings + isolation metrics
   GET  /guests              BLE guest visits + social metrics
   GET  /summary             both, plus probe health
+  GET  /ticks               raw per-scan log (ticks.jsonl) for tools/score.py
   POST /activity            in-home interaction (knob, heart check-in) -> proves "home"
   POST /calibrate[?minutes=N]  learn household BLE devices + background level (patient alone)
   GET  /profile / POST /profile?name=home|demo|classic   tuning bundle, switchable live
@@ -56,7 +57,7 @@ HUB_URL = os.environ.get("HUB_URL", "").rstrip("/")
 PROFILES = {
     "home":    dict(away_min=10, night_away_min=45, rssi=-65, dwell_min=10, end_min=10,
                     window_min=5, phones_only=True, calibrate_min=60),
-    "demo":    dict(away_min=2, night_away_min=2, rssi=-55, dwell_min=2, end_min=2,
+    "demo":    dict(away_min=2, night_away_min=2, rssi=-65, dwell_min=2, end_min=2,
                     window_min=1, phones_only=True, calibrate_min=5),
     "classic": dict(away_min=10, night_away_min=45, rssi=-75, dwell_min=10, end_min=10,
                     window_min=5, phones_only=False, calibrate_min=60),
@@ -261,6 +262,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, s["health"])
         elif p == "/profile":
             self._send(200, {"active": s["profile"], "available": PROFILES})
+        elif p == "/ticks":
+            # Raw scan log for tools/score.py:  curl http://<ip>:8090/ticks > ticks.jsonl
+            try:
+                data = (DATA / "ticks.jsonl").read_bytes()
+            except FileNotFoundError:
+                data = b""
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         else:
             self._send(404, {"error": "not found"})
 

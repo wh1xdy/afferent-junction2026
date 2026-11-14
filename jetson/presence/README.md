@@ -154,7 +154,7 @@ python -m unittest discover -s tests -v                      # 37 scenario tests
 | Profile | Away after | BLE range (RSSI floor) | Guest dwell | Counts | Use |
 |---|---|---|---|---|---|
 | `home` (default) | 10 min (45 at night) | −65 dBm ≈ one room | 10 min | phones only | real flat |
-| `demo` | 2 min | −55 dBm ≈ at the table (1–2 m) | 2 min | phones only | stage / testing |
+| `demo` | 2 min | −65 dBm ≈ same room (~5 m) | 2 min | phones only | stage / testing |
 | `classic` | 10 min | −75 dBm ≈ whole flat+ | 10 min | every BLE device | original v0.1 tuning |
 
 ```sh
@@ -165,7 +165,8 @@ curl -X POST 'http://<device-ip>:8090/calibrate'            # relearn BLE backgr
 Why a tighter BLE range: RSSI falls with distance, so the floor decides how far the
 "home" reaches. −75 dBm picks up neighbours and, in a hall, hundreds of devices
 (measured at Junction: 438 devices in 15 s, 34 above −75). −55 keeps roughly what
-is within arm's reach, so one guest sitting down is a clear +1. RSSI is noisy
+is within arm's reach, so one guest sitting down is a clear +1; the demo profile uses
+−65 (≈ 5 m, the same room), which reaches further but picks up more passers-by in a crowd. RSSI is noisy
 (bodies, walls, pockets): treat these as rough distances and check `nearby_devices`.
 
 Phones-only counting uses the maker data in each BLE advert (Apple Continuity
