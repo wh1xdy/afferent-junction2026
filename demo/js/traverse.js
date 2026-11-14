@@ -1019,8 +1019,14 @@
         J.sprite(ctx, 'soft', st.fold.c, x, y, 40 * U, 0.3 * (1 - p), true);
       }
       if (s.auto) return;
+      // The rest asks for nothing: a slow, quiet glow rests on the lantern, no dot that reads as "press here".
+      if (s.phase === 'rest') {
+        const [fx0, fy0] = A.World.lanternBody?.() || [lx, ly], br = J.rm() ? 0.5 : 0.5 + 0.5 * Math.sin(2 * PI * now / 6);
+        J.sprite(ctx, 'glow', J.C.flame, fx0, fy0, (16 + 4 * br) * U, 0.5 + 0.2 * br, true);
+        J.sprite(ctx, 'soft', J.C.flame, fx0, fy0, (44 + 8 * br) * U, 0.16 + 0.08 * br, true);
+        return;
+      }
       let fa = 0, press = 0;
-      if (s.phase === 'rest' && !A.Input.holding()) { fa = 0.7; press = 1; }
       const waitFrom = dotFrom();
       if (waitFrom != null && now >= waitFrom) { fa = 0.8; press = 0.5 + 0.5 * Math.sin(PI * clamp((now - waitFrom) / 0.9, 0, 1)); }
       if (s.phase === 'rt' && !s.rtArmed) { fa = 0.8; press = 1; }

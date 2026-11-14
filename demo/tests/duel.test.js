@@ -286,6 +286,49 @@ const tests = {
     const duelJs = read(JS, 'duel.js');
     assert.ok(duelJs.includes('A party game, not a measurement.') && duelJs.includes('Nothing from the duel is saved or sent'), 'the screen says the duel is not stored');
   },
+  'l: the touch: a soft heart on a live beat at most every 0.9 s, a tick for the last three seconds, success and complete for a winner'() {
+    const env = duel(), { A, S, D, m, tick, frame } = env;
+    connect(S);
+    const felt = [];
+    const feel = (seconds, d) => {
+      for (let i = 0; i < seconds * 20; i++) {
+        if (i % 20 === 0) S.feedFingerBle(d);
+        tick(0.05); frame();
+        for (const [w, ms, k] of m.touch) felt.push({ t: A.now(), w, ms, k });
+      }
+    };
+    feel(4, aff([70, 84]));
+    const hearts = felt.filter(x => x.w === 'heart');
+    assert.ok(hearts.length >= 2, 'two live hearts are felt');
+    hearts.slice(1).forEach((h, i) => assert.ok(h.t - hearts[i].t >= 0.9 - 1e-6, 'at most one heart every 0.9 s'));
+    assert.ok(hearts.every(h => h.k < 1), 'the heart is soft');
+    felt.length = 0;
+    D.start(m);
+    feel(10, aff([70, 84]));
+    assert.strictEqual(m.round.step, 'race');
+    assert.strictEqual(felt.filter(x => x.w === 'tick').length, 3, 'the last three seconds of measuring tick');
+    felt.length = 0;
+    feel(4, aff([68, 84]));
+    feel(6, aff([68, 79]));
+    assert.strictEqual(m.round.step, 'done');
+    assert.deepStrictEqual(felt.filter(x => x.w === 'success' || x.w === 'complete').map(x => [x.w, x.ms]), [['success', 0], ['complete', D.TOUCH.CLOSE_MS]]);
+    for (const w of new Set(felt.map(x => x.w).concat('tick'))) assert.ok(A.Haptics.VOCAB[w], `${w} is a word of the vocabulary`);
+
+    // nobody wins (a tie): the round closes with complete alone
+    const { roundBegin, roundStep, ROUND, touches } = D;
+    let r = roundBegin();
+    for (let t = 0; t < ROUND.SETTLE_MS; t += 50) r = roundStep(r, [70, 80], 50);
+    let before = r;
+    while (r.step === 'race') { before = r; r = roundStep(r, [70, 80], 50); }
+    assert.strictEqual(r.result.outcome, 'tie');
+    assert.deepStrictEqual(plain(touches({ round: r, heartAt: -Infinity }, before, [{ state: 'live' }, { state: 'live' }], [0, 0], 0)), [['complete', 0]]);
+
+    // no reading, no heart
+    const quiet = duel();
+    connect(quiet.S);
+    for (let i = 0; i < 60; i++) { quiet.tick(0.05); quiet.frame(); assert.deepStrictEqual(plain(quiet.m.touch), []); }
+    assert.ok(read(JS, 'duel.js').includes("A.Haptics?.play('touch')"), 'Start is a soft touch');
+  },
 };
 
 (async () => {
