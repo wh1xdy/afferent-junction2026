@@ -1830,7 +1830,8 @@
       "type": "object",
       "properties": {
         "room_temp_c": {
-          "$ref": "#/$defs/num_or_null"
+          "$ref": "#/$defs/num_or_null",
+          "description": "Room temperature at the end of the session from the bedside unit's thermometer, through the home hub (A.Sensors.room). null without a fresh measured reading; a simulated one is never recorded"
         },
         "home": {
           "type": [

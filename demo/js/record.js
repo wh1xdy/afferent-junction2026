@@ -251,7 +251,7 @@
         pulse_mean_bpm: r1(mean(ps)), pulse_min_bpm: ps.length ? r1(Math.min(...ps)) : null, pulse_max_bpm: ps.length ? r1(Math.max(...ps)) : null,
         pulse_source: ps.length ? pulseSrc : null, ...ph, ...(face ? { face } : {}),
       } : null,
-      context: { room_temp_c: null, home: pres.home, visitors_present: pres.visitors_present, bedside_light_level: s.lastLightLevel ?? null },
+      context: { room_temp_c: r1(A.Sensors?.room?.(now)?.celsius ?? null), home: pres.home, visitors_present: pres.visitors_present, bedside_light_level: s.lastLightLevel ?? null },
     };
     return doc;
   };
