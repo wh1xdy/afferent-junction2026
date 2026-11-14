@@ -31,9 +31,12 @@ class SensorSource:
             raise SensorError(f"unknown sensor endpoint {name!r}", 404)
         params = {k: v for k, v in params.items() if k not in ("path", "timeout_s")}
         try:
-            return self.client.get(f"/api/v1/{name}", **params)
+            res = self.client.get(f"/api/v1/{name}", **params)
         except dm_client().DataManagerError as e:
             raise SensorError(str(e), e.status) from None
+        if name == "info" and isinstance(res, dict):
+            res.pop("path", None)
+        return res
 
     def room_daily(self, days: int) -> dict:
         by_day, tz = {}, None

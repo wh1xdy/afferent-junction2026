@@ -197,6 +197,8 @@ def test_sensors_via_data_manager(tmp_path, data_manager):
         latest = c.get("/api/sensors/latest").json()["latest"]
         assert {r["metric"] for r in latest} == {"env.temperature_c", "env.humidity_pct", "vitals.heart_rate_bpm"}
         assert c.get("/api/sensors/bogus").status_code == 404
+        info = c.get("/api/sensors/info").json()
+        assert info["version"] and "path" not in info
         r = c.get("/api/sensors/daily")
         assert r.status_code == 400 and r.json()["error"] == "data_manager_error"
         stats = c.get("/api/sensors/stats", params={"metric": "env.humidity_pct", "from": "-1d"}).json()
