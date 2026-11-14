@@ -107,10 +107,16 @@ class WhatIsSent(unittest.TestCase):
             p.tick(T0, **{**ONE_PERSON, "bpm": missing, "breaths_per_min": missing})
             self.assertEqual(client.metrics(), [HRV], repr(missing))
 
-    def test_missing_quality_stays_missing(self):
+    def test_a_pulse_without_usable_quality_is_not_sent(self):
+        # seen on the device: 110, 105, 48 BPM stored with quality 0.28, 0.21, 0.23
+        for q in (None, 0.0, 0.29, "0.8", float("nan")):
+            p, client, _ = push()
+            p.tick(T0, **{**ONE_PERSON, "quality": q})
+            self.assertEqual(client.of(PULSE), [], repr(q))
+            self.assertEqual(client.metrics(), sorted([HRV, BREATH]), repr(q))
         p, client, _ = push()
-        p.tick(T0, **{**ONE_PERSON, "quality": None})
-        self.assertIsNone(client.of(PULSE)[0]["quality"])
+        p.tick(T0, **{**ONE_PERSON, "quality": 0.3})
+        self.assertEqual(client.of(PULSE)[0]["quality"], 0.3)
 
     def test_two_people_send_no_vitals(self):
         p, client, _ = push()
@@ -368,7 +374,7 @@ class AppWiring(unittest.TestCase):
         p.start()
         self._patches.append(p)
 
-    def _wearing(self, bpm=71, rmssd=46.2, breaths=12, since=60):
+    def _wearing(self, bpm=71, rmssd=46.2, breaths=12, since=60, quality=0.62):
         """one person has worn both clips for a while; the three updates give these numbers"""
         now = time.time()
         app.presence.update(auto=True, mode="active", since=now - since)
@@ -376,7 +382,7 @@ class AppWiring(unittest.TestCase):
         app.last_ppg = now                                    # samples are arriving
 
         def fuse():
-            app.fused.update(bpm=bpm, sources=[0, 1] if bpm else [])
+            app.fused.update(bpm=bpm, sources=[0, 1] if bpm else [], quality=quality)
             return bpm
 
         def update_hrv():
@@ -444,7 +450,7 @@ class AppWiring(unittest.TestCase):
             return 12
 
         def fuse():
-            app.fused.update(bpm=71, sources=[0])
+            app.fused.update(bpm=71, sources=[0], quality=0.62)
             return 71
 
         self._patch("update_hrv", update_hrv)

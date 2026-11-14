@@ -65,7 +65,7 @@ def reset():
         app.ppgs[c].clear()
         app.beats[c].clear()
         app.state["fingers"][c] = None
-        app.period_state[c].update(period_ms=None, quality=None)
+        app.period_state[c].update(period_ms=None, quality=None, signal=None)
     app.fused.update(bpm=None, period_ms=None, quality=None, sources=[], two_hearts=False)
     app.reset_two_hearts()
     for c in range(app.CHANNELS):
@@ -210,6 +210,51 @@ class Fusion(unittest.TestCase):
         self._finger(0, 90, 0.1)
         self._finger(1, 72, 0.6)
         self.assertEqual(app.fuse(), 72)
+
+
+class RhythmPeak(unittest.TestCase):
+    """Seen on the board: for the first seconds after the clips go on the signal drifts, the
+    autocorrelation is highest at the shortest lag (317 ms) and that went out as 188 BPM."""
+
+    def setUp(self):
+        reset()
+
+    @staticmethod
+    def _drift(n=540, dt=22.2, seed=3):
+        rnd = random.Random(seed)
+        return [(1000 + i * dt, 8000 + 2500 * math.exp(-i / 200) + rnd.gauss(0, 6)) for i in range(n)]
+
+    def test_a_settling_drift_is_not_a_heartbeat(self):
+        app.ppgs[0].extend(self._drift())
+        lags, r = app.autocorr(0)
+        k = max(range(len(r)), key=r.__getitem__)
+        self.assertEqual(k, 0)                                   # the artefact: best lag = edge of the range
+        self.assertGreater(r[k], 0.3)                            # ...and strong enough to have counted before
+        ms, q, signal = app.rhythm_peak(lags, r)
+        self.assertIsNone(ms)
+        self.assertEqual(q, 0.0)
+        self.assertGreater(signal, 0.3)                          # still "something is on the sensor"
+        self.assertEqual(app.pulse_period(0), (None, 0.0))
+        self.assertEqual(app.fused_period([(lags, r)], [signal]), (None, 0.0))
+
+    def test_a_real_pulse_is_unchanged(self):
+        beats = [1000 + 800 * k for k in range(16)]              # 75 BPM
+        app.ppgs[0].extend(ppg_for_beats(beats))
+        ms, q = app.pulse_period(0)
+        self.assertAlmostEqual(ms, 800, delta=25)
+        self.assertGreater(q, 0.5)
+        lags, r = app.autocorr(0)
+        fp, fq = app.fused_period([(lags, r)], [q])
+        self.assertAlmostEqual(fp, 800, delta=25)
+
+    def test_no_pulse_from_the_fused_rhythm_alone_while_settling(self):
+        for c in range(2):
+            app.ppgs[c].extend(self._drift(seed=c + 1))
+            app.period_state[c].update(period_ms=None, quality=0.0, signal=0.6)
+        curves = [app.autocorr(c) for c in range(2)]
+        fp, fq = app.fused_period(curves, [0.6, 0.6])
+        app.fused.update(period_ms=fp, quality=fq)
+        self.assertIsNone(app.fuse())
 
 
 class TwoHearts(unittest.TestCase):

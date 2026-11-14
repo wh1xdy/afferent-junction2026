@@ -155,7 +155,7 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
         ble.update_finger(c, bpm)
 
 
-period_state = [{"period_ms": None, "quality": None} for _ in range(CHANNELS)]
+period_state = [{"period_ms": None, "quality": None, "signal": None} for _ in range(CHANNELS)]
 
 
 def autocorr(ch=0, window_ms=6000):
@@ -174,14 +174,27 @@ def autocorr(ch=0, window_ms=6000):
     return [lag / fs * 1000 for lag in lags], [sum(x[i] * x[i + lag] for i in range(n - lag)) / e for lag in lags]
 
 
+def rhythm_peak(lags, r):
+    """(period_ms, quality, signal) from one autocorrelation curve.
+    signal is the highest value anywhere in the 0.33-1.6 s range: something structured is on the
+    sensor. period and quality count only when that maximum is a peak inside the range. A drifting
+    signal (a finger settling in the clip) correlates most at the shortest lag, which is the edge
+    of the range and not a heartbeat: measured on the board as "317 ms, quality 0.5-0.7", sent on
+    as 188 BPM for the first seconds after the clips went on."""
+    k = max(range(len(r)), key=r.__getitem__)
+    signal = max(r[k], 0.0)
+    if r[k] <= 0 or k == 0 or k == len(r) - 1:
+        return None, 0.0, signal
+    return round(lags[k]), signal, signal
+
+
 def pulse_period(ch=0, window_ms=6000):
     """Dominant period 0.33-1.6 s of one finger and its strength."""
     ac = autocorr(ch, window_ms)
     if not ac:
         return None, 0.0
-    lags, r = ac
-    k = max(range(len(r)), key=r.__getitem__)
-    return (round(lags[k]) if r[k] > 0 else None), max(r[k], 0.0)
+    ms, q, _ = rhythm_peak(*ac)
+    return ms, q
 
 
 def fused_period(curves, qualities):
@@ -196,6 +209,8 @@ def fused_period(curves, qualities):
     if not acc:
         return None, 0.0
     lag = max(acc, key=acc.get)
+    if lag in (min(acc), max(acc)):              # edge of the range: a drift, not a rhythm
+        return None, 0.0
     wsum = sum(q for q in qualities if q > 0) or 1.0
     return lag, max(acc[lag] / wsum, 0.0)
 
@@ -321,14 +336,12 @@ def period_loop(stopped):
             try:
                 ac = autocorr(c)
                 if ac:
-                    lags, r = ac
-                    k = max(range(len(r)), key=r.__getitem__)
-                    ms, q = (round(lags[k]) if r[k] > 0 else None), max(r[k], 0.0)
+                    ms, q, sig = rhythm_peak(*ac)
                     curves.append(ac); quals.append(q)
                 else:
-                    ms, q = None, 0.0
+                    ms, q, sig = None, 0.0, 0.0
                 with lock:
-                    period_state[c].update(period_ms=ms, quality=round(q, 2))
+                    period_state[c].update(period_ms=ms, quality=round(q, 2), signal=round(sig, 2))
             except Exception as e:
                 print(f"period failed (ch {c}): {e}", flush=True)
         fp, fq = fused_period(curves, quals) if curves else (None, 0.0)
@@ -483,7 +496,10 @@ def presence_loop(stopped):
         if presence["mode"] == "active":
             if time.time() - presence["since"] < WARMUP_S:
                 continue
-            q = max([period_state[c].get("quality") or 0 for c in range(CHANNELS)] + [fused.get("quality") or 0])
+            # "is something on the sensor": the raw signal strength, also when it is not (yet) a
+            # heartbeat, so a finger that takes a few seconds to settle does not switch the sensors off
+            q = max([period_state[c].get("signal") or period_state[c].get("quality") or 0 for c in range(CHANNELS)]
+                    + [fused.get("quality") or 0])
             if q >= 0.3:
                 weak_since = None
             elif weak_since is None:
