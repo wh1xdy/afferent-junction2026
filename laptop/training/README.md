@@ -128,7 +128,9 @@ is done. Check rates on the Modal pricing page / `modal cost` equivalents.
 
 `verda/` contains the full up → sync → train → pull → down loop against a
 [Verda](https://verda.com) PAYG GPU instance, driven by the
-[verda CLI](https://github.com/verda-cloud/verda-cli):
+[verda CLI](https://github.com/verda-cloud/verda-cli) — **full runbook:
+[docs/verda_training.md](../../docs/verda_training.md)** (setup, stock
+check, validated commands, every gotcha hit live):
 
 ```bash
 # once: install the CLI, then authenticate. Credentials are stored in
