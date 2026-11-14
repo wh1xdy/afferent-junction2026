@@ -45,6 +45,7 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     private var lastEstimate = 0.0
     private var lastPos: (t: Double, p: SIMD3<Float>)?
     private var speed = 0.0                               // smoothed head speed, m/s
+    var fingerBreathingAtEnd: Int?                        // set by the view before export
 
     let supported = ARFaceTrackingConfiguration.isSupported
     weak var session: ARSession?
@@ -115,7 +116,8 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
             "cameraPulse": facePulseReading.map { ["bpm": $0.bpm, "snr": $0.snr, "trust": $0.trust.score,
                                                    "regions": $0.regionsBpm.map { $0 ?? 0 }] as [String: Any] } ?? [:],
             "breathing": breathing.map { ["perMinute": $0.perMinute, "snr": $0.snr, "amplitudeMM": $0.amplitudeMM] } ?? [:],
-            "breathSamples": breathSamples.suffix(60 * 35).enumerated().compactMap { i, x in
+            "fingerBreathing": fingerBreathingAtEnd ?? 0,
+            "breathSamples": breathSamples.enumerated().compactMap { i, x in
                 i % 6 == 0 ? [x.t, x.dist, x.y] : nil },        // 10 Hz, for validating breathing offline
             "calibration": ["gainYaw": calibration.gainYaw, "offsetYaw": calibration.offsetYaw,
                             "gainPitch": calibration.gainPitch, "offsetPitch": calibration.offsetPitch],
@@ -189,7 +191,7 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         // breathing: distance to the phone + vertical position in camera space (m)
         let up = simd_make_float3(frame.camera.transform.columns.1)
         breathSamples.append((t, dist, Double(simd_dot(facePos - camPos, up))))
-        if breathSamples.count > 60 * 40 { breathSamples.removeFirst(breathSamples.count - 60 * 40) }
+        if breathSamples.count > 60 * 70 { breathSamples.removeFirst(breathSamples.count - 60 * 70) }
         var pulseNow: PulseReading?, breathNow: BreathingMath.Reading?, newEstimate = false
         if t - lastEstimate >= 1 {
             lastEstimate = t
@@ -387,6 +389,7 @@ struct ExpressionView: View {
                                  cameraPulse: tracker.facePulseReading,
                                  fingerPulse: finger.freshBpm,
                                  breathing: tracker.breathing,
+                                 fingerBreathing: finger.freshBreathing,
                                  export: tracker.exportURL) { tracker.start() }
             } else {
                 VStack(spacing: 16) {
@@ -422,6 +425,7 @@ struct ExpressionView: View {
             }
         }
         .preferredColorScheme(.light)
+        .onReceive(finger.$breathsPerMinute) { tracker.fingerBreathingAtEnd = $0 }
     }
 
     /// distance coaching (always) + live camera pulse / breathing (during a session)
@@ -437,7 +441,9 @@ struct ExpressionView: View {
                         Text("♥ \(p.bpm) BPM · \(p.trust.label.rawValue)").monospacedDigit()
                             .opacity(p.trust.label == .reliable ? 1 : 0.5)
                     } else { Text("♥ measuring…") }
-                    if let b = tracker.breathing { Text("breathing \(b.perMinute)/min").monospacedDigit() }
+                    if let b = clearestBreathing(finger: finger.freshBreathing, head: tracker.breathing) {
+                        Text("breathing \(b.perMinute)/min (\(b.source.rawValue))").monospacedDigit()
+                    }
                 }
             }
         }
@@ -511,6 +517,7 @@ struct ExpressionReport: View {
     let cameraPulse: PulseReading?
     let fingerPulse: Int?
     let breathing: BreathingMath.Reading?
+    let fingerBreathing: Int?
     let export: URL?
     /// finger sensor if present, else the camera pulse when it's trustworthy
     private var pulse: Int? {
@@ -519,7 +526,8 @@ struct ExpressionReport: View {
     let again: () -> Void
 
     var body: some View {
-        let act = Activation.from(summary, restingBpm: pulse, breathsPerMinute: breathing.flatMap { $0.snr > 0 ? $0.perMinute : nil })
+        let br = clearestBreathing(finger: fingerBreathing, head: breathing)
+        let act = Activation.from(summary, restingBpm: pulse, breathsPerMinute: br?.perMinute)
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Session summary").font(.title2.bold())
@@ -540,7 +548,8 @@ struct ExpressionReport: View {
                 section("Activation \(act.score)/100") {
                     if let c = cameraPulse { row("Camera pulse", "\(c.bpm) BPM · \(c.trust.label.rawValue)") }
                     if let f = fingerPulse { row("Finger pulse", "\(f) BPM") }
-                    if let b = breathing { row("Breathing", "\(b.perMinute)/min" + (b.snr > 0 ? "" : " (weak signal)")) }
+                    if let b = br { row("Breathing", "\(b.perMinute)/min · \(b.source.rawValue)") }
+                    else if breathing != nil { row("Breathing", "no clear signal") }
                     if act.notes.isEmpty { Text("Nothing stands out.").font(.subheadline) }
                     ForEach(act.notes, id: \.self) { Text("• \($0)").font(.subheadline) }
                 }
