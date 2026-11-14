@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="css/streak.css">
   <link rel="stylesheet" href="css/gui/shell.css">
   <link rel="stylesheet" href="css/voice.css">
+  <link rel="stylesheet" href="css/talk-bubble.css">
   <link rel="stylesheet" href="css/tasks/reaction.css">
   <link rel="stylesheet" href="css/tasks/fork.css">
   <link rel="stylesheet" href="css/tasks/lanterns.css">
@@ -69,12 +70,12 @@
         <header class="top-bar">
           <button class="icon-btn state" data-open="settings" type="button" aria-label="Settings"><span class="ms">settings</span></button>
           <button class="icon-btn state" data-open="info" type="button" aria-label="How it works"><span class="ms">info</span></button>
-          <button class="icon-btn state" data-open="voice" type="button" aria-label="Talk with the voice companion"><span class="ms">chat_bubble</span></button>
           <button id="signalsBtn" class="icon-btn state" data-open="signals" type="button" aria-label="Your signals"><span class="ms">ecg_heart</span></button>
           <button id="camBtn" class="privacy state" data-open="settings" type="button" aria-label="Camera on. Open settings" hidden><span class="ms fill">videocam</span></button>
           <span class="sp"></span>
           <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
         </header>
+        <button id="talkBubble" class="talk-bubble" data-open="voice" type="button"><span class="talk-bubble-text">Hey, how are you feeling?</span></button>
         <div class="dock">
           <button id="checkinBtn" class="checkin-chip state hidden" type="button"><span class="dot" aria-hidden="true"></span>Check-in</button>
           <button id="begin" class="kindle state" type="button" aria-label="Hold to kindle" aria-describedby="beginLabel"></button>
@@ -268,6 +269,7 @@
   <script src="js/music.js"></script>
   <script src="js/ambience.js"></script>
   <script src="js/art.js"></script>
+  <script src="js/layers.js"></script>
   <script src="js/world.js"></script>
   <script src="js/traverse.js"></script>
   <script src="js/fxgl.js"></script>
