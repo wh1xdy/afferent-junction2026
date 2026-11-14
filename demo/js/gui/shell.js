@@ -88,6 +88,8 @@
   };
 
   const HOLD_MS = 900;
+  // The kindle flame beats with the live heartbeat (heartbeat.js) while the home screen shows; main.js calls this each frame.
+  let kindleBeat = () => {};
   const buildGap = p => 170 - 125 * p;
   const smoothHap = () => (window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.AfferentHaptics : null) || null;
   const kindle = () => {
@@ -130,6 +132,12 @@
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => btn.addEventListener(t, release));
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
+    let beatOn = false, beatV = -1;
+    kindleBeat = h => {
+      const on = !!h && h.k > 0.02, v = on ? Math.round((h.beat + 0.6 * h.swell) * 100) / 100 : 0;
+      if (on !== beatOn) { beatOn = on; btn.classList.toggle('beating', on); }
+      if (v !== beatV) { beatV = v; btn.style.setProperty('--beat', v); }
+    };
     const hint = () => { const l = $('beginLabel'); l.classList.remove('nudge'); void l.offsetWidth; l.classList.add('nudge'); };
     A.bus.on('home', () => { cancelAnimationFrame(raf); lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); });
   };
@@ -247,5 +255,5 @@
   const noLoupe = () => ['begin', 'game'].forEach(id => $(id)?.addEventListener('touchstart', e => e.preventDefault(), { passive: false }));
 
   buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped(); noLoupe();
-  A.Shell = { toast, week, phase, row, group, groups: GROUPS };
+  A.Shell = { toast, week, phase, row, group, groups: GROUPS, kindleBeat: h => kindleBeat(h) };
 })();

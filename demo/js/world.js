@@ -1206,6 +1206,8 @@
       if (rm) { glow(ctx, x, y, H * 0.4, r.c, 0.18 * r.a * Math.sin(p * Math.PI), 'soft'); continue; }
       const fade = Math.pow(1 - p, 1.2) * Math.min(1, p * 8), Rb = Math.max(R, H * 0.4);
       sprite(ctx, 'halo', r.c, x - Rb, y - Rb, 2 * Rb, 2 * Rb, 0.1 * r.a * fade, true);
+      // The first heartbeat the clips give (heartbeat.js): one warm ring of light leaves the lantern.
+      if (r.g === 'heart') { ctx.strokeStyle = rgb(P.glow, 0.5 * r.a * fade); ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(x, y, R * 0.6, 0, 6.283); ctx.stroke(); glow(ctx, x, y, R * 0.7, P.glow, 0.25 * r.a * fade, 'soft'); }
     }
   }
   function wave() {

@@ -449,7 +449,7 @@
     const V = s ? s.V : idle;
     if (!s) {
       V.t = now; V.lanternBright = V.lanternGain; V.lanternRadius = 70 * V.lanternGain;
-      if (A.Heartbeat) { A.Heartbeat.step(now, dt, null); A.Heartbeat.paint(V, 1); }
+      if (A.Heartbeat) { A.Heartbeat.step(now, dt, null); A.Heartbeat.paint(V, 1); A.Shell.kindleBeat(A.Heartbeat.st); }
       for (const tw of idleTweens) tw.obj[tw.key] = A.lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
       idleTweens = idleTweens.filter(tw => now - tw.start < tw.dur);
     }
