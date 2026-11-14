@@ -53,7 +53,7 @@
 		<string>_androidtvremote2._tcp</string>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Afferent reads eye openness, blinks, head tilt, how bright it is and your pulse from tiny colour changes in your face, as numbers. Camera frames never leave the phone.</string>
+	<string>Afferent reads numbers from the front camera: eye openness, blinks, head tilt and how bright it is, a pulse estimate from tiny colour changes in your face, and how your face moves (smiling, where you look, breathing). Only these numbers are kept. Camera frames never leave the phone and are never stored.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Afferent listens only while you talk with the voice companion. Your voice is sent to Google Gemini to answer you.</string>
 	<key>NSLocalNetworkUsageDescription</key>
