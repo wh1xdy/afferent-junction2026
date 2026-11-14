@@ -92,7 +92,7 @@
   };
   const DEV_ACT = {
     input: () => {
-      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'auto' } : { auto: 'touch', touch: 'auto', camera: 'auto' };
+      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'touch' } : { auto: 'touch', touch: 'touch', camera: 'touch' };
       ui.input = order[ui.input]; chips();
     },
     clock: () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); },
