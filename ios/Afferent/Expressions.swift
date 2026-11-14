@@ -55,7 +55,15 @@ struct BurstDetector {
     var history: [Double] = []          // last ~5 s for the baseline
     var active: (start: Double, peak: Double)?
     let historyLen = 300                 // 5 s at 60 Hz
-    let minRise = 0.12                   // blendshape units above baseline
+    /// blendshape units above the person's baseline. Measured on a real face: a slight smile
+    /// is only +0.05-0.09 (big smile +0.77), so smile gets a low threshold.
+    var minRise: Double {
+        switch kind {
+        case .happy: return 0.04
+        case .contempt: return 0.05
+        default: return 0.10
+        }
+    }
 
     mutating func feed(_ x: Double, t: Double) -> ExpressionEvent? {
         let base = baseline()
@@ -96,6 +104,9 @@ struct ExpressionSession {
     private(set) var start: Double?
     private(set) var lastT = 0.0
     private var smileFrames = 0, gazeDownFrames = 0
+    private var calHappy: [Double] = []
+    private var baseHappy: Double?
+
     private var blinkClosed = false
     private(set) var blinks = 0
     private var sums = [String: Double](), sumsSq = [String: Double]()
@@ -104,11 +115,28 @@ struct ExpressionSession {
     private(set) var gazeShifts = 0             // saccade-like jumps > 3 deg at > 60 deg/s
     private var shiftCooldownUntil = 0.0
     private var gazeAwayFrames = 0, eyeWideFrames = 0, gazeFrames = 0
+    // Personal baselines from the first `calibrationS` seconds ("look at the screen"):
+    // people hold the phone below eye level, so "at the screen" is not 0 deg / not lookDown 0.
+    static let calibrationS = 10.0
+    static let awayDeg = 7.0           // measured: looking away read 5-12 deg in ARKit
+    private var calYaw: [Double] = [], calPitch: [Double] = [], calDown: [Double] = []
+    private var baseGaze: (yaw: Double, pitch: Double)?
+    private var baseDown: Double?
 
-    /// gaze yaw/pitch in degrees from ARFaceAnchor.lookAtPoint (nil if not tracked)
+    private static func median(_ v: [Double]) -> Double {
+        let s = v.sorted(); return s.isEmpty ? 0 : s[s.count / 2]
+    }
+
+    /// gaze yaw/pitch in degrees relative to the camera (ARFaceAnchor.lookAtPoint)
     mutating func feedGaze(yaw: Double, pitch: Double, t: Double) {
         gazeFrames += 1
-        if hypot(yaw, pitch) > 12 { gazeAwayFrames += 1 }
+        if let s = start, t - s < Self.calibrationS {
+            calYaw.append(yaw); calPitch.append(pitch)
+        } else if baseGaze == nil {
+            baseGaze = (Self.median(calYaw), Self.median(calPitch))
+        }
+        let b = baseGaze ?? (0, 0)
+        if hypot(yaw - b.yaw, pitch - b.pitch) > Self.awayDeg { gazeAwayFrames += 1 }
         if let g = lastGaze, t > g.t {
             let jump = hypot(yaw - g.yaw, pitch - g.pitch)
             let speed = jump / (t - g.t)
@@ -125,19 +153,45 @@ struct ExpressionSession {
         lastT = t
         frames += 1
         let vals = ExpressionKind.values(b)
+        let happy = vals[.happy] ?? 0
         for i in detectors.indices {
-            if let e = detectors[i].feed(vals[detectors[i].kind] ?? 0, t: t) { events.append(e) }
+            guard let e = detectors[i].feed(vals[detectors[i].kind] ?? 0, t: t) else { continue }
+            add(e, minRise: detectors[i].minRise)
         }
-        if (vals[.happy] ?? 0) > 0.3 { smileFrames += 1 }
-        if ((b["eyeLookDownLeft"] ?? 0) + (b["eyeLookDownRight"] ?? 0)) / 2 > 0.35 { gazeDownFrames += 1 }
+        if let s = start, t - s < Self.calibrationS { calHappy.append(happy) }
+        else if baseHappy == nil { baseHappy = Self.median(calHappy) }
+        if happy > (baseHappy ?? 0.02) + 0.04 { smileFrames += 1 }
+        let down = ((b["eyeLookDownLeft"] ?? 0) + (b["eyeLookDownRight"] ?? 0)) / 2
+        if let s = start, t - s < Self.calibrationS { calDown.append(down) }
+        else if baseDown == nil { baseDown = Self.median(calDown) }
+        if down > (baseDown ?? 0.2) + 0.15 { gazeDownFrames += 1 }
         let blink = ((b["eyeBlinkLeft"] ?? 0) + (b["eyeBlinkRight"] ?? 0)) / 2
         if ((b["eyeWideLeft"] ?? 0) + (b["eyeWideRight"] ?? 0)) / 2 > 0.4 { eyeWideFrames += 1 }
         if !blinkClosed && blink > 0.6 { blinkClosed = true; blinks += 1 }
-        if blinkClosed && blink < 0.3 { blinkClosed = false }
+        if blinkClosed && blink < 0.4 { blinkClosed = false }   // resting eyeBlink is 0.2-0.3 on real faces
         for (k, v) in b {
             sums[k, default: 0] += v
             sumsSq[k, default: 0] += v * v
         }
+    }
+
+    /// One facial action moves several blendshapes (a hard frown also wrinkles the nose, a big
+    /// smile raises the upper lip), so overlapping bursts of different kinds are the same action:
+    /// keep the one that is strongest relative to its own threshold. Measured on a real face:
+    /// 5 frowns (mouthFrown 0.8) each also fired "disgust" via noseSneer 0.3.
+    private var strengths: [Double] = []
+    private mutating func add(_ e: ExpressionEvent, minRise: Double) {
+        let strength = e.peak / minRise
+        let end = e.start + e.duration
+        let overlapping = events.indices.filter { i in
+            let o = events[i]
+            let overlap = min(end, o.start + o.duration) - max(e.start, o.start)
+            return o.kind != e.kind && overlap > 0.5 * min(e.duration, o.duration)
+        }
+        if overlapping.contains(where: { strengths[$0] >= strength }) { return }
+        for i in overlapping.reversed() { events.remove(at: i); strengths.remove(at: i) }
+        events.append(e)
+        strengths.append(strength)
     }
 
     var seconds: Double { start.map { lastT - $0 } ?? 0 }
@@ -149,7 +203,7 @@ struct ExpressionSession {
         var gazeDownShare: Double
         var blinksPerMinute: Double
         var gazeShiftsPerMinute: Double  // saccade-like jumps
-        var gazeAwayShare: Double        // looking > 12 deg away from the camera
+        var gazeAwayShare: Double        // looking > 7 deg away from where the person looked during calibration
         var eyeWideShare: Double
         var micro: [ExpressionKind: Int]
         var macro: [ExpressionKind: Int]

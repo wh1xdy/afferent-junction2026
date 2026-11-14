@@ -26,6 +26,9 @@ def composites(row, col):
     }
 
 
+MIN_RISE = {"happy": 0.04, "contempt": 0.05}   # others: --min-rise (default 0.10)
+
+
 def bursts(ts, xs, min_rise, mad_k, hist=300):
     """Same algorithm as BurstDetector in Expressions.swift."""
     out, h, active = [], [], None
@@ -50,11 +53,12 @@ def bursts(ts, xs, min_rise, mad_k, hist=300):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("file")
-    ap.add_argument("--min-rise", type=float, default=0.12)
+    ap.add_argument("--min-rise", type=float, default=0.10)
     ap.add_argument("--mad-k", type=float, default=4.0)
     a = ap.parse_args()
     doc = json.load(open(a.file))
-    cols = doc["columns"]
+    norm = lambda k: k[:-2] + "Left" if k.endswith("_L") else k[:-2] + "Right" if k.endswith("_R") else k
+    cols = [norm(c) for c in doc["columns"]]      # v1 exports used ARKit's "_L"/"_R" names
     col = {c: i for i, c in enumerate(cols)}
     rows = doc["frames"]
     ts = [r[0] for r in rows]
@@ -64,11 +68,24 @@ def main():
     print(f"app summary: {json.dumps(doc.get('summary', {}))}\n")
 
     comp = [composites(r, col) for r in rows]
+    # all bursts, then resolve overlaps like ExpressionSession.add (strongest vs own threshold wins)
+    allb = []
+    for k in comp[0]:
+        mr = MIN_RISE.get(k, a.min_rise)
+        for st0, d, pk in bursts(ts, [c[k] for c in comp], mr, a.mad_k):
+            allb.append([k, st0, d, pk / mr])
+    allb.sort(key=lambda x: x[1] + x[2])          # in order of ending, as the app sees them
+    kept = []
+    for e in allb:
+        ov = [o for o in kept if o[0] != e[0] and min(e[1] + e[2], o[1] + o[2]) - max(e[1], o[1]) > 0.5 * min(e[2], o[2])]
+        if any(o[3] >= e[3] for o in ov):
+            continue
+        kept = [o for o in kept if o not in ov] + [e]
     print(f"{'expression':10s} {'median':>7s} {'p90':>6s} {'p99':>6s} {'max':>6s}   micro  macro   (min-rise {a.min_rise}, mad-k {a.mad_k})")
     for k in comp[0]:
         xs = [c[k] for c in comp]
         s = sorted(xs)
-        b = bursts(ts, xs, a.min_rise, a.mad_k)
+        b = [(e[1], e[2], e[3]) for e in kept if e[0] == k]
         micro = [x for x in b if x[1] <= 0.5]
         print(f"{k:10s} {s[len(s)//2]:7.3f} {s[int(len(s)*.9)]:6.3f} {s[int(len(s)*.99)]:6.3f} {s[-1]:6.3f}   {len(micro):5d}  {len(b)-len(micro):5d}"
               + ("   micro durations ms: " + ", ".join(str(int(x[1] * 1000)) for x in micro[:8]) if micro else ""))
@@ -84,15 +101,20 @@ def main():
             speeds.append(math.hypot(yaw[i] - yaw[i - 1], pitch[i] - pitch[i - 1]) / dt)
     s = sorted(speeds)
     print(f"gaze speed deg/s  median {s[len(s)//2]:.0f}  p90 {s[int(len(s)*.9)]:.0f}  p99 {s[int(len(s)*.99)]:.0f}")
-    away = sum(1 for y, p in zip(yaw, pitch) if math.hypot(y, p) > 12) / len(yaw)
-    print(f"looking > 12° from the camera: {away*100:.0f} %  (if this is high while looking at the screen, the gaze offset needs calibrating)")
+    cal = [i for i, t in enumerate(ts) if t - ts[0] < 10]
+    by, bp = st.median(yaw[i] for i in cal), st.median(pitch[i] for i in cal)
+    away = sum(1 for y, p in zip(yaw, pitch) if math.hypot(y - by, p - bp) > 7) / len(yaw)
+    print(f"baseline (first 10 s) yaw {by:+.1f}° pitch {bp:+.1f}°; looking > 7° away from it: {away*100:.0f} %")
+    down = [(r[col["eyeLookDownLeft"]] + r[col["eyeLookDownRight"]]) / 2 for r in rows]
+    bd = st.median(down[i] for i in cal)
+    print(f"lookDown baseline {bd:.2f}; looking down (> baseline + 0.15): {sum(1 for x in down if x > bd + 0.15) / len(down) * 100:.0f} %")
 
     blink = [(r[col["eyeBlinkLeft"]] + r[col["eyeBlinkRight"]]) / 2 for r in rows]
     closed, n = False, 0
     for x in blink:
         if not closed and x > 0.6:
             closed, n = True, n + 1
-        elif closed and x < 0.3:
+        elif closed and x < 0.4:
             closed = False
     print(f"blinks: {n} ({n / max(dur / 60, 1e-6):.0f}/min)   eyeBlink p50 {st.median(blink):.2f} max {max(blink):.2f}")
 
