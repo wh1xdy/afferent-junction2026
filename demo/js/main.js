@@ -139,13 +139,18 @@
     if (changed || !A.Hub.url) return ['none', 'Not connected yet. Tap Connect'];
     return A.Hub.retry > 0 ? ['warn', "Can't reach the hub"] : ['none', 'Connecting…'];
   };
+  // After Connect (the app reloads onto the Home hub page): the answer is felt once, a success when the hub answers,
+  // a soft miss when the key is missing or the hub cannot be reached.
+  let hubAsked = false;
+  try { hubAsked = sessionStorage.getItem('afferent.reopen') === 'hub'; } catch {}
   const hubLine = () => {
     const [state, text] = hubStatus(), el = $('hubState');
     if (el.textContent !== text) el.textContent = text;
     el.dataset.state = state;
+    if (hubAsked && state !== 'none') { hubAsked = false; A.Haptics.play(state === 'on' ? 'success' : 'miss', state === 'on' ? 1 : 0.6); }
   };
   A.Shell.settings?.hook(hubLine);
-  $('hubAddr').addEventListener('input', hubLine);
+  $('hubAddr').addEventListener('input', () => { hubAsked = false; hubLine(); });
   // iOS shows its Paste bubble for readText(); a long address with its key is easy to get wrong by hand
   $('hubPaste').onclick = async () => {
     let t = '';
@@ -250,7 +255,8 @@
   $('simSw').onchange = e => { A.config.simulator = e.target.checked; A.config.simulatorChosen = true; syncSensors(); saveSettings(); camGlyph(); };
   $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; A.Theme.motion(); saveSettings(); };
   $('soundSw').onchange = e => setSound(e.target.checked);
-  $('hapticSw').onchange = e => { A.Haptics.setEnabled(e.target.checked); if (e.target.checked) A.Haptics.play('touch'); };
+  // turned on, it ticks like every switch (gui/feel.js); turned off, it is already silent
+  $('hapticSw').onchange = e => { A.Haptics.setEnabled(e.target.checked); };
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };

@@ -361,7 +361,11 @@
         body, buttons: [['Close', close, 'tonal']], talkBar: false,
       });
     };
-    const done = title => info(title === 'Thank you.' ? 'thanks' : 'saved', { lead: html('div', 'ci-glow', LANTERN), title, buttons: [['Close', close, 'tonal']] });
+    // the answers are kept: a soft success (never on the support and crisis screens)
+    const done = title => {
+      info(title === 'Thank you.' ? 'thanks' : 'saved', { lead: html('div', 'ci-glow', LANTERN), title, buttons: [['Close', close, 'tonal']] });
+      A.Haptics?.play('success', 0.6);
+    };
     if (kind === 'thank_you') done('Thank you.');
     else if (kind === 'saved') done('Saved.');
     else if (kind === 'support' || kind === 'crisis' || kind === 'talk') fixed(kind);
