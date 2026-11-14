@@ -4,8 +4,11 @@
 """
 import os
 import random
+import re
+import subprocess
 import sys
 import unittest
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from store import Store, severity  # noqa: E402
@@ -13,6 +16,49 @@ import report  # noqa: E402
 
 NOW = 1_800_000_000.0     # fixed "now" so day boundaries are deterministic
 DAY = 86400
+HUB = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# How hub/afferent_hub loads its copy of store.py, fhir.py, report.py and grounding.py
+# (team_adapters/loader.py) and what it then calls (team_adapters/alex.py): each file by path, with
+# only `store` importable while they load, and this folder not on sys.path.
+AS_THE_OTHER_HUB_LOADS_IT = r"""
+import importlib.util, json, sys, time
+from pathlib import Path
+
+ALEX = Path(sys.argv[1])
+assert str(ALEX) not in sys.path and "" not in sys.path
+
+
+def _exec(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+store = _exec("afferent_team_alex_store", ALEX / "store.py")
+sys.modules["store"] = store
+try:
+    mods = {n: _exec(f"afferent_team_alex_{n}", ALEX / f"{n}.py") for n in ("fhir", "report", "grounding")}
+finally:
+    sys.modules.pop("store", None)
+assert "store" not in sys.modules and "grounding" not in sys.modules
+assert mods["report"].METRICS is store.METRICS
+
+now = time.time()
+s = store.Store(":memory:")
+s.add_phq9([1] * 9, now - 3600)
+s.add_reading("finger_bpm", 70, now - 60, "finger_ppg")
+summary = s.summary(14, now)
+page = mods["report"].clinician(summary, patient_label="Anna", narrative="NARRATIVE-FROM-ELSEWHERE")
+bundle = mods["fhir"].bundle(summary, patient_label="anna")
+g = mods["grounding"]
+print(json.dumps({
+    "page": page, "bundle_type": bundle["resourceType"], "label": bundle["entry"][0]["resource"]["text"]["div"],
+    "direction": g.direction_problem("Pulse rose from 70 to 64 BPM this week.", []),
+    "judgement": [w.lower() for w in g.EVALUATIVE.findall("A significant week.")],
+    "ask": callable(g.ask)}))
+"""
 
 
 def fill(store, rnd, hrv_first=55, hrv_second=38, bpm_first=64, bpm_second=72):
@@ -123,6 +169,55 @@ class Reports(unittest.TestCase):
         week = report.patient(summ)
         self.assertIn("SIMULATED DATA.", week)
         self.assertIn('<a href="handover?demo=1">', week)
+
+    def test_handover_report_says_what_a_day_is(self):
+        h = report.handover(self.s.summary(14, NOW), now=NOW)
+        self.assertIn("A day in this report is the 24 hours ending at the time of\nday the report was generated (UTC), "
+                      "named by the date it ends on.", h)
+
+    def test_clinician_is_the_old_name_of_the_handover_report(self):
+        """hub/afferent_hub still calls report.clinician(summary, patient_label=..., narrative=...)"""
+        summ = self.s.summary(14, NOW)
+
+        def undated(page):
+            return re.sub(r"generated \d{4}-\d\d-\d\d \d\d:\d\d UTC", "generated", page)
+        old = report.clinician(summ, patient_label="Anna <A>", narrative="NARRATIVE-FROM-ELSEWHERE")
+        self.assertEqual(undated(old), undated(report.handover(summ, "Anna <A>")))
+        self.assertIn("<h1>Report for my doctor</h1>", old)
+        self.assertIn("Anna &lt;A&gt; · 2027-01-01 to 2027-01-15", old)
+        self.assertIn("11/27", old)
+        # a text from elsewhere is not shown under "written by a fixed template, without a language model"
+        self.assertNotIn("NARRATIVE-FROM-ELSEWHERE", old)
+        self.assertIn("without a language model", old)
+        self.assertEqual(undated(report.clinician(summ)), undated(report.handover(summ)))           # both arguments optional
+        self.assertEqual(undated(report.clinician(summ, "B", "x")), undated(report.handover(summ, "B")))
+        self.assertIn("SIMULATED DATA.", report.clinician({**summ, "simulated": True}))
+
+    def test_the_four_files_work_the_way_the_other_hub_loads_them(self):
+        r = subprocess.run([sys.executable, "-I", "-c", AS_THE_OTHER_HUB_LOADS_IT, HUB],
+                           capture_output=True, text=True, timeout=60, cwd=os.path.dirname(HUB))
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        import json
+        out = json.loads(r.stdout)
+        self.assertIn("<h1>Report for my doctor</h1>", out["page"])
+        self.assertIn("Anna · ", out["page"])
+        self.assertIn("9/27", out["page"])
+        self.assertIn("<b>Summary</b>", out["page"])                 # grounding.summary_text was reachable
+        self.assertNotIn("NARRATIVE-FROM-ELSEWHERE", out["page"])
+        self.assertEqual(out["bundle_type"], "Bundle")
+        self.assertIn("anna (pseudonymous)", out["label"])
+        self.assertTrue(out["direction"].startswith("says increase"))
+        self.assertEqual(out["judgement"], ["significant"])
+        self.assertTrue(out["ask"])
+
+    def test_patient_report_does_not_call_no_change_lower(self):
+        summ = self.s.summary(14, NOW)
+        for pct, text in ((0, "was about the same as the week before."), (-31, "was 31 % lower than the week before."),
+                          (12, "was 12 % higher than the week before.")):
+            summ["trends"]["hrv_rmssd"] = {**summ["trends"]["hrv_rmssd"], "change_pct": pct}
+            h = report.patient(summ)
+            self.assertIn("Your heart-rate variability (RMSSD) " + text, h)
+            self.assertNotIn("0 % lower", h)
 
     def test_patient_report_is_plain_and_has_support(self):
         h = report.patient(self.s.summary(14, NOW))
@@ -264,6 +359,36 @@ class FHIR(unittest.TestCase):
         self.assertEqual(phq[0]["component"][8]["code"]["coding"][0]["code"], "44260-8")
         self.assertIn("assess risk", phq[0]["note"][0]["text"])
         self.assertFalse(any("meta" in r for r in [b] + res))        # a real person's data carries no test label
+
+    def test_a_days_period_is_the_24_hours_it_was_measured_over(self):
+        """a "day" ends at the time of day of the report: the period must say so, not claim the calendar
+        day of its date (which would lie after the measurement, partly in the future)"""
+        import fhir
+        s = Store()
+        fill(s, random.Random(6))                                    # readings 17:00-17:10 UTC on 1-14 January
+        summ = s.summary(14, NOW)                                    # at 08:00 UTC on 15 January
+        self.assertEqual((summ["daily"][-1]["date"], summ["daily"][-1]["from_ts"], summ["daily"][-1]["to_ts"]),
+                         ("2027-01-15", NOW - DAY, NOW))
+        self.assertEqual([d["to_ts"] - d["from_ts"] for d in summ["daily"]], [DAY] * 14)
+        b = fhir.bundle(summ, now=datetime.fromtimestamp(NOW, timezone.utc))
+        periods = [r["effectivePeriod"] for r in (e["resource"] for e in b["entry"]) if "effectivePeriod" in r]
+        self.assertEqual(len(periods), 3 * 14)
+        self.assertEqual(periods[-1], {"start": "2027-01-14T08:00:00+00:00", "end": "2027-01-15T08:00:00+00:00"})
+        self.assertEqual(periods[0], {"start": "2027-01-01T08:00:00+00:00", "end": "2027-01-02T08:00:00+00:00"})
+        for p in periods:
+            self.assertLessEqual(p["end"], b["timestamp"])                                # nothing measured in the future
+        measured = datetime.fromtimestamp(NOW - DAY + 9 * 3600, timezone.utc).isoformat()       # the last day's readings
+        self.assertTrue(periods[-1]["start"] <= measured < periods[-1]["end"])
+        # a summary made by an older store.py (no from_ts / to_ts) still gives a bundle
+        old = {**summ, "daily": [{k: v for k, v in d.items() if k not in ("from_ts", "to_ts")} for d in summ["daily"]]}
+        self.assertEqual(len(fhir.bundle(old)["entry"]), len(b["entry"]))
+
+    def test_patient_label_cannot_break_the_xhtml(self):
+        import fhir
+        b = fhir.bundle(Store().summary(14, NOW), patient_label='<script>alert(1)</script> & "co"')
+        div = b["entry"][0]["resource"]["text"]["div"]
+        self.assertNotIn("<script>", div)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;co&quot; (pseudonymous)", div)
 
     def test_simulated_bundle_is_labelled_as_test_data_on_every_resource(self):
         import fhir

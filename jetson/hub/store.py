@@ -113,6 +113,9 @@ class Store:
         kept as missing, so one odd value does not cost the whole session."""
         if not isinstance(doc, dict):
             raise Invalid("a session must be an object")
+        if doc.get("simulated") or doc.get("simulated_fields"):
+            # the app marks a session in which any value is simulated: it must never sit among measurements
+            raise Invalid("a session with simulated values is not stored: the hub keeps measurements only")
         ts = timestamp(ts)
         s = _part(doc, "summary") if doc.get("summary") is not None else doc
         metrics = {k: number(s.get(k)) for k in ("smileShare", "expressivity", "blinksPerMinute", "gazeAwayShare",
@@ -182,14 +185,16 @@ class Store:
 
     # ── aggregation ───────────────────────────────────────────────────
     def daily(self, days=14, now=None):
-        """per-day summary of every metric, oldest first; None where there was no data"""
+        """Per-day summary of every metric, oldest first; None where there was no data. A "day" is
+        the 24 hours that end at the time of day of `now`, named by the date it ends on; `from_ts` and
+        `to_ts` (unix time) say exactly which hours those are."""
         now = now or time.time()
         start = now - days * 86400
         out = []
         for d in range(days):
             d0 = start + d * 86400
             d1 = d0 + 86400
-            row = {"date": day(d1 - 1)}
+            row = {"date": day(d1 - 1), "from_ts": d0, "to_ts": d1}
             bpm = [v for _, v in self.readings("finger_bpm", d0, d1)]
             row["finger_bpm"] = round(sorted(bpm)[max(0, len(bpm) // 10 - 1)]) if len(bpm) >= 12 else None
             hrv = [v for _, v in self.readings("hrv_rmssd", d0, d1)]

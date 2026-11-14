@@ -7,14 +7,28 @@ generated and that the patient printed it. No diagnosis - the doctor interprets.
 Patient ("Your week"): the same period in plain words, with support lines.
 
 A summary marked "simulated" (the ?demo=1 patient) says so at the top of both, also in print.
+
+clinician() is the old name of handover(), kept for code that still calls it (the copy of this file
+in hub/afferent_hub): same document, and a `narrative` passed to it is not shown.
 """
 import html
+import os
 import re
 import time
 from datetime import datetime, timezone
 
-import grounding
 from store import METRICS
+
+try:
+    import grounding
+except ImportError:
+    # loaded as a single file by path (hub/afferent_hub/team_adapters/loader.py), with only `store`
+    # importable: take grounding.py from the folder this file is in
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location(
+        "afferent_report_grounding", os.path.join(os.path.dirname(os.path.abspath(__file__)), "grounding.py"))
+    grounding = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(grounding)
 
 CSS = """
 :root { --ink:#1d1d1f; --muted:#6e6e73; --line:#e5e5ea; --flag:#c62828; --ok:#2e7d32; --bg:#fff; }
@@ -146,8 +160,16 @@ def handover(summary, patient_label="Patient", now=None):
 <td>{fmt(None if b['gaze_away_share'] is None else round(b['gaze_away_share'] * 100), '%')}</td><td>{fmt(b['micro_expressions_per_session'])} / session</td></tr></table>
 <p class="muted">Afferent is a screening and monitoring aid, not a diagnostic device. Physiological and facial measures are
 behavioural context with known limitations (sensor contact, lighting, movement); the PHQ-9 is the validated instrument.
-Trends need at least 3 days with data in each 7-day window.</p>
+Trends need at least 3 days with data in each 7-day window. A day in this report is the 24 hours ending at the time of
+day the report was generated (UTC), named by the date it ends on.</p>
 </body></html>"""
+
+
+def clinician(summary, patient_label="Patient", narrative=None):
+    """Old name of handover(), for callers written before the hub became the patient's own. The
+    document is the handover report. `narrative` is accepted and not shown: the report says its
+    summary comes from a fixed template, and a text from elsewhere would make that untrue."""
+    return handover(summary, patient_label)
 
 
 def patient(summary, narrative=None):
@@ -157,8 +179,8 @@ def patient(summary, narrative=None):
     if t["hrv_rmssd"]:
         d = t["hrv_rmssd"]["change_pct"]
         if d is not None:                               # the number only: what it means is not for this page to say
-            lines.append("Your heart-rate variability (RMSSD) was " + (f"{abs(d)} % higher" if d > 0 else f"{abs(d)} % lower")
-                         + " than the week before.")
+            change = f"{abs(d)} % higher than" if d > 0 else f"{abs(d)} % lower than" if d < 0 else "about the same as"
+            lines.append(f"Your heart-rate variability (RMSSD) was {change} the week before.")
     if t["finger_bpm"]:
         lines.append(f"Your resting pulse was around {t['finger_bpm']['recent']:g} BPM (the week before: {t['finger_bpm']['previous']:g}).")
     if t["breathing"]:

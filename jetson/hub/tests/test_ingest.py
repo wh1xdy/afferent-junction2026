@@ -160,6 +160,23 @@ class BadWrites(ReadsCase):
         self.assertEqual(app.store.sessions()[-1]["smileShare"], 0.5)
         self.assertReadsWork()
 
+    def test_a_session_that_says_it_is_simulated_is_not_stored(self):
+        """the app marks a session in which any value is simulated (`simulated`, `simulated_fields`)"""
+        before = rows(app.store)
+        measured = {"summary": {"smileShare": 0.99, "seconds": 60}}
+        for marks in ({"simulated": True}, {"simulated": True, "simulated_fields": ["signal.pulse_source"]},
+                      {"simulated": False, "simulated_fields": ["core.rest.head_pitch_deg"]}, {"simulated": 1},
+                      {"simulated": "yes"}):
+            r = call("POST", "/sessions", token=self.P, body={**measured, **marks})
+            self.assertEqual(r.status, 400, marks)
+            self.assertIn("simulated values is not stored", r.json()["error"])
+        self.assertEqual(rows(app.store), before)
+        self.assertIsNone(call("GET", "/summary", token=self.P).json()["behaviour"]["smile_share"])
+        for marks in ({}, {"simulated": False}, {"simulated": False, "simulated_fields": []}, {"simulated": None}):
+            self.assertEqual(call("POST", "/sessions", token=self.P, body={**measured, **marks}).status, 201, marks)
+        self.assertEqual(call("GET", "/summary", token=self.P).json()["behaviour"]["smile_share"], 0.99)
+        self.assertReadsWork()
+
     def test_days_must_be_a_number(self):
         for method, path in READS:
             for q in ("abc", "nan", "inf", "1e999", "7.9", "", "%5B1%5D"):

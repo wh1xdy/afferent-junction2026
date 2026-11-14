@@ -4,7 +4,8 @@ import it. The hub sends it to no one.
 GET /fhir?days=14 -> a FHIR Bundle (type "collection") with:
   Patient       pseudonymous (no name/identifier is stored on the hub)
   Device        the finger PulseSensor clip on the Arduino UNO Q
-  Observation   one per day and measure (daily aggregates, method text says how):
+  Observation   one per day and measure (daily aggregates, method text says how; effectivePeriod is
+                the 24 hours the value was computed over, see Store.daily):
                 resting heart rate  LOINC 40443-4   /min
                 respiratory rate    LOINC 9279-1    /min
                 HRV RMSSD           no LOINC code exists for RMSSD; a local code + text is used
@@ -17,6 +18,7 @@ validator (offline hackathon environment) - checked structurally in tests/test_h
 A summary marked "simulated" (the ?demo=1 patient) gives a bundle in which every resource carries
 the HL7 security label HTEST (test health data), so it cannot pass as a real person's record.
 """
+import html
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -65,14 +67,19 @@ def bundle(summary, patient_label="Patient", now=None):
     simulated = bool(summary.get("simulated"))
     who = "simulated demo patient, not a real person" if simulated else "pseudonymous"
     patient = {"resourceType": "Patient", "id": pid,
-               "text": {"status": "generated", "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{patient_label} ({who})</div>"}}
+               "text": {"status": "generated", "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{html.escape(str(patient_label))} ({who})</div>"}}
     device = {"resourceType": "Device", "id": did,
               "deviceName": [{"name": "Afferent finger PulseSensor clip (Arduino UNO Q)", "type": "user-friendly-name"}]}
     entries = [_entry(patient), _entry(device)]
 
     for d in summary["daily"]:
-        start = datetime.fromisoformat(d["date"]).replace(tzinfo=timezone.utc)
-        period = {"start": start.isoformat(), "end": (start + timedelta(days=1)).isoformat()}
+        if d.get("from_ts") is not None and d.get("to_ts") is not None:
+            # the 24 hours the value was computed over (Store.daily), not the calendar day of d["date"]
+            period = {"start": datetime.fromtimestamp(d["from_ts"], timezone.utc).isoformat(),
+                      "end": datetime.fromtimestamp(d["to_ts"], timezone.utc).isoformat()}
+        else:
+            start = datetime.fromisoformat(d["date"]).replace(tzinfo=timezone.utc)
+            period = {"start": start.isoformat(), "end": (start + timedelta(days=1)).isoformat()}
         for metric, spec in DAILY.items():
             v = d.get(metric)
             if v is None:
