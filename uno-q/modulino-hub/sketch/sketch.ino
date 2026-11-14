@@ -15,6 +15,7 @@
 //   red = finger 1 (A1), blue = finger 2 (A2). Keep it off when the Jetson camera measures pulse from a face:
 //   a light flashing at heart rate on the face fakes the camera reading.
 //                    call("led_beat", on)
+//                    call("sensor_power", ch, on)                 sensor + is wired to D2 (finger 1) / D3 (finger 2)
 
 #include <Arduino_RouterBridge.h>
 #include <Arduino_Modulino.h>
@@ -48,9 +49,11 @@ const float MIN_PEAK = 120.0f;       // 14-bit counts per 2 samples. Middle fing
 const unsigned long REFRACTORY_MS = 300;
 const int RAIL_LO = 200, RAIL_HI = 13500;   // sensor amplifier saturated: ignore
 bool heartbeatSound = true;
+unsigned long lastBeep = 0;               // one beep per heartbeat, whichever finger sees it first
 
 struct Channel {
   int pin;
+  int powerPin;                           // sensor + is wired to this pin: HIGH = sensor + LED on
   int tone;                               // beep pitch tells the two fingers apart
   int hist[3];
   int histN;
@@ -63,8 +66,8 @@ struct Channel {
   float glow;                             // LED: 1.0 on a locked beat, fades
 };
 Channel ch[2] = {
-  {A1, 880, {0, 0, 0}, 0, 0, 0, 0, 0, true, 0, 0},
-  {A2, 660, {0, 0, 0}, 0, 0, 0, 0, 0, true, 0, 0},
+  {A1, 2, 880, {0, 0, 0}, 0, 0, 0, 0, 0, true, 0, 0},
+  {A2, 3, 660, {0, 0, 0}, 0, 0, 0, 0, 0, true, 0, 0},
 };
 
 // ── KY-016 RGB LED ──────────────────────────────────────────────────────────
@@ -118,6 +121,15 @@ bool setPulsePeriod(int c, int ms, int q100) {
   return true;
 }
 
+bool sensorPower[2] = {true, true};
+
+bool setSensorPower(int c, bool on) {
+  if (c < 0 || c > 1) return false;
+  sensorPower[c] = on;
+  digitalWrite(ch[c].powerPin, on ? HIGH : LOW);
+  return on;
+}
+
 bool setHeartbeatSound(bool on) {
   heartbeatSound = on;
   return heartbeatSound;
@@ -141,7 +153,10 @@ void detectBeat(int idx, int raw, unsigned long now) {
     bool locked = periodOk;
     lastAnyBeat = now;
     if (locked) c.glow = 1.0f;
-    if (locked && heartbeatSound && buzzerOk) buzzer.tone(c.tone, 40);
+    if (locked && heartbeatSound && buzzerOk && now - lastBeep > 300) {   // same heart: merge
+      buzzer.tone(880, 40);
+      lastBeep = now;
+    }
     Bridge.notify("beat", idx, (uint32_t)now, (uint32_t)ibi, (int)c.peak, locked);
   }
   if (d > c.peak) c.peak = (c.peak == 0) ? d : c.peak + (d - c.peak) * 0.3f;
@@ -161,6 +176,8 @@ void setup() {
   Bridge.provide_safe("led", setLed);
   Bridge.provide_safe("led_beat", setLedBeat);
   Bridge.provide_safe("pulse_period", setPulsePeriod);
+  Bridge.provide_safe("sensor_power", setSensorPower);
+  for (int i = 0; i < 2; i++) { pinMode(ch[i].powerPin, OUTPUT); digitalWrite(ch[i].powerPin, HIGH); }
   pinMode(PIN_R, OUTPUT); pinMode(PIN_G, OUTPUT); pinMode(PIN_B, OUTPUT);
   writeLed(0, 40, 0);                     // green blink at startup
   delay(150);
