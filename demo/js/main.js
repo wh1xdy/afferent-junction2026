@@ -127,8 +127,16 @@
 
   const night = () => ui.clock === 'night';
   A.night = night;
+  // The end greeting follows the real time of day (guide.js); night mode keeps its own quiet words.
+  const greet = () => {
+    const hello = A.Guide.hello();
+    $('endText').textContent = night() ? 'Rest well.' : hello;
+    const sheet = document.querySelector('.end-sheet'), h = sheet?.querySelector('.end-hello');
+    if (h) h.textContent = hello;
+    sheet?.setAttribute('aria-label', hello.replace(/\.$/, ''));
+  };
   const morningText = () => {
-    $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
+    greet();
     $('decline').textContent = night() ? 'Not tonight' : 'Not today';
     $('end').classList.toggle('night', night());
     A.Theme.sync();
@@ -235,6 +243,7 @@
     resetEnd();
     $('json').textContent = '';
     timeline = [];
+    guideMem = {};
     A.session = A.startSession({ input: A.Input.mode, clock: ui.clock, stage: ui.stage, profile: ui.profile, visual: idle });
     camGlyph();
     const s = A.session;
@@ -261,7 +270,7 @@
   const resetEnd = () => {
     endShown = false;
     $('end').classList.remove('declined', 'dim', 'closed');
-    $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
+    greet();
     show('offer', false);
   };
   const goHome = () => {
@@ -286,13 +295,13 @@
     if (text) { el.textContent = text; el.classList.toggle('line', kind === 'line'); }
     el.classList.toggle('on', !!text);
   };
-  let lineTimer = 0;
-  const taskLine = g => {
-    clearTimeout(lineTimer);
-    const text = A.LINES?.[g.id];
-    if (!text) return;
-    cue(text, 'line');
-    lineTimer = setTimeout(() => { if (A.session?.game?.id === g.id) cue(''); }, 3500);
+  // The line at the top during play comes from A.Guide.line, asked every frame: guide.js says what it shows and when.
+  let guideMem = {}, guideShown = null;
+  const guide = (s, now) => {
+    const want = A.Guide.line(s, now, guideMem), key = want ? want.text : null;
+    if (key === guideShown) return;
+    guideShown = key;
+    cue(want?.text || '', want?.kind);
   };
 
   $('download').onclick = () => {
@@ -309,17 +318,14 @@
   ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
   A.bus.on('segment', id => {
     if (id !== 'walk') log('phase ' + id);
-    if (id === 'rest') { cue('Hold the lantern and rest a moment', 'line'); return; }
-    cue(id === 'checkin' ? (night() ? 'How are you tonight?' : 'How are you this morning?') : '');
   });
   A.bus.on('mode', m => log('mode ' + m));
-  A.bus.on('game', g => { log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`); taskLine(g); });
+  A.bus.on('game', g => { log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`); });
   A.bus.on('haptic', () => { $('haptic').classList.remove('pulse'); void $('haptic').offsetWidth; $('haptic').classList.add('pulse'); });
   A.bus.on('mood', m => {
     log(`lantern check-in ${m.which} ${m.value ?? 'skipped'}`);
-    if (m.which === 'start') cue('');
   });
-  A.bus.on('endScreen', () => { endShown = true; show('end', true); show('closeBtn', false); });
+  A.bus.on('endScreen', () => { endShown = true; greet(); show('end', true); show('closeBtn', false); });
   A.bus.on('endDim', () => $('end').classList.add('dim'));
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
@@ -455,6 +461,7 @@
     A.Theme.frame(canvas);
     A.FXGL?.present(canvas, V, s);
     s?.drawOverlay(ctx, now);
+    guide(s, now);
     if (curtain) {
       const k = A.clamp((now - curtain.start) / curtain.dur, 0, 1);
       curtainV = A.lerp(curtain.from, curtain.to, A.ease(k));
