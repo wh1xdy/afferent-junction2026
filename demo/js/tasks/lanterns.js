@@ -90,7 +90,8 @@
     const big = tr.L === 'rich' ? tr.richSide : tr.richSide === 'left' ? 'right' : 'left';
     const phase = pre && tr.phase === 'fb' ? 'cue' : tr.phase, t = pre && tr.phase === 'fb' ? tr.fbT : tr.t;
     const cueT = tr.cueT ?? 0.32, cueOn = phase === 'cue' && t - cueT < 0.4;
-    return { t, phase, ft: phase === 'fb' ? tr.t - tr.fbT : 0, resp: pre ? null : tr.resp, rich: tr.richSide, big, scale: 1.08, cueOn, sized: cueOn, cueT };
+    // The size cue of a measured trial: g.sizeRatio (measures.js) for 0.4 s from the cue, then both alike again.
+    return { t, phase, ft: phase === 'fb' ? tr.t - tr.fbT : 0, resp: pre ? null : tr.resp, rich: tr.richSide, big, scale: g.sizeRatio ?? 1.13, cueOn, sized: cueOn, cueT };
   };
 
   const dipOf = (g, G, ps, at) => {
@@ -216,35 +217,42 @@
     };
   };
 
+  // One post with its snow cap and the rope wound round it.
+  const post = (ctx, G, i, top, pb) => {
+    const { b, U, kx, ky, pw } = G;
+    const x = kx[i] + (i ? 0.5 : -0.5) * pw * 0.2, x0 = x - pw / 2;
+    const pg = ctx.createLinearGradient(x0, 0, x0 + pw, 0);
+    pg.addColorStop(0, rgb(i ? POST_D : POST_L)); pg.addColorStop(0.5, rgb(POST)); pg.addColorStop(1, rgb(i ? POST_L : POST_D));
+    ctx.fillStyle = pg;
+    ctx.beginPath(); ctx.roundRect(x0, top, pw, pb - top, [pw * 0.35, pw * 0.35, pw * 0.1, pw * 0.1]); ctx.fill();
+    sprite(ctx, 'soft', C.amber, x - (i ? 1 : -1) * pw * 0.45, ky + 0.12 * b.h, 0.16 * b.h, 0.1, true, 0.25, 1);
+    ctx.strokeStyle = rgb(C.woodD, 0.55); ctx.lineWidth = Math.max(1, 0.8 * U);
+    for (const f of [0.3, 0.62]) { ctx.beginPath(); ctx.moveTo(x0 + pw * f, top + 0.18 * b.h); ctx.lineTo(x0 + pw * f, pb - 0.12 * b.h); ctx.stroke(); }
+    ctx.fillStyle = rgb(C.silver100, 0.82);
+    ctx.beginPath(); ctx.ellipse(x, top + 2 * U, pw * 0.62, pw * 0.3, 0, Math.PI, 0); ctx.roundRect(x - pw * 0.62, top + 1 * U, pw * 1.24, 5 * U, 3 * U); ctx.fill();
+    ctx.fillStyle = rgb(C.silver050, 0.5);
+    ctx.beginPath(); ctx.ellipse(x - pw * 0.15, top - 2 * U, pw * 0.25, pw * 0.1, 0, 0, 6.283); ctx.fill();
+    sprite(ctx, 'soft', POST_D, x, pb + 12 * U, pw * 0.9, 0.35, false, 0.5, 1.4);
+    ctx.strokeStyle = rgb(ROPE); ctx.lineWidth = 3.2 * U;
+    for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(x0 - 1.5 * U, ky - 5 * U + k * 3.6 * U); ctx.lineTo(x0 + pw + 1.5 * U, ky - 3 * U + k * 3.6 * U); ctx.stroke(); }
+  };
+
   const drawScene = (ctx, G, at, dip) => {
-    const { b, U, kx, ky, pw, wy } = G, top = ky - 0.11 * b.h, bot = b.y + 1.08 * b.h, pb = wy + 10 * U;
+    const { b, U, kx, ky, pw, wy } = G, top = ky - 0.11 * b.h, pb = wy + 10 * U;
     if (!A.Traverse) sprite(ctx, 'soft', C.night950, b.x + b.w / 2, b.y + 0.5 * b.h, 0.78 * b.h, 0.6, false, 1.05, 1);
-    const wg = ctx.createLinearGradient(0, wy - 6 * U, 0, bot + 8 * U);
-    wg.addColorStop(0, rgb(C.night800, 0)); wg.addColorStop(0.2, rgb(C.night800, 0.72)); wg.addColorStop(0.6, rgb(C.night900, 0.6)); wg.addColorStop(1, rgb(C.night950, 0));
-    ctx.fillStyle = wg; ctx.fillRect(b.x - 0.1 * b.w, wy - 6 * U, b.w * 1.2, bot - wy + 14 * U);
-    ctx.lineWidth = U; ctx.lineCap = 'round';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 2; i++) post(ctx, G, i, top, pb);
+    // The still water the posts stand in: a soft dark pool under them, no edge anywhere, that also takes in the
+    // posts' feet. (It was a band with a ruled top edge across the whole screen.)
+    sprite(ctx, 'soft', C.night900, G.cx, wy + 8 * U, 0.66 * b.w, 0.62, false, 1, 0.16);
+    sprite(ctx, 'soft', C.night900, kx[0], pb - 4 * U, 3.2 * pw, 0.5, false, 1, 0.35);
+    sprite(ctx, 'soft', C.night900, kx[1], pb - 4 * U, 3.2 * pw, 0.5, false, 1, 0.35);
+    ctx.lineWidth = U;
     for (let k = 0; k < 4; k++) {
       const y = wy + (6 + 9 * k) * U, sh = rm() ? 0 : Math.sin(at * 0.6 + k * 1.7) * 14 * U;
       ctx.strokeStyle = rgb(C.silver300, 0.07 - 0.012 * k);
       ctx.beginPath(); ctx.moveTo(b.x + (0.12 + 0.1 * k) * b.w + sh, y); ctx.lineTo(b.x + (0.45 + 0.06 * k) * b.w + sh, y); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(b.x + (0.58 - 0.05 * k) * b.w - sh, y + 4 * U); ctx.lineTo(b.x + (0.86 - 0.08 * k) * b.w - sh, y + 4 * U); ctx.stroke();
-    }
-    for (let i = 0; i < 2; i++) {
-      const x = kx[i] + (i ? 0.5 : -0.5) * pw * 0.2, x0 = x - pw / 2;
-      const pg = ctx.createLinearGradient(x0, 0, x0 + pw, 0);
-      pg.addColorStop(0, rgb(i ? POST_D : POST_L)); pg.addColorStop(0.5, rgb(POST)); pg.addColorStop(1, rgb(i ? POST_L : POST_D));
-      ctx.fillStyle = pg;
-      ctx.beginPath(); ctx.roundRect(x0, top, pw, pb - top, [pw * 0.35, pw * 0.35, pw * 0.1, pw * 0.1]); ctx.fill();
-      sprite(ctx, 'soft', C.amber, x - (i ? 1 : -1) * pw * 0.45, ky + 0.12 * b.h, 0.16 * b.h, 0.1, true, 0.25, 1);
-      ctx.strokeStyle = rgb(C.woodD, 0.55); ctx.lineWidth = Math.max(1, 0.8 * U);
-      for (const f of [0.3, 0.62]) { ctx.beginPath(); ctx.moveTo(x0 + pw * f, top + 0.18 * b.h); ctx.lineTo(x0 + pw * f, pb - 0.12 * b.h); ctx.stroke(); }
-      ctx.fillStyle = rgb(C.silver100, 0.82);
-      ctx.beginPath(); ctx.ellipse(x, top + 2 * U, pw * 0.62, pw * 0.3, 0, Math.PI, 0); ctx.roundRect(x - pw * 0.62, top + 1 * U, pw * 1.24, 5 * U, 3 * U); ctx.fill();
-      ctx.fillStyle = rgb(C.silver050, 0.5);
-      ctx.beginPath(); ctx.ellipse(x - pw * 0.15, top - 2 * U, pw * 0.25, pw * 0.1, 0, 0, 6.283); ctx.fill();
-      sprite(ctx, 'soft', POST_D, x, pb + 12 * U, pw * 0.9, 0.35, false, 0.5, 1.4);
-      ctx.strokeStyle = rgb(ROPE); ctx.lineWidth = 3.2 * U;
-      for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(x0 - 1.5 * U, ky - 5 * U + k * 3.6 * U); ctx.lineTo(x0 + pw + 1.5 * U, ky - 3 * U + k * 3.6 * U); ctx.stroke(); }
     }
     const ix = [kx[0] + pw * 0.4, kx[1] - pw * 0.4], cy = 2 * ropeY(G, G.cx, dip) - ropeY(G, ix[0], dip);
     ctx.strokeStyle = rgb(ROPE); ctx.lineWidth = 3 * U;

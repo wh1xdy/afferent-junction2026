@@ -186,7 +186,8 @@
   const lanterns = g => {
     const c = g.counts(), answered = c.rc + c.ri + c.lc + c.li;
     return {
-      rich_lantern: 'amber', size_diff: 0.08, trials: g.trials,
+      // size_diff: how much bigger the bigger lantern was (0.13 since 2026-11-15, 0.08 before), so the two can be told apart.
+      rich_lantern: 'amber', size_diff: r2(g.sizeRatio - 1), trials: g.trials,
       rich_correct: c.rc, rich_incorrect: c.ri, lean_correct: c.lc, lean_incorrect: c.li, ...prt(c),
       rewards_rich: g.rewards.rich, rewards_lean: g.rewards.lean, valid: answered >= 10,
     };

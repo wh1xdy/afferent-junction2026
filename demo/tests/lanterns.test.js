@@ -21,7 +21,7 @@ const load = (seed = 7) => {
   ctx.performance = { now: () => clock * 1000 };
   ctx.document = { addEventListener: () => {}, getElementById: () => null, createElement: () => ({ width: 0, height: 0, getContext: () => recorder([]) }) };
   vm.createContext(ctx);
-  for (const f of ['util.js', 'juice.js', 'minigames.js', 'tasks/lanterns.js', 'measures.js']) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['util.js', 'juice.js', 'minigames.js', 'tasks/lanterns.js', 'measures.js', 'record.js']) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
   const A = ctx.A;
   A.now = () => clock;
   A.config = { reducedMotion: false };
@@ -86,7 +86,7 @@ test('a released lantern leaves the rope where and as large as it was last drawn
   g.down(side === 'left' ? 0.3 : 0.7, 0.5, now());
   const s2 = g.L.sky[g.L.sky.length - 1];
   assert.strictEqual(s2.sc0, drawn.sc);
-  assert.strictEqual(s2.sc0, 1.08);
+  assert.strictEqual(s2.sc0, 1.13);
   assert.ok(Math.abs(s2.y0 - drawn.y) < 1e-6);
 });
 
@@ -109,11 +109,26 @@ test('measured trials: no carry-over between trials, and the size cue is visible
     if (tr.phase === 'cue') assert.strictEqual(pair.length, 2);
     const big = pair.find(l => l.sc > 1);
     if (tr.phase === 'ready') assert.ok(!big, `trial ${i}: a lantern is larger before the cue`);
-    if (tr.phase === 'cue' && onset === null) { onset = tr.cueT; assert.ok(Math.abs(tr.t - tr.cueT) < 1e-9); assert.ok(big && big.sc === 1.08, `trial ${i}: cue not visible on its onset frame`); }
+    if (tr.phase === 'cue' && onset === null) { onset = tr.cueT; assert.ok(Math.abs(tr.t - tr.cueT) < 1e-9); assert.ok(big && big.sc === 1.13, `trial ${i}: cue not visible on its onset frame`); }
     if (tr.phase === 'cue') assert.strictEqual(!!big, tr.t - tr.cueT < 0.4);
   }
   assert.ok(n >= 10, `${n} trials ran`);
   for (const t of g.trials.filter(t => t.response !== null)) assert.ok(t.rt_ms >= 0, `rt ${t.rt_ms}`);
+});
+
+test('the size cue is the classic task\'s 13 %, the same in every trial, and the record keeps it', () => {
+  const { A, make, frame } = load(5);
+  const g = make();
+  assert.strictEqual(g.sizeRatio, 1.13);
+  const seen = new Set();
+  while (!g.done) {
+    const pair = frame(g), tr = g.tr;
+    if (!tr || (g.L.prac && !g.L.prac.done)) continue;
+    const big = pair.find(l => l.sc > 1), small = pair.find(l => l.sc === 1);
+    if (big) { seen.add(big.sc); assert.ok(small, 'the other lantern keeps its size'); }
+  }
+  assert.deepStrictEqual([...seen], [1.13], 'one ratio, no other size ever shown');
+  assert.strictEqual(A.Record.lanterns(g).size_diff, 0.13);
 });
 
 let failed = 0;

@@ -167,7 +167,7 @@ def lanterns_block(rng, p: dict, sev: float, g: float) -> dict:
     ri = sum(t["larger"] == "rich" and t["response"] == "lean" for t in trials)
     lc = sum(t["larger"] == "lean" and t["response"] == "lean" for t in trials)
     li = sum(t["larger"] == "lean" and t["response"] == "rich" for t in trials)
-    return {"rich_lantern": "amber", "size_diff": 0.08, "trials": trials, "rich_correct": rc, "rich_incorrect": ri,
+    return {"rich_lantern": "amber", "size_diff": 0.13, "trials": trials, "rich_correct": rc, "rich_incorrect": ri,
             "lean_correct": lc, "lean_incorrect": li, "log_b": round(log_b(rc, ri, lc, li), 3),
             "log_d": round(log_d(rc, ri, lc, li), 3),
             "rewards_rich": sum(t["rewarded"] and t["larger"] == "rich" for t in trials),
