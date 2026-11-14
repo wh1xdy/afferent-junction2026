@@ -10,7 +10,7 @@
 #   /vol/work          -> /workspace/training/work_dirs     (checkpoints out)
 #   /vol/models/torch  -> /cache/torch   (TORCH_HOME, rtmlib ONNX cache)
 #
-# Usage (from laptop/training/, after `modal token new` once):
+# Usage (from posture-analysis/training/, after `modal token new` once):
 #   modal run modal_app.py::push            # upload data/ + rtmlib cache
 #   modal run modal_app.py::main            # image build + `make train test`
 #   modal run modal_app.py::main --targets "train" --no-amp
@@ -29,7 +29,7 @@ from pathlib import Path, PurePosixPath
 
 import modal
 
-TRAIN_DIR = Path(__file__).resolve().parent        # laptop/training
+TRAIN_DIR = Path(__file__).resolve().parent        # posture-analysis/training
 LAPTOP_DIR = TRAIN_DIR.parent                       # laptop
 RTMLIB_DIR = LAPTOP_DIR / "posture" / "models" / "rtmlib"
 

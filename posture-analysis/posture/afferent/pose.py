@@ -9,7 +9,7 @@ CPU throughput: the YOLOX detector is the expensive half, so it runs every
 reused for the top-down pose model, like rtmlib's PoseTracker. Callers pass
 force_detect=True whenever the target is lost or no person was found.
 
-Custom fine-tuned pose ONNX (laptop/training "install-model") can replace the
+Custom fine-tuned pose ONNX (posture-analysis/training "install-model") can replace the
 rtmpose body model via POSE_MODEL_PATH -> BodyWithFeet(pose=..., pose_input_size=(192,256)).
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ class PoseEstimator:
         self.pose_model_path = pose_model_path or ""
         kwargs: dict[str, Any] = {}
         if self.pose_model_path:
-            # custom rtmpose ONNX exported by laptop/training export_onnx.py:
+            # custom rtmpose ONNX exported by posture-analysis/training export_onnx.py:
             # input (W,H)=(192,256), Halpe-26 simcc outputs
             kwargs["pose"] = self.pose_model_path
             kwargs["pose_input_size"] = (192, 256)

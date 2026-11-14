@@ -20,7 +20,7 @@ check_verda
 
 remote_run true || die "cannot reach '$VM_HOSTNAME' -- run up.sh first (verda vm ls)."
 
-REMOTE_SCRIPT="$REMOTE_ROOT/laptop/training/verda/remote_train.sh"
+REMOTE_SCRIPT="$REMOTE_ROOT/posture-analysis/training/verda/remote_train.sh"
 remote_run test -f "$REMOTE_SCRIPT" || \
     die "$REMOTE_SCRIPT missing on the instance -- run sync.sh first."
 

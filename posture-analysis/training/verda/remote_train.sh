@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # remote_train.sh — runs ON the Verda instance (invoked by verda/train.sh,
-# uploaded earlier by verda/sync.sh as part of laptop/training/).
+# uploaded earlier by verda/sync.sh as part of posture-analysis/training/).
 #
 #   nvidia-smi
 #   docker build -t afferent-train:cu121 --build-arg TORCH_VARIANT=cu121 .
 #   docker run --rm --gpus all ... make <target>   (one run per MAKE_TARGETS)
 #
 # Layout on the instance (mirrors the repo, see sync.sh):
-#   ~/$REMOTE_ROOT/laptop/training              code + data/ + work_dirs/
-#   ~/$REMOTE_ROOT/laptop/posture/models/rtmlib pretrained ONNX cache
+#   ~/$REMOTE_ROOT/posture-analysis/training              code + data/ + work_dirs/
+#   ~/$REMOTE_ROOT/posture-analysis/posture/models/rtmlib pretrained ONNX cache
 #
 # Data root: the training dir is mounted at /workspace/training, so
 # `make train` resolves AFFERENT_DATA_ROOT=$(abspath data)=/workspace/training/data
@@ -28,8 +28,8 @@ set -euo pipefail
 
 REMOTE_ROOT="${REMOTE_ROOT:-afferent}"
 REMOTE_HOME="${REMOTE_HOME:-$HOME/$REMOTE_ROOT}"
-TRAIN="$REMOTE_HOME/laptop/training"
-RTMLIB="$REMOTE_HOME/laptop/posture/models/rtmlib"
+TRAIN="$REMOTE_HOME/posture-analysis/training"
+RTMLIB="$REMOTE_HOME/posture-analysis/posture/models/rtmlib"
 IMAGE="${IMAGE:-afferent-train:cu121}"
 TORCH_VARIANT="${TORCH_VARIANT:-cu121}"
 AMP="${AMP:-}"

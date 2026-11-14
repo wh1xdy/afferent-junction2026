@@ -1,7 +1,7 @@
 # afferent — pose fine-tuning scaffold (phase 4)
 
 This folder fine-tunes **RTMPose-m Halpe-26 (body + feet)**, the pose model that
-`rtmlib.BodyWithFeet(mode="balanced")` runs in `laptop/posture`, on our own
+`rtmlib.BodyWithFeet(mode="balanced")` runs in `posture-analysis/posture`, on our own
 annotated home recordings. It then exports an ONNX that drops into rtmlib
 unchanged.
 
@@ -65,7 +65,7 @@ other dependencies are listed in `requirements-train.txt`.
 ## Build and run
 
 ```bash
-cd laptop/training
+cd posture-analysis/training
 # CPU image (local; verified on the dev laptop)
 docker build -t afferent-train:cpu --build-arg TORCH_VARIANT=cpu .
 # or: docker compose build train
@@ -200,7 +200,7 @@ except `train.py` and `export_onnx.py`, which need the training image.
 ```bash
 # 0. record: walking, sit-to-stand, turn, seated, standing posture, ideally
 #    several people (age, sex, body type, skin tone, glasses, beard). Save to
-#    laptop/posture/recordings/*.mp4 and describe each file in
+#    posture-analysis/posture/recordings/*.mp4 and describe each file in
 #    manifests/sessions.yaml (copy the example). Use pseudonymous ids only.
 #    Frames are extracted only for entries with consent: true.
 make extract  FPS=2                 # -> data/frames/<session>/*.jpg + frames.csv
@@ -212,7 +212,7 @@ make test                           # mmpose CocoMetric AP + bbox-PCK on test
 make export                         # -> work_dirs/export/rtmpose-m_halpe26_ft.onnx (+ .json)
 make evaluate                       # baseline (stock rtmlib) vs fine-tuned ONNX on test
 python scripts/eval_variables.py --csv work_dirs/eval/variables.csv   # final-variable criterion
-make install-model                  # -> laptop/posture/models/custom/rtmpose-m_halpe26_ft.onnx
+make install-model                  # -> posture-analysis/posture/models/custom/rtmpose-m_halpe26_ft.onnx
 ```
 
 Then loop: pre-label the next batch with the fine-tuned model
@@ -275,7 +275,7 @@ Checked against `Tau-J/rtmlib` (`tools/solution/body_with_feet.py`,
 
 To use the model, call
 `BodyWithFeet(pose="<models>/custom/rtmpose-m_halpe26_ft.onnx", pose_input_size=(192, 256), mode="balanced")`.
-`laptop/posture/afferent/pose.py` does not yet accept a custom pose path;
+`posture-analysis/posture/afferent/pose.py` does not yet accept a custom pose path;
 that hook belongs to the runtime code.
 
 ## Evaluation criteria

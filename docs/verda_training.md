@@ -4,7 +4,7 @@ Everything needed to run `make train` on a rented Verda GPU VM, from an
 empty account to a pulled checkpoint. The whole loop was validated live on
 CLI v1.10.0 (Nov 2026); the gotchas below are the ones that actually bit.
 
-Verda vs [Modal](../laptop/training/README.md#remote-training-on-modal):
+Verda vs [Modal](../posture-analysis/training/README.md#remote-training-on-modal):
 Verda gives you a real VM you can ssh into (persistent disk, interactive
 debugging) billed per started 10 min; Modal is serverless and proved
 slightly less finicky. Both run the same `make` targets in the same image.
@@ -56,7 +56,7 @@ verda availability --type 1V100.4V --location FIN-01 --spot
 ## 3. Configure
 
 ```bash
-cd laptop/training
+cd posture-analysis/training
 cp verda/config.env.example verda/config.env   # gitignored — safe to edit
 ```
 
@@ -68,7 +68,7 @@ Every variable is optional; the ones you will actually touch:
 | `SPOT` | unset | `SPOT=1` → `--is-spot`: ~2-4× cheaper, evictable mid-run |
 | `SSH_KEY` | unset | path to the *private* key registered with `verda ssh-key` |
 | `SSH_KEY_ID` | first key in `ssh-key list` | set it explicitly if you have several keys |
-| `DATA_DIR` | `laptop/training/data` | point at the capture dataset (§5) |
+| `DATA_DIR` | `posture-analysis/training/data` | point at the capture dataset (§5) |
 | `MAKE_TARGETS` | `train test` | forwarded to make on the VM |
 | `AMP` | — | `AMP=1` recommended on 16 GB cards |
 | `EXTRA` | — | appended to train, e.g. `--cfg-options train_cfg.max_epochs=1` |
@@ -86,7 +86,7 @@ pseudonymised (`Pxx`) data goes anywhere remote.
 ## 5. The loop
 
 ```bash
-cd laptop/training
+cd posture-analysis/training
 
 # up — prints IP, instance id, hourly price; waits for ssh-ready and
 # seeds known_hosts (fixes the fresh-IP host-key prompt that kills verda ssh)

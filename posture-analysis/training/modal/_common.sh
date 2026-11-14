@@ -11,7 +11,7 @@
 
 # ---------------------------------------------------------------- paths
 MODAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRAINING_DIR="$(dirname "$MODAL_DIR")"           # laptop/training
+TRAINING_DIR="$(dirname "$MODAL_DIR")"           # posture-analysis/training
 LAPTOP_DIR="$(dirname "$TRAINING_DIR")"          # laptop
 REPO_ROOT="$(dirname "$LAPTOP_DIR")"             # repo root
 

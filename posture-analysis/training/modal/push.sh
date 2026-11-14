@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # push.sh — upload the dataset + rtmlib ONNX cache into the Modal volume.
 #
-#   laptop/training/data/              -> $MODAL_VOLUME:/data/
+#   posture-analysis/training/data/              -> $MODAL_VOLUME:/data/
 #     (frames/ + annotations/ produced by make extract / split — consenting
 #      sessions only, enforced by extract_frames.py)
-#   laptop/posture/models/rtmlib cache -> $MODAL_VOLUME:/models/torch/hub/checkpoints/
+#   posture-analysis/posture/models/rtmlib cache -> $MODAL_VOLUME:/models/torch/hub/checkpoints/
 #     (pretrained ONNX for `make evaluate` / prelabel — offline-friendly)
 #
 # Usage: modal/push.sh
