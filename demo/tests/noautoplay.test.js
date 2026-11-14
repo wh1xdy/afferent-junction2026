@@ -37,6 +37,22 @@ test('the reaction trials start on a tap after a skipped check-in', () => {
   assert.strictEqual(s.T.state, 'ready');
 });
 
+test('after the kindle the session rests 6 s, then asks the start lantern, and the answer is the start mood', () => {
+  const { A, s, go } = session();
+  go(2.5);
+  assert.strictEqual(s.phase, 'rest');
+  go(6);
+  assert.strictEqual(s.phase, 'checkin');
+  Object.assign(s.panel, { choice: 4, decisionMs: 1200, done: true, finishedAt: A.now() });
+  go(1);
+  assert.strictEqual(s.phase, 'rt');
+  assert.strictEqual(s.rtArmed, true);
+  let doc = null;
+  A.bus.on('sessionEnd', d => { doc = d; });
+  s.finish('partial');
+  assert.deepStrictEqual([doc.core.mood_start, doc.core.mood_start_ms], [4, 1200]);
+});
+
 test('a short session with no input waits at the start of the ride', () => {
   const { s, games, go } = session({ stage: true });
   go(120);
@@ -61,14 +77,12 @@ test('a timed-out task ends, then the rider waits for a tap before travelling on
 test('a task that finishes itself without a tap is logged as auto, with a tap as touch', () => {
   for (const tapped of [false, true]) {
     const { A, s, tap, go } = session({ stage: true });
-    for (const reg of [A.MEASURES, A.MINIGAMES]) for (const def of Object.values(reg || {})) {
-      const make = def.make;
-      def.make = (...a) => Object.assign(make(...a), { update(dt, now) { if (!this.done && this.t >= 3) { this.done = true; this.finishedAt = now; } } });
-    }
+    const make = A.MEASURES.fork.make;
+    A.MEASURES.fork.make = () => Object.assign(make(), { update(dt, now) { if (!this.done && this.t >= 3) { this.done = true; this.finishedAt = now; } } });
     go(3);
     tap();
     for (let i = 0; i < 60 && s.phase !== 'game'; i++) go(1);
-    assert.ok(s.game, 'a task started');
+    assert.strictEqual(s.game.id, 'fork');
     if (tapped) s.handle('key', { t: A.now() });
     go(6);
     assert.strictEqual(s.tasks[0].completed_by, tapped ? 'touch' : 'auto');
