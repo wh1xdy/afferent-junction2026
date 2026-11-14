@@ -226,6 +226,7 @@
   }
   function ring(a) { st.rings.push({ t: n0(S.t, 0), a }); }
 
+  const CLOUDS = [['sky_dawn_cloud_1', 0.07, 1.5, 1, 0.3, 0.72], ['sky_dawn_cloud_2', 0.24, 1.0, 0.7, 0.75, 0.55], ['sky_dawn_cloud_3', 0.42, 0.7, 0.5, 0.45, 0.4]];
   let skyTop, skyMid, skyBot;
   function sky(ctx) {
     const d = st.ds, dl = n0(S.daylight, 0), dawn = d.dawn;
@@ -234,7 +235,7 @@
     top = mixc(top, P.greenTop, d.green * 0.35); mid = mixc(mid, P.greenBot, d.green * 0.3);
     mid = mixc(mid, P.violet600, d.yellow * 0.25); bot = mixc(bot, mixc(P.violet500, P.amber2, 0.3), d.yellow * 0.25);
     top = mixc(top, P.blueBot, dl * 0.5); mid = mixc(mid, P.dawnSky, dl * 0.45); bot = mixc(bot, P.daylight, dl * 0.4);
-    top = mixc(top, mixc(P.blueBot, P.dawnSky, 0.55), dawn); mid = mixc(mid, mixc(P.dawnSky, P.peach, 0.35), dawn); bot = mixc(bot, mixc(P.peach, P.gold, 0.5), dawn);
+    top = mixc(top, mixc(P.blueBot, P.dawnSky, 0.75), dawn); mid = mixc(mid, mixc(P.dawnSky, P.peach, 0.35), dawn); bot = mixc(bot, mixc(P.peach, P.gold, 0.5), dawn);
     const s = 0.18 + 0.82 * Math.max((d.blue + d.green + d.yellow) / 3, dawn, dl * 0.6);
     const des = c => { const l = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]; return [lerp(l * COOL[0], c[0], s), lerp(l * COOL[1], c[1], s), lerp(l * COOL[2], c[2], s)]; };
     skyTop = des(top); skyMid = des(mid); skyBot = des(bot);
@@ -242,17 +243,18 @@
     const a = rgb(skyTop.map(Math.round)), b = rgb(skyMid.map(Math.round)), c = rgb(skyBot.map(Math.round));
     ctx.fillStyle = vgrad(ctx, 'sky' + a + b + c + H, 0, hy + 4, [[0, a], [0.55, b], [1, c]]);
     ctx.fillRect(0, 0, W, hy + 6);
-    if (dawn > 0.02 && ART.has('sky_dawn_clouds')) {
-      const w = W * 1.05, span = w * 0.9, o = off(LAYER.aurora) + n0(S.t, 0) * 2 * u, i0 = Math.floor(o / span);
-      for (let i = i0; i * span - o < W; i++) {
-        const k = i % 2 ? 0.7 : 1, ww = w * k, x = i * span - o + (i % 2 ? w * 0.15 : 0);
-        art('sky_dawn_clouds', x, hy * (i % 2 ? 0.2 : 0.06), ww, ww / ART.aspect('sky_dawn_clouds'), 'dawn', dawn * (i % 2 ? 0.45 : 0.62), 1);
+    if (dawn > 0.02) {
+      const o = off(LAYER.aurora) + n0(S.t, 0) * 2 * u;
+      for (const [n, yk, wk, sp, ph, al] of CLOUDS) {
+        if (!ART.has(n)) continue;
+        const w = W * wk, span = W + w * 1.6, x = ((ph * span - o * sp) % span + span) % span - w * 0.8;
+        art(n, x, hy * yk, w, w / ART.aspect(n), 'dawn', dawn * al, 1);
       }
     }
     if (dawn > 0.01 || st.sun > 0.01) {
       const p = Math.max(dawn, st.sun);
-      glow(ctx, W * 0.72, hy, W * 0.9, P.coralSoft, 0.2 * p, 'soft');
-      glow(ctx, W * 0.72, hy, W * 0.5, P.gold, 0.16 * p, 'soft');
+      sprite(ctx, 'soft', P.coralSoft, W * 0.72 - W * 1.1, hy - W * 0.7, W * 2.2, W * 1.4, 0.5 * p, false);
+      sprite(ctx, 'soft', P.gold, W * 0.72 - W * 0.55, hy - W * 0.4, W * 1.1, W * 0.8, 0.35 * p, false);
     }
   }
 
@@ -334,15 +336,14 @@
     const p = st.sun;
     if (p <= 0.005) return;
     const x = W * 0.72, y = lerp(hy + H * 0.03, hy - H * 0.12, ease(p)), t = n0(S.t, 0);
-    glow(ctx, x, y, H * 0.42, P.coralSoft, 0.22 * p, 'soft');
-    glow(ctx, x, y, H * 0.2, P.gold, 0.2 * p, 'soft');
-    glow(ctx, x, y, H * 0.05, P.sun, 0.3 * p, 'glow');
-    sprite(ctx, 'dot', P.sun, x - H * 0.022, y - H * 0.022, H * 0.044, H * 0.044, 0.85 * p, false);
+    sprite(ctx, 'soft', P.gold, x - H * 0.2, y - H * 0.2, H * 0.4, H * 0.4, 0.4 * p, false);
+    glow(ctx, x, y, H * 0.07, P.sun, 0.22 * p, 'soft');
+    sprite(ctx, 'dot', P.sun, x - H * 0.024, y - H * 0.024, H * 0.048, H * 0.048, p, false);
     if (!rm) {
       ctx.save(); ctx.translate(x, y); ctx.globalCompositeOperation = 'lighter';
       for (let i = 0; i < 7; i++) {
         ctx.save(); ctx.rotate(Math.PI * (0.55 + i * 0.13) + Math.sin(t * 0.1 + i) * 0.03);
-        ctx.globalAlpha = 0.07 * p * (0.6 + 0.4 * Math.sin(t * 0.3 + i * 1.7));
+        ctx.globalAlpha = 0.045 * p * (0.6 + 0.4 * Math.sin(t * 0.3 + i * 1.7));
         ctx.drawImage(tint('beam', P.sun), 0, -H * 0.05, H * 0.9, H * 0.1);
         ctx.restore();
       }
@@ -418,7 +419,7 @@
   }
 
   function sea(ctx) {
-    const top = col(mixc(HAZE, P.sea, 0.5), 'blue', 1, 0.15), bot = col(P.seaDeep, 'blue');
+    const top = col(mixc(mixc(HAZE, P.sea, 0.5), P.dawnSky, 0.5 * st.ds.dawn), 'blue', 1, 0.15), bot = col(mixc(P.seaDeep, P.sea, 0.5 * st.ds.dawn), 'blue');
     ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H, hy, gy, [[0, top], [1, bot]]);
     ctx.fillRect(0, hy, W, gy - hy + 2);
     const t = n0(S.t, 0), o = off(LAYER.islands), c = grade(P.silver200, 'blue');
@@ -460,7 +461,7 @@
   }
 
   function fog(ctx, near) {
-    const d = clamp(n0(S.fog, 0.4), 0, 1.4);
+    const d = clamp(n0(S.fog, 0.4), 0, 1.4) * (1 - 0.6 * st.ds.dawn);
     if (d <= 0.01) return;
     const t = n0(S.t, 0), drift = n0(S.fogDrift, 1) * (rm ? 0.4 : 1), f = near ? LAYER.fogNear : LAYER.fogFar;
     const c = grade(mixc(P.silver300, P.glow, 0.15 * st.ds.yellow), 'blue');
@@ -933,7 +934,7 @@
       const p = clamp((t - r.t) / 2.6, 0, 1), e = ease(p);
       if (rm) { glow(ctx, st.lx, st.ly, H * 0.4, P.glow, 0.25 * r.a * Math.sin(p * Math.PI), 'soft'); continue; }
       const rr = 10 * u + e * H * 0.55;
-      for (const [lw, al] of [[18, 0.05], [8, 0.08], [2.5, 0.18]]) { ctx.strokeStyle = rgb(P.glow, al * r.a * (1 - p)); ctx.lineWidth = lw * u * (1 - 0.5 * p); ctx.beginPath(); ctx.arc(st.lx, st.ly, rr, 0, 6.283); ctx.stroke(); }
+      for (const [lw, al] of [[18, 0.05], [8, 0.08], [2.5, 0.18]]) { ctx.strokeStyle = rgb(P.glow, al * r.a * (1 - p) * (1 - p)); ctx.lineWidth = lw * u * (1 - 0.5 * p); ctx.beginPath(); ctx.arc(st.lx, st.ly, rr, 0, 6.283); ctx.stroke(); }
       glow(ctx, st.lx, st.ly, H * 0.3 * (0.4 + e), P.glow, 0.22 * r.a * (1 - p), 'soft');
     }
   }

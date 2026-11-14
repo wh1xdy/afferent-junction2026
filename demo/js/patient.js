@@ -427,7 +427,7 @@
         const k = Math.max(W / bg.width, H * 1.08 / bg.height), w = bg.width * k, h = bg.height * k;
         ctx.drawImage(bg, (W - w) / 2, -Math.min(h - H, scroll * 0.08), w, h);
         const g = ctx.createLinearGradient(0, 0, 0, H);
-        g.addColorStop(0, `rgba(7,10,20,${0.5 - 0.25 * warmth})`); g.addColorStop(0.55, `rgba(7,10,20,${0.38 - 0.2 * warmth})`); g.addColorStop(1, 'rgba(7,10,20,0.7)');
+        g.addColorStop(0, `rgba(7,10,20,${0.66 - 0.12 * warmth})`); g.addColorStop(0.55, `rgba(7,10,20,${0.54 - 0.12 * warmth})`); g.addColorStop(1, 'rgba(7,10,20,0.72)');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
         return;
       }

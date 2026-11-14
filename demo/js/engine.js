@@ -439,9 +439,11 @@
           else if (g.id === 'breath' && g.mode === 'rest' && this.playLeft(now) <= 0) this.endGame(now, 'touch');
         }
         if (this.phase === 'dawn') {
-          const t = now - this.phaseAt;
-          V.sweep = clamp(t / 4, 0, 1); V.sunP = V.sweep; V.border = lerp(0.1, 0.22, V.sweep); V.daylight = ema(V.daylight, 0, dt, 1);
-          if (t >= 4) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
+          const t = now - this.phaseAt, k = clamp(t / 4, 0, 1);
+          if (this.night) { for (const g of ['yellow', 'blue', 'green']) V.sat[g] = Math.max(V.sat[g], k); V.aurora = Math.max(V.aurora, k); }
+          else { V.sweep = k; V.sunP = k; }
+          V.border = lerp(0.1, 0.22, k); V.daylight = ema(V.daylight, 0, dt, 1);
+          if (t >= 4) { if (!this.night) V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
         }
         if (this.phase === 'end') {
           const t = now - this.phaseAt;
