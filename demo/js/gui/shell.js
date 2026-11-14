@@ -86,18 +86,21 @@
   };
 
   const HOLD_MS = 900;
+  const hap = n => { if (A.J) A.J.hap(n); else navigator.vibrate?.(n === 'success' ? 18 : 8); };
   const kindle = () => {
     const btn = $('begin');
     if (!btn) return;
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
     const fill = btn.querySelector('.fill'), C = 2 * Math.PI * 46;
-    let p = 0, t0 = 0, raf = 0, holding = false, lit = false;
+    let p = 0, t0 = 0, raf = 0, holding = false, lit = false, step3 = 0;
     const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); btn.style.setProperty('--p', v.toFixed(3)); };
-    const fire = () => { lit = true; btn.classList.add('lit'); navigator.vibrate?.(18); btn.dispatchEvent(new CustomEvent('kindle')); };
+    const fire = () => { lit = true; btn.classList.add('lit'); hap('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
     const tick = () => {
       if (!holding) return;
       set(Math.min(1, (performance.now() - t0) / HOLD_MS));
       if (p >= 1) { holding = false; fire(); return; }
+      const s3 = Math.floor(p * 3);
+      if (s3 > step3) { step3 = s3; hap('tick'); }
       raf = requestAnimationFrame(tick);
     };
     const drain = () => {
@@ -113,6 +116,8 @@
       cancelAnimationFrame(raf);
       holding = true; btn.classList.add('holding');
       t0 = performance.now() - p * HOLD_MS;
+      step3 = Math.floor(p * 3);
+      hap('light');
       raf = requestAnimationFrame(tick);
     });
     const release = () => { if (!holding) return; holding = false; btn.classList.remove('holding'); if (!lit) { drain(); hint(); } };

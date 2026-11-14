@@ -290,6 +290,7 @@
     const had = run.answers[k];
     if (had === v && timer) return;
     if (had !== undefined && had !== v) run.changed[k] = (run.changed[k] || 0) + 1;
+    if (had !== v) A.J?.hap('tick');
     run.answers[k] = v;
     run.ms[k] = Math.round(performance.now() - run.shownAt);
     sheet.querySelectorAll('.ci-opt').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
