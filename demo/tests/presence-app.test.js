@@ -189,6 +189,21 @@ const tests = {
     assert.strictEqual(t.A.Presence.status().presence.reason, 'seen: ble');
   },
 
+  async 'finger sensor connected but silent (no finger on the clip, no adverts): the unit still counts as in range'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');
+    await t.steps(1);
+    t.radio.devices = [];
+    t.A.Sensors = { fingerLink: { state: 'connected', name: 'Afferent Finger' } };
+    await t.steps(10);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+    t.A.Sensors.fingerLink = { state: 'scanning', name: null };   // link lost: the normal rule applies again
+    await t.steps(10);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'away');
+  },
+
   async 'home Wi-Fi fingerprint: remembered devices visible -> home without the unit'() {
     const t = load();
     t.radio.status = { ...t.radio.status, lanDevices: ['aa11', 'bb22', 'cc33'] };
