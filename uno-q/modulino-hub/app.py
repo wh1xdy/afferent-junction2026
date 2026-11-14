@@ -411,12 +411,31 @@ def rsa_breathing(c, window_ms=40000):
     return round(f0 * 60), round(10 * math.log10(sig / (rest + 1e-12)), 1)
 
 
+_last_breath_log = 0.0
+
+
+def rsa_debug(c):
+    """why there is / isn't a reading (logged every 5 s while sensing)"""
+    per = period_state[c].get("period_ms")
+    allp = [(t, i) for t, i in list(beats[c]) if i > 0]
+    kept = [(t, i) for t, i in allp if not per or 0.7 * per <= i <= 1.4 * per]
+    span = (kept[-1][0] - kept[0][0]) / 1000 if len(kept) > 1 else 0
+    ibis = [i for _, i in kept]
+    return f"ch{c}: beats {len(allp)} kept {len(kept)} span {span:.0f}s period {per} ibi {min(ibis) if ibis else '-'}-{max(ibis) if ibis else '-'}"
+
+
 def update_breathing():
+    global _last_breath_log
     best = None
+    results = []
     for c in range(CHANNELS):
         r = rsa_breathing(c)
+        results.append(r)
         if r and (best is None or r[1] > best[1]):
             best = (r[0], r[1], c)
+    if time.time() - _last_breath_log > 5:
+        _last_breath_log = time.time()
+        print(f"breathing: {results} | " + " | ".join(rsa_debug(c) for c in range(CHANNELS)), flush=True)
     with lock:
         if best and best[1] > 0:
             breathing.update(per_minute=best[0], snr=best[1], channel=best[2])
