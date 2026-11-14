@@ -157,6 +157,22 @@
       app.append(vc);
     }
 
+    // The bedroom at night from the bedside unit (hub /api/patients/<id>/room-nights, added by qrexport.js).
+    // Context next to the vitals, not part of the index; the QR code itself never carries it.
+    const room = D.room || {}, rw = room.weekly || {};
+    const ROOM_ROWS = [['temp_c_night', 'Temperature at night, °C', 1], ['humidity_pct', 'Humidity at night, %', 0]];
+    const rk = ROOM_ROWS.filter(([k]) => (rw[k] || []).some(v => v != null));
+    if (rk.length) {
+      const rc = card('Bedroom at night (8 weeks)');
+      rk.forEach(([k, label, dp]) => {
+        const s = rw[k], last = s.filter(v => v != null).pop();
+        rc.append(featBlock(label, s, `${last.toFixed(dp)}${room.simulated ? ' · sim' : ''}`));
+      });
+      const [lo, hi] = room.sleep_c || [16, 19];
+      rc.append(h('p', 'note', `Bedside unit, ${room.night || '23:00 to 07:00'}, weekly medians. ${room.nights || 0} ${room.nights === 1 ? 'night' : 'nights'} with a reading${room.simulated ? ', simulated' : ''}. Sleep research points to a cool bedroom, about ${lo} to ${hi} °C.`));
+      app.append(rc);
+    }
+
     const contrib = (D.contrib || []).filter(c => c.contribution != null);
     if (contrib.length) {
       const cc = card('What moved the signal');

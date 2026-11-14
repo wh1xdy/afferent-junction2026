@@ -6,6 +6,8 @@
   const STEP = [5, 6, 7, 8, 9];
   const FISH = 'task_reaction_light_fish', SPLASH = 'task_reaction_splash_sheet';
   const CREAM = mixc(C.silver100, C.glow, 0.35), LINE = C.silver200, WOOD = C.woodD;
+  const GRADES = [[300, 'Very fast'], [400, 'Fast'], [600, 'Good'], [Infinity, 'Steady']];
+  const grade = ms => GRADES.find(([max]) => ms <= max)[1];
 
   const sheet = (r, stops) => {
     const c = document.createElement('canvas'); c.width = c.height = 2 * r;
@@ -41,7 +43,7 @@
       B = s.bite = {
         key: s.phaseAt, t0: J.at, last: J.at, tr: null, fl: { m: 'none', t: 0 }, hit: -9, yank: -9, whip: -9, twitch: -9, dip: -9,
         fish: [], rip: [], beads: [], demo: 0, ghostPress: -9, ghostA: 0, touched: false, catches: 0, ph: R() * TAU,
-        doneAt: null, payAt: null, ignited: false, gathered: false, released: false,
+        doneAt: null, payAt: null, ignited: false, gathered: false, released: false, judge: null,
       };
     }
     return B;
@@ -68,7 +70,7 @@
     }
     B.fish.push({ t: at, kind: 'catch', x0: g.x, y0: g.y, dur: rm ? 0.3 : 0.5, bead: demo ? -1 : s.core.trials.length, demo });
     if (!demo) B.catches++;
-    if (player) J.hap.seq([['medium', 0], ['light', 450]]);
+    if (player) J.hap.seq([['hit', 0], ['touch', 450]]);
     J.sfx('bite_zip'); J.sfx('bite_plunk');
   };
 
@@ -145,7 +147,7 @@
         const flare = hooks().flareLighthouse, [hx, hy] = lighthouse(g);
         if (flare) { flare(1); J.bloom(hx, hy, g.S * 0.1, C.glow, 0.5, 0.3, 0.9); }
         else J.bloom(g.lx, g.ly, g.S * 0.2, C.glow, 0.5, 0.3, 0.9);
-        J.hap('success'); J.sfx('bite_swell', { piano: [0, 0.1] });
+        J.hap('complete'); J.sfx('bite_swell', { piano: [0, 0.1] });
       }
       if (pt >= 0.8 && !B.released) { B.released = true; hooks().lanternPose?.(null); }
     }
@@ -292,6 +294,30 @@
     }
   };
 
+  const drawJudge = (ctx, B, g, at, rm) => {
+    const j = B.judge, t = j ? at - j.t : -1;
+    if (!j || t < 0 || t > 1.3) return;
+    const U = g.U, a = clamp(t / 0.12, 0, 1) * (1 - clamp((t - 0.85) / 0.45, 0, 1));
+    const x = g.x, y = g.y - 62 * U - (rm ? 0 : 16 * U * E.outSoft(clamp(t / 1.3, 0, 1)));
+    const pop = rm ? 1 : 1 + 0.18 * Math.max(0, 1 - t / 0.18);
+    ctx.save();
+    ctx.globalAlpha *= a; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.shadowColor = rgb(C.night950, 0.6); ctx.shadowBlur = 12 * U;
+    if (j.ms != null) {
+      ctx.fillStyle = rgb(C.silver050);
+      ctx.font = `300 ${Math.round(30 * U * pop)}px Jost, sans-serif`;
+      ctx.fillText(`${j.ms} ms`, x, y);
+      ctx.fillStyle = rgb(C.glow);
+      ctx.font = `500 ${Math.round(14 * U)}px "Google Sans Flex", sans-serif`;
+      ctx.fillText(j.label, x, y + 20 * U);
+    } else {
+      ctx.fillStyle = rgb(C.silver200);
+      ctx.font = `500 ${Math.round(16 * U * pop)}px "Google Sans Flex", sans-serif`;
+      ctx.fillText(j.label, x, y);
+    }
+    ctx.restore();
+  };
+
   A.definePresenter('reaction', {
     stimulus: 'bite/1',
     leadIn: 1.2,
@@ -310,12 +336,14 @@
     early(s, tr, at, ignored) {
       if (ignored) return;
       const B = state(s), g = geo();
-      B.dip = J.at; B.twitch = J.at;
+      B.dip = J.at; B.twitch = J.at; B.judge = { t: J.at, label: 'Too early' };
+      if (B.fl.m === 'bite') B.fl = { m: 'water', t: J.at };
       ripple(B, g.x, g.y, 6 * g.U, 24 * g.U, 0.5, 0.35);
-      J.hap('tick'); J.sfx('bite_tap_water');
+      J.hap('miss', 0.8); J.sfx('bite_tap_water');
     },
     resolve(s, trial, now) {
       const B = state(s), tr = s.core.trial, g = geo(), at = J.at;
+      if (trial.rt_ms !== null) B.judge = { t: at, ms: trial.rt_ms, label: grade(trial.rt_ms) };
       if (trial.outcome === 'miss') {
         B.fl = { m: 'sink', t: at }; B.yank = at;
         B.fish.push({ t: at + (J.rm() ? 0.1 : 0), kind: 'swim', x0: g.x, y0: g.y, dur: J.rm() ? 0.4 : 0.8, bead: trial.trial });
@@ -382,6 +410,7 @@
       const gather = pt < 0 ? 0 : E.inQuad(clamp(pt / 0.25, 0, 1));
       if (pt < 0.3) drawBeads(ctx, B, g, at, slots, gather);
       drawGhost(ctx, B, g, at);
+      drawJudge(ctx, B, g, at, rm);
       if (pt >= 0) drawPayoff(ctx, B, g, at, rm);
     },
   });

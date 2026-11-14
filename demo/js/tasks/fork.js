@@ -288,7 +288,7 @@
           const ph = this.round?.phase;
           down.call(this, u, v, t, dd);
           this.pv.noIn = false;
-          if (ph === 'reward') { this.pv.pats.push({ u, v, t0: at() }); hap('tick'); sfx('fork_pat'); for (const o of this.pv.orbs) if (o.launch > at()) o.launch = at(); }
+          if (ph === 'reward') { this.pv.pats.push({ u, v, t0: at() }); hap('touch'); sfx('fork_pat'); for (const o of this.pv.orbs) if (o.launch > at()) o.launch = at(); }
         };
         return;
       }
@@ -313,7 +313,7 @@
           return;
         }
         pv.stretchAt = T;
-        hap('medium');
+        hap('hit');
         sfx('fork_choose', { piano: [4, 0.12] });
         const b = A.session?.box?.();
         if (b && !rm()) J.fx.burst(b.x + b.w * 0.5, b.y + b.h * 0.86, 6, C.silver200, 55, { g: 140, life: 0.45, add: false, size: [1.8, 1], alpha: [0.7, 0] });
@@ -328,7 +328,7 @@
         if (ev === 'hit') {
           pv.hits++;
           if (d.light.born != null) pv.tap_ms.push(Math.round((d.light.on - d.light.born) * 1000));
-          hap('ladder', d.i, d.n);
+          hap.ladder(d.i, d.n);
           sfx('fork_step', { i: d.i, n: d.n, f: d.i / d.n, piano: [3 + Math.round(5 * d.i / d.n), 0.1] });
           const b = A.session?.box?.();
           if (b) { const S = STONE_S * depth(d.light.p[1]), [nx, ny] = niche(b.x + b.w * d.light.p[0], b.y + b.h * d.light.p[1], S); J.bloom(nx, ny, S * 1.4, C.glow, 0.45, 0.12, 0.3); }
@@ -336,7 +336,7 @@
         }
         return;
       }
-      if (ev === 'miss') { pv.pats.push({ u: d.u, v: d.v, t0: T }); hap('tick'); sfx('fork_pat'); return; }
+      if (ev === 'miss') { pv.pats.push({ u: d.u, v: d.v, t0: T }); hap('touch'); sfx('fork_pat'); return; }
       if (ev === 'reward') {
         pv.bowlAt = T; pv.trailAt = r.path === 'none' ? null : T;
         const s = sideOf(r, r.path === 'none' ? 'easy' : r.path), hard = r.path === 'hard', m = d.got;
@@ -490,10 +490,10 @@
             pv.ripples.push({ x: scarf[0], y: scarf[1], t0: T });
             J.bloom(scarf[0], scarf[1], 26, C.glow, 0.5, 0.12, 0.4);
             if (!red) J.fx.burst(scarf[0], scarf[1], 5, C.glow, 70, { life: 0.4, size: [2, 0.6] });
-            hap('medium'); sfx('fork_orb', { k: o.k, m: o.m });
+            hap('land', 0.7); sfx('fork_orb', { k: o.k, m: o.m });
             A.session?.kick?.(0.22);
             if (A.session) A.session.scarf = Math.min(4, (A.session.scarf || 0) + 1);
-            if (g.choices.length === 2 || (r.i === 0 && r.path === 'none')) { if (pv.orbs.every(q => q.landed)) J.spill(0.3 + 0.08 * g.glows); }
+            if (g.choices.length === 2 || (r.i === 0 && r.path === 'none')) { if (pv.orbs.every(q => q.landed)) { J.spill(0.3 + 0.08 * g.glows); hap.seq([['complete', 160]]); } }
           }
           continue;
         }

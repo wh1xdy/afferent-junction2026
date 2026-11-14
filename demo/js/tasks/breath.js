@@ -93,7 +93,7 @@
         touchDown(t) {
           this.rt?.hit('in' + this.cy?.c, t);
           this.touched = true; this.downAt = this.at ?? A.now(); this.drift = 0;
-          J.hap('tick');
+          J.hap('touch');
           const p = this.geo();
           J.bloom(p.x, p.y, 70 * p.u, this.endless ? C.ice : C.glow, 0.28, 0.15, 0.5);
           J.sfx('breath_wind', { on: true });
@@ -125,7 +125,7 @@
           this.sync = 0.5 * ((this.inF ? this.inH / this.inF : 0) + (this.exF ? this.exR / this.exF : 0));
 
           if (inhale) {
-            while (this.cy.ticks <= 3 && ct >= this.cy.ticks) { this.cy.ticks++; J.hap('tick'); }
+            if (!this.cy.ticks) { this.cy.ticks = 4; if (this.feel()) J.hap.breath('in', IN - ct); }
           } else if (!this.cy.top) this.turn(holding, now);
 
           const c = Math.floor(this.t / CYCLE);
@@ -156,7 +156,7 @@
           cy.top = true; cy.share = this.cIn ? this.cHeld / this.cIn : 0;
           this.rt?.lapse('in' + cy.c);
           this.topAt = this.at ?? now;
-          J.hap('light');
+          if (this.feel()) J.hap.breath('out', CYCLE - IN);
           const p = this.geo();
           J.bloom(p.x, p.y, 95 * p.u, this.endless ? C.ice : C.glow, 0.32, 0.3, 0.7);
           J.sfx('breath_top');
@@ -289,7 +289,8 @@
 
         outroUpdate(dt, now) { this.visual(dt, now); },
 
-        close(now) { if (this.engaged()) J.finish(this, now); else this.max = this.t; },
+        close(now) { if (this.engaged()) { J.finish(this, now); if (!this.endless) J.hap('complete'); } else this.max = this.t; },
+        feel() { return !this.endless || this.cyc < 6; },
         engaged() { return this.inF > 0 && this.inH / this.inF >= ENGAGED; },
 
         auto() {

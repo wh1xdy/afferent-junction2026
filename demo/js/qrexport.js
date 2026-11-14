@@ -66,6 +66,15 @@
     status('qeStamp', `Data bumped ${d.toLocaleString()}${old ? ' — older than a day' : ''}`);
   }
 
+  // The bedroom at night for the dashboard (hub/afferent_hub/room.py). Only the dashboard gets it, not the QR code.
+  async function roomNights() {
+    if (!hubBase) return null;
+    try {
+      const r = await fetchJSON(`${hubBase}/api/patients/${encodeURIComponent(pid)}/room-nights`, 3000);
+      return r && r.weekly ? r : null;
+    } catch { return null; }
+  }
+
   function renderFile(body, meta) {
     const html = A.DashGen.render(body, meta);
     const blob = new Blob([html], { type: 'text/html' });
@@ -139,6 +148,8 @@
 
   async function apply(rec) {
     if (!rec) { status('qeState', 'Nothing to show yet — open Afferent at home once.'); return; }
+    const room = await roomNights();
+    if (room) rec = { ...rec, body: { ...rec.body, room } };
     current = rec;
     setStamp(rec.saved_iso || rec.body.generated_iso);
     const html = renderFile(rec.body, { source: rec.src, patient: pid, saved_iso: rec.saved_iso });

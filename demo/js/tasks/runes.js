@@ -78,8 +78,8 @@
           const b = this.b;
           if (c.ok) {
             if (b) { const L = this.layout(b), P = L.tiles[1]; fx.burst(P.cx, P.cy, 10, C.glow, 130 * L.U, { kind: 'spark', size: [4 * L.U, 1] }); J.bloom(P.cx, P.cy, P.w * 0.8, C.warm, 0.3, 0.12, 0.4); }
-            hap('light'); sfx('runes_hit', { piano: [3 + (this.items % 5), 0.1] });
-          } else { hap('tick'); sfx('runes_frost'); }
+            hap('hit'); sfx('runes_hit', { piano: [3 + (this.items % 5), 0.1] });
+          } else { hap('miss'); sfx('runes_frost'); }
           this.state = 'gap'; this.stateAt = this.t;
           J.border((this.i + 1) / this.trials.length);
           this.sync();
@@ -89,7 +89,7 @@
           if (this.done) return;
           const T = this.t - this.stateAt;
           if (this.state === 'gap' && T >= ITI) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('runes_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('runes_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           } else if (this.state === 'fix' && T >= FIX) { this.state = 'show'; this.stateAt = this.t; const c = this.trials[this.i]; c.on = now; c.onAt = J.at; }
           else if (this.state === 'show' && T >= LIMIT) { this.trials[this.i].ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); }

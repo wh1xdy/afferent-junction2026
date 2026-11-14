@@ -50,7 +50,7 @@
           const ps = this.picks.filter(p => p.round === this.r);
           this.rounds[this.r] = ps.filter(p => p.ok).length;
           this.go('reveal', now); this.sync();
-          if (this.rounds[this.r] === TARGETS) { hap('light'); sfx('reindeer_round', { piano: [5, 0.14] }); }
+          if (this.rounds[this.r] === TARGETS) { hap('success'); sfx('reindeer_round', { piano: [5, 0.14] }); }
           else sfx('reindeer_round_soft');
         },
 
@@ -77,7 +77,7 @@
           if (this.done) return;
           const T = this.t - this.phaseAt;
           if (this.phase === 'intro' && T >= 0.6) {
-            if (this.r + 1 >= ROUNDS) { this.sync(); finish(this, now); hap('success'); sfx('reindeer_done'); J.border(1); J.spill(0.35); return; }
+            if (this.r + 1 >= ROUNDS) { this.sync(); finish(this, now); hap('complete'); sfx('reindeer_done'); J.border(1); J.spill(0.35); return; }
             this.r++; this.spawn(); this.go('show', now); sfx('reindeer_bells');
           } else if (this.phase === 'show' && T >= SHOW) { this.go('move', now); sfx('reindeer_trot'); }
           else if (this.phase === 'move') {
@@ -103,8 +103,8 @@
           if (best.tgt) {
             fx.burst(p.x, p.y - F.s * 0.6, 10, C.glow, 140 * F.U, { kind: 'spark', size: [4 * F.U, 1] });
             J.bloom(p.x, p.y, F.s * 3, C.warm, 0.35, 0.12, 0.4);
-            hap('light'); sfx('reindeer_bell', { piano: [3 + (this.items % 5), 0.12] });
-          } else { best.shakeAt = J.at; fx.snow(p.x, p.y + F.s * 0.5, 6); hap('tick'); sfx('reindeer_snort'); }
+            hap('hit'); sfx('reindeer_bell', { piano: [3 + (this.items % 5), 0.12] });
+          } else { best.shakeAt = J.at; fx.snow(p.x, p.y + F.s * 0.5, 6); hap('miss'); sfx('reindeer_snort'); }
           this.sync();
           J.border((this.r + this.picks.filter(q => q.round === this.r).length / TARGETS) / ROUNDS);
           if (this.picks.filter(q => q.round === this.r).length >= TARGETS) this.endRound(t);

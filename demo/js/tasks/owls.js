@@ -55,7 +55,7 @@
           if (this.done) return;
           const T = this.t - this.stateAt;
           if (this.state === 'gap' && T >= ITI) {
-            if (this.i + 1 >= this.searches.length) { this.sync(); finish(this, now); hap('success'); sfx('owls_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.searches.length) { this.sync(); finish(this, now); hap('complete'); sfx('owls_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'search'; this.stateAt = this.t;
             const s = this.searches[this.i]; s.on = now; s.onAt = J.at;
             sfx('owls_rustle');
@@ -76,12 +76,12 @@
           if (best === s.target) {
             s.found = true; s.rt = Math.max(0, t - s.on); this.foundAt = J.at;
             fx.burst(P.x, P.y, 12, C.gold, 150 * P.U, { kind: 'spark', size: [4 * P.U, 1] }); J.bloom(P.x, P.y, P.s * 4, C.glow, 0.4, 0.12, 0.4);
-            hap('light'); sfx('owls_hoot', { piano: [4 + (this.items % 4), 0.12] });
+            hap('hit'); sfx('owls_hoot', { piano: [4 + (this.items % 4), 0.12] });
             this.state = 'gap'; this.stateAt = this.t;
             J.border((this.i + 1) / this.searches.length);
           } else {
             s.wrong++; this.wrongAt = J.at; this.wrongCell = best;
-            fx.snow(P.x, P.y - P.s, 5); hap('tick'); sfx('owls_shuffle');
+            fx.snow(P.x, P.y - P.s, 5); hap('miss'); sfx('owls_shuffle');
           }
           this.sync();
         },

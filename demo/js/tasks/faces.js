@@ -55,7 +55,7 @@
           if (this.done) return;
           const T = this.t - this.stateAt;
           if (this.state === 'gap' && T >= ITI) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('faces_done'); J.border(1); J.spill(0.3); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('faces_done'); J.border(1); J.spill(0.3); return; }
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           } else if (this.state === 'fix' && T >= FIX) { this.state = 'face'; this.stateAt = this.t; this.trials[this.i].faceAt = J.at; }
           else if (this.state === 'face' && T >= FACE) { this.state = 'probe'; this.stateAt = this.t; const c = this.trials[this.i]; c.on = now; c.onAt = J.at; sfx('faces_light'); }
@@ -72,8 +72,8 @@
           if (c.ok) {
             this.hitAt = J.at;
             if (b) { const P = this.pane(c.probeSide, b); fx.burst(P.cx, P.cy, 10, C.glow, 130 * P.U, { kind: 'spark', size: [4 * P.U, 1] }); J.bloom(P.cx, P.cy, P.w * 0.9, C.warm, 0.3, 0.12, 0.4); }
-            hap('light'); sfx('faces_hit', { piano: [3 + (this.items % 5), 0.1] });
-          } else { this.missAt = J.at; hap('tick'); sfx('faces_frost'); }
+            hap('hit'); sfx('faces_hit', { piano: [3 + (this.items % 5), 0.1] });
+          } else { this.missAt = J.at; hap('miss'); sfx('faces_frost'); }
           this.state = 'gap'; this.stateAt = this.t;
           J.border((this.i + 1) / this.trials.length);
           this.sync();

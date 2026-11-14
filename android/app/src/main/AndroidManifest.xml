@@ -42,6 +42,8 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- AfferentHaptics (AfferentHapticsPlugin.kt): the soft touches of the games, the kindle and the breath guide. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 
     <!-- Bluetooth LE, shared by two in-app plugins. One element per permission.
