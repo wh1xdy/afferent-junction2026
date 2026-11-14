@@ -13,6 +13,25 @@ import math
 import statistics as st
 
 
+def surprise(v):
+    bo = (v("browOuterUpLeft") + v("browOuterUpRight")) / 2
+    raw = 0.6 * bo + 0.2 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.2 * v("jawOpen")
+    return raw if bo > 0.2 else 0.3 * raw
+
+
+def running_away(yaw, pitch):
+    """deviation from the running median gaze (10 Hz history, 60 s), like the app"""
+    hy, hp, out, base = [], [], [], None
+    for i, (y, p) in enumerate(zip(yaw, pitch)):
+        if i % 6 == 0:
+            hy.append(y); hp.append(p)
+            hy, hp = hy[-600:], hp[-600:]
+            base = (sorted(hy)[len(hy) // 2], sorted(hp)[len(hp) // 2])
+        b = base or (y, p)
+        out.append(math.hypot(y - b[0], p - b[1]))
+    return out
+
+
 def composites(row, col):
     v = lambda k: row[col[k]] if k in col else 0.0
     sl, sr = v("mouthSmileLeft"), v("mouthSmileRight")
@@ -21,7 +40,7 @@ def composites(row, col):
         "sad": 0.5 * v("browInnerUp") + 0.5 * (v("mouthFrownLeft") + v("mouthFrownRight")) / 2,
         "anger": 0.6 * (v("browDownLeft") + v("browDownRight")) / 2 + 0.4 * (v("mouthPressLeft") + v("mouthPressRight")) / 2,
         "disgust": 0.6 * (v("noseSneerLeft") + v("noseSneerRight")) / 2 + 0.4 * (v("mouthUpperUpLeft") + v("mouthUpperUpRight")) / 2,
-        "surprise": 0.4 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.3 * (v("browOuterUpLeft") + v("browOuterUpRight")) / 2 + 0.3 * v("jawOpen"),
+        "surprise": surprise(v),
         "contempt": abs(sl - sr),
     }
 
@@ -68,12 +87,19 @@ def main():
     print(f"app summary: {json.dumps(doc.get('summary', {}))}\n")
 
     comp = [composites(r, col) for r in rows]
+    yaw0 = [r[col["gaze_yaw_deg"]] for r in rows]
+    pitch0 = [r[col["gaze_pitch_deg"]] for r in rows]
+    awayd = running_away(yaw0, pitch0)
+    far = [t for t, a_ in zip(ts, awayd) if a_ > 25]
+    def started_far(t0):
+        return any(t0 - 0.3 < t <= t0 for t in far)
     # all bursts, then resolve overlaps like ExpressionSession.add (strongest vs own threshold wins)
     allb = []
     for k in comp[0]:
         mr = MIN_RISE.get(k, a.min_rise)
         for st0, d, pk in bursts(ts, [c[k] for c in comp], mr, a.mad_k):
-            allb.append([k, st0, d, pk / mr])
+            if not started_far(st0):
+                allb.append([k, st0, d, pk / mr])
     allb.sort(key=lambda x: x[1] + x[2])          # in order of ending, as the app sees them
     kept = []
     for e in allb:
@@ -81,6 +107,7 @@ def main():
         if any(o[3] >= e[3] for o in ov):
             continue
         kept = [o for o in kept if o not in ov] + [e]
+    print("events:", ", ".join(f"{e[0]}@{e[1]:.1f}s/{int(e[2]*1000)}ms" for e in sorted(kept, key=lambda e: e[1])))
     print(f"{'expression':10s} {'median':>7s} {'p90':>6s} {'p99':>6s} {'max':>6s}   micro  macro   (min-rise {a.min_rise}, mad-k {a.mad_k})")
     for k in comp[0]:
         xs = [c[k] for c in comp]
@@ -102,9 +129,8 @@ def main():
     s = sorted(speeds)
     print(f"gaze speed deg/s  median {s[len(s)//2]:.0f}  p90 {s[int(len(s)*.9)]:.0f}  p99 {s[int(len(s)*.99)]:.0f}")
     cal = [i for i, t in enumerate(ts) if t - ts[0] < 10]
-    by, bp = st.median(yaw[i] for i in cal), st.median(pitch[i] for i in cal)
-    away = sum(1 for y, p in zip(yaw, pitch) if math.hypot(y - by, p - bp) > 7) / len(yaw)
-    print(f"baseline (first 10 s) yaw {by:+.1f}° pitch {bp:+.1f}°; looking > 7° away from it: {away*100:.0f} %")
+    away = sum(1 for x in awayd if x > 10) / len(awayd)
+    print(f"looking > 10° from the running median gaze: {away*100:.0f} %;  far (> 25°, expressions ignored): {sum(1 for x in awayd if x > 25) / len(awayd) * 100:.0f} %")
     down = [(r[col["eyeLookDownLeft"]] + r[col["eyeLookDownRight"]]) / 2 for r in rows]
     bd = st.median(down[i] for i in cal)
     print(f"lookDown baseline {bd:.2f}; looking down (> baseline + 0.15): {sum(1 for x in down if x > bd + 0.15) / len(down) * 100:.0f} %")

@@ -15,7 +15,7 @@ enum ExpressionKind: String, CaseIterable, Codable {
         switch self {
         case .happy: return "Smile"
         case .sad: return "Sadness"
-        case .anger: return "Anger"
+        case .anger: return "Frown / anger"   // AU4 brow lowerer: frowning, not necessarily anger
         case .disgust: return "Disgust"
         case .surprise: return "Surprise / fear"
         case .contempt: return "Contempt"
@@ -31,9 +31,12 @@ enum ExpressionKind: String, CaseIterable, Codable {
             .sad: 0.5 * v("browInnerUp") + 0.5 * (v("mouthFrownLeft") + v("mouthFrownRight")) / 2,         // AU1 + AU15
             .anger: 0.6 * (v("browDownLeft") + v("browDownRight")) / 2 + 0.4 * (v("mouthPressLeft") + v("mouthPressRight")) / 2, // AU4 + AU24
             .disgust: 0.6 * (v("noseSneerLeft") + v("noseSneerRight")) / 2 + 0.4 * (v("mouthUpperUpLeft") + v("mouthUpperUpRight")) / 2, // AU9 + AU10
-            // AU5 + AU2 + AU26: outer brow raise (AU2), not inner (AU1) - inner brow is also sadness,
-            // so a sad micro-expression used to fire "surprise" as well
-            .surprise: 0.4 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.3 * (v("browOuterUpLeft") + v("browOuterUpRight")) / 2 + 0.3 * v("jawOpen"),
+            // AU2 + AU5 + AU26, led by the outer brow raise (AU2). Inner brow (AU1) is also sadness, and
+            // wide eyes alone happen when looking away/up (measured: eyeWide 0.3-0.4 with browOuterUp ~0),
+            // so without raised outer brows it barely counts.
+            .surprise: { let bo = (v("browOuterUpLeft") + v("browOuterUpRight")) / 2
+                         let raw = 0.6 * bo + 0.2 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.2 * v("jawOpen")
+                         return bo > 0.2 ? raw : 0.3 * raw }(),
             .contempt: abs(smileL - smileR),                                                                     // unilateral AU12/14
         ]
     }
@@ -118,7 +121,10 @@ struct ExpressionSession {
     // Personal baselines from the first `calibrationS` seconds ("look at the screen"):
     // people hold the phone below eye level, so "at the screen" is not 0 deg / not lookDown 0.
     static let calibrationS = 10.0
-    static let awayDeg = 7.0           // measured: looking away read 5-12 deg in ARKit
+    static let awayDeg = 10.0          // from the running gaze median (where the person mostly looks)
+    static let farDeg = 25.0           // beyond this ARKit's blendshapes are unreliable: no expression onsets
+    private var gazeHistY: [Double] = [], gazeHistP: [Double] = []
+    private var lastAwayDeg = 0.0
     private var calYaw: [Double] = [], calPitch: [Double] = [], calDown: [Double] = []
     private var baseGaze: (yaw: Double, pitch: Double)?
     private var baseDown: Double?
@@ -130,13 +136,16 @@ struct ExpressionSession {
     /// gaze yaw/pitch in degrees relative to the camera (ARFaceAnchor.lookAtPoint)
     mutating func feedGaze(yaw: Double, pitch: Double, t: Double) {
         gazeFrames += 1
-        if let s = start, t - s < Self.calibrationS {
-            calYaw.append(yaw); calPitch.append(pitch)
-        } else if baseGaze == nil {
-            baseGaze = (Self.median(calYaw), Self.median(calPitch))
+        // running baseline: median of where the person has looked so far (most of the time: the
+        // screen), so glancing away during the first seconds doesn't spoil it (measured: it did)
+        if gazeFrames % 6 == 0 {            // 10 Hz is plenty for a median
+            gazeHistY.append(yaw); gazeHistP.append(pitch)
+            if gazeHistY.count > 600 { gazeHistY.removeFirst(); gazeHistP.removeFirst() }   // 60 s
+            baseGaze = (Self.median(gazeHistY), Self.median(gazeHistP))
         }
-        let b = baseGaze ?? (0, 0)
-        if hypot(yaw - b.yaw, pitch - b.pitch) > Self.awayDeg { gazeAwayFrames += 1 }
+        let b = baseGaze ?? (yaw, pitch)
+        lastAwayDeg = hypot(yaw - b.yaw, pitch - b.pitch)
+        if lastAwayDeg > Self.awayDeg { gazeAwayFrames += 1 }
         if let g = lastGaze, t > g.t {
             let jump = hypot(yaw - g.yaw, pitch - g.pitch)
             let speed = jump / (t - g.t)
@@ -156,8 +165,10 @@ struct ExpressionSession {
         let happy = vals[.happy] ?? 0
         for i in detectors.indices {
             guard let e = detectors[i].feed(vals[detectors[i].kind] ?? 0, t: t) else { continue }
+            if farUntil > e.start { continue }       // started while looking far away
             add(e, minRise: detectors[i].minRise)
         }
+        if lastAwayDeg > Self.farDeg { farUntil = t + 0.3 }
         if let s = start, t - s < Self.calibrationS { calHappy.append(happy) }
         else if baseHappy == nil { baseHappy = Self.median(calHappy) }
         if happy > (baseHappy ?? 0.02) + 0.04 { smileFrames += 1 }
@@ -180,6 +191,7 @@ struct ExpressionSession {
     /// keep the one that is strongest relative to its own threshold. Measured on a real face:
     /// 5 frowns (mouthFrown 0.8) each also fired "disgust" via noseSneer 0.3.
     private var strengths: [Double] = []
+    private var farUntil = -Double.infinity
     private mutating func add(_ e: ExpressionEvent, minRise: Double) {
         let strength = e.peak / minRise
         let end = e.start + e.duration
