@@ -21,6 +21,21 @@ never asked on successive replies or repeated when they get no uptake. Silence i
 than filled with prompts. It is not an assistant and does not do research or tasks; the safety lines
 (support button, 112) are always in.
 
+## Listening design and references
+
+The listening approach draws on empathy, nonjudgmental acceptance, and attending to meaning and
+feelings. Limits on questions, allowing silence, and avoiding repeated prompts are conversational
+design adaptations, not literal rules from these papers. These works concern human relationships and
+therapy; they are not evidence of the efficacy or safety of AI for depression. The companion is not
+psychotherapy or a substitute for care.
+
+- Rogers, C. R., & Farson, R. E. (1957). *Active listening*. Industrial Relations Center, University of
+  Chicago. [Original edition catalog](https://search.worldcat.org/title/Active-listening/oclc/7022047);
+  [excerpt](https://www.gordontraining.com/wp-content/uploads/ActiveListening_RogersFarson.pdf)
+  (excerpt, not the full original).
+- Rogers, C. R. (1957). The necessary and sufficient conditions of therapeutic personality change.
+  *Journal of Consulting Psychology, 21*(2), 95–103. https://doi.org/10.1037/h0045357
+
 Once a day the phone asks its home hub for a wellbeing read (`GET /api/patients/{pid}/wellbeing`,
 see the main README) and may pass it in the auth message as `context`:
 `{indicator: "ok"|"watch"|"bad", date, facts: […], suggest_doctor}`. The relay validates and

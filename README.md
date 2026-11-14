@@ -369,6 +369,9 @@ and appends it to the system instruction. So on a bad day the companion gently a
 that things have not been easy, reminds the person the app and their care team are there
 exactly for that, and suggests — once, without pushing — that they talk to their doctor.
 
+The companion's conversation design, references, and limitations are documented in
+[`voice-relay/README.md`](voice-relay/README.md).
+
 ### Home hub on the Jetson
 
 The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the real UNO Q as bedside and the data manager all run on the mesh. The Mac is needed only as the doorway for a browser or the phone (below).
