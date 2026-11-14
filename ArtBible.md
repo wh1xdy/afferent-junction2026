@@ -1,4 +1,6 @@
-# Art bible
+# Art bible (v2)
+
+v2 note: the world is now built live from biome chunks chosen by the director (sauna, birch forest, frozen lake, bright shore, harbour), and tasks open in a dark-glass panel. Every layer and prop is drawn procedurally in `demo/js/world.js` and `demo/js/minigames.js`; a generated image may replace a layer, but the procedural version always stays as the fallback, so the game runs with any subset of images. Generation status: the test request on Sat returned `HTTP 401 invalid_api_key`, so no images exist yet and nothing was spent.
 
 ## 1. Style
 
@@ -12,31 +14,30 @@ Principles taken (no designs copied): colour as the reward (Gris), the goal alwa
 
 ## 2. Colour return system
 
-Every asset is generated **in full colour**. The game removes colour, not the artist. One PixiJS filter on every layer with three uniforms: `saturation` (0 to 1), `tint` (multiply colour), `exposure`. Each station animates its own layers over its bloom time (1.5 s after success, 5 s after a timeout or miss). There are no extra assets per state.
+Every asset is generated **in full colour**. The game removes colour, not the artist. One PixiJS filter on every layer with three uniforms: `saturation` (0 to 1), `tint` (multiply colour), `exposure`. Each finished task animates one colour group over its bloom time (1.5 s after a finished task, 5 s after a timeout). There are no extra assets per state.
 
 The sky is a code-drawn 4-stop vertical gradient, tweened per state, so it can also move continuously with the vitals layer.
 
 | State | Sky top / bottom | Land | Accents | Layers raised |
 |---|---|---|---|---|
 | Night grey (start) | `#14161B` / `#2A2E36` | `#3A3E46` | lantern `#F2E6C9` (only warm pixel) | all saturation 0.05 |
-| + Warm yellow (forest) | `#14161B` / `#2C2C30` | birch bark `#E8E1D2` | `#F2B544`, `#D98E2B` | lantern, birches, sauna window to saturation 1 |
-| + Blue (lake) | `#10304D` / `#2A5C80` | ice `#7FC8E8` | `#3A7CA5`, `#1E4E79` | ice, fog, far mountains to 0.8 |
-| + Green (sauna) | `#0F2233` / `#1E3A44` | `#2F4A48` | aurora `#5FE3A1`, `#2FA37A` | aurora layer fades in, sky to 0.6 |
+| + Warm yellow (1st task) | `#14161B` / `#2C2C30` | birch bark `#E8E1D2` | `#F2B544`, `#D98E2B` | lantern, birches, sauna window to saturation 1 |
+| + Blue (2nd task) | `#10304D` / `#2A5C80` | ice `#7FC8E8` | `#3A7CA5`, `#1E4E79` | ice, fog, far mountains to 0.8 |
+| + Green (3rd task) | `#0F2233` / `#1E3A44` | `#2F4A48` | aurora `#5FE3A1`, `#2FA37A` | aurora layer fades in, sky to 0.6 |
 | Dawn, full colour | `#9FC3E0` / `#F7C59F` | sea `#4F86A8`, hills `#6E7F5A` | sun `#FFE8B8`, `#F49D6E` | all saturation 1, exposure +0.4, left to right sweep over 4 s |
 
 Rules:
-- Each colour is bound to its station, not to its position. A skipped station becomes a 3 s walk-through and its colour returns as the figure passes.
+- Each finished task blooms the next colour group in the order yellow, blue, green.
 - Dawn forces saturation 1 on every layer, whatever happened before.
 - A miss never lowers saturation. It only slows the bloom (5 s instead of 1.5 s).
 
-### Vitals layer (visual side)
-- Pulse above resting +10 bpm in calming segments: the world is held, never colder. Warm amber tint (`#D98E2B`) rises up to +15%, fog drift 0.6x, lantern glow widens 10%.
-- Pulse rising in activating segments: lantern sparkle (small particle burst per beat, max 6 particles), up to 40 extra stars. Capped at +15 bpm.
-- Heartbeat (only with "Show heartbeat" on): lantern flame scales 1.0 to 1.06 and back on each beat, 180 ms. Above resting +10 bpm, or with the setting off, it glows at a fixed slow 60 bpm instead.
-
-### Profiles (visual side)
-- Good day: thin fog (density 0.3), 180 stars, faint aurora hint at 10%, neutral night grey.
-- Bad day: dense low fog (0.8), no stars, slower fog drift (0.6x), warm amber tint +12%, lantern 1.3x. Never darker than good day.
+### Mode styles (visual side)
+- **calm:** warm amber tint +15%, fog 0.6, slow drift, 60 stars, slightly dimmer exposure, sauna window and stove glow.
+- **flow:** light warm tint, fog 0.35, 120 stars, faint beam.
+- **wake:** no tint, fog 0.15, 200 stars plus lantern sparks, lighthouse beam at 60 to 100%, ice glow.
+- **fatigue (day):** daylight blend up to +75% (sky towards pale blue, ground brighter), strong beam, screen border at 25%.
+- **rest (night):** fog 0.7, dimmer exposure, no beam.
+- Never mirror a racing heart: the lantern pulses at a fixed slow rhythm.
 
 ## 3. Parallax layers
 
@@ -82,7 +83,7 @@ Priority A (16, needed for the 20:00 build) is generated first. Priority B (9) o
 | 5 | `ground_harbour` | 1536x1024 | yes | A | A narrow wooden pier and rocky shore strip along the bottom of the image, calm dark water edge, horizontally tileable ground line. |
 | 6 | `ground_forest` | 1536x1024 | yes | A | A mossy forest floor path strip along the bottom of the image with roots and small stones, horizontally tileable. |
 | 7 | `ground_lake_ice` | 1536x1024 | yes | A | A flat frozen lake surface strip along the bottom of the image, smooth ice with faint cracks and light snow dusting, horizontally tileable. |
-| 8 | `ground_shore_lighthouse` | 1536x1024 | yes | A | A snowy rocky shore strip along the bottom of the image rising gently to the right where a lighthouse would stand, horizontally tileable on the left edge. |
+| 8 | `ground_shore_lighthouse` | 1536x1024 | yes | A | A snowy rocky shore strip along the bottom of the image, bright morning snow, horizontally tileable (fatigue biome). |
 | 9 | `birch_cluster` | 1024x1536 | yes | A | A cluster of four slender birch trees with white bark and dark marks, bare winter branches, full height of the image. |
 | 10 | `sauna_hut` | 1024x1024 | yes | A | A small traditional Finnish log sauna hut with a snowy roof, a short chimney and one small square window, the window dark. |
 | 11 | `sauna_window_glow` | 1024x1024 | yes | A | Only a soft warm amber glow shaped like a small square window with light spilling outwards, nothing else in the image. |
@@ -91,14 +92,14 @@ Priority A (16, needed for the 20:00 build) is generated first. Priority B (9) o
 | 14 | `figure` | 1024x1024 | yes | A | A small hooded figure in a long cloak seen from the side walking right, no face visible inside the hood, holding a lantern on a short pole in front, simple rounded shapes. |
 | 15 | `figure_sit` | 1024x1024 | yes | A | The same small hooded figure in a long cloak sitting on a low wooden bench seen from the side, hands in lap, no face visible, lantern standing beside it. |
 | 16 | `sun_disc_dawn_glow` | 1024x1024 | yes | A | A soft low rising sun disc with a large warm peach and gold glow halo fading to transparent. |
-| 17 | `lantern_sheet` | 1024x1024 | yes | B | Five small hand lanterns in a row from smallest dimmest flame to largest brightest flame, warm amber light, same lantern design. |
+| 17 | `lantern_sheet` | 1024x1024 | yes | B | Five small hand lanterns in a row from smallest dimmest flame to largest brightest flame, warm amber light, same lantern design (end-screen check-in). |
 | 18 | `pier_boat` | 1536x1024 | yes | B | A small wooden rowing boat moored beside a short pier with two posts, calm. |
 | 19 | `islands_distant` | 1536x1024 | yes | B | Three low distant rocky islands with a few pine silhouettes on the horizon, horizontally tileable. |
 | 20 | `fog_band_b` | 1536x1024 | yes | B | A thinner higher band of drifting mist, very soft, horizontally tileable. |
 | 21 | `birch_cluster_b` | 1024x1536 | yes | B | Two birch trees and one young birch leaning slightly, white bark, bare branches, full height. |
 | 22 | `foreground_reeds_rocks` | 1536x1024 | yes | B | Dark close foreground silhouettes of tall reeds and two rounded rocks along the bottom edge, slightly blurred. |
-| 23 | `fork_signpost` | 1536x1024 | yes | B | A path splitting in two, one flat path along the shore and one climbing a small hill, a simple wooden post without any text at the split. |
-| 24 | `glowing_stone` | 1024x1024 | yes | B | A small smooth round pebble glowing softly from inside with warm golden light. |
+| 23 | `task_props` | 1536x1024 | yes | B | A neat row of small objects on a transparent background, evenly spaced: three bronze hand bells, a glass jar, a wooden sauna ladle, a small wooden rowing boat, a pair of closed wooden window shutters. |
+| 24 | `glowing_stone` | 1024x1024 | yes | B | A small smooth round pebble glowing softly from inside with warm golden light (the bedside pulse stone, for the app and the deck). |
 | 25 | `app_icon` | 1024x1024 | no | B | A tiny lighthouse on a dark blue island under a green aurora with one warm lantern light, centred, simple, readable at small size. |
 
 ## 7. Production pipeline

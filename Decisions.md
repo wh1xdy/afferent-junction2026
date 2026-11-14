@@ -4,6 +4,34 @@ Debate: Round 1 proposals (game designer, clinical researcher, patient advocate,
 
 Priority used to resolve conflicts: patient safety and clinical credibility > feasible by 20:00 > wow in demo > completeness.
 
+## v2 decisions (Sat, after testing the v1 demo)
+
+These override v1 wherever they differ. Rows marked "David" were decided by David directly; the others follow from them.
+
+| # | Question | Chosen | Rejected | Reason |
+|---|---|---|---|---|
+| V1 | Core idea (David) | Vitals are passive stimulation values; the game adapts what it offers: high pulse leads to calm, low pulse to activation, eyes that keep closing to fighting tiredness. Fully adaptive levels | v1: the game is controlled by eye and head gestures | v1 was hard to understand and to play; gestures felt like performing with the face |
+| V2 | Player input (David) | Touch only, one finger | Touch plus eye moments; no input at all | Playable lying down, known from every phone game |
+| V3 | Comparability (David) | A short fixed core (about 20 s: start pulse plus 5 tap reaction trials), then everything adaptive | Fully adaptive with no fixed part | Keeps reaction time and start pulse comparable for the clinic trend |
+| V4 | Gameplay (David) | Short Among Us style tasks in the island theme: breath, löyly, aurora threads, constellation, fireflies, beacon, bells, shutters | v1 stations with body actions; catching lights while walking | Known, short, varied, and easy to map to calm or activating |
+| V5 | Director | Left 4 Dead style director: arousal from pulse against the personal baseline, fatigue from PERCLOS and long closures; modes calm, flow, wake, fatigue, rest; 3 s hysteresis; task mode fixed while a task runs | Continuous switching inside tasks | One pulse direction per task stays intact (v1 rule) |
+| V6 | Night versus morning | Fatigue mode only in the morning or by day; at night it becomes rest, and 30 s of closed eyes ends the session as fell asleep | Fighting tiredness at any time | Sleep matters in depression; keeping someone awake at night would harm |
+| V7 | Baseline pulse | Personal baseline from the first 7 sessions (rolling), sent by the Jetson | Tonight's first seconds | A stressed evening would otherwise read as normal |
+| V8 | Mood check-in | Kept as an optional one-tap lantern check-in on the end screen | Dropped with the v1 stations | Mood is one of the three alert domains; one tap after play costs nothing |
+| V9 | Alert rule | Unchanged: reaction time (now from the core), mood, missed nights; 2 of 3 drifting for about a week | Using mode seconds or pulse response as alerts | Adaptive features vary by design; they are context only |
+| V10 | Per-person learning | Median pulse change per calm task across sessions; the director may prefer what calms this person | No learning | Concrete, honest version of "learns which parts help this person" |
+| V11 | Camera role | Only eye closure (blink value); no gestures, no expressions; optional | Full face tracking | Less to build, less to explain, less privacy surface |
+| V12 | ARKit plugin | Shrinks to blink values plus tracked flag (`AfferentEyes`), MediaPipe fallback already in the demo | Full blendshape and head-pose plugin | Lower risk by 12:00 |
+| V13 | App code | Wrap the demo code in Capacitor instead of rebuilding in PixiJS | Separate app codebase | The demo already is the game |
+| V14 | Good day / bad day presets | Replaced by live adaptation; the demo has vitals sliders and presets (stressed, flat, tired, normal), labelled simulated | Two fixed presets | The game is now variable by design; the change shows within seconds |
+| V15 | Lantern and heart | The lantern pulses at a fixed slow rhythm, never at the live pulse | Showing the heartbeat | Never mirror a racing heart back (v1 red-team finding) |
+| V16 | Morning dawn light | 60% daylight `#FFF3DC` in the morning; night keeps the quiet-night rules (15% amber, cap 25%) | One level for both | Sunrise alarm clock effect by day; partner protection by night |
+| V17 | Messages | Add `mode`, `game`, `core_trial`, `config`; drop `station`, `lake_trial` | v1 list | Live clinic panel and baseline delivery |
+| V18 | Stage demo | Alex really raises the pulse with squats before going on stage, then closes the eyes on purpose to show fatigue mode; slider fallback labelled simulated | Fully simulated vitals | Live and honest is more credible to clinicians |
+| V19 | Art | Procedural art is the baseline; generated images may replace layers with per-layer fallback | Generated art as a requirement | The OpenAI test request returned 401 invalid_api_key; nothing generated, nothing spent |
+
+## v1 decisions (superseded where v2 differs)
+
 | # | Question | Chosen | Rejected | Reason |
 |---|---|---|---|---|
 | 1 | Perspective | Side view, portrait, auto-walk, 7 parallax layers | Top-down walkable map | Reads in 2 s on a projector, no steering so every input is a body signal, timing identical every night, cheap layered art |

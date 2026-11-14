@@ -1,143 +1,125 @@
 # Session schema (for Vlad's outer loop)
 
-Version `afferent.session/1`. One JSON document per session attempt, including declined sessions and partial sessions. The phone builds it and sends it as the `session_end` message. Nothing in it contains images, audio or identifiers of other people.
+Version `afferent.session/2` (adaptive game). One JSON document per session attempt, including declined and partial sessions. The phone builds it and sends it as `session_end`. No images, no audio, no identifiers of other people. The demo in `demo/` emits this format.
 
 ## 1. Rules
 
-- All times are milliseconds from `session_start` unless named `*_iso`.
-- `null` means not measured or not available. Never substitute a default for a missing measurement.
-- Each station carries `completed_by`: `signal` (the body action succeeded), `tap` (touch fallback), `auto` (timeout), `skip` (patient skipped). **Only `signal` data enters the trend for that station's features.**
-- `quality` flags decide whether a feature is usable. Drop a feature from the trend when its flag fails.
-- **Alert domains (only these three can raise "Suggest review"):** psychomotor (`lake.rt_median_ms`, only sessions with `lake.valid`), mood (`mood_vas`), engagement (missed nights).
-- **Context features (shown to the clinician, never alerting):** everything else, including all `cal.*` values, blink rate, eye openness, `sauna.pulse_delta_bpm` (only with `pulse_valid`), `forest.time_to_target_s`, `fork.*`, home/away, visitors present, room climate.
-- **Missed night:** a night with no app opened at all. A `declined` session, `sharing: nothing_tonight` or `sharing: paused` counts as answered or withheld, never as missed, and never triggers Suggest review.
-- **Baseline:** the first 7 valid sessions, median and MAD, with MAD floors of 20 ms for reaction time and 0.5 for mood. Each value is a robust z-score against the person's own baseline. Log local time because reaction time and mood vary over the day. Lapses are computed here: a trial with RT above baseline median plus 3 MAD.
-- **Suggest-review rule (pilot starting point, not validated):** the 7-day rolling median reaches robust z of 1.5 or more in the worse direction in at least 2 of the 3 alert domains. The output is a "Suggest review" card for the clinician, who decides. The system never schedules TMS.
+- Times are milliseconds from session start unless named `*_iso`.
+- `null` means not measured. Never substitute a default.
+- **Alert domains (only these three can raise "Suggest review"):**
+  - psychomotor: `core.rt_median_ms`, only sessions with `core.valid`;
+  - mood: `mood_vas` from the end-screen check-in;
+  - engagement: missed nights (a night with no app opened at all). `declined`, `sharing: nothing_tonight` and `sharing: paused` count as answered or withheld, never as missed.
+- **Context features (shown to the clinician, never alerting):** start pulse, mode seconds, transitions, per-task pulse response, PERCLOS, task errors, home/away, visitors, room climate.
+- **Baseline:** first 7 valid sessions, median and MAD, MAD floors 20 ms (RT) and 0.5 (mood). Robust z-scores against the person's own baseline. Log local time.
+- **Suggest-review rule (pilot starting point, not validated):** the 7-day rolling median reaches robust z 1.5 or more in the worse direction in at least 2 of the 3 alert domains. The clinician decides; the system never schedules TMS.
+- **Per-person learning ("which tasks help this person"):** for each task id, the median `pulse_delta_bpm` in calm and rest mode across sessions. The director may prefer the calm task that lowers this person's pulse most. Shown to the clinician as context.
+- **Personal baseline pulse for the director:** median `core.start_pulse_bpm` over the first 7 valid sessions, then a 14-day rolling median. Sent to the phone at session start.
 
 ## 2. Fields
 
 | Field | Type | Description |
 |---|---|---|
-| `schema` | string | `"afferent.session/1"` |
+| `schema` | string | `"afferent.session/2"` |
 | `session_id` | string | UUID v4 |
-| `device_id` | string | Random install ID, not the phone's hardware ID |
+| `device_id` | string | Random install ID |
 | `app_version` | string | Semver |
-| `input_backend` | enum | `arkit` / `mediapipe` / `touch_only` |
-| `device_model` | string | For example `iPhone14,5`. Compare reaction time only within the same device and backend. |
 | `started_iso` | string | ISO 8601 with local offset |
 | `local_hour` | number | 0 to 23.99 |
+| `clock` | enum | `morning` / `night` (night is 21:00 to 06:00) |
 | `status` | enum | `completed` / `partial` / `declined` / `fell_asleep` |
-| `profile` | enum | `good_day` / `bad_day` / `auto`. Demo presets are labelled. |
+| `input_backend` | enum | `arkit` / `mediapipe` / `none` (no camera) |
 | `duration_ms` | int | Total session time |
-| `sensors` | object | Each sensor's switch state at start: `phone_camera`, `pulse_stone`, `bedside_camera`, `bedside_light`, `presence` (bool) |
-| `sharing` | enum | `summary` / `nothing_tonight` / `paused`. If not `summary`, the bedside unit keeps the record locally and the clinic view shows only "not shared". |
-| `cal.eye_open_O` | [float, float] | Left, right blink blendshape median, eyes open |
-| `cal.eye_closed_C` | [float, float] | Left, right, eyes closed (null if not closed) |
-| `cal.eye_wide_W` | [float, float] | Left, right eyeWide median during flare (null if not widened) |
-| `cal.head_pitch_neutral_deg` | float | Neutral pitch in camera space |
-| `cal.blink_rate_per_min` | float | Spontaneous blinks in the 0 to 6 s and 12 to 20 s windows, per minute. Context only, never claimed. |
-| `cal.eye_aperture_mean` | float | Mean normalised openness in the same windows (1 = open) |
-| `cal.resting_pulse_bpm` | float/null | Median over 12 to 20 s |
-| `cal.pulse_source` | enum/null | `ky039` / `rppg` |
-| `cal.pulse_quality` | float | 0 to 1 |
-| `cal.source` | enum | `live` / `stored` (stage demo mode loads a stored calibration) |
-| `cal.ambient_luma` | float | Mean camera luma 0 to 255 |
-| `cal.tracked_ratio` | float | Share of frames with face tracked |
-| `mood_vas` | int/null | Lantern check-in 1 (dimmest) to 5 (brightest) |
-| `stations` | array | One object per station, see below |
-| `vitals` | object | `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_valid_ratio`, `tracked_ratio` over the whole session |
-| `context` | object | `room_temp_c`, `room_humidity_pct` (thermo module), `home` (bool), `visitors_present` (int, device count bucket 0 / 1 / 2+) |
-| `quality` | object | `eye_range_low`, `pulse_implausible`, `dark_room` (luma under 40), `face_lost_events` (int) |
-| `keep_moment` | bool | Patient kept tonight's dawn (stretch) |
+| `sensors` | object | Switch state at start: `phone_camera`, `pulse_stone`, `bedside_camera`, `bedside_light`, `presence` |
+| `sharing` | enum | `summary` / `nothing_tonight` / `paused` |
+| `core.start_pulse_bpm` | float/null | Median pulse over the first 7 s |
+| `core.baseline_pulse_bpm` | float/null | The personal baseline the director used |
+| `core.pulse_source` | enum/null | `ky039` / `rppg` / `simulated` |
+| `core.eye_open_baseline` | float/null | Median blink value with eyes open (sets the closed threshold) |
+| `core.rt_trials` | array | `{foreperiod_ms, rt_ms, outcome: hit/miss/anticipation, modality: touch}`; window 150 to 1000 ms |
+| `core.rt_median_ms` | int/null | Hits only |
+| `core.valid` | bool | 5 trials and at least 3 hits |
+| `adaptive.mode_seconds` | object | Seconds in `calm`, `flow`, `wake`, `fatigue`, `rest` |
+| `adaptive.transitions` | array | `{t_ms, from, to, arousal, fatigue}`; the first entry has `from: null` |
+| `adaptive.minigames` | array | `{id, mode, intensity, t_start_ms, duration_ms, completed_by: touch/auto, items, errors, pulse_delta_bpm, breath_sync?}` |
+| `adaptive.calm_pulse_delta_bpm` | float/null | Sum of `pulse_delta_bpm` over calm and rest tasks |
+| `adaptive.wake_pulse_delta_bpm` | float/null | Sum over wake tasks |
+| `adaptive.perclos_mean` | float/null | Mean PERCLOS during play |
+| `adaptive.touch_errors` | int | Sum of task errors |
+| `mood_vas` | int/null | End-screen lantern check-in 1 to 5, null if skipped |
+| `vitals` | object | `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` |
+| `context` | object | `room_temp_c`, `room_humidity_pct`, `home`, `visitors_present` |
+| `quality` | object | `pulse_implausible`, `dark_room`, `face_tracked_ratio` |
 
-### Station objects
-
-Common fields: `name` (`forest` / `fork` / `lake` / `sauna` / `lighthouse`), `t_start_ms`, `t_end_ms`, `completed_by`.
-
-| Station | Extra fields |
-|---|---|
-| `forest` | `gaze_up_seconds`, `max_pitch_up_deg`, `time_to_target_s` (null if not reached) |
-| `fork` | `reward_level` (1 to 3), `choice` (`summit` / `flat` / `none`), `effort_completed` (bool/null) |
-| `lake` | `trials` array of `{foreperiod_ms, rt_ms, outcome: hit/miss/anticipation, modality: blink/tap}`, `trials_completed`, `rt_median_ms` (hits only), `misses`, `anticipations`, `modality` (`blink` / `tap` / `mixed`), `valid` (6 trials completed and at least 4 hits) |
-| `sauna` | `eyes_closed_ratio`, `pulse_start_bpm` (mean over lead-in plus cycle 1), `pulse_end_bpm` (mean over cycle 3), `pulse_delta_bpm`, `pulse_source`, `pulse_quality` (0 to 1), `pulse_valid` (quality 0.7 or more and contact throughout) |
-| `lighthouse` | `time_to_target_s` |
-
-A declined session contains only `schema`, `session_id`, `device_id`, `started_iso`, `local_hour`, `status: "declined"`, `sensors`, `sharing`, `context`.
+A declined session contains only `schema`, `session_id`, `device_id`, `started_iso`, `local_hour`, `status: "declined"`, `sharing`.
 
 ## 3. Transport: phone to bedside
 
-- Network: our own travel router with fixed IPs (Jetson `192.168.8.10`, demo iPhone DHCP reserved). Fallback: Jetson access point `afferent-bedside`, `10.42.0.1`. Venue Wi-Fi is never used.
-- Jetson runs one WebSocket server on `ws://192.168.8.10:8765`. The Capacitor app needs `NSLocalNetworkUsageDescription` and an ATS exception for `ws://`, added on day one.
-- UNO Q connects to the Jetson by USB serial. Line protocol: `L r g b level fade_ms\n` (light), `K turn <0-100>\n` and `K press\n` (knob), `P bpm quality\n` (pulse, 1 Hz). Alex may switch to network if the UNO Q Linux side is easier.
-- The game never waits on the socket. If it fails, the summary is buffered on the phone and sent on reconnect.
-
-### Messages (JSON, one `type` field each)
+- Our own travel router with fixed IPs (Jetson `192.168.8.10`), Jetson access point as fallback. Venue Wi-Fi is never used.
+- WebSocket server on the Jetson at `ws://192.168.8.10:8765`. The Capacitor app needs `NSLocalNetworkUsageDescription` and an ATS exception for `ws://`.
+- UNO Q to Jetson by USB serial: `L r g b level fade_ms` (light), `K turn <0-100>` and `K press` (knob), `P bpm quality contact` (pulse, 1 Hz).
+- The game never waits on the socket; the summary is buffered and sent on reconnect.
 
 | Direction | `type` | Payload |
 |---|---|---|
 | phone to Jetson | `hello` | `device_id`, `app_version` |
-| phone to Jetson | `session_start` | `session_id`, `profile`, `sensors` |
-| phone to Jetson | `station` | `session_id`, `name`, `colour` (hex), `t_ms` |
-| phone to Jetson | `light` | `rgb` (hex), `level` (0 to 100), `fade_ms` |
-| phone to Jetson | `lake_trial` | `session_id`, `trial` (1 to 6), `rt_ms`, `outcome`. Clinic side only, for the live stage panel |
+| phone to Jetson | `session_start` | `session_id`, `clock`, `sensors` |
+| phone to Jetson | `mode` | `session_id`, `mode`, `arousal`, `fatigue`, `t_ms` (clinic live panel) |
+| phone to Jetson | `game` | `session_id`, `id`, `mode`, `intensity`, `t_ms` |
+| phone to Jetson | `core_trial` | `session_id`, `trial` (1 to 5), `rt_ms`, `outcome` |
+| phone to Jetson | `light` | `rgb`, `level` (0 to 100), `fade_ms` |
 | phone to Jetson | `session_end` | full session JSON |
-| phone to Jetson | `privacy` | `sensor`, `on` (bool), sent when a switch changes |
-| Jetson to phone | `pulse` | `bpm`, `quality` (0 to 1), `contact` (bool), 1 Hz |
-| Jetson to phone | `knob` | `level` (0 to 100) or `press: true` |
-
-The stick figure (pose from the Jetson camera) stays on the Jetson and goes straight to the dashboard. It never travels over this socket.
+| phone to Jetson | `privacy` | `sensor`, `on` |
+| Jetson to phone | `config` | `baseline_pulse_bpm`, preferred calm task ids |
+| Jetson to phone | `pulse` | `bpm`, `quality` (0 to 1), `contact`, 1 Hz |
+| Jetson to phone | `knob` | `level` or `press: true` |
 
 ## 4. Example
 
 ```json
 {
-  "schema": "afferent.session/1",
-  "session_id": "6f1d2c3e-8a41-4c7e-9f0b-2d5e8a1b7c90",
+  "schema": "afferent.session/2",
+  "session_id": "b7d0a0e6-3f0c-4f43-9a4e-2c1f8f0b9d21",
   "device_id": "inst-4b7e19",
-  "app_version": "0.3.0",
-  "input_backend": "arkit",
-  "device_model": "iPhone14,5",
-  "started_iso": "2026-11-14T23:41:07+02:00",
-  "local_hour": 23.69,
+  "app_version": "0.2.0",
+  "started_iso": "2026-11-15T07:41:07+02:00",
+  "local_hour": 7.68,
+  "clock": "morning",
   "status": "completed",
-  "profile": "bad_day",
-  "duration_ms": 104800,
+  "input_backend": "arkit",
+  "duration_ms": 112600,
   "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": true, "bedside_light": true, "presence": true},
   "sharing": "summary",
-  "cal": {
-    "eye_open_O": [0.08, 0.07],
-    "eye_closed_C": [0.86, 0.84],
-    "eye_wide_W": [0.41, 0.39],
-    "head_pitch_neutral_deg": -6.2,
-    "blink_rate_per_min": 17.1,
-    "eye_aperture_mean": 0.91,
-    "resting_pulse_bpm": 71.0,
-    "pulse_source": "ky039",
-    "pulse_quality": 0.85,
-    "source": "live",
-    "ambient_luma": 22.5,
-    "tracked_ratio": 0.99
+  "core": {
+    "start_pulse_bpm": 85.4, "baseline_pulse_bpm": 68, "pulse_source": "ky039", "eye_open_baseline": 0.08,
+    "rt_trials": [
+      {"foreperiod_ms": 1642, "rt_ms": 418, "outcome": "hit", "modality": "touch"},
+      {"foreperiod_ms": 1214, "rt_ms": 334, "outcome": "hit", "modality": "touch"},
+      {"foreperiod_ms": 1636, "rt_ms": 400, "outcome": "hit", "modality": "touch"},
+      {"foreperiod_ms": 1868, "rt_ms": 350, "outcome": "hit", "modality": "touch"},
+      {"foreperiod_ms": 1633, "rt_ms": 333, "outcome": "hit", "modality": "touch"}
+    ],
+    "rt_median_ms": 350, "valid": true
   },
-  "mood_vas": 2,
-  "stations": [
-    {"name": "forest", "t_start_ms": 31300, "t_end_ms": 36000, "completed_by": "signal", "gaze_up_seconds": 3.0, "max_pitch_up_deg": 11.4, "time_to_target_s": 4.7},
-    {"name": "fork", "t_start_ms": 36000, "t_end_ms": 40200, "completed_by": "signal", "reward_level": 2, "choice": "flat", "effort_completed": null},
-    {"name": "lake", "t_start_ms": 42500, "t_end_ms": 58900, "completed_by": "signal",
-     "trials": [
-       {"foreperiod_ms": 2210, "rt_ms": 512, "outcome": "hit", "modality": "blink"},
-       {"foreperiod_ms": 1340, "rt_ms": 468, "outcome": "hit", "modality": "blink"},
-       {"foreperiod_ms": 1720, "rt_ms": null, "outcome": "miss", "modality": "blink"},
-       {"foreperiod_ms": 2390, "rt_ms": 547, "outcome": "hit", "modality": "blink"},
-       {"foreperiod_ms": 1080, "rt_ms": 121, "outcome": "anticipation", "modality": "blink"},
-       {"foreperiod_ms": 2050, "rt_ms": 490, "outcome": "hit", "modality": "blink"}
-     ],
-     "trials_completed": 6, "rt_median_ms": 501, "misses": 1, "anticipations": 1, "modality": "blink", "valid": true},
-    {"name": "sauna", "t_start_ms": 61200, "t_end_ms": 93400, "completed_by": "signal", "eyes_closed_ratio": 0.83, "pulse_start_bpm": 73.0, "pulse_end_bpm": 67.5, "pulse_delta_bpm": -5.5, "pulse_source": "ky039", "pulse_quality": 0.8, "pulse_valid": true},
-    {"name": "lighthouse", "t_start_ms": 93400, "t_end_ms": 96800, "completed_by": "signal", "time_to_target_s": 3.4}
-  ],
-  "vitals": {"pulse_mean_bpm": 70.2, "pulse_min_bpm": 66.0, "pulse_max_bpm": 76.0, "pulse_valid_ratio": 0.88, "tracked_ratio": 0.97},
+  "adaptive": {
+    "mode_seconds": {"calm": 19.7, "flow": 14.1, "wake": 22.1, "fatigue": 31.7, "rest": 0},
+    "transitions": [
+      {"t_ms": 18960, "from": null, "to": "calm", "arousal": 1.737, "fatigue": 0},
+      {"t_ms": 38693, "from": "calm", "to": "flow", "arousal": 0.45, "fatigue": 0.079},
+      {"t_ms": 51459, "from": "flow", "to": "fatigue", "arousal": 0.199, "fatigue": 0.585},
+      {"t_ms": 83141, "from": "fatigue", "to": "wake", "arousal": -0.645, "fatigue": 0.167}
+    ],
+    "minigames": [
+      {"id": "breath", "mode": "calm", "intensity": 0.693, "t_start_ms": 26293, "duration_ms": 20700, "completed_by": "touch", "items": 2, "errors": 0, "pulse_delta_bpm": -13.5, "breath_sync": 0.903},
+      {"id": "stars", "mode": "flow", "intensity": 0.5, "t_start_ms": 50741, "duration_ms": 4035, "completed_by": "touch", "items": 5, "errors": 0, "pulse_delta_bpm": -2.8},
+      {"id": "shutters", "mode": "fatigue", "intensity": 1, "t_start_ms": 63808, "duration_ms": 3934, "completed_by": "touch", "items": 4, "errors": 0, "pulse_delta_bpm": 1.2},
+      {"id": "fireflies", "mode": "wake", "intensity": 0.795, "t_start_ms": 85374, "duration_ms": 6550, "completed_by": "touch", "items": 7, "errors": 0, "pulse_delta_bpm": 6.1}
+    ],
+    "calm_pulse_delta_bpm": -13.5, "wake_pulse_delta_bpm": 6.1, "perclos_mean": 0.148, "touch_errors": 0
+  },
+  "mood_vas": 3,
+  "vitals": {"pulse_mean_bpm": 71.9, "pulse_min_bpm": 58.7, "pulse_max_bpm": 90.3, "pulse_source": "ky039"},
   "context": {"room_temp_c": 20.5, "room_humidity_pct": 34, "home": true, "visitors_present": 0},
-  "quality": {"eye_range_low": false, "pulse_implausible": false, "dark_room": true, "face_lost_events": 0},
-  "keep_moment": false
+  "quality": {"pulse_implausible": false, "dark_room": false, "face_tracked_ratio": 0.97}
 }
 ```
