@@ -7,6 +7,7 @@
 const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { spawnSync } = require('child_process');
 const P = require(path.join(__dirname, '..', 'js', 'presence-core.js'));
 const { HOME, AWAY, UNKNOWN } = P;
@@ -469,11 +470,12 @@ const tests = {
     say(20, { ble: true });
     truth = 'away'; say(20, { ble: false });
     truth = 'home'; say(20, { ble: true });
-    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'presence-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'presence-'));
     const file = path.join(dir, 'ticks.jsonl');
     fs.writeFileSync(file, rows.map(r => JSON.stringify(r)).join('\n') + '\n');
-    const r = spawnSync(py, ['-I', path.join(CORE_DIR, 'tools', 'score.py'), file, '--lag-min', '2'], { encoding: 'utf8' });
-    fs.rmSync(dir, { recursive: true, force: true });
+    let r;
+    try { r = runPython(py, ['-I', path.join(CORE_DIR, 'tools', 'score.py'), file, '--lag-min', '2'], 'tools/score.py'); }
+    finally { fs.rmSync(dir, { recursive: true, force: true }); }
     assert.strictEqual(r.status, 0, r.stderr);
     assert.match(r.stdout, /tick accuracy\s+100\.0%/);
     assert.match(r.stdout, /outing recall\s+100%\s+precision 100%/);
@@ -482,23 +484,35 @@ const tests = {
 
 // ── differential test against jetson/presence/core.py ─────────────────────
 const CORE_DIR = path.join(__dirname, '..', '..', 'jetson', 'presence');
+// Python gets its input as a file and no stdin at all. Feeding a 200-380 KB trace through spawnSync's
+// `input` hung about one spawn in 100 on macOS: Node sat idle with the stdin pipe still open after the
+// child had read everything, so json.load(sys.stdin) waited for an EOF that never came. The timeout
+// turns any other hang into a failure that says which call it was.
+const PY_TIMEOUT_MS = 60000;
+const runPython = (bin, args, what) => {
+  const r = spawnSync(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', maxBuffer: 1 << 28, timeout: PY_TIMEOUT_MS, killSignal: 'SIGKILL' });
+  if (r.error && r.error.code === 'ETIMEDOUT') {
+    throw new Error(`${what}: ${bin} did not finish within ${PY_TIMEOUT_MS / 1000} s and was killed${r.stderr ? `; stderr: ${r.stderr.trim().slice(-500)}` : ''}`);
+  }
+  return r;
+};
 let pyBin;
 function python() {
   if (pyBin !== undefined) return pyBin;
-  pyBin = null;
-  if (!fs.existsSync(path.join(CORE_DIR, 'core.py'))) return pyBin;
+  if (!fs.existsSync(path.join(CORE_DIR, 'core.py'))) return (pyBin = null);
   for (const bin of ['python3', 'python']) {
-    const r = spawnSync(bin, ['-c', 'import sys; print(sys.version_info[0])'], { encoding: 'utf8' });
+    const r = runPython(bin, ['-c', 'import sys; print(sys.version_info[0])'], 'python version check');
     if (r.status === 0 && r.stdout.trim() === '3') return (pyBin = bin);
   }
-  return pyBin;
+  return (pyBin = null);
 }
 
 const DRIVER = `
 import json, sys
 sys.path.insert(0, sys.argv[1])
 from core import Advert, GuestConfig, GuestTracker, HOME, PresenceConfig, PresenceTracker
-sc = json.load(sys.stdin)
+with open(sys.argv[2], encoding="utf-8") as f:
+    sc = json.load(f)
 mid = lambda t: t - t % 86400
 hr = lambda t: int(t % 86400 // 3600)
 p = PresenceTracker(PresenceConfig(**sc["pcfg"]), hour_fn=hr, midnight_fn=mid)
@@ -595,18 +609,24 @@ tests[`differential: ${SEEDS} random traces match jetson/presence/core.py tick b
   if (!py && process.env.PRESENCE_REQUIRE_PY === '1') throw new Error('python3 or jetson/presence/core.py not found');
   if (!py) return console.log('      (skipped: python3 or jetson/presence/core.py not found)');
   let ticks = 0, events = 0;
-  for (let seed = 1; seed <= SEEDS; seed++) {
-    const sc = scenario(seed);
-    const r = spawnSync(py, ['-I', '-c', DRIVER, CORE_DIR], { input: JSON.stringify(sc), encoding: 'utf8', maxBuffer: 1 << 28 });
-    assert.strictEqual(r.status, 0, r.stderr);
-    const want = norm(JSON.parse(r.stdout)), got = norm(replayJs(sc));
-    for (let i = 0; i < want.out.length; i++) {
-      same(got.out[i], want.out[i], `seed ${seed} tick ${i} (t=${sc.steps[i].t})`);
-      events += want.out[i].ev.length;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'presence-diff-')), trace = path.join(dir, 'trace.json');
+  try {
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const sc = scenario(seed);
+      fs.writeFileSync(trace, JSON.stringify(sc));
+      const r = runPython(py, ['-I', '-c', DRIVER, CORE_DIR, trace], `seed ${seed}: core.py`);
+      assert.strictEqual(r.status, 0, r.stderr);
+      const want = norm(JSON.parse(r.stdout)), got = norm(replayJs(sc));
+      for (let i = 0; i < want.out.length; i++) {
+        same(got.out[i], want.out[i], `seed ${seed} tick ${i} (t=${sc.steps[i].t})`);
+        events += want.out[i].ev.length;
+      }
+      same(got.p, want.p, `seed ${seed}: presence state`);
+      same(got.g, want.g, `seed ${seed}: guest state`);
+      ticks += want.out.length;
     }
-    same(got.p, want.p, `seed ${seed}: presence state`);
-    same(got.g, want.g, `seed ${seed}: guest state`);
-    ticks += want.out.length;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
   assert.ok(events > 100, `traces too quiet (${events} events)`);
   console.log(`      (${ticks} ticks, ${events} events compared)`);
