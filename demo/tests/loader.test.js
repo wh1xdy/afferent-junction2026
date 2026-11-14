@@ -15,7 +15,7 @@ const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const html = read('demo/index.html');
 const style = html.match(/<style>([\s\S]*?)<\/style>/)[1];
 
-const boot = ({ search = '', at = 0 } = {}) => {
+const boot = ({ search = '', at = 0, system = false, saved } = {}) => {
   const doc = makeDocument(), timers = [], marks = [];
   const loader = doc.createElement('div');
   loader.id = 'loader';
@@ -25,6 +25,8 @@ const boot = ({ search = '', at = 0 } = {}) => {
     console, URLSearchParams, document: doc, location: { search },
     performance: { now: () => clock, mark: n => marks.push([n, clock]) },
     setTimeout: (f, ms = 0) => { timers.push({ at: clock + ms, f }); return timers.length; },
+    matchMedia: q => ({ matches: q === '(prefers-reduced-motion: reduce)' && system }),
+    localStorage: { getItem: k => (k === 'afferent.settings' && saved !== undefined ? JSON.stringify(saved) : null) },
   };
   ctx.window = ctx;
   vm.createContext(ctx);
@@ -183,40 +185,39 @@ test('main.js waits for the art and the fonts, and reports every world frame aft
   assert.ok(at('util.js') > 0 && at('loader.js') > at('util.js') && at('loader.js') < at('main.js'), 'loader.js runs after util.js made A, before main.js');
 });
 
-// The head script of index.html that decides, before the first paint, whether the loading screen may move.
-const headScript = html.match(/<script>([\s\S]*?)<\/script>/)[1];
-const still = ({ system, saved }) => {
-  const classes = new Set();
-  const ctx = {
-    document: { documentElement: { classList: { add: c => classes.add(c) } } },
-    matchMedia: q => ({ matches: q === '(prefers-reduced-motion: reduce)' && system }),
-    localStorage: { getItem: k => (k === 'afferent.settings' && saved !== undefined ? JSON.stringify(saved) : null) },
-  };
-  ctx.window = ctx;
-  vm.runInNewContext(headScript, ctx);
-  return classes.has('af-still');
-};
+const motion = opts => { const { doc } = boot(opts), c = doc.documentElement.classList; return c.contains('af-still') ? 'still' : c.contains('af-moving') ? 'moving' : null; };
 
 test('reduced motion follows the app setting, else the system, the same rule as main.js', () => {
-  assert.strictEqual(still({ system: false }), false);
-  assert.strictEqual(still({ system: true }), true);
-  assert.strictEqual(still({ system: false, saved: { reducedMotion: true } }), true);
-  assert.strictEqual(still({ system: true, saved: { reducedMotion: false } }), false);
-  assert.strictEqual(still({ system: true, saved: { sound: true } }), true);
+  assert.strictEqual(motion({ system: false }), 'moving');
+  assert.strictEqual(motion({ system: true }), 'still');
+  assert.strictEqual(motion({ system: false, saved: { reducedMotion: true } }), 'still');
+  assert.strictEqual(motion({ system: true, saved: { reducedMotion: false } }), 'moving');
+  assert.strictEqual(motion({ system: true, saved: { sound: true } }), 'still');
   assert.match(read('demo/js/main.js'), /reducedMotion: saved\.reducedMotion \?\? prefersCalm/);
-  assert.ok(html.indexOf(headScript) < html.indexOf('<body>'), 'decided in the head, before anything is painted');
+});
+
+test('no script runs before the first paint: the system setting is CSS, the app setting comes from loader.js', () => {
+  // an inline script in the head, even one line of matchMedia, put the first paint ~200 ms later (headless Chrome)
+  assert.doesNotMatch(html.slice(0, html.indexOf('<body>')), /<script/);
+  const media = style.match(/@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n    \}/);
+  assert.ok(media, 'the system setting holds from the first paint');
+  for (const rule of media[1].trim().split('\n')) assert.match(rule.trim(), /^:root:not\(\.af-moving\) /, 'unless the app says it may move');
 });
 
 test('reduced motion: nothing breathes, twinkles or drifts, and the exit is a plain fade', () => {
   const moving = [...style.matchAll(/([^{}]+)\{[^}]*animation(?:-name)?:\s*(ld(?:Breath|Ember|Twinkle|Drift))/g)]
     .flatMap(m => m[1].split(',').map(s => s.trim().match(/\.ld-[\w-]+/)[0]));
   assert.deepStrictEqual([...new Set(moving)].sort(), ['.ld-aurora', '.ld-core', '.ld-glow', '.ld-stars']);
-  const stillRule = style.match(/([^{}]*\.af-still[^{}]*)\{\s*animation: none;\s*\}/);
-  assert.ok(stillRule, 'an .af-still rule stops the animations');
-  for (const c of new Set(moving)) assert.ok(stillRule[1].includes(`.af-still #loader ${c}`), `${c} stops under reduced motion`);
-  // the only motion left is opacity: the fade-in (ldIn) and the fade-out; the ember does not grow as it leaves
+  // paused, not removed: when the app's setting arrives after the first paint the glow stays where it is, no jump
+  for (const prefix of [':root:not(.af-moving) #loader', '.af-still #loader']) {
+    const rule = style.match(new RegExp(`${prefix.replace(/[.()]/g, '\\$&')} :is\\(([^)]*)\\) \\{ animation-play-state: paused; \\}`));
+    assert.ok(rule, `${prefix}: the animations pause`);
+    assert.deepStrictEqual(rule[1].split(',').map(c => c.trim()).sort(), [...new Set(moving)].sort());
+    assert.ok(style.includes(`${prefix} .ld-fire { transition: none; }`), `${prefix}: the ember does not glide`);
+    assert.ok(style.includes(`${prefix}.out .ld-fire { transform: none; }`), `${prefix}: nor grow as it leaves`);
+  }
+  // the only motion left is opacity: the fade-in (ldIn) and the fade-out
   assert.match(style, /@keyframes ldIn \{ from \{ opacity: 0; \} \}/);
-  assert.match(style, /\.af-still #loader\.out \.ld-fire \{ transform: none; \}/);
 });
 
 test('it starts on the launch navy: the same colour as the launch screen, the window and the web view', () => {

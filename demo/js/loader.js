@@ -61,6 +61,11 @@
   function done() { pending--; }
 
   if (!el) return;
+  // Reduced motion: the app's own setting wins over the system's (the rule of A.config.reducedMotion in main.js).
+  // The CSS already follows the system's from the first paint; this settles it either way.
+  let still = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  try { const s = JSON.parse(localStorage.getItem('afferent.settings')); if (typeof s?.reducedMotion === 'boolean') still = s.reducedMotion; } catch {}
+  document.documentElement.classList.add(still ? 'af-still' : 'af-moving');
   if (cap === 0) { out('off'); gone(); return; }
   setTimeout(() => out('cap'), Math.max(0, cap - now()));
 })();

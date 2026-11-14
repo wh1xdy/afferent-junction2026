@@ -54,20 +54,19 @@
     @keyframes ldEmber { 0%, 100% { opacity: 0.78; transform: scale(0.9); } 40% { opacity: 1; transform: scale(1); } }
     @keyframes ldTwinkle { from { opacity: 0.55; } to { opacity: 1; } }
     @keyframes ldDrift { from { transform: translateX(-3%); opacity: 0.6; } to { transform: translateX(3%); opacity: 1; } }
-    /* Reduced motion (the app's setting, else the system's; set before the first paint below): a still glow, plain fades */
-    .af-still #loader .ld-glow, .af-still #loader .ld-core, .af-still #loader .ld-stars, .af-still #loader .ld-aurora { animation: none; }
+    /* Reduced motion: a still glow and plain fades. The system's setting holds from the first paint; the app's own
+       (Settings) comes from loader.js a moment later, as .af-still or .af-moving. Pausing, not removing, the
+       animations means a late .af-still freezes the glow where it is instead of making it jump. No script in the
+       head: one there, even a tiny one, delayed the first paint by ~200 ms. */
+    @media (prefers-reduced-motion: reduce) {
+      :root:not(.af-moving) #loader :is(.ld-glow, .ld-core, .ld-stars, .ld-aurora) { animation-play-state: paused; }
+      :root:not(.af-moving) #loader .ld-fire { transition: none; }
+      :root:not(.af-moving) #loader.out .ld-fire { transform: none; }
+    }
+    .af-still #loader :is(.ld-glow, .ld-core, .ld-stars, .ld-aurora) { animation-play-state: paused; }
     .af-still #loader .ld-fire { transition: none; }
     .af-still #loader.out .ld-fire { transform: none; }
   </style>
-  <script>
-    // Before the first paint, so the loading screen never starts to move for someone who asked for less motion:
-    // the same rule as A.config.reducedMotion in main.js, the saved setting or else the system's.
-    (function () {
-      var still = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-      try { var s = JSON.parse(localStorage.getItem('afferent.settings')); if (s && typeof s.reducedMotion === 'boolean') still = s.reducedMotion; } catch (e) {}
-      if (still) document.documentElement.classList.add('af-still');
-    })();
-  </script>
   <title>afferent</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="design/tokens.css">
