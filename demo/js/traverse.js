@@ -974,7 +974,7 @@
       const [lx, ly] = A.World.lanternPos();
       for (const p of st.spray) {
         const q = p.age / p.life;
-        env.glow(ctx, X(p.x), Y(p.y), p.size * u * (1 - 0.4 * q), p.c, 0.75 * (1 - q) * Math.min(1, q * 8 + 0.3));
+        env.soft(ctx, X(p.x), Y(p.y), 1.6 * p.size * u * (1 + 0.6 * q), p.c, 0.5 * (1 - q) * Math.min(1, q * 6 + 0.2));
       }
       if (st.state === 'core' || (st.state === 'ready' && st.kindle > 0)) {
         const k = s.phase === 'rest' ? st.kindle : st.kindleDone ? clamp(1 - (now - st.kindleDone) / 0.6, 0, 1) : 0;
