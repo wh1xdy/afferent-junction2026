@@ -1,39 +1,50 @@
 (() => {
-  const SHOW_AT = 1600;
-  let quotes = null, offered = false, live = false, timer = 0, el = null;
+  const SHOW_AT = 1600, SEEN = 'afferent.quotes.seen.v1';
+  const POOLS = { morning: ['morning', 'any', 'after_hard_day'], night: ['night', 'any'] };
+  let quotes = [], offered = false, live = false, timer = 0, el = null;
 
-  const norm = q => {
-    if (typeof q === 'string') return { id: q, text: q, author: '', tags: [], date: null };
-    const text = q?.text ?? q?.quote ?? q?.body;
-    if (!text) return null;
-    const tags = [].concat(q.tags ?? q.tag ?? q.moment ?? []).map(String);
-    const by = q.author ?? q.by ?? (typeof q.source === 'string' ? q.source : q.source?.author) ?? '';
-    return { id: String(q.id ?? text), text, author: by, tags, date: q.date ?? null };
-  };
+  const read = () => { try { const v = JSON.parse(localStorage.getItem(SEEN)); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const write = v => { try { localStorage.setItem(SEEN, JSON.stringify(v)); } catch {} };
+
   const ready = fetch('data/quotes.json', { cache: 'no-cache' })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => { const list = Array.isArray(d) ? d : d?.quotes; quotes = Array.isArray(list) ? list.map(norm).filter(Boolean) : null; })
-    .catch(() => { quotes = null; });
+    .then(r => r.ok ? r.json() : [])
+    .then(d => { quotes = (Array.isArray(d) ? d : d?.quotes ?? []).filter(q => q?.id && q.text).map(q => ({ ...q, id: String(q.id), tags: [].concat(q.tags ?? []) })); })
+    .catch(() => { quotes = []; });
 
-  const pick = (key = A.Streak?.today?.() || new Date().toISOString().slice(0, 10)) => {
-    if (!quotes?.length) return null;
-    const [y, m, d] = key.split('-').map(Number);
-    const dated = quotes.find(q => q.date === key || q.date === key.slice(5));
-    if (dated) return dated;
-    const day = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / 864e5);
-    const morning = quotes.filter(q => !q.tags.includes('night'));
-    const pool = morning.length ? morning : quotes;
-    return pool[day % pool.length];
+  const pick = clock => {
+    const tags = POOLS[clock === 'night' ? 'night' : 'morning'];
+    const pool = quotes.filter(q => q.tags.some(t => tags.includes(t)));
+    if (!pool.length) return null;
+    let seen = read().filter(id => quotes.some(q => q.id === id));
+    if (seen.length >= quotes.length) seen = [];
+    const fresh = pool.filter(q => !seen.includes(q.id));
+    const q = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)]
+      : pool.reduce((a, b) => seen.indexOf(a.id) <= seen.indexOf(b.id) ? a : b);
+    write([...seen.filter(id => id !== q.id), q.id]);
+    return q;
   };
 
-  const hide = () => { live = false; clearTimeout(timer); el?.classList.remove('on'); };
-  const show = q => {
+  const size = q => {
+    const lines = q.text.split('\n').length, n = q.text.length;
+    return lines > 4 || n > 120 ? 'long' : lines > 2 || n > 80 ? 'mid' : '';
+  };
+
+  const dismiss = () => hide();
+  const hide = () => {
+    live = false; clearTimeout(timer);
+    el?.classList.remove('on');
+    document.getElementById('phone')?.removeEventListener('pointerdown', dismiss, { capture: true });
+  };
+  const show = (q, night) => {
     el.querySelector('p').textContent = q.text;
     const cite = el.querySelector('cite');
-    cite.textContent = q.author;
+    cite.textContent = q.author || '';
     cite.hidden = !q.author;
+    el.className = ['quote-line', size(q), night ? 'night' : ''].filter(Boolean).join(' ');
+    el.dataset.id = q.id;
     void el.offsetWidth;
     el.classList.add('on');
+    document.getElementById('phone')?.addEventListener('pointerdown', dismiss, { capture: true, once: true });
   };
 
   const mount = () => {
@@ -51,11 +62,16 @@
   A.bus.on('crisisOffer', () => { offered = true; hide(); });
   A.bus.on('home', hide);
   A.bus.on('shine', ({ night }) => {
-    if (night || A.Prefs?.get('showLine') === false) return;
+    hide();
+    if (A.Prefs?.get('showLine') === false) return;
     live = true;
-    timer = setTimeout(() => ready.then(() => { const q = live && !offered && pick(); if (q) show(q); }), SHOW_AT);
+    timer = setTimeout(() => ready.then(() => {
+      if (!live || offered || !el) return;
+      const q = pick(night ? 'night' : 'morning');
+      if (q) show(q, night);
+    }), SHOW_AT);
   });
-  A.bus.on('shineEnd', hide);
+  A.bus.on('shineEnd', ({ skipped } = {}) => { if (skipped) hide(); });
 
   A.Quote = { pick, hide };
 })();

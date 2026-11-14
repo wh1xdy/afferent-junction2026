@@ -51,11 +51,19 @@
 .quote-line p {
   margin: 0; font-family: var(--af-font-display, Georgia, serif); font-size: 17px; font-weight: 300; line-height: 1.45;
   color: var(--af-lantern-flame, #F2E6C9); text-shadow: 0 0 18px rgba(10, 14, 28, 0.85); text-wrap: balance;
+  white-space: pre-line; overflow-wrap: break-word;
 }
+.quote-line.mid p { font-size: 15px; line-height: 1.42; }
+.quote-line.long p { font-size: 13.5px; line-height: 1.4; }
+.quote-line.long { padding: 0 28px; }
+.quote-line.night.on { opacity: 0.62; }
+.quote-line.night p { color: var(--af-silver-300, #B9CAD6); text-shadow: 0 0 14px rgba(5, 7, 15, 0.9); }
+.quote-line.night cite { opacity: 0.5; }
 .quote-line cite {
   display: block; margin-top: 10px; font-style: normal; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
   color: var(--af-silver-300, #B9CAD6); opacity: 0.7;
 }
+.quote-line cite[hidden] { display: none; }
 #end.off .quote-line, #phone.card-open #end .quote-line { opacity: 0; transition-duration: 300ms; }
 
 .mornings { margin-top: 4px; }
