@@ -71,6 +71,9 @@ class Config:
     min_valid_frames: int = 30      # per minute row
     recordings_dir: str = "/recordings"
     recording_enabled: bool = False
+    # Optional push of minute aggregates to afferent-data-manager ("" = off)
+    data_manager_url: str = ""
+    data_manager_token: str = ""
 
     # Filtering
     one_euro_min_cutoff: float = 1.0
@@ -125,6 +128,8 @@ class Config:
             min_valid_frames=_env_int("MIN_VALID_FRAMES", 30),
             recordings_dir=_env("RECORDINGS_DIR", "/recordings"),
             recording_enabled=_env_bool("RECORDING_ENABLED", False),
+            data_manager_url=_env("DATA_MANAGER_URL", ""),
+            data_manager_token=_env("DATA_MANAGER_TOKEN", ""),
             one_euro_min_cutoff=_env_float("ONE_EURO_MIN_CUTOFF", 1.0),
             one_euro_beta=_env_float("ONE_EURO_BETA", 0.5),
             kpt_conf_threshold=_env_float("KPT_CONF_THRESHOLD", 0.3),

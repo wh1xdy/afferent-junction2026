@@ -6,15 +6,17 @@ it is valid (see geometry.valid_angles).
 """
 from __future__ import annotations
 
+import logging
 import time
 from collections import defaultdict
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
 from . import geometry as geo
 
 ANGLE_NAMES = geo.ANGLE_NAMES
+_log = logging.getLogger("afferent.aggregator")
 
 
 def _percentiles(values: list[float]) -> dict[str, float] | None:
@@ -42,8 +44,10 @@ class MinuteAggregator:
     """
 
     def __init__(self, storage, min_valid_frames: int = 30,
-                 extractor_version: str = "", model_version: str = ""):
+                 extractor_version: str = "", model_version: str = "",
+                 on_flush: Callable[[int, str, str, int, dict], Any] | None = None):
         self.storage = storage
+        self.on_flush = on_flush      # e.g. DataSink.on_minute (data manager push)
         self.min_valid = min_valid_frames
         self.extractor_version = extractor_version
         self.model_version = model_version
@@ -94,6 +98,11 @@ class MinuteAggregator:
                 n_valid=n, angles=agg, slump=slump_med,
                 extractor_version=self.extractor_version,
                 model_version=self.model_version)
+            if self.on_flush is not None:
+                try:
+                    self.on_flush(ts_ms, activity, orient, n, agg)
+                except Exception as e:   # never lose the local row for a push
+                    _log.warning("minute push failed: %s", e)
         self._buckets = {}
         self._cur_minute = None
 

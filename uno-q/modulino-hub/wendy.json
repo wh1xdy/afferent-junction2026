@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "platform": "linux",
   "isolation": "isolated",
+  "env": {
+    "DATA_MANAGER_URL": "${DATA_MANAGER_URL}",
+    "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}"
+  },
   "mcu": {
     "sketch": "sketch"
   },

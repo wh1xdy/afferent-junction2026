@@ -44,4 +44,7 @@ services:
       RECORDING_ENABLED: ${RECORDING_ENABLED:-0}
       EMOTION_ENABLED: ${EMOTION_ENABLED:-1}
       MIN_VALID_FRAMES: ${MIN_VALID_FRAMES:-30}
+      # optional: push minute posture aggregates to jetson/data_manager (empty = off)
+      DATA_MANAGER_URL: ${DATA_MANAGER_URL:-}
+      DATA_MANAGER_TOKEN: ${DATA_MANAGER_TOKEN:-}
     restart: unless-stopped
