@@ -17,7 +17,7 @@ Rules for everything:
 
 1. Light is the hero. The lantern amber is the one warm light in a cold scene; warmth means "something good happened".
 2. Colour returns gradually, never with hard cuts. Every colour change is eased over seconds (`dur-colour-return` 4 s, `dur-mode-style` 2 s).
-3. No red, no scores, no fail states, no streaks in the game and patient view. The dashboard uses dawn coral (`state-booster`) as its strongest colour, never red.
+3. No red, no scores, no fail states. No streak number in the game or the patient view (the patient view shows "Mornings lit"); the only streak number is the small day count on the start screen (06:00 to 21:00, from 2) and its end-screen tick (Decisions D1, `design/engagement.md` section 6). The dashboard uses dawn coral (`state-booster`) as its strongest colour, never red.
 4. Space and calm. Few elements, big margins, one accent at a time.
 5. Simulated data is always labelled with the `.af-simulated` badge ("SIMULATED").
 
