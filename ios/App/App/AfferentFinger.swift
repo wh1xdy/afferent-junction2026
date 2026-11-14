@@ -17,8 +17,11 @@ import CoreBluetooth
 ///   t_ms = wall clock (ms since 1970) when the notification arrived on the phone.
 ///
 /// Rules this plugin keeps (byte formats: uno-q/SENSORS.md, parsing: AfferentFingerParser.swift):
-///  - It connects only to a peripheral named exactly "Afferent Finger" that also has the AFF0
-///    service. A stranger's heart-rate strap must never be shown as the patient's finger.
+///  - It connects only to a peripheral named exactly "Afferent Finger", or to one with Wendy
+///    Net's service named exactly "wendyos-uno-q" (the same board, seen through Wendy Net's
+///    advertisement while ours is off the air), and trusts it only once it has the AFF0 service.
+///    A stranger's heart-rate strap or another Wendy device must never be shown as the patient's
+///    finger.
 ///  - It only subscribes to notifications and never asks the peripheral for a stored value, so
 ///    every "reading" is a value the board sent just now. (A stored value can be minutes old and
 ///    would be stamped as fresh.)
@@ -38,6 +41,8 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     private static let measurement = CBUUID(string: "2A37")
     private static let afferentService = CBUUID(string: "AFF0")
     private static let fingerValues = CBUUID(string: "AFF1")
+    private static let wendyNetService = CBUUID(string: AfferentFingerParser.wendyNetService)
+    private static let scanServices = AfferentFingerParser.scanServices.map { CBUUID(string: $0) }
     /// CoreBluetooth never gives up on a connection attempt by itself
     private static let connectTimeout: TimeInterval = 10
 
@@ -48,7 +53,8 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     private var linkState = "off"
     private var linkName: String?
     /// Peripherals this session will not connect to again: the right name but no AFF0 service
-    /// (not our board), or service discovery failed three times in a row. Cleared by stop().
+    /// (not our board: e.g. another team's WendyOS UNO Q), or service discovery failed three
+    /// times in a row. Cleared by stop().
     private var ignored = Set<UUID>()
     private var discoveryFailures: [UUID: Int] = [:]
     private var connectAttempt = 0
@@ -112,16 +118,22 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
         set(state: "scanning", name: nil)
         // The board may already be connected to this phone through another app (the link is
         // shared by iOS); such a peripheral does not advertise, so a scan alone would miss it.
-        for p in central.retrieveConnectedPeripherals(withServices: [Self.heartRateService]) {
-            if consider(p, advertisedName: nil) { return }
+        for p in central.retrieveConnectedPeripherals(withServices: [Self.heartRateService, Self.afferentService]) {
+            if consider(p, advertisedName: nil, wendyNet: false) { return }
         }
-        central.scanForPeripherals(withServices: [Self.heartRateService], options: nil)
+        for p in central.retrieveConnectedPeripherals(withServices: [Self.wendyNetService]) {
+            if consider(p, advertisedName: nil, wendyNet: true) { return }
+        }
+        // Heart Rate finds our own advertisement; Wendy Net's finds the board while a Wendy Net
+        // peer holds a link through ours (that advertisement is then off the air).
+        central.scanForPeripherals(withServices: Self.scanServices, options: nil)
     }
 
-    /// Connects when the peripheral is our board. Returns true if a connection was started.
-    private func consider(_ p: CBPeripheral, advertisedName: String?) -> Bool {
+    /// Connects when the peripheral may be our board. Returns true if a connection was started.
+    private func consider(_ p: CBPeripheral, advertisedName: String?, wendyNet: Bool) -> Bool {
         guard let central = central, peripheral == nil, !ignored.contains(p.identifier),
-              AfferentFingerParser.isAfferentFinger(advertisedName: advertisedName, peripheralName: p.name)
+              AfferentFingerParser.mayBeAfferentBoard(advertisedName: advertisedName, peripheralName: p.name,
+                                                      wendyNet: wendyNet)
         else { return false }
         central.stopScan()
         peripheral = p
@@ -176,7 +188,10 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     public func centralManager(_ c: CBCentralManager, didDiscover p: CBPeripheral,
                                advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard c === central else { return }
-        _ = consider(p, advertisedName: advertisementData[CBAdvertisementDataLocalNameKey] as? String)
+        let services = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [])
+            + (advertisementData[CBAdvertisementDataOverflowServiceUUIDsKey] as? [CBUUID] ?? [])
+        _ = consider(p, advertisedName: advertisementData[CBAdvertisementDataLocalNameKey] as? String,
+                     wendyNet: AfferentFingerParser.advertisesWendyNet(services.map { $0.uuidString }))
     }
 
     public func centralManager(_ c: CBCentralManager, didConnect p: CBPeripheral) {
@@ -205,7 +220,7 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
         }
         let services = p.services ?? []
         guard services.contains(where: { $0.uuid == Self.afferentService }) else {
-            drop(p, ignore: true)                    // right name, not our board
+            drop(p, ignore: true)                    // right name, not our board (or not running the hub)
             return
         }
         connectAttempt += 1                          // connected: the timeout no longer applies

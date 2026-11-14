@@ -89,6 +89,36 @@ enum AfferentFingerParser {
         return advertisedName == deviceName || peripheralName == deviceName
     }
 
+    // The board also advertises Wendy Net, from the same Bluetooth address: service
+    // wendyNetService, name "wendyos-uno-q". A Wendy Net peer that connects by address can land
+    // on our "Afferent Finger" advertisement, and while that link lasts it is off the air: only
+    // Wendy Net's is left. Connected through Wendy Net's advertisement, the phone still finds
+    // our services (one GATT server for the whole board).
+
+    /// Wendy Net's Bluetooth service (seen in the board's advertisement, 2026-11-14).
+    static let wendyNetService = "7565E9EB-4C20-4B67-9272-D708B397B631"
+    /// The name the board advertises with Wendy Net's service (WendyOS on an Arduino UNO Q).
+    static let wendyBoardName = "wendyos-uno-q"
+    /// What the plugin scans for (and looks for among connected peripherals): Heart Rate and Wendy Net.
+    static let scanServices = ["180D", wendyNetService]
+
+    /// True for a peripheral worth connecting to and checking for the AFF0 service (which is
+    /// still required before anything is trusted):
+    ///  - named exactly "Afferent Finger" (advertised or GAP name), or
+    ///  - with Wendy Net's service (advertised, or found on a connected peripheral) and named
+    ///    exactly "wendyos-uno-q".
+    /// Anything else, also another Wendy device or a heart-rate strap, is never connected.
+    static func mayBeAfferentBoard(advertisedName: String?, peripheralName: String?, wendyNet: Bool) -> Bool {
+        if isAfferentFinger(advertisedName: advertisedName, peripheralName: peripheralName) { return true }
+        return wendyNet && (advertisedName == wendyBoardName || peripheralName == wendyBoardName)
+    }
+
+    /// Whether an advertisement lists Wendy Net's service. uuids = the advertised service UUIDs
+    /// as strings (CBUUID.uuidString: upper case).
+    static func advertisesWendyNet(_ uuids: [String]) -> Bool {
+        return uuids.contains { $0.uppercased() == wendyNetService }
+    }
+
     // The "reading" events of the AfferentFinger plugin, as the web layer receives them.
     // A missing value is JSON null (NSNull), never 0 and never a made-up default.
 

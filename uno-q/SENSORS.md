@@ -12,6 +12,16 @@ The sensor LEDs are **off until a finger is detected** (2.5 s probe flashes ever
 
 Advertises as **`Afferent Finger`** with the Heart Rate Service, so it is found by a scan for `180D`.
 
+The board sends a second advertisement from the same Bluetooth address: Wendy Net's (service
+`7565E9EB-4C20-4B67-9272-D708B397B631`, name `wendyos-uno-q`). A Wendy Net peer that connects by
+address can land on ours, and while that link lasts ours is off the air (seen 2026-11-14: only
+Wendy Net's left, the phone stayed at "scanning"). Both share one GATT server, so the phone
+plugins (`ios/App/App/AfferentFinger.swift`, Android `AfferentFingerLink.kt`) scan for `180D`
+**and** Wendy Net's service. They connect to a device named exactly `Afferent Finger`, or one
+with Wendy Net's service named exactly `wendyos-uno-q`, and trust it only once it has the `AFF0`
+service; anything else is never connected (another team's WendyOS UNO Q without `AFF0` gets one
+service check and is then left alone for the session).
+
 | Service | Characteristic | Props | Bytes | Meaning |
 |---|---|---|---|---|
 | `180D` Heart Rate | `2A37` Heart Rate Measurement | notify, read | `[flags=0x00, bpm]` | **the** finger pulse: both sensors fused (one value). Standard format, any heart-rate app understands it |
