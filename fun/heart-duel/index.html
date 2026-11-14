@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heart Duel</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --u: min(1vw, 1.78vh);            /* one unit = 1% of a 16:9 screen's width */
+    --bg: #07090d; --panel: #0e1219; --line: #232b3a; --text: #f3f5f9; --dim: #8d96aa;
+    --p1: #ff4d6d; --p2: #35d4e6; --ok: #5ee08f; --warn: #ffb224; --bad: #ff6b5e; --grey: #4a5263;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg); color: var(--text); overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    font-size: calc(var(--u) * 1.5); line-height: 1.25;
+  }
+  button, input { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  header {
+    display: flex; align-items: center; gap: calc(var(--u) * 2);
+    padding: calc(var(--u) * 1.4) calc(var(--u) * 2.4);
+  }
+  h1 { margin: 0; font-size: calc(var(--u) * 2); font-weight: 800; letter-spacing: .14em; white-space: nowrap; }
+  h1 span { color: var(--p1); }
+  nav { display: flex; gap: calc(var(--u) * .7); margin-left: calc(var(--u) * 1.5); }
+  nav button {
+    background: transparent; border: calc(var(--u) * .12) solid var(--line); border-radius: calc(var(--u) * .8);
+    padding: calc(var(--u) * .6) calc(var(--u) * 1.3); font-size: calc(var(--u) * 1.35); font-weight: 700;
+    letter-spacing: .08em; color: var(--dim); cursor: pointer; white-space: nowrap;
+  }
+  nav button kbd { font: inherit; opacity: .6; margin-right: .5em; }
+  nav button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+  .right { margin-left: auto; display: flex; align-items: center; gap: calc(var(--u) * 1.4); }
+  #simulated {
+    background: var(--warn); color: #1a1200; font-weight: 900; letter-spacing: .16em;
+    font-size: calc(var(--u) * 1.6); padding: calc(var(--u) * .5) calc(var(--u) * 1.3); border-radius: calc(var(--u) * .5);
+  }
+  #link { display: flex; align-items: center; gap: .6em; font-size: calc(var(--u) * 1.3); color: var(--dim); white-space: nowrap; }
+  #link i { width: .75em; height: .75em; border-radius: 50%; background: var(--grey); flex: none; }
+  #link[data-tone="ok"] i { background: var(--ok); }
+  #link[data-tone="warn"] i { background: var(--warn); }
+  #link[data-tone="bad"] i { background: var(--bad); }
+  #link[data-tone="bad"] { color: var(--bad); }
+  #link[data-tone="wait"] i { animation: blink 1.2s ease-in-out infinite; background: var(--text); }
+  @keyframes blink { 50% { opacity: .2; } }
+
+  main {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: calc(var(--u) * 1.6); padding: 0 calc(var(--u) * 2.4); min-height: 0;
+  }
+
+  .player {
+    --c: var(--p1); background: var(--panel); border-radius: calc(var(--u) * 1.6);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: calc(var(--u) * 1.5); min-height: 0; position: relative; overflow: hidden;
+    border-top: calc(var(--u) * .4) solid var(--c);
+  }
+  .player.p2 { --c: var(--p2); }
+  .player input {
+    width: 100%; text-align: center; background: transparent; border: 0; outline: 0;
+    font-size: calc(var(--u) * 2.5); font-weight: 700; color: var(--c);
+    border-bottom: calc(var(--u) * .12) dashed transparent; padding: 0 0 .1em;
+  }
+  .player input:hover, .player input:focus { border-bottom-color: var(--c); }
+  .heart { width: calc(var(--u) * 16); height: calc(var(--u) * 14.4); margin: calc(var(--u) * 1.6) 0 calc(var(--u) * .4); }
+  .heart svg { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 55%; will-change: transform; }
+  .heart path { fill: var(--c); filter: drop-shadow(0 0 calc(var(--u) * 1.4) color-mix(in srgb, var(--c) 55%, transparent)); }
+  .bpm {
+    font-size: calc(var(--u) * 11); font-weight: 800; line-height: 1; letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums; min-height: 1em;
+  }
+  .unit { font-size: calc(var(--u) * 1.5); letter-spacing: .3em; color: var(--dim); font-weight: 700; margin-top: calc(var(--u) * .3); }
+  .state { font-size: calc(var(--u) * 1.8); font-weight: 700; min-height: 1.3em; margin-top: calc(var(--u) * .9); text-align: center; }
+  .hint { font-size: calc(var(--u) * 1.15); color: var(--dim); min-height: 1.3em; text-align: center; }
+  .player[data-state="live"] .state { color: var(--warn); }
+  .player:not([data-state="live"]) .heart path { fill: var(--grey); filter: none; }
+  .player:not([data-state="live"]) .bpm { color: var(--grey); }
+  .player[data-state="no-finger"] .bpm, .player[data-state="offline"] .bpm { font-weight: 200; }
+  .player[data-state="stale"] .state { color: var(--dim); }
+  .player[data-state="no-finger"] .state { color: var(--text); }
+  .player[data-state="offline"] .state { color: var(--bad); }
+  .sim {
+    position: absolute; top: calc(var(--u) * .9); right: calc(var(--u) * 1); font-size: calc(var(--u) * .95);
+    font-weight: 800; letter-spacing: .14em; color: var(--warn); border: calc(var(--u) * .1) solid var(--warn);
+    border-radius: calc(var(--u) * .35); padding: .1em .5em;
+  }
+
+  .stage {
+    border: calc(var(--u) * .12) solid var(--line); border-radius: calc(var(--u) * 1.6);
+    padding: calc(var(--u) * 1.8) calc(var(--u) * 2); min-height: 0; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .mode { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .mode h2 { margin: 0; font-size: calc(var(--u) * 1.5); letter-spacing: .3em; color: var(--dim); font-weight: 800; }
+  .rule { font-size: calc(var(--u) * 1.5); color: var(--dim); margin: calc(var(--u) * .6) 0 0; max-width: 34em; }
+  .big { font-size: calc(var(--u) * 12); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+  .big.idle { color: var(--grey); }
+  .big.none { color: var(--grey); font-weight: 200; }
+  .sub { font-size: calc(var(--u) * 1.5); letter-spacing: .3em; color: var(--dim); font-weight: 700; }
+  .msg { font-size: calc(var(--u) * 2.1); font-weight: 700; min-height: 1.3em; }
+  .msg.good { color: var(--ok); }
+  .grow { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
+  .act {
+    background: var(--text); color: var(--bg); border: 0; border-radius: calc(var(--u) * .8); cursor: pointer;
+    font-size: calc(var(--u) * 1.6); font-weight: 800; padding: calc(var(--u) * .8) calc(var(--u) * 2);
+  }
+  .act.ghost { background: transparent; color: var(--text); border: calc(var(--u) * .12) solid var(--line); font-weight: 700; font-size: calc(var(--u) * 1.25); padding: calc(var(--u) * .6) calc(var(--u) * 1.1); }
+  .act kbd { font: inherit; opacity: .55; margin-left: .5em; }
+
+  /* SYNC */
+  .scale { position: relative; width: 100%; height: calc(var(--u) * 5.5); margin: calc(var(--u) * 1) 0; }
+  .scale .rail { position: absolute; left: 0; right: 0; top: 50%; height: calc(var(--u) * .2); background: var(--line); }
+  .scale .band {
+    position: absolute; top: 12%; bottom: 12%; left: 43.75%; width: 12.5%; border-radius: calc(var(--u) * .5);
+    background: color-mix(in srgb, var(--ok) 16%, transparent); border: calc(var(--u) * .1) dashed color-mix(in srgb, var(--ok) 60%, transparent);
+  }
+  .scale .dot {
+    position: absolute; top: 50%; width: calc(var(--u) * 2.6); height: calc(var(--u) * 2.6); border-radius: 50%;
+    transform: translate(-50%, -50%); transition: left .5s ease; border: calc(var(--u) * .25) solid var(--bg);
+  }
+  .scale .d1 { background: var(--p1); } .scale .d2 { background: var(--p2); }
+  .meter { width: 100%; height: calc(var(--u) * 3.4); border-radius: calc(var(--u) * 1.7); background: var(--panel); border: calc(var(--u) * .12) solid var(--line); overflow: hidden; }
+  .meter div { height: 100%; width: 0; background: linear-gradient(90deg, var(--p1), var(--p2)); border-radius: inherit; }
+  .meter.on div { background: var(--ok); }
+  .meterlabel { font-size: calc(var(--u) * 1.4); color: var(--dim); margin: calc(var(--u) * .6) 0 calc(var(--u) * 1); font-variant-numeric: tabular-nums; }
+
+  /* CALM */
+  .avgs { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 1.5); width: 100%; margin: calc(var(--u) * 1) 0; }
+  .avgs div { background: var(--panel); border-radius: calc(var(--u) * 1); padding: calc(var(--u) * .8); }
+  .avgs b { display: block; font-size: calc(var(--u) * 3.2); font-variant-numeric: tabular-nums; }
+  .avgs span { font-size: calc(var(--u) * 1.2); color: var(--dim); }
+  .avgs .a1 b { color: var(--p1); } .avgs .a2 b { color: var(--p2); }
+
+  /* POKER FACE */
+  .charts { flex: 1; min-height: 0; width: 100%; display: grid; grid-template-rows: 1fr 1fr; gap: calc(var(--u) * .8); margin: calc(var(--u) * .9) 0; }
+  .chart { position: relative; min-height: 0; background: var(--panel); border-radius: calc(var(--u) * 1); }
+  .chart canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .row { display: flex; gap: calc(var(--u) * .6); justify-content: center; }
+  .row .act { white-space: nowrap; }
+  #poker-verdict { font-size: calc(var(--u) * 1.5); min-height: 2.6em; margin-top: calc(var(--u) * .8); font-weight: 600; }
+
+  /* result cards */
+  .card {
+    position: absolute; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+    padding: calc(var(--u) * 2); gap: calc(var(--u) * 1.2);
+  }
+  .card .title { font-size: calc(var(--u) * 5.2); font-weight: 900; line-height: 1.05; }
+  .card .detail { font-size: calc(var(--u) * 1.9); color: var(--dim); max-width: 22em; }
+  .card.win .title { color: var(--ok); }
+
+  footer {
+    display: flex; align-items: baseline; gap: calc(var(--u) * 2); padding: calc(var(--u) * 1.1) calc(var(--u) * 2.4);
+    font-size: calc(var(--u) * 1.1); color: var(--dim); white-space: nowrap;
+  }
+  footer #extras { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  footer #extras b { color: var(--text); font-weight: 700; }
+  footer .note { margin-left: auto; text-align: right; flex: none; }
+
+  @media (max-aspect-ratio: 1/1) {
+    body { overflow: auto; --u: 2vw; }
+    main { grid-template-columns: 1fr 1fr; }
+    .stage { grid-column: 1 / -1; grid-row: 2; min-height: 60vw; }
+    header, footer { flex-wrap: wrap; white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>&#9829;</span> HEART DUEL</h1>
+  <nav aria-label="Game mode">
+    <button type="button" data-mode="sync"><kbd>1</kbd>SYNC</button>
+    <button type="button" data-mode="calm"><kbd>2</kbd>CALM</button>
+    <button type="button" data-mode="poker"><kbd>3</kbd>POKER FACE</button>
+  </nav>
+  <div class="right">
+    <div id="simulated" hidden>SIMULATED</div>
+    <div id="link" data-tone="wait"><i></i><span id="link-text">Connecting to the bridge</span></div>
+  </div>
+</header>
+
+<main>
+  <section class="player p1" id="player0" data-state="offline">
+    <div class="sim" hidden>SIMULATED</div>
+    <input id="name0" maxlength="16" value="Player 1" aria-label="Name of player 1" spellcheck="false" autocomplete="off">
+    <div class="heart"><svg viewBox="0 0 100 90" aria-hidden="true"><path d="M50 86C50 86 6 58 6 30 6 14 18 4 31 4c9 0 16 5 19 12C53 9 60 4 69 4c13 0 25 10 25 26C94 58 50 86 50 86Z"/></svg></div>
+    <div class="bpm" id="bpm0"></div>
+    <div class="unit">BPM</div>
+    <div class="state" id="state0"></div>
+    <div class="hint" id="hint0"></div>
+  </section>
+
+  <section class="stage">
+    <div class="mode" id="mode-sync">
+      <h2>SYNC</h2>
+      <p class="rule">Bring your pulses within 3 BPM of each other and hold it for 10 seconds. You win together.</p>
+      <div class="grow">
+        <div class="big" id="sync-gap"></div>
+        <div class="sub">BPM APART</div>
+        <div class="scale"><div class="rail"></div><div class="band"></div><div class="dot d1" id="sync-d1" hidden></div><div class="dot d2" id="sync-d2" hidden></div></div>
+        <div class="msg" id="sync-msg"></div>
+      </div>
+      <div class="meter" id="sync-meter"><div id="sync-fill"></div></div>
+      <div class="meterlabel" id="sync-label"></div>
+      <div class="card win" id="sync-card" hidden>
+        <div class="title">IN SYNC</div>
+        <div class="detail" id="sync-detail"></div>
+        <button type="button" class="act" id="sync-again">Again<kbd>Space</kbd></button>
+      </div>
+    </div>
+
+    <div class="mode" id="mode-calm" hidden>
+      <h2>CALM</h2>
+      <p class="rule">30 seconds. The lowest average pulse wins.</p>
+      <div class="grow">
+        <div class="big" id="calm-big"></div>
+        <div class="sub" id="calm-sub"></div>
+      </div>
+      <div class="avgs">
+        <div class="a1"><b id="calm-a0"></b><span id="calm-n0"></span></div>
+        <div class="a2"><b id="calm-a1"></b><span id="calm-n1"></span></div>
+      </div>
+      <div class="meter"><div id="calm-fill"></div></div>
+      <div class="meterlabel" id="calm-note"></div>
+      <button type="button" class="act" id="calm-start">Start<kbd>Space</kbd></button>
+      <div class="card" id="calm-card" hidden>
+        <div class="title" id="calm-title"></div>
+        <div class="detail" id="calm-detail"></div>
+        <button type="button" class="act" id="calm-again">Again<kbd>Space</kbd></button>
+      </div>
+    </div>
+
+    <div class="mode" id="mode-poker" hidden>
+      <h2>POKER FACE</h2>
+      <p class="rule" id="poker-rule"></p>
+      <div class="charts">
+        <div class="chart"><canvas id="trace0"></canvas></div>
+        <div class="chart"><canvas id="trace1"></canvas></div>
+      </div>
+      <div class="row">
+        <button type="button" class="act ghost" id="poker-swap">Swap<kbd>S</kbd></button>
+        <button type="button" class="act ghost" id="poker-guess">Guess<kbd>Space</kbd></button>
+        <button type="button" class="act ghost" id="poker-reveal">Reveal<kbd>R</kbd></button>
+        <button type="button" class="act ghost" id="poker-clear">Clear<kbd>C</kbd></button>
+      </div>
+      <div id="poker-verdict"></div>
+    </div>
+  </section>
+
+  <section class="player p2" id="player1" data-state="offline">
+    <div class="sim" hidden>SIMULATED</div>
+    <input id="name1" maxlength="16" value="Player 2" aria-label="Name of player 2" spellcheck="false" autocomplete="off">
+    <div class="heart"><svg viewBox="0 0 100 90" aria-hidden="true"><path d="M50 86C50 86 6 58 6 30 6 14 18 4 31 4c9 0 16 5 19 12C53 9 60 4 69 4c13 0 25 10 25 26C94 58 50 86 50 86Z"/></svg></div>
+    <div class="bpm" id="bpm1"></div>
+    <div class="unit">BPM</div>
+    <div class="state" id="state1"></div>
+    <div class="hint" id="hint1"></div>
+  </section>
+</main>
+
+<footer>
+  <div id="extras"></div>
+  <div class="note">A party game, not a medical measurement &middot; keys 1 2 3 mode &middot; Space action &middot; F full screen</div>
+</footer>
+
+<script>
+/* <<< game.js (inlined by build.sh: edit game.js, not this block) */
+// Heart Duel: game logic. No DOM, no timers, no clock of its own: every function gets the
+// time it needs as an argument. Loaded by node --test (game.test.js) and inlined into
+// index.html by build.sh. Edit this file, then run ./build.sh.
+//
+// Rule that everything here serves: a number is only ever handed to the page when a
+// heartbeat packet confirmed it in the last 5 s. 0 means "no reading" and never comes out.
+const HeartDuel = (() => {
+  'use strict';
+
+  const STALE_MS = 5000;          // no confirming beat for this long -> grey out
+  const FORGET_MS = 30000;        // stale this long -> back to "put the clip on"
+  const FROZEN_HINT_MS = 20000;   // value identical this long -> ask "clip still on?"
+  const SYNC_WINDOW_BPM = 3;
+  const SYNC_GOAL_MS = 10000;
+  const SYNC_DRAIN = 2;           // out of sync drains the meter twice as fast as it fills
+  const CALM_ROUND_MS = 30000;
+  const CALM_MIN_COVERAGE = 0.5;  // a player needs a live reading for half the round
+  const MAX_STEP_MS = 1000;       // a frame longer than this (hidden tab) is not game time
+  const TRACE_MS = 30000;
+  const JUMP_SPAN_MS = 5000;      // a "jump" is a rise that happens within this long
+  const JUMP_MIN_BPM = 4;
+  const GUESS_TOLERANCE_MS = 2000;
+
+  const isBpm = (v) => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+  // ── sensor packets ────────────────────────────────────────────────────────────────
+  // AFF1 is [finger 1 bpm, finger 2 bpm, breaths/min, RMSSD ms]. The hub sends it on every
+  // locked heartbeat of either finger and whenever breathing or HRV change, and it keeps a
+  // finger's last BPM in the packet after the clip comes off. So a packet arriving is not
+  // proof that a given byte is fresh. What is: a notification whose breathing and HRV bytes
+  // did not change was caused by a heartbeat. It is credited to the finger whose byte
+  // changed, or to both when neither changed (the hub does not say which finger beat).
+  function createTracker() {
+    const player = () => ({ value: null, beatAt: null, changedAt: null });
+    return { prev: null, players: [player(), player()], breath: null, hrv: null, packetAt: null };
+  }
+
+  function validPacket(bytes) {
+    return Array.isArray(bytes) && bytes.length >= 4 &&
+      bytes.slice(0, 4).every((b) => Number.isInteger(b) && b >= 0 && b <= 255);
+  }
+
+  // kind: 'notify' (live notification) | 'read' | 'snapshot' (a held value: baseline only).
+  function trackerPacket(tr, bytes, nowMs, kind) {
+    if (!validPacket(bytes)) return tr;
+    const b = bytes.slice(0, 4);
+    const prev = tr.prev;
+    const beat = kind === 'notify' && prev !== null && b[2] === prev[2] && b[3] === prev[3];
+    for (let i = 0; i < 2; i++) {
+      const p = tr.players[i];
+      if (b[i] === 0) { p.value = null; p.beatAt = null; p.changedAt = null; continue; }
+      const changed = prev === null || prev[i] !== b[i];
+      const otherChanged = prev !== null && prev[1 - i] !== b[1 - i];
+      if (changed || p.changedAt === null) p.changedAt = nowMs;
+      p.value = b[i];
+      if (beat && (changed || !otherChanged)) p.beatAt = nowMs;
+    }
+    tr.breath = b[2] === 0 ? null : b[2];
+    tr.hrv = b[3] === 0 ? null : b[3];
+    tr.prev = b;
+    tr.packetAt = nowMs;
+    return tr;
+  }
+
+  // What the page may show for player i (0 or 1). `bpm` is set only in state 'live'.
+  //   offline   : no link to the sensor
+  //   no-finger : linked, but no heartbeat has confirmed a value (show "put the clip on")
+  //   stale     : had a value, no confirming beat for 5 s (lastBpm is for greyed-out display)
+  //   live      : confirmed within 5 s
+  function playerView(tr, i, nowMs, connected) {
+    if (!connected) return { state: 'offline', bpm: null };
+    const p = tr.players[i];
+    if (p.value === null || p.beatAt === null) return { state: 'no-finger', bpm: null };
+    const ageMs = nowMs - p.beatAt;
+    if (ageMs > FORGET_MS) return { state: 'no-finger', bpm: null };
+    if (ageMs > STALE_MS) return { state: 'stale', bpm: null, lastBpm: p.value, ageMs };
+    const unchangedMs = nowMs - p.changedAt;
+    return { state: 'live', bpm: p.value, ageMs, unchangedMs, frozen: unchangedMs >= FROZEN_HINT_MS };
+  }
+
+  // Breathing rate and HRV: only while linked and at least one pulse is live.
+  function extrasView(tr, nowMs, connected) {
+    const anyLive = [0, 1].some((i) => playerView(tr, i, nowMs, connected).state === 'live');
+    if (!anyLive) return { breath: null, hrv: null };
+    return { breath: tr.breath, hrv: tr.hrv };
+  }
+
+  // ── heart animation ───────────────────────────────────────────────────────────────
+  // phase counts beats (fractional). One call per frame; `beats` is how many whole beats
+  // started during the step. No reading -> the heart does not move.
+  function advanceBeat(phase, bpm, dtMs) {
+    if (!isBpm(bpm) || !(dtMs > 0)) return { phase, beats: 0 };
+    const next = phase + (bpm / 60000) * Math.min(dtMs, MAX_STEP_MS);
+    return { phase: next, beats: Math.floor(next) - Math.floor(phase) };
+  }
+
+  // ── mode 1: SYNC ──────────────────────────────────────────────────────────────────
+  function syncCreate() {
+    return { progressMs: 0, inSync: false, won: false, diff: null };
+  }
+
+  function syncStep(s, bpm1, bpm2, dtMs) {
+    if (s.won) return s;
+    const dt = Math.max(0, Math.min(dtMs, MAX_STEP_MS));
+    const both = isBpm(bpm1) && isBpm(bpm2);
+    const diff = both ? Math.abs(bpm1 - bpm2) : null;
+    const inSync = both && diff <= SYNC_WINDOW_BPM;
+    const progressMs = inSync
+      ? Math.min(SYNC_GOAL_MS, s.progressMs + dt)
+      : Math.max(0, s.progressMs - dt * SYNC_DRAIN);
+    return { progressMs, inSync, won: progressMs >= SYNC_GOAL_MS, diff };
+  }
+
+  // ── mode 2: CALM ──────────────────────────────────────────────────────────────────
+  function calmCreate() {
+    const player = () => ({ bpmMs: 0, liveMs: 0 });
+    return { elapsedMs: 0, done: false, players: [player(), player()] };
+  }
+
+  function calmStep(c, bpm1, bpm2, dtMs) {
+    if (c.done) return c;
+    const dt = Math.max(0, Math.min(dtMs, MAX_STEP_MS, CALM_ROUND_MS - c.elapsedMs));
+    const players = [bpm1, bpm2].map((bpm, i) => {
+      const p = c.players[i];
+      return isBpm(bpm) ? { bpmMs: p.bpmMs + bpm * dt, liveMs: p.liveMs + dt } : p;
+    });
+    const elapsedMs = c.elapsedMs + dt;
+    return { elapsedMs, done: elapsedMs >= CALM_ROUND_MS, players };
+  }
+
+  // Average so far, whatever the coverage (for the running display); null without data.
+  function calmAverage(c, i) {
+    const p = c.players[i];
+    return p.liveMs > 0 ? p.bpmMs / p.liveMs : null;
+  }
+
+  // outcome: 'win' (winner 0|1) | 'tie' | 'no-contest' (only one player had enough data,
+  // nobody wins by default) | 'no-data'. Averages are compared at the one decimal shown.
+  function calmResult(c) {
+    const coverage = c.players.map((p) => p.liveMs / CALM_ROUND_MS);
+    const averages = c.players.map((p, i) =>
+      coverage[i] >= CALM_MIN_COVERAGE ? Math.round((p.bpmMs / p.liveMs) * 10) / 10 : null);
+    const have = averages.map((a) => a !== null);
+    let outcome, winner = null;
+    if (have[0] && have[1]) {
+      if (averages[0] === averages[1]) outcome = 'tie';
+      else { outcome = 'win'; winner = averages[0] < averages[1] ? 0 : 1; }
+    } else if (have[0] || have[1]) outcome = 'no-contest';
+    else outcome = 'no-data';
+    return { outcome, winner, averages, coverage };
+  }
+
+  // ── mode 3: POKER FACE ────────────────────────────────────────────────────────────
+  // samples: [{ t, bpm|null }] in time order. Appends and drops what is older than 30 s.
+  function tracePush(samples, t, bpm) {
+    samples.push({ t, bpm: isBpm(bpm) ? bpm : null });
+    while (samples.length && samples[0].t < t - TRACE_MS - 1000) samples.shift();
+    return samples;
+  }
+
+  // Y range for a trace: at least 20 BPM tall, padded, on multiples of 5. null if no data.
+  function traceRange(samples) {
+    let lo = Infinity, hi = -Infinity;
+    for (const s of samples) if (s.bpm !== null) { lo = Math.min(lo, s.bpm); hi = Math.max(hi, s.bpm); }
+    if (lo === Infinity) return null;
+    const mid = (lo + hi) / 2, half = Math.max(10, (hi - lo) / 2 + 3);
+    return { min: Math.floor((mid - half) / 5) * 5, max: Math.ceil((mid + half) / 5) * 5 };
+  }
+
+  // The largest rise within any 5 s span that has no gap in the data, or null when no rise
+  // reaches 4 BPM. fromMs = the low point just before the rise, toMs = its peak.
+  function biggestRise(samples, spanMs = JUMP_SPAN_MS, minRise = JUMP_MIN_BPM) {
+    let best = null;
+    for (let j = 0; j < samples.length; j++) {
+      if (samples[j].bpm === null) continue;
+      for (let i = j - 1; i >= 0; i--) {
+        if (samples[i].bpm === null || samples[j].t - samples[i].t > spanMs) break;
+        const rise = samples[j].bpm - samples[i].bpm;
+        if (rise >= minRise && (best === null || rise > best.rise)) {
+          best = { rise, fromMs: samples[i].t, toMs: samples[j].t, fromBpm: samples[i].bpm, toBpm: samples[j].bpm };
+        }
+      }
+    }
+    return best;
+  }
+
+  // How far the guess was from the rise: 0 inside it, otherwise the distance to its nearer end.
+  function guessVerdict(guessMs, jump, toleranceMs = GUESS_TOLERANCE_MS) {
+    if (jump === null || typeof guessMs !== 'number') return null;
+    const offMs = guessMs < jump.fromMs ? jump.fromMs - guessMs : guessMs > jump.toMs ? guessMs - jump.toMs : 0;
+    return { offMs, hit: offMs <= toleranceMs };
+  }
+
+  return {
+    STALE_MS, FORGET_MS, FROZEN_HINT_MS, SYNC_WINDOW_BPM, SYNC_GOAL_MS, SYNC_DRAIN, CALM_ROUND_MS,
+    CALM_MIN_COVERAGE, MAX_STEP_MS, TRACE_MS, JUMP_SPAN_MS, JUMP_MIN_BPM, GUESS_TOLERANCE_MS,
+    isBpm, createTracker, trackerPacket, playerView, extrasView, advanceBeat,
+    syncCreate, syncStep, calmCreate, calmStep, calmAverage, calmResult,
+    tracePush, traceRange, biggestRise, guessVerdict,
+  };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = HeartDuel;
+/* >>> game.js */
+</script>
+<script>
+(() => {
+  'use strict';
+  const G = HeartDuel;
+  const $ = (id) => document.getElementById(id);
+  const now = () => performance.now();
+  const BRIDGE_SILENT_MS = 3500;    // the bridge sends a status every second
+  const DASH = '– –';
+
+  const app = {
+    status: null, statusAt: -Infinity, streamOpen: false,
+    tracker: G.createTracker(),
+    mode: 'sync', phase: [0, 0], traces: [[], []], sampledAt: -Infinity,
+    sync: G.syncCreate(),
+    calm: { step: 'idle', countdownMs: 0, round: G.calmCreate(), result: null },
+    poker: { teller: 0, guessAt: null, jump: null, revealed: false },
+  };
+
+  // Write only when the value changed: the frame loop runs 60 times a second.
+  const cache = new Map();
+  function put(el, prop, value) {
+    const key = el.id + '|' + prop;
+    if (cache.get(key) === value) return;
+    cache.set(key, value);
+    if (prop === 'text') el.textContent = value;
+    else if (prop === 'hidden') el.hidden = value;
+    else if (prop.startsWith('data-')) el.setAttribute(prop, value);
+    else if (prop.startsWith('class:')) el.classList.toggle(prop.slice(6), value);
+    else el.style.setProperty(prop, value);
+  }
+
+  // ── names ───────────────────────────────────────────────────────────────────────
+  const nameInputs = [$('name0'), $('name1')];
+  const playerName = (i) => nameInputs[i].value.trim() || 'Player ' + (i + 1);
+  try {
+    const saved = JSON.parse(localStorage.getItem('heartduel.names') || 'null');
+    if (Array.isArray(saved)) saved.slice(0, 2).forEach((n, i) => { if (typeof n === 'string' && n.trim()) nameInputs[i].value = n.slice(0, 16); });
+  } catch (e) { /* storage unavailable: names just do not persist */ }
+  nameInputs.forEach((el) => el.addEventListener('input', () => {
+    try { localStorage.setItem('heartduel.names', JSON.stringify(nameInputs.map((n) => n.value))); } catch (e) { /* same */ }
+  }));
+
+  // ── bridge stream ───────────────────────────────────────────────────────────────
+  function dropReadings() { app.tracker = G.createTracker(); }
+  function bridgeAlive(t) { return app.streamOpen && app.status !== null && t - app.statusAt < BRIDGE_SILENT_MS; }
+  function sensorLinked(t) { return bridgeAlive(t) && app.status.link === 'connected'; }
+
+  function listen() {
+    const es = new EventSource('events');
+    es.onopen = () => { app.streamOpen = true; dropReadings(); };
+    es.addEventListener('status', (e) => {
+      app.status = JSON.parse(e.data); app.statusAt = now();
+      if (app.status.link !== 'connected') dropReadings();
+    });
+    es.addEventListener('aff1', (e) => {
+      const d = JSON.parse(e.data);
+      G.trackerPacket(app.tracker, d.b, now(), d.kind);
+    });
+    es.onerror = () => {
+      app.streamOpen = false; dropReadings();
+      if (es.readyState === 2) { es.close(); setTimeout(listen, 1500); }   // the browser gave up: try again ourselves
+    };
+  }
+
+  // ── modes ───────────────────────────────────────────────────────────────────────
+  const modeButtons = [...document.querySelectorAll('nav button')];
+  function setMode(mode) {
+    app.mode = mode;
+    app.sync = G.syncCreate();
+    app.calm = { step: 'idle', countdownMs: 0, round: G.calmCreate(), result: null };
+    app.poker.guessAt = null; app.poker.jump = null; app.poker.revealed = false;
+    for (const b of modeButtons) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+    for (const m of ['sync', 'calm', 'poker']) $('mode-' + m).hidden = m !== mode;
+  }
+
+  function primary() {
+    if (app.mode === 'sync') { if (app.sync.won) app.sync = G.syncCreate(); }
+    else if (app.mode === 'calm') {
+      if (app.calm.step === 'idle' || app.calm.step === 'done') {
+        app.calm = { step: 'countdown', countdownMs: 3000, round: G.calmCreate(), result: null };
+      }
+    } else { app.poker.guessAt = now(); app.poker.jump = null; app.poker.revealed = false; }
+  }
+  function pokerReveal() {
+    if (app.mode !== 'poker') return;
+    app.poker.jump = G.biggestRise(app.traces[app.poker.teller]);
+    app.poker.revealed = true;
+  }
+  function pokerClear() { app.poker.guessAt = null; app.poker.jump = null; app.poker.revealed = false; }
+  function pokerSwap() { if (app.mode === 'poker') { app.poker.teller = 1 - app.poker.teller; pokerClear(); } }
+
+  for (const b of modeButtons) b.addEventListener('click', () => setMode(b.dataset.mode));
+  for (const id of ['sync-again', 'calm-start', 'calm-again', 'poker-guess']) $(id).addEventListener('click', primary);
+  $('poker-reveal').addEventListener('click', pokerReveal);
+  $('poker-clear').addEventListener('click', pokerClear);
+  $('poker-swap').addEventListener('click', pokerSwap);
+  // Clicking a button must not leave it focused, or Space would press it again.
+  for (const b of document.querySelectorAll('button')) b.addEventListener('mousedown', (e) => e.preventDefault());
+
+  addEventListener('keydown', (e) => {
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT') { if (e.key === 'Enter' || e.key === 'Escape') e.target.blur(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+    const k = e.key.toLowerCase();
+    if (k === '1') setMode('sync');
+    else if (k === '2') setMode('calm');
+    else if (k === '3') setMode('poker');
+    else if (k === ' ') { e.preventDefault(); primary(); }
+    else if (k === 'r') pokerReveal();
+    else if (k === 's') pokerSwap();
+    else if (k === 'c') pokerClear();
+    else if (k === 'f') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+    }
+  });
+
+  // ── rendering ───────────────────────────────────────────────────────────────────
+  function renderLink(t) {
+    let tone = 'wait', text = 'Starting Bluetooth';
+    const alive = bridgeAlive(t), s = app.status;
+    if (!alive) { tone = 'bad'; text = 'Bridge not running: start ./heart-duel'; }
+    else if (s.mode === 'demo') { tone = 'warn'; text = 'Simulated players, no sensor'; }
+    else if (s.link === 'connected') {
+      if (s.aff1) { tone = 'ok'; text = 'Afferent Finger connected'; }
+      else { tone = 'bad'; text = 'Connected, but the sensor has no per-finger data (AFF1)'; }
+    }
+    else if (s.link === 'scanning') text = 'Searching for Afferent Finger';
+    else if (s.link === 'connecting' || s.link === 'subscribing') text = 'Connecting to Afferent Finger';
+    else if (s.link === 'bluetooth-off') { tone = 'bad'; text = 'Bluetooth is off on this Mac'; }
+    else if (s.link === 'unauthorized') { tone = 'bad'; text = 'Bluetooth is not allowed for this terminal'; }
+    else if (s.link === 'unsupported') { tone = 'bad'; text = 'This Mac has no Bluetooth LE'; }
+    put($('link'), 'data-tone', tone);
+    put($('link-text'), 'text', text);
+    const demo = alive && s.mode === 'demo';
+    put($('simulated'), 'hidden', !demo);
+    document.querySelectorAll('.sim').forEach((el, i) => { el.id = el.id || 'sim' + i; put(el, 'hidden', !demo); });
+  }
+
+  // Lub-dub: two bumps per beat, a strong one and a weaker one a quarter beat later.
+  const bump = (p, c, w) => Math.exp(-(((p - c) / w) ** 2));
+  const beatScale = (p) => 1 + 0.2 * (bump(p, 0.07, 0.055) + bump(p - 1, 0.07, 0.055)) + 0.09 * bump(p, 0.29, 0.07);
+
+  const hearts = [...document.querySelectorAll('.heart svg')];
+  function renderPlayers(views, t, dt) {
+    views.forEach((v, i) => {
+      const adv = G.advanceBeat(app.phase[i], v.bpm, dt);
+      app.phase[i] = adv.phase;
+      hearts[i].style.transform = v.state === 'live' ? 'scale(' + beatScale(adv.phase % 1).toFixed(4) + ')' : 'scale(1)';
+
+      let number = DASH, state = '', hint = '';
+      if (v.state === 'live') {
+        number = String(v.bpm);
+        if (v.frozen) { state = 'clip still on?'; hint = 'same value for ' + Math.floor(v.unchangedMs / 1000) + ' s'; }
+      } else if (v.state === 'stale') {
+        number = String(v.lastBpm);
+        state = 'no update for ' + Math.floor(v.ageMs / 1000) + ' s';
+        hint = 'last value shown in grey';
+      } else if (v.state === 'no-finger') {
+        if (i === 1 && views[0].state !== 'live') { state = 'put the clip on'; hint = 'after player 1: sensor 1 switches both on'; }
+        else { state = 'put the clip on'; hint = 'a reading takes 5 to 10 s'; }
+      } else {
+        state = bridgeAlive(t) ? 'not connected' : 'no bridge';
+      }
+      put($('player' + i), 'data-state', v.state);
+      put($('bpm' + i), 'text', number);
+      put($('state' + i), 'text', state);
+      put($('hint' + i), 'text', hint);
+    });
+  }
+
+  function renderExtras(views, t) {
+    const x = G.extrasView(app.tracker, t, sensorLinked(t));
+    const el = $('extras');
+    let html = '';
+    if (x.breath !== null || x.hrv !== null) {
+      const parts = [];
+      if (x.breath !== null) parts.push('breathing <b>' + x.breath + '</b> /min');
+      if (x.hrv !== null) parts.push('HRV <b>' + x.hrv + '</b> ms RMSSD');
+      html = parts.join(' &middot; ') + ' &middot; from one of the two clips, the sensor does not say whose';
+    } else if (views.some((v) => v.state === 'live')) {
+      html = 'breathing rate and HRV appear after 30 to 60 s of steady pulse';
+    }
+    if (cache.get('extras') !== html) { cache.set('extras', html); el.innerHTML = html; }
+  }
+
+  function renderSync(views) {
+    const s = app.sync;
+    const [a, b] = views.map((v) => v.bpm);
+    const both = a !== null && b !== null;
+    put($('sync-gap'), 'text', s.diff === null ? DASH : String(s.diff));
+    put($('sync-gap'), 'class:none', s.diff === null);
+    // Both dots sit on a 24 BPM wide scale centred between the two pulses; the band is 3 BPM wide.
+    [a, b].forEach((bpm, i) => {
+      const dot = $('sync-d' + (i + 1));
+      put(dot, 'hidden', !both);
+      if (both) put(dot, 'left', Math.max(2, Math.min(98, 50 + ((bpm - (a + b) / 2) / 24) * 100)).toFixed(2) + '%');
+    });
+    let msg = 'Waiting for both players';
+    if (both) msg = s.inSync ? 'In sync. Hold it.' : 'Get within 3 BPM';
+    put($('sync-msg'), 'text', msg);
+    put($('sync-msg'), 'class:good', both && s.inSync);
+    put($('sync-fill'), 'width', (100 * s.progressMs / G.SYNC_GOAL_MS).toFixed(2) + '%');
+    put($('sync-meter'), 'class:on', s.inSync);
+    put($('sync-label'), 'text', (s.progressMs / 1000).toFixed(1) + ' of 10 s in sync. Drifting apart drains the meter.');
+    put($('sync-card'), 'hidden', !s.won);
+    if (s.won) put($('sync-detail'), 'text', playerName(0) + ' and ' + playerName(1) + ' stayed within 3 BPM for 10 seconds. You win together.');
+  }
+
+  const one = (x) => x.toFixed(1);
+  function renderCalm(views) {
+    const c = app.calm;
+    const live = views.filter((v) => v.state === 'live').length;
+    let big = '30', sub = 'SECONDS', note = '', fill = 0;
+    if (c.step === 'countdown') { big = String(Math.ceil(c.countdownMs / 1000)); sub = 'GET READY'; }
+    else if (c.step === 'running' || c.step === 'done') {
+      big = String(Math.ceil((G.CALM_ROUND_MS - c.round.elapsedMs) / 1000)); sub = 'SECONDS LEFT';
+      fill = c.round.elapsedMs / G.CALM_ROUND_MS;
+    }
+    if (c.step === 'idle' || c.step === 'countdown') {
+      note = live === 2 ? 'Both players have a reading.'
+        : 'Waiting for ' + (live === 1 ? 'the other player' : 'both players') + '. A player needs a reading for half the round to win.';
+    } else note = 'Average so far. Breathe slowly.';
+    put($('calm-big'), 'text', big);
+    put($('calm-big'), 'class:idle', c.step === 'idle');
+    put($('calm-sub'), 'text', sub);
+    put($('calm-note'), 'text', note);
+    put($('calm-fill'), 'width', (100 * fill).toFixed(2) + '%');
+    put($('calm-start'), 'hidden', c.step !== 'idle');
+    [0, 1].forEach((i) => {
+      const avg = c.step === 'running' || c.step === 'done' ? G.calmAverage(c.round, i) : null;
+      put($('calm-a' + i), 'text', avg === null ? DASH : one(avg));
+      put($('calm-n' + i), 'text', playerName(i) + ', average BPM');
+    });
+    put($('calm-card'), 'hidden', c.step !== 'done');
+    if (c.step === 'done') {
+      const r = c.result;
+      let title, detail;
+      if (r.outcome === 'win') {
+        title = playerName(r.winner) + ' wins';
+        detail = one(r.averages[r.winner]) + ' against ' + one(r.averages[1 - r.winner]) + ' BPM on average over 30 seconds.';
+      } else if (r.outcome === 'tie') {
+        title = 'A tie'; detail = 'Both averaged ' + one(r.averages[0]) + ' BPM over 30 seconds.';
+      } else if (r.outcome === 'no-contest') {
+        const had = r.averages[0] !== null ? 0 : 1, missing = 1 - had;
+        title = 'No contest';
+        detail = playerName(missing) + ' had a reading for only ' + Math.round(r.coverage[missing] * 30) + ' of 30 seconds. '
+          + playerName(had) + ' averaged ' + one(r.averages[had]) + ' BPM.';
+      } else { title = 'No data'; detail = 'Nobody had a reading for at least half the round.'; }
+      put($('calm-card'), 'class:win', r.outcome === 'win' || r.outcome === 'tie');
+      put($('calm-title'), 'text', title);
+      put($('calm-detail'), 'text', detail);
+    }
+  }
+
+  function drawTrace(canvas, samples, color, t, marks, label, tag) {
+    const w = canvas.clientWidth, h = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (!w || !h) return;
+    if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+    }
+    const g = canvas.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const font = Math.max(12, Math.min(w * 0.03, h * 0.11));
+    const left = font * 3, right = font * 0.9, top = font * 2.6, bottom = font * 1.8;
+    const x = (ts) => left + (w - left - right) * (1 - (t - ts) / G.TRACE_MS);
+    g.font = '600 ' + font + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    g.textBaseline = 'middle';
+    const dim = '#8d96aa', line = '#232b3a';
+
+    g.textAlign = 'left'; g.fillStyle = color;
+    g.font = '700 ' + font * 1.15 + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    g.fillText(label, left, top / 2);
+    const labelWidth = g.measureText(label).width;
+    g.font = '600 ' + font + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+    g.fillStyle = dim;
+    if (tag) g.fillText(tag, left + labelWidth + font * 0.8, top / 2);
+    g.fillText('30 s ago', left, h - bottom / 2);
+    g.textAlign = 'right';
+    g.fillText('now', w - right, h - bottom / 2);
+
+    const range = G.traceRange(samples);
+    if (range === null) {
+      g.textAlign = 'center'; g.fillText('no pulse yet', left + (w - left - right) / 2, top + (h - top - bottom) / 2);
+      return;
+    }
+    const y = (bpm) => top + (h - top - bottom) * (1 - (bpm - range.min) / (range.max - range.min));
+    g.strokeStyle = line; g.lineWidth = 1; g.textAlign = 'right';
+    for (const v of [range.min, (range.min + range.max) / 2, range.max]) {
+      g.beginPath(); g.moveTo(left, y(v)); g.lineTo(w - right, y(v)); g.stroke();
+      g.fillText(String(Math.round(v)), left - font * 0.5, y(v));
+    }
+
+    if (marks.jump) {
+      const x0 = Math.max(left, x(marks.jump.fromMs)), x1 = Math.max(left, x(marks.jump.toMs));
+      if (x1 > left) {
+        g.fillStyle = 'rgba(255,178,36,.22)'; g.fillRect(x0, top, Math.max(2, x1 - x0), h - top - bottom);
+        g.fillStyle = '#ffb224'; g.textAlign = 'center';
+        g.fillText('+' + marks.jump.rise, (x0 + x1) / 2, top + font * 0.7);
+      }
+    }
+
+    g.strokeStyle = color; g.lineWidth = Math.max(2.5, font * 0.22); g.lineJoin = 'round'; g.lineCap = 'round';
+    g.beginPath();
+    let pen = false, lastPoint = null;
+    for (const s of samples) {
+      if (s.bpm === null || x(s.t) < left) { pen = false; continue; }
+      if (pen) g.lineTo(x(s.t), y(s.bpm)); else g.moveTo(x(s.t), y(s.bpm));
+      pen = true; lastPoint = s;
+    }
+    g.stroke();
+    if (lastPoint && t - lastPoint.t < 1000) {
+      g.fillStyle = color; g.beginPath(); g.arc(x(lastPoint.t), y(lastPoint.bpm), g.lineWidth * 1.6, 0, Math.PI * 2); g.fill();
+    }
+
+    if (marks.guessAt !== null && x(marks.guessAt) >= left) {
+      const gx = x(marks.guessAt);
+      g.strokeStyle = '#f3f5f9'; g.lineWidth = 2; g.setLineDash([font * 0.4, font * 0.3]);
+      g.beginPath(); g.moveTo(gx, top); g.lineTo(gx, h - bottom); g.stroke(); g.setLineDash([]);
+      g.fillStyle = '#f3f5f9'; g.textAlign = gx > w - font * 4 ? 'right' : 'left';
+      g.fillText('guess', gx + (g.textAlign === 'left' ? font * 0.4 : -font * 0.4), h - bottom - font * 0.8);
+    }
+  }
+
+  function renderPoker(t) {
+    const p = app.poker, teller = p.teller, watcher = 1 - teller;
+    put($('poker-rule'), 'text', playerName(teller) + ' tells a story. ' + playerName(watcher)
+      + ' presses Space when the pulse seems to jump.');
+    [0, 1].forEach((i) => {
+      drawTrace($('trace' + i), app.traces[i], i === 0 ? '#ff4d6d' : '#35d4e6', t,
+        i === teller ? { guessAt: p.guessAt, jump: p.jump } : { guessAt: null, jump: null },
+        playerName(i), i === teller ? 'tells the story' : 'watches');
+    });
+    let verdict = '';
+    if (p.revealed) {
+      if (p.jump === null) verdict = 'No jump of ' + G.JUMP_MIN_BPM + ' BPM or more in the last 30 seconds. A good poker face.';
+      else {
+        verdict = 'Biggest jump: +' + p.jump.rise + ' BPM (' + p.jump.fromBpm + ' to ' + p.jump.toBpm + '). ';
+        const v = G.guessVerdict(p.guessAt, p.jump);
+        if (v === null) verdict += 'No guess was marked.';
+        else if (v.offMs === 0) verdict += 'The guess landed right on it. Caught.';
+        else verdict += 'The guess was ' + one(v.offMs / 1000) + ' s off. ' + (v.hit ? 'Caught.' : 'Missed.');
+      }
+    } else if (p.guessAt !== null) verdict = 'Guess marked. Press R to reveal the biggest jump.';
+    put($('poker-verdict'), 'text', verdict);
+  }
+
+  // ── frame loop ──────────────────────────────────────────────────────────────────
+  let last = now();
+  function frame() {
+    const t = now(), dt = t - last; last = t;
+    const linked = sensorLinked(t);
+    const views = [0, 1].map((i) => G.playerView(app.tracker, i, t, linked));
+    const [a, b] = views.map((v) => v.bpm);
+    if (t - app.sampledAt >= 250) {
+      app.sampledAt = t;
+      G.tracePush(app.traces[0], t, a); G.tracePush(app.traces[1], t, b);
+    }
+    renderLink(t);
+    renderPlayers(views, t, dt);
+    renderExtras(views, t);
+    if (app.mode === 'sync') { app.sync = G.syncStep(app.sync, a, b, dt); renderSync(views); }
+    else if (app.mode === 'calm') {
+      const c = app.calm;
+      if (c.step === 'countdown') {
+        c.countdownMs -= Math.min(dt, G.MAX_STEP_MS);
+        if (c.countdownMs <= 0) c.step = 'running';
+      } else if (c.step === 'running') {
+        c.round = G.calmStep(c.round, a, b, dt);
+        if (c.round.done) { c.step = 'done'; c.result = G.calmResult(c.round); }
+      }
+      renderCalm(views);
+    } else renderPoker(t);
+    requestAnimationFrame(frame);
+  }
+
+  setMode('sync');
+  listen();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
