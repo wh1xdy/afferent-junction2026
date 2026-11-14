@@ -1,6 +1,6 @@
 (() => {
   const { clamp, lerp, rgb, mixc, median } = A;
-  const J = A.J, { C, sprite, unit, finger, base, finish, fx, hap, sfx, beat, rm } = J;
+  const J = A.J, { C, sprite, unit, touch, base, finish, fx, hap, sfx, beat, rm } = J;
   const E = J.ease, R = Math.random, ID = 'beacon';
   const V_SEA = 0.565, V_LANE = 0.69, V_PIER = 0.858, V_MOOR = 0.9, CATCH = 0.56, GRACE = 0.04, LH_H = 0.44, EXIT = 1.0, CHART_S = 15;
   const PIER_LX = [0.047, 0.143, 0.251, 0.362, 0.479, 0.58, 0.686, 0.788, 0.901, 0.957], PIER_LY = 0.11, NL = PIER_LX.length;
@@ -546,7 +546,7 @@
             const nx2 = idle && lane.find(([q]) => now >= q.tR);
             if (nx2) {
               const [bt, ps] = nx2, d = (now - bt.tl) / P, press = clamp(1 - Math.abs(d) / 0.3, 0, 1);
-              finger(ctx, X(ps.s) + 6 * U, yl - (64 - 12 * press) * U, 30 * U, 0.85 * ps.a);
+              touch(ctx, X(ps.s) + 6 * U, yl - 58 * U, U, 0.85 * ps.a, press);
             }
           }
         },

@@ -1268,7 +1268,7 @@
       if (fa > 0) {
         const fx0 = s.phase === 'fadein' || s.phase === 'rest' ? lx + 6 * U : z.W * 0.6, fy0 = s.phase === 'fadein' || s.phase === 'rest' ? ly + 4 * U : z.H * 0.7;
         if (press > 0.5) J.sprite(ctx, 'glow', J.C.flame, fx0, fy0, 22 * U, 0.35 * fa * press, true);
-        J.finger(ctx, fx0 + 2 * U, fy0 + (2 + 12 * (1 - press)) * U, 32 * U, fa);
+        J.touch(ctx, fx0, fy0, U, fa, press);
       }
     }
 
