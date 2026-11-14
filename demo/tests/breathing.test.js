@@ -28,8 +28,9 @@ const seeded = fn => {
 // clips: the finger clips are connected before the session starts, so the session runs on real readings only.
 // hub: the same, with the clips reaching the phone through the home hub.
 // breathing: false loads the app without breathing.js. overlay: the Developer switch "Signals during play".
-const breathSession = ({ clips = false, hub = false, overlay = false, breathing = true, config = {} } = {}) => {
-  const { A, tick } = load({ games: true, vitals: breathing, breathing }), S = A.Sensors;
+// heartbeat: false loads it without heartbeat.js, whose beat and calm glow are drawn into the task with real readings.
+const breathSession = ({ clips = false, hub = false, overlay = false, breathing = true, heartbeat = true, config = {} } = {}) => {
+  const { A, tick } = load({ games: true, vitals: breathing, breathing, heartbeat }), S = A.Sensors;
   Object.assign(A.config, { signalsOverlay: overlay }, config);
   if (clips) connect(A);
   if (hub) S.feedFingerHub(hubFrame());
@@ -191,7 +192,8 @@ const tests = {
       'the hub relays a frame without a quality value': [{ hub: true }, t => t.S.feedFingerHub(hubFrame({ quality: null }))],
       'the hub relays heartbeats that are 45 s old': [{ hub: true }, t => t.S.feedFingerHub(hubFrame({ age_s: 45 }))],
       'pulse stone switched off': [{ clips: true, config: { sensors: { bedside_light: false, pulse_stone: false, phone_camera: true } } }, t => { t.S.enabled.pulse_stone = false; real(t); }],
-      'clips connected after the session started on the simulator': [{}, (t, i) => { if (i === 0) connect(t.A); real(t); }],
+      // The live heartbeat (heartbeat.js) does show clips put on late, as display only; it is left out of both runs here.
+      'clips connected after the session started on the simulator': [{ heartbeat: false }, (t, i) => { if (i === 0) connect(t.A); real(t); }],
     };
     for (const [name, [opts, feed]] of Object.entries(cases)) {
       const without = film({ ...opts, overlay: true, breathing: false }, feed), now = film({ ...opts, overlay: true }, feed);
@@ -285,7 +287,8 @@ const tests = {
 
   'i: the setting "Breathing pace" turns ring and words off, never the recording'() {
     const feed = t => ble(t.A);
-    const off = film({ clips: true, config: { breathFeedback: false } }, feed), without = film({ clips: true, breathing: false }, feed);
+    // The live heartbeat (heartbeat.js) is a feature of its own that beats with the clips on; it is left out of both runs here.
+    const off = film({ clips: true, heartbeat: false, config: { breathFeedback: false } }, feed), without = film({ clips: true, breathing: false, heartbeat: false }, feed);
     assert.ok(off.frames === without.frames, 'switched off, the task is drawn as without this feature');
     assert.ok(!off.ring && off.words.every(w => w === null));
     assert.strictEqual(off.A.Vitals.breath(off.s, off.A.now()), null, 'no result line either');

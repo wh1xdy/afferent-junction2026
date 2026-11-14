@@ -218,7 +218,7 @@
       simulated: simFields.length > 0 || s.profile !== 'live', simulated_fields: simFields,
       input_backend: eyesSrc ?? 'none',
       signal: {
-        pulse_source: pulseSrc, pulse_quality_mean: pq.length ? r2(mean(pq)) : null, eyes_source: eyesSrc,
+        pulse_source: pulseSrc, pulse_from_ms: sig.pulseFromMs ?? null, pulse_quality_mean: pq.length ? r2(mean(pq)) : null, eyes_source: eyesSrc,
         face_tracked_ratio: sig.frames ? r2(sig.tracked / sig.frames) : null,
         ambient_light: sig.ambient.length ? r2(med(sig.ambient)) : null,
         dark_room: sig.ambient.length ? med(sig.ambient) < 0.15 : null,

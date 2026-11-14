@@ -345,6 +345,11 @@
           ],
           "description": "Source of the pulse the game used. finger_ppg is the bedside finger sensor (UNO Q, over Bluetooth to the phone or over the hub HTTP source); ky039 is kept for stored rows only (I11). One session's pulse is all real or all simulated (I53)."
         },
+        "pulse_from_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Session time of the first real pulse reading the session used: near the start when the clips were on, later when a session that started without a pulse took one up mid-way (clips put on late). null with a simulated pulse or none."
+        },
         "pulse_quality_mean": {
           "$ref": "#/$defs/quality"
         },

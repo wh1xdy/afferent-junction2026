@@ -6,6 +6,7 @@
 // storage (a Map used as localStorage; without it there is none, as in a private window),
 // games (the real task engine with the breathing task as its only task, instead of the stub tasks),
 // breathing (false leaves breathing.js out: the app without the measured breathing),
+// heartbeat (false leaves heartbeat.js out: the app without the live heartbeat and the calm response),
 // audio (an A.Audio to use instead of the silent stub), music (an A.Music to load the engine next to).
 const fs = require('fs');
 const path = require('path');
@@ -123,7 +124,7 @@ const recorder = log => {
   });
 };
 
-const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false, storage = null, games = false, breathing = true, audio = null, music = null } = {}) => {
+const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false, storage = null, games = false, breathing = true, heartbeat = true, audio = null, music = null } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
   if (storage) ctx.localStorage = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, String(v)); }, removeItem: k => { storage.delete(k); } };
@@ -148,7 +149,7 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   run('haptics.js');
   let clock = 0;
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
-  for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'face.js', 'input.js', ...(breathing ? ['breathing.js'] : []), 'record.js']) run(f);
+  for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'face.js', 'input.js', ...(breathing ? ['breathing.js'] : []), ...(heartbeat ? ['heartbeat.js'] : []), 'record.js']) run(f);
   const noop = () => {};
   ctx.A.Audio = audio || new Proxy({}, { get: () => noop });
   if (music) ctx.A.Music = music;

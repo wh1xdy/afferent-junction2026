@@ -65,7 +65,7 @@
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
-      sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
+      sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [], pulseFromMs: null },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
       playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0), face: A.Record.faceTrack(),
 
@@ -468,6 +468,8 @@
         if (f?.tracked) sig.tracked++;
         if (f?.ambient_light != null && sig.frames % 15 === 0) sig.ambient.push(f.ambient_light);
         if (p.bpm != null) {
+          // A session that started without a pulse takes up the real one when it appears and records when that was.
+          if (p.source !== 'simulated' && sig.pulseFromMs === null) sig.pulseFromMs = this.tm(now);
           sig.pulseSources[p.source] = (sig.pulseSources[p.source] || 0) + 1;
           if (sig.frames % 6 === 0) { sig.pulse.push(p.bpm); sig.pulseQ.push(p.quality); }
         }
@@ -515,9 +517,11 @@
         if (this.auto) this.T.auto(dt);
         if (this.phase !== 'asleep') this.T.update(now, dt);
 
+        // The flame beats only at a pulse (heartbeat.js); this clock only paces the sparks of wake mode.
+        A.Heartbeat?.step(now, dt, this);
         this.beatPhase += dt;
         if (this.beatPhase >= 1) {
-          this.beatPhase -= 1; this.kick(0.03);
+          this.beatPhase -= 1;
           const n = Math.round(5 * V.sparkle);
           for (let i = 0; i < n; i++) V.sparks.push({ born: now, dx: R() * 2 - 1, dy: -R() });
           if (V.sparks.length > 40) V.sparks.splice(0, V.sparks.length - 40);
@@ -528,6 +532,7 @@
         V.flash = ema(V.flash, 0, dt, 0.25);
         V.lanternBright = (1 + 0.5 * this.flameKick) * V.lanternGain;
         V.lanternRadius = 70 * V.lanternGain;
+        A.Heartbeat?.paint(V, V.flame);
         V.orb.alpha = ema(V.orb.alpha, this.game?.id === 'breath' ? 1 : 0, dt, 0.5);
         if (this.orb) { V.orb.b = this.orb.b; V.orb.hold = this.orb.hold; V.orb.sync = this.orb.sync; }
         V.stove = this.game?.id === 'breath' ? 0.3 + 0.4 * V.orb.b : ema(V.stove, MODES[this.mode]?.biome === 'sauna' ? 0.4 : 0, dt, 1);
