@@ -65,3 +65,33 @@ Source: `design/map.md` on `main` (Gris research with sources, the island map, t
 1. **The village is Gris's sky path.** One light per morning lit (lookdev 9, unchanged); the Shine mote flies from the summit across the bay to its slot. M: same lit-morning rule as the streak (D3). S: never decremented, no count in the world.
 2. **BA waymarkers make a way up from the hub** (places the waymarker of Feedback 5): small cairns at deterministic slots (`rng(2000 + i)`) along the path from the harbour up the fell, cap 40, visible on the start screen, only growing. M: never counted toward the streak or the village. S: no count of misses; an empty path looks like a path, not a gap.
 3. **Week 8 is the late return to the start ruins:** the start screen simply shows every landmark lit, the village full along the far shore, and spring. No "complete" message, no event. M: none. S: never link spring to recovery (engagement 4).
+
+## Sound engine hooks (keep; owners: flow for engine.js and settings, walk for traverse.js, tasks for task sfx, feedback for record)
+
+### Flow
+
+1. `engine.js`: guard `Au.tick`, `Au.pad` and `Au.dawnPhrase` with `!A.Music.owns(mode)`.
+2. `engine.js`: drop the `20*k` term from the `Au.tick` tempo in `style()`.
+3. `engine.js`: `fell_asleep` uses `fadeOut` 6 s instead of 4.
+4. `engine.js`: call `A.Music.intensity(k)` and `A.Music.dawnT(V.dawnT)` each frame.
+5. `engine.js`: emit a `'bloom'` bus event with the colour group when a colour returns.
+6. `engine.js`: emit `'candidate'` or call `A.Music.candidate(mode)`.
+7. `engine.js`: commit modes with `A.Music.setMode(m, {answer})`, tagging Answer versus Drift.
+8. `engine.js`: call `A.Music.stinger('st_settle')` from the Answer moment.
+9. Settings: a Headphones row under Sound calling `A.Music.setRoute('headphones'|'speaker')`.
+
+### Walk
+
+1. `traverse.js`: call `A.Music.measure(true)` and `A.Ambience.measure(true, id)` at the standard hill 3 s before Fork or Lanterns, and `false` after.
+2. `traverse.js`: call `A.Music.tier(n)` for the chain tier.
+3. `traverse.js`: read `A.Music.grid()` for the fatigue beat lock.
+4. `traverse.js`: pass ride speed to the ambience ski layer.
+
+### Tasks
+
+1. Check-in and end lantern: sfx names for the check-in tap and the end lantern tap via `A.J.sfx`.
+2. Night end: `A.Ambience.window()` for night-end windows.
+
+### Feedback
+
+1. Record: optionally add `audio: A.Music.status()` and `A.Ambience.log` event times.
