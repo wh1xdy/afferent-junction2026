@@ -205,7 +205,7 @@ Body `{"rgb": "#FFC98A", "level": 15, "fade_ms": 2000, "reason": "manual"}`. Sen
 
 Body `{"sensor": "phone_camera", "on": false}` or `{"sharing": "paused"}`. Stores it, broadcasts `privacy` on `/ws/clinic` and sends `privacy` to the app. Response: the new `privacy` object.
 
-`presence` is bed presence, and no bed sensor exists (Alex A9). The key stays in `privacy.sensors` and in the session's `sensors` block with the value `false`. It has no row in the patient view or in the phone settings, the phone keeps it `false` whatever was saved or the hub sends, and a change to it is answered with 400 like any unknown sensor. Home and visitors on the phone is a different thing (`phone_presence`).
+`presence` is bed presence, and no bed sensor exists (Alex A9). The key stays in `privacy.sensors` and in the session's `sensors` block with the value `false`. The hub answers `false` whatever its database holds: a privacy row stored earlier with `true` is read as `false` and is written back as `false` with the next change. The phone keeps it `false` whatever was saved or the hub sends. It has no row in the patient view or in the phone settings, the clinic view leaves it out of "Sensors on", and a change to it is answered with 400 like any unknown sensor. The session examples in `contracts/fixtures/` and the seeded sessions carry `false`; a session document that a hub stored before this rule keeps what it recorded. Home and visitors on the phone is a different thing (`phone_presence`).
 
 ### POST /api/patients/{id}/pause
 

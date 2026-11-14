@@ -206,8 +206,9 @@
         <span class="mt">${text}</span></button>`;
     }).join('');
 
-    const sensors = D?.privacy?.sensors || {};
-    const sOn = Object.values(sensors).filter(Boolean).length, sAll = Object.keys(sensors).length;
+    // `presence` is bed presence and no bed sensor exists, so it is not a sensor to count
+    const sensors = Object.entries(D?.privacy?.sensors || {}).filter(([k]) => k !== 'presence');
+    const sOn = sensors.filter(([, on]) => on).length, sAll = sensors.length;
     const since = A.cusum.since_day;
     const facts = [
       ['Last session', lastIso ? relDay(lastIso, L.date) : 'None yet'],

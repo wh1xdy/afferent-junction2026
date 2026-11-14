@@ -313,6 +313,14 @@ function loadPage() {
   const iMoved = detail.indexOf('What moved'), iSig = detail.indexOf('<section id="signals"'), iSuggest = detail.indexOf('class="suggest"');
   assert.ok(iMoved > 0 && iSig > iMoved && iSuggest > iSig);
   assert.strictEqual(count(detail, 'id="signals"'), 1);
+
+  // "Sensors on" does not count bed presence: no bed sensor exists (contracts/api.md, POST /api/patients/{id}/privacy),
+  // whether the hub sends the key as false or, from a database seeded earlier, as true
+  const sensors = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, phone_presence: true, phone_motion: true };
+  for (const presence of [false, true]) {
+    S.detail.anna = { sessions: [], privacy: { sharing: 'summary', sensors: { ...sensors, presence } } };
+    assert.ok(V.detail(S, 'anna').includes('<div class="k">Sensors on</div><div class="v"><span class="num">5 of 6</span></div>'), `presence ${presence}`);
+  }
 }
 
 // the page loads signals.js between charts.js and views.js

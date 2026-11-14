@@ -18,7 +18,7 @@ DEFAULT_ONSET = 28
 RAMP_DAYS = 21
 CLINIC = {"name": "Your clinic", "number": None}
 SENSORS = {"phone_camera": True, "pulse_stone": True, "bedside_camera": False, "bedside_light": True,
-           "presence": True, "phone_motion": True}
+           "presence": False, "phone_motion": True}
 ARM_RATES = {"calm/breath": 0.75, "calm/loyly": 0.45, "wake/fireflies": 0.62, "wake/beacon": 0.42,
              "wake/bells": 0.5, "fatigue/shutters": 0.6, "fatigue/bells": 0.42, "fatigue/beacon": 0.5,
              "rest/breath": 0.65}
