@@ -285,7 +285,7 @@
   };
 
   const mount = () => {
-    const body = $('settingsBody'), sensors = body?.querySelector('.set-group');
+    const body = $('settingsBody'), sensors = $('sensorsGroup');   // on the Sensors page of Settings (gui/shell.js)
     if (!body || !A.Shell?.group) return;
     const html = A.Shell.group({
       id: 'presenceGroup', title: 'Home and visitors',

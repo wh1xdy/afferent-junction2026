@@ -180,8 +180,10 @@
   };
 
   // The app shell: a sheet with a handle (How it works, Your signals, the clip check) closes through its scrim, the
-  // onboarding sheet has to be answered so it only gives, and Settings, Talk and Heart Duel go back from the left edge.
+  // onboarding sheet has to be answered so it only gives, and Settings, a page in Settings, Talk and Heart Duel go back
+  // from the left edge.
   const PAGES = { settings: '[data-close="settings"]', voice: '[data-close="voice"]', duel: '[data-duel-close]' };
+  const backOf = page => PAGES[page.id] || (page.classList.contains('set-page') ? '[data-page-back]' : null);
   const kid = (el, cls) => el && [...el.children].find(c => c.classList.contains(cls));
   const app = phone => bind(phone, target => {
     if (target.closest('.ci')) return null;
@@ -191,7 +193,7 @@
       return scrim ? { sheet, scrim, handle: '.handle, .sheet-head', down: () => scrim.click() } : { sheet, handle: '.handle', stiff: true };
     }
     const page = target.closest('.screen');
-    const back = page && PAGES[page.id] && !page.classList.contains('hidden') && page.querySelector(PAGES[page.id]);
+    const sel = page && backOf(page), back = sel && !page.classList.contains('hidden') && page.querySelector(sel);
     return back ? { sheet: page, back: () => back.click() } : null;
   });
 
