@@ -6,6 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
 # Qwen2.5-3B-Instruct, 4-bit (2.1 GB), baked in: the Jetson app has no internet on the mesh
 ADD https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf /models/model.gguf
 WORKDIR /hub
-COPY app.py store.py report.py grounding.py demo.py fhir.py network.py start.sh ./
+COPY app.py auth.py store.py report.py grounding.py demo.py fhir.py network.py start.sh ./
 ENV PYTHONUNBUFFERED=1 AFFERENT_DB=/data/afferent.db PORT=8090
 ENTRYPOINT ["/bin/sh", "/hub/start.sh"]

@@ -1,11 +1,14 @@
 """Clinician and patient reports (HTML, printable) from Store.summary().
 
-Clinician: objective measures over time, PHQ-9 with item 9 flagged, data coverage and quality,
-how each number was computed. No diagnosis - the clinician interprets.
+Clinician: a template summary (grounding.summary_text, no LLM), objective measures over time, PHQ-9
+with item 9 flagged, data coverage and quality, how each number was computed. No diagnosis - the
+clinician interprets.
 Patient: the same week in plain words, with support lines.
 """
 import html
+import re
 
+import grounding
 from store import METRICS
 
 CSS = """
@@ -38,7 +41,16 @@ def fmt(v, unit=""):
     return "—" if v is None else f"{v:g}{(' ' + unit) if unit else ''}"
 
 
-def clinician(summary, patient_label="Patient", narrative=None):
+def summary_box(summary):
+    """the deterministic summary, with its fact labels set in grey"""
+    text = html.escape(grounding.summary_text(summary))
+    text = re.sub(r"(\[[^\]]+\])", r'<span class="muted">\1</span>', text)
+    return (f'<div class="box"><b>Summary</b><br>{text}<div class="muted">Written by a fixed template from the numbers '
+            'below, without a language model. The labels in brackets name the source of each statement: Q = PHQ-9 entry, '
+            'F = item-9 flag, T = 7-day trend, D = one day, B = facial behaviour, P = period, C = coverage.</div></div>')
+
+
+def clinician(summary, patient_label="Patient"):
     s = summary
     e = html.escape
     rows = []
@@ -57,12 +69,11 @@ def clinician(summary, patient_label="Patient", narrative=None):
     cov = s["coverage"]
     alert = ('<div class="box alert"><b class="flag">PHQ-9 item 9 answered above 0</b> (thoughts of being better off dead '
              'or of self-harm) in this period. Please assess risk.</div>') if s["phq9_item9_flag"] else ""
-    narr = f'<div class="box"><b>Summary</b><br>{e(narrative)}<div class="muted">Generated locally from the numbers below.</div></div>' if narrative else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Afferent clinician report</title><style>{CSS}</style></head><body>
 <h1>Afferent — clinician report</h1>
 <div class="muted">{e(patient_label)} · {s['period']['from']} to {s['period']['to']} ({s['period']['days']} days) · data stored on the patient's own device</div>
-{alert}{narr}
+{alert}{summary_box(s)}
 <h2>Data coverage</h2>
 <table><tr><th>Days with sensor data</th><th>Sensor minutes</th><th>App sessions</th><th>PHQ-9 entries</th></tr>
 <tr><td>{cov['days_with_sensor_data']} / {s['period']['days']}</td><td>{cov['sensor_minutes']}</td><td>{cov['sessions']}</td><td>{cov['phq9_entries']}</td></tr></table>

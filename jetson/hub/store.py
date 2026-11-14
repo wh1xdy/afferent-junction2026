@@ -123,9 +123,13 @@ class Store:
         return out
 
     def trend(self, metric, days=14, now=None):
-        """last 7 days vs the 7 before: medians of the daily values (needs >= 3 days each)"""
+        """last 7 days vs the 7 before: medians of the daily values (needs >= 3 days each).
+        Always the final 14 days of the window, so "previous 7 / last 7" stays true for ?days=30;
+        a window shorter than 14 days has no trend."""
         d = [r[metric] for r in self.daily(days, now)]
-        prev, last = [v for v in d[:7] if v is not None], [v for v in d[7:] if v is not None]
+        if len(d) < 14:
+            return None
+        prev, last = [v for v in d[-14:-7] if v is not None], [v for v in d[-7:] if v is not None]
         if len(prev) < 3 or len(last) < 3:
             return None
         a, b = st.median(prev), st.median(last)
