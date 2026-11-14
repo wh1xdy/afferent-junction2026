@@ -139,19 +139,59 @@ Local SQLite on the Jetson (persistent volume `afferent-data`); nothing leaves t
 Collects the finger readings from the UNO Q over Wendy Net (pulse, HRV, breathing — only while a
 finger is detected), takes expression sessions and PHQ-9 check-ins from the app, and serves:
 
-- `GET /report/clinician?days=14` — printable report: PHQ-9 with item 9 flagged at the top, data
-  coverage, daily trends (resting pulse, HRV, breathing) with last-7-vs-previous-7 days, facial
-  behaviour averages, and how every number is computed. No diagnosis.
+- `GET /report/clinician?days=14` — printable report: PHQ-9 with item 9 flagged at the top, a short
+  written summary, data coverage, daily trends (resting pulse, HRV, breathing) with
+  last-7-vs-previous-7 days, facial behaviour averages, and how every number is computed. No diagnosis.
 - `GET /report/patient?days=7` — the same week in plain words, with support lines if item 9 > 0.
 - `GET /fhir?days=14` — FHIR R4 Bundle for a clinic's record system: daily resting heart rate (LOINC
   40443-4), respiratory rate (9279-1), HRV RMSSD (local code — no LOINC exists), PHQ-9 total (44261-6)
   with the nine items as components and an item-9 risk note. Pseudonymous Patient, Device = finger clip.
 - `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
 
-From a laptop: `wendy net forward 8090:18090 --device <jetson>` → `http://localhost:8090/report/clinician`.
-Tests: `cd jetson/hub && python3 -m unittest discover tests`.
+**Access tokens** — every route with patient data needs a token (`jetson/hub/auth.py`):
 
-**Doctor Q&A with a local LLM** — `POST /ask {"question": "..."}` (llama.cpp + Qwen2.5-3B 4-bit, on the
+| Token | May do |
+|---|---|
+| PATIENT | everything: `POST /sessions`, `POST /phq9`, and all reads |
+| CLINICIAN | reads only: `/summary`, `/report/*`, `/fhir`, `POST /ask` (a write gets 403) |
+
+On first start the hub generates both, stores them in the volume (`/data/hub-tokens.json`, mode 600) and
+prints them to its log that one time. To choose them yourself, deploy with
+`--env AFFERENT_PATIENT_TOKEN=… --env AFFERENT_CLINICIAN_TOKEN=…` (they must differ).
+
+```sh
+wendy device logs afferent-hub --tail 200 --no-follow --device <jetson>    # the tokens, right after the first start
+wendy net forward 8090:18090 --device <jetson>
+curl -H "Authorization: Bearer $CLINICIAN" localhost:8090/summary
+open "http://localhost:8090/report/clinician?token=$CLINICIAN"             # browser: token → HttpOnly cookie → clean URL
+curl -H "Authorization: Bearer $PATIENT" -d '{"answers":[1,0,2,1,0,0,1,0,0]}' localhost:8090/phq9
+```
+
+APIs take `Authorization: Bearer <token>`. Only the two HTML reports also take `?token=`: the hub answers
+with a cookie (12 h, report pages only, not the token itself) and redirects to the same URL without the
+token. Missing or wrong token → 401. `/health` answers `{"ok": true}` to anyone, details with a token.
+`?demo=1` (synthetic 14-day patient, built in memory per request) needs no token, is read-only and never
+opens the real database. The hub speaks plain HTTP, so keep it on the mesh / a `wendy net forward`.
+
+**Input rules** — a write can never break the reads. `ts` (optional) is unix time in **seconds**, at most
+a day ahead of the hub's clock; milliseconds, strings and far-future times get a 400. `NaN`, `Infinity`
+and `1e999` are not JSON here (400). In a session, `summary` / `cameraPulse` / `breathing` must be objects
+and `events` a list of objects (400 otherwise); a single metric that is not a number is stored as missing.
+PHQ-9 answers are nine integers 0–3. Entries an older hub stored with an unreadable timestamp are left
+out of the numbers and counted in `summary.unreadable`; the clinician report says so, and item 9 above 0
+in such an entry is still raised. Anything else that fails inside the hub is answered with a 500 and one
+log line (route, exception class, file:line — never the request's contents).
+
+Tests: `cd jetson/hub && python3 -m unittest discover tests -v`.
+
+**Instant summary** — the summary box in the clinician report, and `POST /ask` for overview questions
+("summarise this period", "give me an overview"; answer `"mode": "template"`), is a fixed template, not the
+LLM: PHQ-9 first → latest with band and item 9, each 7-day trend with change and %, latest values where
+there is no trend yet, facial-behaviour averages, coverage. Every statement carries its fact label and
+the text passes the same check as LLM answers. No model call: about 2 ms on a laptop (not yet timed on the
+Jetson), where the LLM needed ~75 s and usually fell back to listing the facts.
+
+**Doctor Q&A with a local LLM** — `POST /ask {"question": "..."}` for specific questions (llama.cpp + Qwen2.5-3B 4-bit, on the
 Jetson's CPU, inside the hub container). The model never sees the database: the hub picks the facts the
 question needs (labelled lines like `[T:hrv_rmssd]`), the model must cite them, and every number in
 the answer is checked against the facts its sentence cites. One corrective retry, then the facts are

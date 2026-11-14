@@ -5,6 +5,9 @@
 3. check(answer, facts): every number must appear in the facts its sentence cites, every label must
    exist, and direction words (increased / fell ...) must agree with the numbers. Anything else is reported back as unsupported, so the doctor can see it.
 The model never sees the database and never does arithmetic the hub hasn't already done.
+
+The overview ("summarise this period") does not use the model at all: summary_text() is a fixed
+template over the same facts, instant and checked by the same check().
 """
 import json
 import re
@@ -148,13 +151,20 @@ def check(answer, facts):
 
 def safety_note(summary):
     """Deterministic, never left to the model: PHQ-9 item 9 above 0 is always surfaced first."""
+    notes = []
     hits = [q for q in summary["phq9"] if q["item9"] > 0]
-    if not hits:
-        return None
-    labels = [f"Q{summary['phq9'].index(q) + 1}" for q in hits]
-    dates = ", ".join(q["date"] for q in hits)
-    return (f"Safety: PHQ-9 item 9 (thoughts of being better off dead or of self-harm) was above 0 on {dates} "
-            f"[F, {', '.join(labels)}]. Please assess risk.")
+    if hits:
+        labels = [f"Q{summary['phq9'].index(q) + 1}" for q in hits]
+        dates = ", ".join(q["date"] for q in hits)
+        notes.append(f"Safety: PHQ-9 item 9 (thoughts of being better off dead or of self-harm) was above 0 on {dates} "
+                     f"[F, {', '.join(labels)}]. Please assess risk.")
+    # entries stored with an unreadable timestamp are in no fact (Store.unreadable); item 9 still counts
+    undated = (summary.get("unreadable") or {}).get("phq9_item9", 0)
+    if undated:
+        notes.append(f"Safety: PHQ-9 item 9 is above 0 in {undated} stored PHQ-9 "
+                     f"{'entry' if undated == 1 else 'entries'} whose date cannot be read; "
+                     f"{'it is' if undated == 1 else 'they are'} not in the figures for this period. Please assess risk.")
+    return " ".join(notes) or None
 
 
 TOPICS = {
@@ -189,6 +199,114 @@ def select(question, facts):
     return [(k, v) for k, v in facts if k in keep]
 
 
+OVERVIEW_WORDS = ("summar", "overview", "recap", "sum up", "overall picture", "big picture", "at a glance",
+                  "how is the patient doing", "how has the patient been")
+GENERAL_WORDS = ("physiolog", "vital", "coverage")
+
+
+def is_overview(question):
+    """A request for the whole picture -> the instant template instead of the LLM. Not when the
+    question names a date or exactly one topic (one metric, the PHQ-9 or the face): those stay
+    specific questions for the model."""
+    q = question.lower()
+    if not any(w in q for w in OVERVIEW_WORDS) or DATE.search(q):
+        return False
+    topics = sum(any(w in q for w in words) for words in (*TOPICS.values(), PHQ_WORDS, FACE_WORDS, GENERAL_WORDS))
+    return topics != 1
+
+
+def _mid(name):
+    """metric name inside a sentence: 'Resting pulse' -> 'resting pulse', 'HRV (RMSSD)' stays"""
+    return name if name[:2].isupper() else name[0].lower() + name[1:]
+
+
+def _count(n, one, many):
+    return f"{n} {one if n == 1 else many}"
+
+
+def _template(s):
+    """The doctor summary as 3-5 sentences. Every clause is followed by the label(s) of the fact(s) it
+    words, with the numbers formatted exactly as in build_facts(). States numbers and direction only."""
+    out = []
+    # 1. PHQ-9 course: first -> latest entry, and item 9
+    phq = s["phq9"]
+    if not phq:
+        out.append("No PHQ-9 entries in this period [C].")
+    else:
+        def entry(q):
+            return f"{q['score']}/27 ({q['severity']}) on {q['date']}"
+        if len(phq) == 1:
+            course = f"PHQ-9 was {entry(phq[0])} [Q1]"
+        else:
+            course = (f"PHQ-9 went from {entry(phq[0])} (first entry) to {entry(phq[-1])} (latest entry) "
+                      f"[Q1, Q{len(phq)}]")
+        hits = [i for i, q in enumerate(phq, 1) if q["item9"] > 0]
+        if hits:
+            item9 = (f"item 9 was above 0 on {', '.join(phq[i - 1]['date'] for i in hits)} "
+                     f"[F, {', '.join(f'Q{i}' for i in hits)}]")
+        else:
+            item9 = "item 9 was not above 0 in this period [F]"
+        out.append(f"{course}; {item9}.")
+    # 2. every 7-day trend that exists
+    clauses = []
+    for m, t in s["trends"].items():
+        if not t:
+            continue
+        a, b, u = f"{t['previous']:g}", f"{t['recent']:g}", UNITS[m]
+        pct = f", {t['change_pct']:+d} %" if t["change_pct"] is not None else ""
+        if t["change"] == 0 or a == b:
+            move = f"was {a} {u} then {b} {u}"
+        else:
+            move = f"{'rose' if t['change'] > 0 else 'fell'} from {a} {u} to {b} {u}"
+        clauses.append(f"{_mid(NAMES[m])} {move} (change {t['change']:+g}{pct}) [T:{m}]")
+    if clauses:
+        out.append("Previous 7 days vs last 7 days: " + "; ".join(clauses) + ".")
+    # 3. metrics without a trend yet: say so, and give the latest daily value where there is one
+    waiting = [m for m, t in s["trends"].items() if not t]
+    if waiting:
+        names = [_mid(NAMES[m]) for m in waiting]
+        listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+        text = f"Not enough data for a 7-day trend in {listed} [{', '.join(f'T:{m}' for m in waiting)}]"
+        latest = {}
+        for m in waiting:
+            hit = next((d for d in reversed(s["daily"]) if d.get(m) is not None), None)
+            if hit:
+                latest.setdefault(hit["date"], []).append(f"{_mid(NAMES[m])} {hit[m]:g} {UNITS[m]}")
+        for k, (date, parts) in enumerate(sorted(latest.items(), reverse=True)):
+            text += f"; {'latest daily values: ' if k == 0 else ''}{', '.join(parts)} on {date} [D:{date}]"
+        out.append(text + ".")
+    # 4. facial behaviour, if the app sent sessions
+    b = s["behaviour"]
+    parts = []
+    if b["smile_share"] is not None:
+        parts.append(f"smiling {round(b['smile_share'] * 100)} %")
+    if b["gaze_away_share"] is not None:
+        parts.append(f"looking away {round(b['gaze_away_share'] * 100)} %")
+    if b["blinks_per_min"] is not None:
+        parts.append(f"blinks {round(b['blinks_per_min'])} /min")
+    if b["micro_expressions_per_session"] is not None:
+        parts.append(f"micro-expressions {b['micro_expressions_per_session']:g} per session")
+    if parts:
+        out.append("Facial behaviour, averages over the app sessions: " + ", ".join(parts) + " [B].")
+    # 5. data coverage
+    p, c = s["period"], s["coverage"]
+    out.append(f"Data coverage for {p['from']} to {p['to']} ({p['days']} days): sensor data on "
+               f"{c['days_with_sensor_data']} of {p['days']} days, {_count(c['sensor_minutes'], 'sensor minute', 'sensor minutes')}, "
+               f"{_count(c['sessions'], 'app session', 'app sessions')}, "
+               f"{_count(c['phq9_entries'], 'PHQ-9 entry', 'PHQ-9 entries')} [P, C].")
+    return " ".join(out)
+
+
+def summary_text(summary):
+    """Deterministic doctor summary (no LLM): instant, and it passes check() against build_facts().
+    Should the template and the facts ever drift apart, the facts themselves are shown instead."""
+    facts = build_facts(summary)
+    text = _template(summary)
+    if not check(text, facts)["grounded"]:
+        text = " ".join(f"{v} [{k}]." for k, v in facts if not k.startswith("D:"))
+    return text
+
+
 def _chat(url, system, messages, timeout):
     body = {"messages": [{"role": "system", "content": system}] + messages, "temperature": 0.1, "max_tokens": 300}
     req = urllib.request.Request(url, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
@@ -198,7 +316,8 @@ def _chat(url, system, messages, timeout):
 
 def ask(question, summary, url=LLM_URL, timeout=180):
     """Grounded answer: relevant facts only -> LLM -> check -> one corrective retry -> verbatim
-    facts as a fallback. An unsupported number never reaches the clinician unmarked."""
+    facts as a fallback. An unsupported number never reaches the clinician unmarked.
+    Overview / summary requests skip the LLM: mode "template" (summary_text)."""
     facts = select(question, build_facts(summary))
     q = question.lower()
     if any(w in q for w in ("diagnos", "have depression", "is depressed", "does the patient have")):
@@ -207,6 +326,9 @@ def ask(question, summary, url=LLM_URL, timeout=180):
         latest = f" Latest check-in: {phq[-1][1]} [{phq[-1][0]}]." if phq else " There is no PHQ-9 in this period [C]."
         answer = "These data cannot diagnose depression; that is a clinical judgement." + latest
         return _finish(question, answer, "rule", 0, facts, summary)
+    if is_overview(question):
+        # the whole picture is a fixed template, not the model: instant, and always the same wording
+        return _finish(question, summary_text(summary), "template", 0, build_facts(summary), summary)
     system = SYSTEM + "\n\nFACTS:\n" + facts_text(facts)
     msgs = [{"role": "user", "content": question}]
     answer = _chat(url, system, msgs, timeout)
@@ -259,6 +381,3 @@ def _finish(question, answer, mode, attempts, facts, summary):
     result["facts"] = [{"label": k, "text": all_facts[k]} for k in result["sources"] if k in all_facts]
     return result
 
-
-NARRATIVE_Q = ("Summarise this period for the physician in 3 sentences: PHQ-9 course, physiological trends, "
-               "and data coverage. Cite labels.")
