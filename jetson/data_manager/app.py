@@ -26,17 +26,20 @@ Read
   GET /api/v1/openapi.json        OpenAPI 3 description (full guide: API.md)
 
 Config (env): PORT (8100), DATA_DIR (/data), TZ_NAME (UTC), RAW_RETENTION_DAYS (180, 0 = forever),
-API_TOKEN (optional bearer token for every /api route), MAX_FUTURE_S (300), ROLLUP_INTERVAL_S (300),
+API_TOKEN (bearer token for every /api route; REQUIRED: the service refuses to start without it
+unless ALLOW_NO_AUTH=1, for local development only), MAX_FUTURE_S (300), ROLLUP_INTERVAL_S (300),
 MDNS (1 = advertise _http._tcp role=data-manager).
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
 import re
 import signal
 import socket
+import sys
 import threading
 import time
 import uuid
@@ -52,7 +55,7 @@ from store import IngestError, Store
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("data_manager")
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 MAX_BODY = 2_000_000
 MAX_BATCH = 10_000
 
@@ -169,8 +172,8 @@ class App:
                 match = rx.match(path)
                 if match and m == method:
                     if path.startswith("/api/") and self.token:
-                        auth = headers.get("Authorization", "") if headers else ""
-                        if auth != f"Bearer {self.token}":
+                        auth = (headers.get("Authorization", "") if headers else "") or ""
+                        if not hmac.compare_digest(auth.encode(), f"Bearer {self.token}".encode()):
                             raise ApiError(401, "missing or wrong bearer token")
                     params = Params(query, self.store.tz)
                     data = None
@@ -199,6 +202,22 @@ class App:
 
     def _kind(self, metric):
         return self.store.metric(metric)["kind"]
+
+    def _pooling(self, metric, source, frm_ms, to_ms) -> dict:
+        """When no source is given, say which sources were pooled (and warn if several)."""
+        if source or self._kind(metric) != catalog.SAMPLE:
+            return {}
+        srcs = self.store.sources(metric, frm_ms, to_ms)
+        out = {"sources_pooled": srcs}
+        if len(srcs) > 1:
+            out["warning"] = (f"{len(srcs)} sources pooled; pass source=<one of sources_pooled> "
+                              "to compare like with like")
+        return out
+
+    def _day_ms(self, frm_day, to_day):
+        lo = tu.day_bounds(frm_day, self._tz())[0] if frm_day else None
+        hi = tu.day_bounds(to_day, self._tz())[1] if to_day else None
+        return lo, hi
 
     def _with_time(self, rows, key="ts"):
         for r in rows:
@@ -299,6 +318,7 @@ class App:
             r["mean"] = round(r["mean"], 3)
         return {"metric": metric, "unit": self.store.metric(metric)["unit"], "bucket": bucket,
                 "note": "buckets are aligned on UTC; use /daily for local calendar days",
+                **self._pooling(metric, p.str("source"), frm, to),
                 "series": self._with_time(rows)}
 
     def _day_range(self, p, default_from="-30d"):
@@ -312,7 +332,8 @@ class App:
         else:
             rows = self.store.daily(metric, p.str("source"), frm, to)
         return {"metric": metric, "kind": self._kind(metric), "unit": self.store.metric(metric)["unit"],
-                "tz": self.store.tz_name, "days": rows}
+                "tz": self.store.tz_name, **self._pooling(metric, p.str("source"), *self._day_ms(frm, to)),
+                "days": rows}
 
     def get_stats(self, p, _):
         metric = p.str("metric", required=True)
@@ -333,6 +354,7 @@ class App:
         retention = self.store.retention_cutoff()
         return {"metric": metric, "kind": m["kind"], "unit": m["unit"], "source": src or "*",
                 "from": tu.iso(frm, self._tz()), "to": tu.iso(to, self._tz()),
+                **self._pooling(metric, src, frm, to),
                 "describe": stats.describe(vals), "capped_at_rows": capped,
                 "truncated_by_retention": bool(retention and frm < retention),
                 "trend_of_daily_median": {k: tr[k] for k in ("days", "mann_kendall", "sen_slope_per_day")}}
@@ -340,14 +362,19 @@ class App:
     def get_trend(self, p, _):
         metric = p.str("metric", required=True)
         frm, to = self._day_range(p, "-30d")
-        return self.store.trend(metric, p.str("source"), frm, to, p.str("stat"),
-                                p.num("min_hours", 0))
+        out = self.store.trend(metric, p.str("source"), frm, to, p.str("stat"), p.num("min_hours", 0))
+        out.update(self._pooling(metric, p.str("source"), *self._day_ms(frm, to)))
+        return out
 
     def get_baseline(self, p, _):
         metric = p.str("metric", required=True)
-        return self.store.baseline(metric, p.str("source"), p.day("day", "now"),
-                                   days=int(p.num("days", 14)), stat=p.str("stat"),
-                                   min_hours=p.num("min_hours", 4), z_flag=p.num("z", 2.0))
+        day, days = p.day("day", "now"), int(p.num("days", 14))
+        out = self.store.baseline(metric, p.str("source"), day, days=days, stat=p.str("stat"),
+                                  min_hours=p.num("min_hours"), z_flag=p.num("z", 2.0))
+        from datetime import date, timedelta
+        first = (date.fromisoformat(day) - timedelta(days=days)).isoformat()
+        out.update(self._pooling(metric, p.str("source"), *self._day_ms(first, day)))
+        return out
 
     def get_profile(self, p, _):
         metric = p.str("metric", required=True)
@@ -418,6 +445,19 @@ def make_handler(app: App):
     return Handler
 
 
+def _truthy(v) -> bool:
+    return (v or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def auth_config_error(token: str | None, allow_no_auth: bool) -> str | None:
+    """None if the service may start; otherwise why not. Health data: closed by default."""
+    if token or allow_no_auth:
+        return None
+    return ("API_TOKEN is not set. This service stores health data and refuses to run with an "
+            "open API. Set API_TOKEN (e.g. `export API_TOKEN=$(openssl rand -hex 16)`), or "
+            "ALLOW_NO_AUTH=1 for local development only.")
+
+
 def maintenance_loop(store: Store, stopped: threading.Event, every_s: float):
     last_prune = 0.0
     while not stopped.wait(every_s):
@@ -432,7 +472,7 @@ def maintenance_loop(store: Store, stopped: threading.Event, every_s: float):
             log.exception("maintenance failed")
 
 
-def advertise(port: int):
+def advertise(port: int, auth: bool = True):
     """mDNS on Wendy Net, same scheme as modulino-hub (TXT role=...)."""
     try:
         from zeroconf import IPVersion, ServiceInfo, Zeroconf
@@ -441,7 +481,8 @@ def advertise(port: int):
         zc = Zeroconf(interfaces=[address], ip_version=IPVersion.V4Only)
         info = ServiceInfo("_http._tcp.local.", "data-manager._http._tcp.local.",
                            addresses=[socket.inet_aton(address)], port=port,
-                           properties={"role": "data-manager", "path": "/api/v1", "version": VERSION},
+                           properties={"role": "data-manager", "path": "/api/v1", "version": VERSION,
+                                       "auth": "1" if auth else "0"},
                            server=f"data-manager-{uuid.uuid4().hex[:6]}.local.")
         zc.register_service(info, allow_name_change=True)
         log.info("advertising %s at %s:%d", info.name, address, port)
@@ -458,7 +499,17 @@ def main():
                   tz_name=os.environ.get("TZ_NAME") or "UTC",
                   retention_days=env_f("RAW_RETENTION_DAYS", 180),
                   max_future_s=env_f("MAX_FUTURE_S", 300))
-    app = App(store, os.environ.get("API_TOKEN"))
+    token = (os.environ.get("API_TOKEN") or "").strip() or None
+    problem = auth_config_error(token, _truthy(os.environ.get("ALLOW_NO_AUTH")))
+    if problem:
+        log.error(problem)
+        sys.exit(2)
+    if token is None:
+        log.warning("ALLOW_NO_AUTH=1: the API is OPEN (reads, writes and deletes, CORS *). "
+                    "Local development only.")
+    elif len(token) < 16:
+        log.warning("API_TOKEN is short (%d chars); use e.g. `openssl rand -hex 16`", len(token))
+    app = App(store, token)
     stopped = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stopped.set())
@@ -468,7 +519,8 @@ def main():
     server = ThreadingHTTPServer(("0.0.0.0", port), make_handler(app))
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    zc, info = advertise(port) if os.environ.get("MDNS", "1") not in ("0", "false") else (None, None)
+    zc, info = (advertise(port, auth=bool(token)) if os.environ.get("MDNS", "1") not in ("0", "false")
+                else (None, None))
     log.info("data manager on :%d (db=%s, tz=%s, retention=%sd, auth=%s)", port, store.path,
              store.tz_name, store.retention_days, bool(app.token))
     try:

@@ -93,6 +93,7 @@ SCHEMAS = {
         "rejected": {"type": "array", "items": {"$ref": "#/components/schemas/Rejected"}},
         "events": {"type": "array", "items": _obj({"index": I, "id": I, "ext_id": S}),
                    "description": "POST /events only: internal id of each stored interval."},
+        "server_time": {**I, "description": "Server clock, epoch ms: lets producers measure their clock skew."},
     }),
     "MetricDefinition": _obj({
         "name": {**S, "example": "env.pm25_ugm3", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z0-9_]+)+$"},
@@ -100,9 +101,14 @@ SCHEMAS = {
         "unit": {**S, "example": "µg/m³"},
         "min": NULLN, "max": NULLN,
         "description": S,
+        "baseline_min_hours": {**N, "default": 4, "minimum": 0, "maximum": 24,
+                               "description": "Observed hours a day needs to enter GET /baseline."},
     }, ["name"]),
     "Metric": _obj({"name": S, "kind": S, "unit": S, "min": NULLN, "max": NULLN, "description": S,
-                    "builtin": B, "count": I, "first": S, "last": S}),
+                    "builtin": B, "baseline_min_hours": NULLN, "count": I, "first": S, "last": S}),
+    "Pooling": _obj({"sources_pooled": {"type": "array", "items": S,
+                                        "description": "Only when `source` is omitted (sample metrics)."},
+                     "warning": {**S, "description": "Present when more than one source was pooled."}}),
     "Describe": _obj({k: NULLN for k in ("mean", "std", "min", "p10", "p25", "median", "p75", "p90",
                                          "max", "iqr")} | {"n": I}),
     "MannKendall": _obj({"n": I, "s": NULLN, "tau": NULLN, "z": NULLN, "p": NULLN,
@@ -145,7 +151,7 @@ def _ref(name):
 PATHS = {
     ("GET", "/health"): _op(
         "Liveness", "Always open (no token). Version, uptime, counters since start.", tag="ops",
-        ok=_resp("OK", example={"ok": True, "version": "0.1.0", "uptime_s": 42,
+        ok=_resp("OK", example={"ok": True, "version": "0.2.0", "uptime_s": 42,
                                 "ingested_since_start": {"samples": 0, "events": 0, "rejected": 0}})),
     ("GET", "/"): _op("Endpoint index", "Same as GET /api/v1.", tag="ops"),
     ("GET", "/api/v1"): _op("Endpoint index", "List of routes.", tag="ops"),
@@ -186,7 +192,9 @@ PATHS = {
         "Delete an interval", "By internal id (from POST /events or GET /events).",
         [_p("id", "Internal event id.", I, required=True, where="path")], tag="write",
         extra_err={"404": _resp("No such event", _ref("Error"))}),
-    ("GET", "/api/v1/latest"): _op("Latest values", "Last value of every (metric, source), with `age_s`."),
+    ("GET", "/api/v1/latest"): _op(
+        "Latest values", "Last value of every (metric, source), with `age_s` (now - measurement) and "
+        "`lag_s` (receipt - measurement: large and steady = the producer's clock is slow)."),
     ("GET", "/api/v1/series"): _op(
         "Time series", "Per bucket: n, mean, min, max. Buckets are UTC-aligned (use /daily for local days). "
         "At most 20 000 buckets per call.", [METRIC, SOURCE, FROM("-24h"), TO(), BUCKET, MINQ]),
@@ -214,8 +222,17 @@ PATHS = {
         "`above usual range` / `below usual range`. Needs >= 5 baseline days. Exploratory, not a diagnosis.",
         [METRIC, SOURCE, _p("day", f"Day to assess (default today). {DAY}"),
          _p("days", "Baseline length in days (default 14).", I), STAT,
-         _p("min_hours", "Skip baseline days with fewer observed hours (default 4, samples only).", N),
-         _p("z", "Flag threshold (default 2).", N)]),
+         _p("min_hours", "Skip baseline days with fewer observed hours (samples only). Default: the "
+                         "metric's baseline_min_hours (4 environment/presence, 1 posture, 0 vitals).", N),
+         _p("z", "Flag threshold (default 2).", N)],
+        ok=_resp("OK", _obj({"value": NULLN, "min_hours": N, "baseline_n": I, "baseline_median": NULLN,
+                             "baseline_spread": NULLN, "z": NULLN,
+                             "flat": {**B, "description": "History without any variation: z is null, "
+                                                          "the verdict compares with the median."},
+                             "verdict": {"type": "string", "enum": [
+                                 "within usual range", "above usual range", "below usual range",
+                                 "no data for this day", "baseline too short (needs >= 5 days)"]},
+                             "sources_pooled": {"type": "array", "items": S}, "warning": S}))),
     ("GET", "/api/v1/profile"): _op(
         "Hour-of-day profile", "Mean per local hour (0-23) over the range: circadian pattern.",
         [METRIC, SOURCE, FROM("-14d"), TO()]),
@@ -229,6 +246,10 @@ PATHS = {
         "One-day summary", "Daily stats of every sample metric (per source and pooled) and minutes / "
         "occurrences of every interval kind for one local day.", [_p("day", f"Default today. {DAY}")]),
 }
+
+# routes outside /api/ need no token
+for _open in (("GET", "/health"), ("GET", "/")):
+    PATHS[_open]["security"] = []
 
 
 def spec(version: str) -> dict:
@@ -247,12 +268,14 @@ def spec(version: str) -> dict:
         },
         "servers": [{"url": "http://localhost:8100", "description": "wendy net forward 8100:8100"},
                     {"url": "http://{host}:8100", "variables": {"host": {"default": "127.0.0.1"}}}],
-        "security": [{"bearer": []}, {}],
+        "security": [{"bearer": []}],
         "tags": [{"name": "write"}, {"name": "read"}, {"name": "ops"}],
         "paths": paths,
         "components": {
             "securitySchemes": {"bearer": {"type": "http", "scheme": "bearer",
-                                           "description": "Required on /api/* when API_TOKEN is set."}},
+                                           "description": "Required on every /api/* route. The service "
+                                                          "refuses to start without API_TOKEN unless "
+                                                          "ALLOW_NO_AUTH=1 (local development)."}},
             "schemas": SCHEMAS,
         },
     }
