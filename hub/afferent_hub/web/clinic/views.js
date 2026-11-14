@@ -93,7 +93,7 @@
   V.row = function (r, L) {
     const color = C.stateColor(r.state);
     const drivers = (r.top_contributors || []).filter((c) => c.contribution > 0.05).slice(0, 2);
-    const flags = (r.flags || []).length ? `<span class="flag-chip">${r.flags[0].type === 'low_mood_twice' ? 'Dimmest lantern twice' : 'Asked to talk'} ${timeOf(r.flags[0].t_iso)}</span>` : '';
+    const flags = (r.flags || []).length ? `<span class="flag-chip">${C.flagText(r.flags[0].type, 'chip')} ${timeOf(r.flags[0].t_iso)}</span>` : '';
     const trend = r.composite_trend_7d;
     const since = r.state !== 'stable' && r.state_since_day != null ? `<span class="muted">since day ${r.state_since_day} · ${L.now_day - r.state_since_day} d</span>` : `<span class="muted">${r.confidence === 'low' ? 'Low data' : 'Within usual range'}</span>`;
     return `<a class="prow" href="#/p/${esc(r.id)}" data-id="${esc(r.id)}" data-state="${esc(r.state)}" data-flag="${(r.flags || []).length > 0}">
@@ -140,7 +140,7 @@
     const nextThr = { stable: ['watch', thr.watch], watch: ['check_in', thr.check_in], check_in: ['booster', thr.booster], booster: ['booster', thr.booster] }[A.state] || [];
 
     const flagBanner = flags.length ? `<div class="flag-banner" role="alert">
-        <div><b>${esc(name)} ${flags[0].type === 'low_mood_twice' ? 'chose the dimmest mood lantern at the start and end of a session' : 'tapped “Talk to someone”'}${new Set(flags.map((f) => f.session_id || f.t_iso)).size > 1 ? ` (${new Set(flags.map((f) => f.session_id || f.t_iso)).size} notes)` : ''}, ${dateShort(flags[0].t_iso)} at ${timeOf(flags[0].t_iso)}.</b>
+        <div><b>${esc(name)} ${C.flagText(flags[0].type, 'banner')}${new Set(flags.map((f) => f.session_id || f.t_iso)).size > 1 ? ` (${new Set(flags.map((f) => f.session_id || f.t_iso)).size} notes)` : ''}, ${dateShort(flags[0].t_iso)} at ${timeOf(flags[0].t_iso)}.</b>
         <span>The app showed the fixed card with Emergency 112, MIELI Crisis Helpline 09 2525 0111 and the clinic number. Afferent is not watched around the clock.</span></div>
         <button class="btn" data-action="clear-flags" data-id="${esc(id)}">Mark as seen</button></div>` : '';
 

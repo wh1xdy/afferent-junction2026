@@ -439,6 +439,7 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     A.World.draw(ctx, W, H, V);
+    A.FXGL?.present(canvas, V, s);
     s?.drawOverlay(ctx, now);
     if (curtain) {
       const k = A.clamp((now - curtain.start) / curtain.dur, 0, 1);

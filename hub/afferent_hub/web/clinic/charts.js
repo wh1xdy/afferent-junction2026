@@ -12,6 +12,13 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   C.esc = esc;
 
+  const FLAG_TEXT = {
+    low_mood_twice: { chip: 'Dimmest lantern twice', toast: 'chose the dimmest lantern twice', banner: 'chose the dimmest mood lantern at the start and end of a session' },
+    weekly_checkin: { chip: 'Weekly check-in, item 3', toast: 'answered above “Not at all” on the self-harm item of the weekly check-in', banner: 'answered above “Not at all” on the self-harm item of the weekly check-in' },
+    talk_request: { chip: 'Asked to talk', toast: 'tapped “Talk to someone”', banner: 'tapped “Talk to someone”' },
+  };
+  C.flagText = (type, where) => (FLAG_TEXT[type] || FLAG_TEXT.talk_request)[where];
+
   const scale = (d0, d1, r0, r1) => {
     const f = (v) => r0 + ((v - d0) / (d1 - d0 || 1)) * (r1 - r0);
     f.domain = [d0, d1];

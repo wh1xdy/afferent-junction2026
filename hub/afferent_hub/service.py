@@ -23,6 +23,7 @@ log = logging.getLogger("afferent.hub")
 VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
 RELAYED = ("mode", "game", "task_end", "core_trial", "mood")
+CHECKIN_ITEMS = ("interest", "down", "self_harm")
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
 DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
@@ -192,6 +193,7 @@ class Hub:
             "latest_session": sessions[-1] if sessions else None,
             "sessions": [views.compact_session(s) for s in sessions],
             "daily": self.store.daily(pid),
+            "checkins": self.store.checkins(pid),
         }
 
     def patient_view(self, pid: str) -> dict:
@@ -311,6 +313,20 @@ class Hub:
                               "t_iso": flag["t_iso"]})
         await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid),
                               "analytics": self.analytics(pid)})
+
+    async def add_checkin(self, pid: str, msg: dict):
+        self.patient(pid)
+        answers = msg.get("answers") if isinstance(msg.get("answers"), dict) else {}
+        items = {k: answers.get(k) for k in CHECKIN_ITEMS}
+        if not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 3 for v in items.values()):
+            raise HubError(400, "bad_request", f"answers must hold {', '.join(CHECKIN_ITEMS)}, each 0 to 3")
+        t_iso = msg.get("t_iso") or views.now_iso()
+        rec = {"t_iso": t_iso, "day_index": views.now_day(self.patient(pid)), "answers": items,
+               "phq2": items["interest"] + items["down"], "self_harm": items["self_harm"]}
+        self.store.add_checkin(pid, rec)
+        if rec["self_harm"] > 0:
+            await self.add_flag(pid, "weekly_checkin", "weekly_checkin", t_iso=t_iso)
+        return rec
 
     def flags(self, pid: str) -> list[dict]:
         return [{k: v for k, v in f.items() if k in ("type", "t_iso", "source")} for f in self.store.flags(pid)]
@@ -495,9 +511,14 @@ class Hub:
         elif t == "privacy":
             change = {k: msg[k] for k in ("sensor", "on", "sharing") if k in msg}
             await self.set_privacy(msg.get("patient_id") or pid, change)
+        elif t == "weekly_checkin":
+            try:
+                await self.add_checkin(msg.get("patient_id") or pid, msg)
+            except HubError as e:
+                log.warning("weekly_checkin rejected: %s", e.detail)
         elif t == "crisis":
             source = msg.get("source") or "talk_button"
-            ftype = "low_mood_twice" if source == "mood" else "talk_request"
+            ftype = {"mood": "low_mood_twice", "weekly_checkin": "weekly_checkin"}.get(source, "talk_request")
             await self.add_flag(msg.get("patient_id") or pid, ftype, source, session_id=msg.get("session_id"),
                                 t_iso=msg.get("t_iso"))
 

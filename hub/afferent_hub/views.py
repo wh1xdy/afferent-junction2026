@@ -202,9 +202,38 @@ def _arc(session: dict | None) -> list[float]:
     return [round(start + (end - start) * (i / (n - 1)) ** 0.8, 2) for i in range(n)]
 
 
+STREAK_STATUSES = ("completed", "fell_asleep")
+FREEZE_EVERY, FREEZE_MAX = 7, 2
+
+
+def streak(sessions: list[dict], daily: list[dict], nd: int, paused: bool = False) -> dict:
+    status_by: dict[int, set] = {}
+    for s in sessions:
+        if s.get("day_index") is not None:
+            status_by.setdefault(s["day_index"], set()).add(s.get("status"))
+    daily_by = {d["day_index"]: d for d in daily}
+    days = set(status_by) | set(daily_by)
+    count, freezes, frozen = 0, 0, []
+    for day in range(min(days), (max(days) if paused else nd) + 1) if days else ():
+        statuses, rec = status_by.get(day, set()), daily_by.get(day) or {}
+        if statuses & set(STREAK_STATUSES):
+            count += 1
+            if count % FREEZE_EVERY == 0:
+                freezes = min(FREEZE_MAX, freezes + 1)
+        elif day == nd or rec.get("declined") or rec.get("played") or statuses:
+            continue
+        elif freezes:
+            freezes -= 1
+            frozen.append(day)
+        else:
+            count = 0
+    return {"streak": count, "freezes": freezes, "frozen_days": frozen}
+
+
 def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict) -> dict:
     nd = now_day(patient)
     daily_by = {d["day_index"]: d for d in daily}
+    st = streak(sessions, daily, nd, privacy.get("sharing") in ("paused", "nothing_tonight"))
     week = []
     for day in range(nd - 6, nd + 1):
         if day < 0:
@@ -220,6 +249,7 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
             "missed": (not s) and bool(rec.get("missed")) and day != nd,
             "today": day == nd, "mood": mood, "colour": MOOD_HEX.get(mood),
             "dawn_reached": bool(s and s.get("status") == "completed"),
+            "frozen": day in st["frozen_days"],
         })
     today_s = (day_sessions(sessions, nd) or [None])[-1]
     pp = (today_s or {}).get("pre_post") or {}
@@ -240,6 +270,7 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         "patient": {"id": patient["id"], "display_name": patient.get("display_name")},
         "simulated": bool(patient.get("simulated", True) or (today_s or {}).get("simulated")),
         "date": day_date(patient, nd).isoformat(),
-        "today": today, "week": week, "what_helped": what_helped(analytics),
+        "today": today, "week": week, "streak": st["streak"], "freezes": st["freezes"],
+        "what_helped": what_helped(analytics),
         "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": CRISIS,
     }

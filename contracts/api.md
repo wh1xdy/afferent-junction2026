@@ -77,7 +77,7 @@ Patient list sorted by need: state severity (`booster` > `check_in` > `watch` > 
 
 - `sparkline`: composite for the last 14 days (`null` gaps allowed).
 - `live_now`: true while a session for that patient is running on `/ws/app`.
-- `flags`: `[{"type": "talk_request" | "low_mood_twice", "t_iso": "...", "source": "talk_button" | "mood"}]`, newest first, cleared by the clinician (`POST /api/patients/{id}/flags/clear`).
+- `flags`: `[{"type": "talk_request" | "low_mood_twice" | "weekly_checkin", "t_iso": "...", "source": "talk_button" | "mood" | "weekly_checkin"}]`, newest first, cleared by the clinician (`POST /api/patients/{id}/flags/clear`).
 
 ### GET /api/patients/{id}
 
@@ -89,7 +89,8 @@ Patient list sorted by need: state severity (`booster` > `check_in` > `watch` > 
   "latest_session": {"...": "full session v3 document"},
   "sessions": [{"session_id": "...", "day_index": 56, "started_iso": "...", "status": "completed", "profile": "live", "simulated": true,
                 "duration_ms": 109800, "rt_median_ms": 437, "mood_start": 2, "mood_end": 3, "pre_post": {"...": "as in the session"}}],
-  "daily": [{"...": "daily v1 records, oldest first"}]
+  "daily": [{"...": "daily v1 records, oldest first"}],
+  "checkins": [{"t_iso": "...", "day_index": 56, "answers": {"interest": 1, "down": 1, "self_harm": 0}, "phq2": 2, "self_harm": 0}]
 }
 ```
 
@@ -102,6 +103,13 @@ Exactly the output of `analyze_patient` (section 5.1). Shape: `fixtures/analytic
 ### GET /api/patients/{id}/patient-view
 
 Gentle, wordless-where-possible data for `demo/patient.html`. Shape: `fixtures/patient_view_anna.json`. Rules: no pulse numbers, no composite, no state label, no z-scores. `today.arc` is 2 to 12 values in 0 to 1 (warmth through today's session, for drawing). `week` is the last 7 days ending today. `what_helped` comes from the bandit (top arm per mode with `p_best >= 0.5`, max 3, plus the dawn light association when its `mood_diff > 0`); texts are fixed templates per task id, never generated. `crisis` is fixed text (section 7).
+
+Streak (Duolingo pattern), top-level `streak` (int) and `freezes` (0 to 2), plus `week[].frozen` (bool):
+
+- `streak` counts days with a `completed` or `fell_asleep` session, walking from the first day with any data to today.
+- Today without such a session yet never breaks it. Declined days (daily `declined`, which covers `nothing_tonight` and `paused`), days with only a `partial` or `declined` session, and every day after the last record while sharing is `paused` or `nothing_tonight` are neutral: they neither count nor break.
+- Any other past day is missed. A missed day uses one freeze automatically (streak kept, day marked `frozen`); with no freeze left the streak drops to 0.
+- One freeze is earned at every 7th streak day, holding at most 2.
 
 ### GET /api/patients/{id}/summary
 
@@ -196,7 +204,8 @@ Phone to hub:
 | `light` | `rgb`, `level` (0 to 100), `fade_ms`, `reason` (`mode`, `dawn`, `asleep`, `idle`) | game wants the bedside light changed |
 | `session_end` | `session`: the full session v3 document | session over (any status, including declined) |
 | `privacy` | `patient_id`, `sensor` or `sharing`, `on` | patient changes a switch |
-| `crisis` | `patient_id`, `source` (`talk_button`, `mood`), `t_iso` | the fixed crisis card was opened |
+| `crisis` | `patient_id`, `source` (`talk_button`, `mood`, `weekly_checkin`), `t_iso` | the fixed crisis card was opened; the hub stores a flag of type `talk_request`, `low_mood_twice` or `weekly_checkin` |
+| `weekly_checkin` | `patient_id`, `answers` (`interest`, `down`, `self_harm`, each 0 to 3), `phq2`, `self_harm`, `t_iso` | daytime weekly check-in answered; the hub stores it (`checkins` in `GET /api/patients/{id}`) and, when `self_harm > 0`, adds a `weekly_checkin` flag (the follow-up `crisis` with the same source within 60 s is merged into it) |
 
 The hub also accepts the v2 form of `session_end` (document spread at top level) by removing `type`.
 

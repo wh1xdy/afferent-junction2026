@@ -258,10 +258,10 @@
       case 'crisis_flag': {
         const row = S.list?.patients.find((p) => p.id === m.patient_id);
         if (row) {
-          const type = m.type !== 'crisis_flag' ? m.type : m.flag_type || (m.source === 'mood' ? 'low_mood_twice' : 'talk_request');
+          const type = m.type !== 'crisis_flag' ? m.type : m.flag_type || ({ mood: 'low_mood_twice', weekly_checkin: 'weekly_checkin' }[m.source] || 'talk_request');
           row.flags = [{ type, t_iso: m.t_iso, source: m.source }, ...(row.flags || [])];
           render({ keepScroll: true });
-          toast(`<b>${C.esc(row.display_name)}</b> ${type === 'low_mood_twice' ? 'chose the dimmest lantern twice' : 'tapped “Talk to someone”'}`, 'booster');
+          toast(`<b>${C.esc(row.display_name)}</b> ${C.flagText(type, 'toast')}`, 'booster');
         }
         break;
       }
