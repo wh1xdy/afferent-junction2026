@@ -483,3 +483,35 @@ def test_task_breathing_rejects_unknown_key_and_loose_stat(session_schema):
     assert errors(session_schema, with_task_breathing(lambda b: b.update(score=80)))
     assert errors(session_schema, with_task_breathing(lambda b: b["rate_per_min"].pop("samples")))
     assert errors(session_schema, with_task_breathing(lambda b: b["rate_per_min"].update(median=8)))
+
+
+# The director's reason for each mode (demo/js/engine.js assess): state, basis, reasons and the numbers behind them.
+# The stressed transition below is a test input, not a measurement.
+STRESSED = {"t_ms": 41000, "from": "flow", "to": "calm", "arousal": 2.1, "fatigue": 0.04, "state": "stressed", "basis": "hrv",
+            "reasons": ["pulse_up", "rmssd_down", "breathing_fast"],
+            "signals": {"pulse_bpm": 89, "pulse_rest_bpm": 68, "rmssd_ms": 24, "rmssd_own_ms": 45, "rmssd_ratio": 0.533,
+                        "breathing_per_min": 17, "breathing_own_per_min": 12, "breathing_delta": 5}}
+
+
+def test_transitions_carry_the_reason_for_the_mode(session_schema):
+    doc = finger_doc()
+    assert all({"state", "basis", "reasons", "signals"} <= set(t) for t in doc["adaptive"]["transitions"])
+    # the example session is simulated, so no HRV or breathing number was used
+    assert all(t["signals"]["rmssd_ms"] is None and t["basis"] != "hrv" for t in doc["adaptive"]["transitions"])
+    doc["adaptive"]["transitions"].append(STRESSED)
+    assert errors(session_schema, doc) == []
+
+
+@pytest.mark.parametrize("change", [
+    lambda t: t.update(state="anxious"),
+    lambda t: t.update(basis="face"),
+    lambda t: t["reasons"].append("frowning"),
+    lambda t: t["signals"].update(rmssd_ms="24"),
+    lambda t: t["signals"].update(eye_openness=0.4),
+])
+def test_transition_reasons_reject_unknown_values(session_schema, change):
+    t = json.loads(json.dumps(STRESSED))
+    change(t)
+    doc = finger_doc()
+    doc["adaptive"]["transitions"] = [t]
+    assert errors(session_schema, doc) != []

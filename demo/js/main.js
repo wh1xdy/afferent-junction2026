@@ -24,7 +24,9 @@
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
     signalsOverlay: saved.signalsOverlay ?? false,
+    liveVitals: saved.liveVitals ?? true,
     breathFeedback: saved.breathFeedback ?? true,
+    heartTouch: saved.heartTouch ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -127,8 +129,16 @@
 
   const night = () => ui.clock === 'night';
   A.night = night;
+  // The end greeting follows the real time of day (guide.js); night mode keeps its own quiet words.
+  const greet = () => {
+    const hello = A.Guide.hello();
+    $('endText').textContent = night() ? 'Rest well.' : hello;
+    const sheet = document.querySelector('.end-sheet'), h = sheet?.querySelector('.end-hello');
+    if (h) h.textContent = hello;
+    sheet?.setAttribute('aria-label', hello.replace(/\.$/, ''));
+  };
   const morningText = () => {
-    $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
+    greet();
     $('decline').textContent = night() ? 'Not tonight' : 'Not today';
     $('end').classList.toggle('night', night());
     A.Theme.sync();
@@ -159,7 +169,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, breathFeedback: A.config.breathFeedback, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -174,7 +184,9 @@
     $('quietSw').checked = A.config.quietNight;
     $('checkinSw').checked = A.config.checkin;
     $('sigSw').checked = A.config.signalsOverlay;
+    $('vitalsSw').checked = A.config.liveVitals;
     $('breathSw').checked = A.config.breathFeedback;
+    $('beatSw').checked = A.config.heartTouch;
     camGlyph();
   };
   const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
@@ -198,7 +210,9 @@
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
+  $('vitalsSw').onchange = e => { A.config.liveVitals = e.target.checked; saveSettings(); };
   $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
+  $('beatSw').onchange = e => { A.config.heartTouch = e.target.checked; saveSettings(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
@@ -235,6 +249,7 @@
     resetEnd();
     $('json').textContent = '';
     timeline = [];
+    guideMem = {};
     A.session = A.startSession({ input: A.Input.mode, clock: ui.clock, stage: ui.stage, profile: ui.profile, visual: idle });
     camGlyph();
     const s = A.session;
@@ -261,7 +276,7 @@
   const resetEnd = () => {
     endShown = false;
     $('end').classList.remove('declined', 'dim', 'closed');
-    $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
+    greet();
     show('offer', false);
   };
   const goHome = () => {
@@ -286,13 +301,13 @@
     if (text) { el.textContent = text; el.classList.toggle('line', kind === 'line'); }
     el.classList.toggle('on', !!text);
   };
-  let lineTimer = 0;
-  const taskLine = g => {
-    clearTimeout(lineTimer);
-    const text = A.LINES?.[g.id];
-    if (!text) return;
-    cue(text, 'line');
-    lineTimer = setTimeout(() => { if (A.session?.game?.id === g.id) cue(''); }, 3500);
+  // The line at the top during play comes from A.Guide.line, asked every frame: guide.js says what it shows and when.
+  let guideMem = {}, guideShown = null;
+  const guide = (s, now) => {
+    const want = A.Guide.line(s, now, guideMem), key = want ? want.text : null;
+    if (key === guideShown) return;
+    guideShown = key;
+    cue(want?.text || '', want?.kind);
   };
 
   $('download').onclick = () => {
@@ -309,17 +324,14 @@
   ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
   A.bus.on('segment', id => {
     if (id !== 'walk') log('phase ' + id);
-    if (id === 'rest') { cue('Hold the lantern and rest a moment', 'line'); return; }
-    cue(id === 'checkin' ? (night() ? 'How are you tonight?' : 'How are you this morning?') : '');
   });
   A.bus.on('mode', m => log('mode ' + m));
-  A.bus.on('game', g => { log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`); taskLine(g); });
+  A.bus.on('game', g => { log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`); });
   A.bus.on('haptic', () => { $('haptic').classList.remove('pulse'); void $('haptic').offsetWidth; $('haptic').classList.add('pulse'); });
   A.bus.on('mood', m => {
     log(`lantern check-in ${m.which} ${m.value ?? 'skipped'}`);
-    if (m.which === 'start') cue('');
   });
-  A.bus.on('endScreen', () => { endShown = true; show('end', true); show('closeBtn', false); });
+  A.bus.on('endScreen', () => { endShown = true; greet(); show('end', true); show('closeBtn', false); });
   A.bus.on('endDim', () => $('end').classList.add('dim'));
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
@@ -429,7 +441,8 @@
     drawTimeline();
     const sim = !!s && !s.done && (p.source === 'simulated' || S.eyesSource() === 'simulated' || s.auto || s.profile !== 'live');
     show('simBadge', sim);
-    const chip = A.config.signalsOverlay ? A.Vitals.chip(s, p) : null;
+    A.LiveVitals.render(s, now);
+    const chip = A.config.signalsOverlay && !A.LiveVitals.chipOn ? A.Vitals.chip(s, p) : null;
     if (chip) $('liveChip').textContent = chip;
     show('liveChip', !!chip);
     const breath = A.Vitals.breath(s, now);
@@ -447,6 +460,7 @@
     const V = s ? s.V : idle;
     if (!s) {
       V.t = now; V.lanternBright = V.lanternGain; V.lanternRadius = 70 * V.lanternGain;
+      if (A.Heartbeat) { A.Heartbeat.step(now, dt, null); A.Heartbeat.paint(V, 1); A.Shell.kindleBeat(A.Heartbeat.st); }
       for (const tw of idleTweens) tw.obj[tw.key] = A.lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
       idleTweens = idleTweens.filter(tw => now - tw.start < tw.dur);
     }
@@ -455,6 +469,7 @@
     A.Theme.frame(canvas);
     A.FXGL?.present(canvas, V, s);
     s?.drawOverlay(ctx, now);
+    guide(s, now);
     if (curtain) {
       const k = A.clamp((now - curtain.start) / curtain.dur, 0, 1);
       curtainV = A.lerp(curtain.from, curtain.to, A.ease(k));

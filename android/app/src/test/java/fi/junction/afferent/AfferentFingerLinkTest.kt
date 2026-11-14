@@ -213,6 +213,77 @@ class AfferentFingerLinkTest {
         assertEquals(listOf("connect $board"), radio.log)
     }
 
+    // ── found through Wendy Net's advertisement ──────────────────────────
+    // While a Wendy Net peer holds a link through our "Afferent Finger" advertisement, that
+    // advertisement is off the air and the board is heard only as "wendyos-uno-q" with Wendy
+    // Net's service (seen on 2026-11-14).
+
+    private val wendy = AfferentFingerParser.WENDY_BOARD_NAME
+
+    @Test
+    fun theBoardHeardOnlyThroughWendyNetIsConnectedAndTrustedWithAff0() {
+        link.start(FingerAvailability.ON)
+        link.onScanResult(board, wendy, null, wendyNet = true)
+        assertEquals("connecting", link.state)
+        assertEquals("connect $board", radio.log.last { it.startsWith("connect") })
+        link.onConnected(board)
+        assertEquals("still connecting until AFF0 is confirmed", "connecting", link.state)
+        link.onServicesDiscovered(true)
+        assertEquals("connected", link.state)
+        assertEquals("it is reported under our name", name, link.name)
+        answer(true)
+        answer(true)
+        link.onValue(aff1, golden, 7)
+        assertEquals(listOf("aff1 71 0.62 active @7"), heard.readings)
+    }
+
+    @Test
+    fun theWendyNameWithTheDevicesGapNameIsTheBoardToo() {
+        link.start(FingerAvailability.ON)
+        link.onScanResult(board, wendy, name, wendyNet = true)     // what a Mac saw
+        assertEquals("connecting", link.state)
+    }
+
+    @Test
+    fun anotherWendyUnoQWithoutAff0IsLeftAloneAndOursIsStillFound() {
+        radio.services = setOf(AfferentFingerParser.HEART_RATE_SERVICE)    // no AFF0: not running the hub
+        link.start(FingerAvailability.ON)
+        link.onScanResult(strap, wendy, null, wendyNet = true)
+        link.onConnected(strap)
+        link.onServicesDiscovered(true)
+        assertEquals("scanning", link.state)
+        assertFalse("never reported as connected", heard.states.any { it.first == "connected" })
+        timer.advance(20_000)
+        link.onScanResult(strap, wendy, null, wendyNet = true)
+        assertEquals("not connected again", 1, radio.count("connect $strap"))
+        radio.services = setOf(AfferentFingerParser.HEART_RATE_SERVICE, AfferentFingerParser.AFFERENT_SERVICE)
+        link.onScanResult(board, wendy, null, wendyNet = true)
+        link.onConnected(board)
+        link.onServicesDiscovered(true)
+        assertEquals("connected", link.state)
+    }
+
+    @Test
+    fun noUnrelatedDeviceIsConnectedThroughTheWendyScan() {
+        link.start(FingerAvailability.ON)
+        link.onScanResult(strap, "wendyos-hackathon-device-12", null, wendyNet = true)   // the Jetson
+        link.onScanResult(strap, null, null, wendyNet = true)
+        link.onScanResult(strap, "wendyos-uno-q-2", null, wendyNet = true)
+        link.onScanResult(strap, wendy, null, wendyNet = false)   // the name alone, no Wendy Net service
+        link.onScanResult(strap, "Polar H10 8A3B2C1D", "Polar H10", wendyNet = true)
+        assertEquals("scanning", link.state)
+        assertEquals(0, radio.log.count { it.startsWith("connect") })
+    }
+
+    @Test
+    fun aConnectedDeviceCountsOnlyWithOurName() {
+        // Android lists connected devices without their services, so "wendyos-uno-q" alone is not enough
+        radio.connected = listOf(FingerDevice(strap, wendy))
+        link.start(FingerAvailability.ON)
+        assertEquals("scanning", link.state)
+        assertEquals(listOf("startScan"), radio.log)
+    }
+
     @Test
     fun onlyOneDeviceAtATime() {
         link.start(FingerAvailability.ON)

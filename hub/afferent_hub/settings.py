@@ -22,6 +22,10 @@ class Settings:
     team_guard: bool = False
     data_manager_url: str = ""
     data_manager_token: str | None = None
+    decline_threshold: float = 0.8
+    decline_ref_days: int = 14
+    decline_recent_days: int = 3
+    decline_interval_s: float = 3600
     transcripts_dir: str = str(HUB / "data" / "transcripts")
     transcript_file_mb: float = 10.0
     transcript_total_mb: float = 500.0
@@ -45,6 +49,10 @@ class Settings:
             team_guard=e.get("AFFERENT_TEAM_GUARD", "0") == "1",
             data_manager_url=e.get("AFFERENT_DATA_MANAGER_URL") or cls.data_manager_url,
             data_manager_token=e.get("AFFERENT_DATA_MANAGER_TOKEN") or None,
+            decline_threshold=float(e.get("AFFERENT_DECLINE_THRESHOLD") or cls.decline_threshold),
+            decline_ref_days=int(e.get("AFFERENT_DECLINE_REF_DAYS") or cls.decline_ref_days),
+            decline_recent_days=int(e.get("AFFERENT_DECLINE_RECENT_DAYS") or cls.decline_recent_days),
+            decline_interval_s=float(e.get("AFFERENT_DECLINE_INTERVAL_S") or cls.decline_interval_s),
             transcripts_dir=e.get("AFFERENT_TRANSCRIPTS_DIR") or cls.transcripts_dir,
             transcript_file_mb=float(e.get("AFFERENT_TRANSCRIPT_FILE_MB") or cls.transcript_file_mb),
             transcript_total_mb=float(e.get("AFFERENT_TRANSCRIPT_TOTAL_MB") or cls.transcript_total_mb),

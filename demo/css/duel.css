@@ -66,3 +66,4 @@
 
 :root[data-motion="reduced"] .duel { animation: fadeIn 150ms linear; }
 @media (prefers-reduced-motion: reduce) { .duel { animation: fadeIn 150ms linear; } .duel-hold > span { transition: none; } }
+#duelTitle:focus { outline: none; }

@@ -137,9 +137,12 @@
   "adaptive": {
     "mode_seconds": { "calm": 31.2, "flow": 21.4, "wake": 22.7, "fatigue": 0, "rest": 0 },
     "transitions": [
-      { "t_ms": 22600, "from": null, "to": "calm", "arousal": 1.34, "fatigue": 0.02 },
-      { "t_ms": 66900, "from": "calm", "to": "flow", "arousal": 0.51, "fatigue": 0.11 },
-      { "t_ms": 87300, "from": "flow", "to": "wake", "arousal": -0.32, "fatigue": 0.05 }
+      { "t_ms": 22600, "from": null, "to": "calm", "arousal": 1.34, "fatigue": 0.02, "state": "pulse_up", "basis": "pulse", "reasons": ["pulse_up", "no_hrv"],
+        "signals": { "pulse_bpm": 79.4, "pulse_rest_bpm": 66, "rmssd_ms": null, "rmssd_own_ms": null, "rmssd_ratio": null, "breathing_per_min": null, "breathing_own_per_min": null, "breathing_delta": null } },
+      { "t_ms": 66900, "from": "calm", "to": "flow", "arousal": 0.51, "fatigue": 0.11, "state": "steady", "basis": "pulse", "reasons": ["pulse_steady"],
+        "signals": { "pulse_bpm": 71.1, "pulse_rest_bpm": 66, "rmssd_ms": null, "rmssd_own_ms": null, "rmssd_ratio": null, "breathing_per_min": null, "breathing_own_per_min": null, "breathing_delta": null } },
+      { "t_ms": 87300, "from": "flow", "to": "wake", "arousal": -0.32, "fatigue": 0.05, "state": "low", "basis": "pulse", "reasons": ["pulse_low"],
+        "signals": { "pulse_bpm": 62.8, "pulse_rest_bpm": 66, "rmssd_ms": null, "rmssd_own_ms": null, "rmssd_ratio": null, "breathing_per_min": null, "breathing_own_per_min": null, "breathing_delta": null } }
     ],
     "perclos_mean": 0.12,
     "touch_errors": 7,

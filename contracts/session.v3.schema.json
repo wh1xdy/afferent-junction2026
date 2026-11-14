@@ -345,6 +345,11 @@
           ],
           "description": "Source of the pulse the game used. finger_ppg is the bedside finger sensor (UNO Q, over Bluetooth to the phone or over the hub HTTP source); ky039 is kept for stored rows only (I11). One session's pulse is all real or all simulated (I53)."
         },
+        "pulse_from_ms": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Session time of the first real pulse reading the session used: near the start when the clips were on, later when a session that started without a pulse took one up mid-way (clips put on late). null with a simulated pulse or none."
+        },
         "pulse_quality_mean": {
           "$ref": "#/$defs/quality"
         },
@@ -1046,6 +1051,78 @@
               },
               "fatigue": {
                 "type": "number"
+              },
+              "state": {
+                "enum": [
+                  "stressed",
+                  "energised",
+                  "tired",
+                  "pulse_up",
+                  "steady",
+                  "low",
+                  "unknown"
+                ],
+                "description": "what the director read: stressed and energised need HRV or breathing against the person's own values (stress: RMSSD at 80% or less, or breathing 3 a minute faster; energised: RMSSD at 90% or more and breathing at most 1.5 faster, both measured); pulse_up is a raised pulse without them; unknown before any pulse. A new state in the same mode is a transition too (from equals to)"
+              },
+              "basis": {
+                "enum": [
+                  "eyes",
+                  "hrv",
+                  "pulse",
+                  "none"
+                ],
+                "description": "what the state rests on: eyes (PERCLOS, long closures), hrv (finger clip RMSSD or breathing), pulse (the pulse alone), none (no pulse now, the last state held)"
+              },
+              "reasons": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "eyes_tired",
+                    "no_pulse",
+                    "pulse_low",
+                    "pulse_steady",
+                    "pulse_up",
+                    "no_hrv",
+                    "rmssd_down",
+                    "breathing_fast",
+                    "rmssd_steady",
+                    "breathing_calm",
+                    "hrv_partial",
+                    "hrv_between"
+                  ]
+                },
+                "description": "the signs behind the state, in the order they were read"
+              },
+              "signals": {
+                "type": "object",
+                "description": "the numbers the state was read from. pulse_bpm is the pulse the director used (the simulator's in a simulated session); the RMSSD and breathing numbers are real finger clip readings only (never simulated, signal quality 0.3 or more, at most 3 s old), null otherwise; own values are medians of readings taken while the pulse was within 5 bpm of rest",
+                "additionalProperties": false,
+                "properties": {
+                  "pulse_bpm": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "pulse_rest_bpm": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "rmssd_ms": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "rmssd_own_ms": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "rmssd_ratio": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "breathing_per_min": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "breathing_own_per_min": {
+                    "$ref": "#/$defs/num_or_null"
+                  },
+                  "breathing_delta": {
+                    "$ref": "#/$defs/num_or_null"
+                  }
+                }
               }
             }
           }
