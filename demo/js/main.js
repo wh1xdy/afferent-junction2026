@@ -30,6 +30,7 @@
     checkin: saved.checkin ?? true,
     signalsOverlay: saved.signalsOverlay ?? false,
     breathFeedback: saved.breathFeedback ?? true,
+    heartTouch: saved.heartTouch ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -164,7 +165,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, breathFeedback: A.config.breathFeedback, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
   const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Answers about your safety are still shared.' };
   const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
   const toggles = () => {
@@ -177,6 +178,7 @@
     $('checkinSw').checked = A.config.checkin;
     $('sigSw').checked = A.config.signalsOverlay;
     $('breathSw').checked = A.config.breathFeedback;
+    $('beatSw').checked = A.config.heartTouch;
     camGlyph();
   };
   const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
@@ -196,6 +198,7 @@
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
   $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
+  $('beatSw').onchange = e => { A.config.heartTouch = e.target.checked; saveSettings(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
@@ -238,7 +241,8 @@
     A.bus.emit('ws', { type: 'session_start', session_id: s.rec.session_id, patient_id: A.config.patientId, clock: ui.clock, profile: ui.profile, simulated: s.liveMetrics(A.now()).simulated, sensors: s.rec.sensors, t_iso: s.rec.started_iso });
     log(`session start, ${A.Input.mode}, ${ui.clock}, ${ui.profile}`);
   };
-  $('begin').addEventListener('kindle', begin);
+  // the clip check (clipcheck.js) runs first when the clips give no pulse yet; it calls begin, or puts the lantern out
+  $('begin').addEventListener('kindle', () => A.ClipCheck ? A.ClipCheck.beforeSession(begin) : begin());
 
   $('decline').onclick = () => {
     const r = A.declinedRecord(ui.profile);
@@ -443,6 +447,7 @@
     const V = s ? s.V : idle;
     if (!s) {
       V.t = now; V.lanternBright = V.lanternGain; V.lanternRadius = 70 * V.lanternGain;
+      if (A.Heartbeat) { A.Heartbeat.step(now, dt, null); A.Heartbeat.paint(V, 1); A.Shell.kindleBeat(A.Heartbeat.st); }
       for (const tw of idleTweens) tw.obj[tw.key] = A.lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
       idleTweens = idleTweens.filter(tw => now - tw.start < tw.dur);
     }

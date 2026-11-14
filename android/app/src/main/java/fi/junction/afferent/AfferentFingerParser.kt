@@ -25,7 +25,12 @@ data class FingerAff1(
     val quality: Double?,
     /** "idle" | "probing" | "active". null for a v1 payload or code 0 (unknown). */
     val presence: String?,
-    /** number of bytes received: 4 = v1 firmware, 6 = v2 */
+    /**
+     * true: the board says the two clips are on two different people (Heart Duel), so the fused
+     * pulse, HRV and breathing are not one person's. null for a v1/v2 payload (unknown).
+     */
+    val twoHearts: Boolean?,
+    /** number of bytes received: 4 = v1 firmware, 6 = v2, 7 = v3 */
     val length: Int,
 )
 
@@ -41,6 +46,8 @@ object AfferentFingerParser {
     val CLIENT_CONFIG: UUID = uuid16(0x2902)
     /** AFF1 byte 3: 255 = RMSSD above 254 ms, a marker and not a value */
     const val RMSSD_OVER_RANGE = 255
+    /** AFF1 byte 6, bit 0: two people on the clips (uno-q/modulino-hub/ble.py FLAG_TWO_HEARTS) */
+    const val FLAG_TWO_HEARTS = 0x01
 
     /** A 16-bit Bluetooth UUID in its full form, 0000xxxx-0000-1000-8000-00805f9b34fb. */
     fun uuid16(short: Int): UUID =
@@ -58,10 +65,11 @@ object AfferentFingerParser {
     }
 
     /**
-     * AFF1: [finger 1 bpm, finger 2 bpm, breaths/min, RMSSD ms, quality %, presence code].
+     * AFF1: [finger 1 bpm, finger 2 bpm, breaths/min, RMSSD ms, quality %, presence code, flags].
      * Bytes 0..3: 0 = no reading. Byte 3 (RMSSD): 255 = above 254 ms -> null, never "255 ms".
      * Byte 4: 0..100, 255 (or anything above 100) = not available.
      * Byte 5: 1 idle, 2 probing, 3 active, anything else = unknown.
+     * Byte 6 (v3): bit 0 = two people on the clips; without the byte nobody knows -> null.
      * null below 2 bytes; a byte that was not sent gives a null field.
      */
     fun aff1(data: ByteArray?): FingerAff1? {
@@ -79,7 +87,8 @@ object AfferentFingerParser {
         } else {
             null
         }
-        return FingerAff1(reading(0), reading(1), reading(2), rmssd, quality, presence, data.size)
+        val twoHearts = if (data.size >= 7) u8(data[6]) and FLAG_TWO_HEARTS != 0 else null
+        return FingerAff1(reading(0), reading(1), reading(2), rmssd, quality, presence, twoHearts, data.size)
     }
 
     /**
