@@ -31,7 +31,9 @@ enum ExpressionKind: String, CaseIterable, Codable {
             .sad: 0.5 * v("browInnerUp") + 0.5 * (v("mouthFrownLeft") + v("mouthFrownRight")) / 2,         // AU1 + AU15
             .anger: 0.6 * (v("browDownLeft") + v("browDownRight")) / 2 + 0.4 * (v("mouthPressLeft") + v("mouthPressRight")) / 2, // AU4 + AU24
             .disgust: 0.6 * (v("noseSneerLeft") + v("noseSneerRight")) / 2 + 0.4 * (v("mouthUpperUpLeft") + v("mouthUpperUpRight")) / 2, // AU9 + AU10
-            .surprise: 0.4 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.3 * v("browInnerUp") + 0.3 * v("jawOpen"), // AU5 + AU1/2 + AU26
+            // AU5 + AU2 + AU26: outer brow raise (AU2), not inner (AU1) - inner brow is also sadness,
+            // so a sad micro-expression used to fire "surprise" as well
+            .surprise: 0.4 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.3 * (v("browOuterUpLeft") + v("browOuterUpRight")) / 2 + 0.3 * v("jawOpen"),
             .contempt: abs(smileL - smileR),                                                                     // unilateral AU12/14
         ]
     }
