@@ -263,7 +263,7 @@ def period_loop(stopped):
 # Measured: after power-on a sensor needs ~1.5 s to settle; finger 1 then varies < ~130
 # (14-bit, per 250 ms) without a finger and swings ~2500-3000 with one. Finger 2's lead
 # picks up spikes of 800-4000 even without a finger, so finger 1 decides for both.
-PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 2000, 1500
+PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # flash = 2.25 s (amp settles ~1.25 s)
 WARMUP_S = 4.0               # after switching on: no readings until the pulse has re-locked
 PRESENCE_RANGE = 800          # max 250 ms range in the look window above this = finger
                               # (measured: no finger 90-445, finger ~1600-3000)
