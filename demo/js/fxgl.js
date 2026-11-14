@@ -10,7 +10,7 @@
     wake: { warmth: -0.04, contrast: 1.08, sat: 1.05, lift: [0.004, 0.010, 0.024], gain: [0.98, 1.01, 1.04], bloom: 0.6, vig: 0.11 },
     fatigue: { warmth: 0.02, contrast: 0.98, sat: 0.96, lift: [0.030, 0.030, 0.036], gain: [1.02, 1.02, 1], bloom: 0.35, vig: 0.09 },
     rest: { warmth: -0.02, contrast: 0.95, sat: 0.74, lift: [0.016, 0.010, 0.030], gain: [0.95, 0.94, 0.99], bloom: 0.35, vig: 0.2 },
-    dawn: { warmth: 0.06, contrast: 1.03, sat: 1.06, lift: [0.032, 0.016, 0.026], gain: [1.04, 1, 0.95], bloom: 0.7, vig: 0.1 },
+    dawn: { warmth: 0.03, contrast: 1.04, sat: 1.1, lift: [0.018, 0.012, 0.034], gain: [1.03, 1, 0.97], bloom: 0.7, vig: 0.08 },
     nightEnd: { warmth: 0.05, contrast: 0.98, sat: 0.95, lift: [0.022, 0.013, 0.012], gain: [1, 0.97, 0.92], bloom: 0.55, vig: 0.16 },
     kind: { warmth: 0.03, contrast: 0.98, sat: 0.9, lift: [0.022, 0.016, 0.016], gain: [1.01, 1, 0.98], bloom: 0.55, vig: 0.12 },
   };
@@ -30,13 +30,18 @@
     c+=(texture2D(t,v+d*1.3846154)+texture2D(t,v-d*1.3846154))*.3162162;
     c+=(texture2D(t,v+d*3.2307692)+texture2D(t,v-d*3.2307692))*.0702703;gl_FragColor=c;}`;
   const COMP = `precision mediump float;varying vec2 v;uniform sampler2D t,ba,bb;
-    uniform float k,warmth,contrast,sat,bloom,vig,aspect;uniform vec3 lift,gain;
+    uniform float k,warmth,contrast,sat,bloom,vig,aspect;uniform vec3 lift,gain;uniform vec4 wv;
     float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
+    vec3 cy(float l){vec3 a=vec3(.055,.102,.18),b=vec3(.118,.192,.376),e=vec3(.204,.314,.557),f=vec3(.553,.659,.831),g=vec3(.949,.933,.902);
+    return l<.16?mix(a,b,l/.16):l<.36?mix(b,e,(l-.16)/.2):l<.66?mix(e,f,(l-.36)/.3):mix(f,g,clamp((l-.66)/.34,0.,1.));}
     void main(){vec3 c=texture2D(t,vec2(v.x,1.-v.y)).rgb;vec3 o=c;
     c*=vec3(1.+warmth,1.+.25*warmth,1.-warmth);
     c=(c-.42)*contrast+.42;
     float l=dot(c,vec3(.2126,.7152,.0722));c=mix(vec3(l),c,sat);
     c=c*gain+lift*(1.-c);
+    if(wv.w>0.){float o=smoothstep(wv.z-.05,wv.z+.05,length((vec2(v.x,1.-v.y)-wv.xy)*vec2(aspect,1.)));
+    float lw=dot(c,vec3(.2126,.7152,.0722)),keep=smoothstep(.04,.2,c.r-c.b)*smoothstep(.3,.6,lw);
+    c=mix(c,cy(clamp(lw,0.,1.)),wv.w*o*(1.-keep));}
     vec3 b=(texture2D(ba,v).rgb*.6+texture2D(bb,v).rgb*.9)*bloom;
     c=1.-(1.-clamp(c,0.,1.))*(1.-clamp(b,0.,1.));
     vec2 q=(v-vec2(.5,.46))*vec2(aspect,1.);c*=1.-vig*smoothstep(.35,.95,length(q)*1.25);
@@ -166,6 +171,8 @@
         gl.uniform1f(u.k, FX.k); gl.uniform1f(u.warmth, cur.warmth); gl.uniform1f(u.contrast, cur.contrast); gl.uniform1f(u.sat, cur.sat);
         gl.uniform1f(u.bloom, bl ? cur.bloom * (s?.game || s?.panel ? 0.7 : 1) : 0); gl.uniform1f(u.vig, cur.vig); gl.uniform1f(u.aspect, fw / fh);
         gl.uniform3fv(u.lift, cur.lift); gl.uniform3fv(u.gain, cur.gain);
+        const w = A.World?.wave?.();
+        gl.uniform4f(u.wv, w ? w.x : 0, w ? w.y : 0, w ? w.r : 0, w ? w.k : 0);
       });
       if (gl.isContextLost()) { off(); return; }
       const c = canvas.getContext('2d');
