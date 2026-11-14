@@ -9,7 +9,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from . import export, modules, qr, views
+from . import export, modules, qr, views, wellbeing
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
@@ -80,6 +80,8 @@ class Hub:
         self.transcripts = TranscriptLog(settings.transcripts_dir,
                                          file_max=int(settings.transcript_file_mb * 1024 * 1024),
                                          total_max=int(settings.transcript_total_mb * 1024 * 1024))
+        # Set by main.py to the team's SensorSource; stays None in tests and without the data manager.
+        self.sensors = None
 
     def _pulse_allowed(self) -> bool:
         return bool(self.privacy(self.settings.bound_patient).get("sensors", {}).get("pulse_stone", True))
@@ -429,6 +431,19 @@ class Hub:
             raise HubError(413, "transcript_too_large", str(e))
         return {"duplicate": not written}
 
+    async def voice_context(self, pid: str) -> dict:
+        p = self.patient(pid)
+        nd = views.now_day(p)
+        phq = views.phq_block(p, self.store.checkins(pid), nd)
+        analytics = self.analytics(pid)
+        level = wellbeing.indicator(analytics, phq)
+        facts = wellbeing.hub_facts(analytics, phq) if level != "ok" else []
+        if level == "bad" and self.sensors is not None and self.sensors.enabled:
+            facts += await asyncio.to_thread(wellbeing.sensor_facts, self.sensors.get)
+        return {"type": "voice_context", "patient_id": pid, "date": views.day_date(p, nd).isoformat(),
+                "indicator": level, "facts": facts[:wellbeing.FACT_MAX],
+                "suggest_doctor": level == "bad"}
+
     def flags(self, pid: str) -> list[dict]:
         keep = ("type", "t_iso", "source", "label", "checkin_id", "screen")
         return views.sort_flags([{k: v for k, v in f.items() if k in keep} for f in self.store.flags(pid)])
@@ -609,6 +624,8 @@ class Hub:
                 ack = {"type": "ack", "transcript_id": tid, "ok": False, "duplicate": False,
                        "error": f"{e.code}: {e.detail}"}
             await self.rooms.send(client, ack)
+        elif t == "voice_context":
+            await self.rooms.send(client, await self.voice_context(msg.get("patient_id") or pid))
         elif t == "crisis":
             await self.add_flag(msg.get("patient_id") or pid, "talk_request", msg.get("source") or "talk_button",
                                 session_id=msg.get("session_id"), t_iso=msg.get("t_iso"))

@@ -336,6 +336,37 @@ Each line is a self-contained record:
 | `received_iso` | when the hub wrote the row, hub clock |
 | `turns` | ordered list; `role` is `user` or `agent`, `text` is that turn's full transcript |
 
+### Daily wellbeing read for the voice companion
+
+Once a day the phone asks the hub how its patient seems to be doing — `{type: "voice_context"}`
+on `/ws/app`, answered by `{type: "voice_context", ...}` — and anyone on the hub can read the
+same thing at `GET /api/patients/{pid}/wellbeing` (`hub/afferent_hub/wellbeing.py`, wired in
+`service.py`).
+
+The answer:
+
+```json
+{"type": "voice_context", "patient_id": "anna", "date": "2026-11-15",
+ "indicator": "bad", "suggest_doctor": true,
+ "facts": ["skipped the morning practice on 4 of the last 7 days",
+           "went outside on 0 of the last 5 days"]}
+```
+
+- `indicator` is `ok`, `watch` or `bad`, from the hub's own data: the analytics state
+  (`check_in`/`booster` → bad, `watch` → watch) and the last PHQ-9 band (`moderate` or worse
+  → bad, `mild` → watch, an overdue check-in → watch).
+- `facts` are short clauses. The hub adds its own (missed practice, the last questionnaire);
+  when the indicator is `bad` it also asks the data manager (`AFFERENT_DATA_MANAGER_URL`)
+  for presence facts — outings, time at home and visitors over the last two weeks. Every
+  sensor read is best-effort: a quiet data manager means fewer facts, never an error.
+- `suggest_doctor` is `indicator == "bad"`.
+
+The phone caches the answer for the day (`demo/js/voice.js`) and hands it to the voice relay
+inside the auth message (`{auth, context}`); the relay (`voice-relay/main.py`) validates it
+and appends it to the system instruction. So on a bad day the companion gently acknowledges
+that things have not been easy, reminds the person the app and their care team are there
+exactly for that, and suggests — once, without pushing — that they talk to their doctor.
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)

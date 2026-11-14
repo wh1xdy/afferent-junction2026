@@ -3,7 +3,7 @@
 // the model and the system prompt. Audio goes to Google while a conversation is open; the transcript
 // is kept on this device and sent to the home hub over the app link (never to the clinic).
 (() => {
-  const IN_RATE = 16000, OUT_RATE = 24000, KEEP = 20, KEY = 'afferent.voice.relay', OUTBOX = 'afferent.voice.outbox';
+  const IN_RATE = 16000, OUT_RATE = 24000, KEEP = 20, KEY = 'afferent.voice.relay', OUTBOX = 'afferent.voice.outbox', CTX = 'afferent.voice.context';
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -49,6 +49,22 @@
   const outbox = () => { try { return JSON.parse(store.get(OUTBOX)) || []; } catch { return []; } };
   const setOutbox = v => store.set(OUTBOX, JSON.stringify(v.slice(-50)));
   const flushOutbox = () => outbox().forEach(d => A.bus?.emit('ws', { type: 'transcript', ...d }));
+
+  // Once a day the hub is asked how the patient seems to be doing (ws `voice_context`); the
+  // cached answer rides along in the relay auth message so the companion can gently raise it.
+  const ctxKey = () => CTX + '.' + (A.config?.patientId || 'anna');
+  const today = () => new Date().toISOString().slice(0, 10);
+  const context = () => { try { return JSON.parse(store.get(ctxKey())) || null; } catch { return null; } };
+  const setContext = v => store.set(ctxKey(), JSON.stringify(v));
+  const askContext = () => {
+    if (!A.Hub?.connected || context()?.asked === today()) return;
+    if (A.Hub.send({ type: 'voice_context', patient_id: A.config?.patientId || 'anna' }))
+      setContext({ ...context(), asked: today() });
+  };
+  const relayContext = () => {
+    const c = context();
+    return c?.indicator ? { date: c.date, indicator: c.indicator, facts: c.facts, suggest_doctor: c.suggest_doctor } : undefined;
+  };
 
   const fail = (code, msg) => Object.assign(new Error(msg || code), { code });
   // Relay address and access code: typed in the app, else baked in at build time (js/voice-config.js, `npm run voiceconfig`).
@@ -98,7 +114,7 @@
 
         const ws = s.ws = new WebSocket(wsUrl(r.url));
         ws.binaryType = 'arraybuffer';
-        ws.onopen = () => ws.send(JSON.stringify({ auth: r.code }));
+        ws.onopen = () => ws.send(JSON.stringify({ auth: r.code, context: relayContext() }));
         ws.onmessage = e => {
           let m;
           try { m = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data)); } catch { return; }
@@ -227,7 +243,11 @@
   };
   el.querySelector('[data-close="voice"]').addEventListener('click', () => V.stop());
   A.bus.on('ws', m => { if (m?.type === 'crisis') V.stop(); });
-  A.Hub?.on?.('connected', on => { if (on) flushOutbox(); });
+  A.Hub?.on?.('connected', on => { if (on) { flushOutbox(); askContext(); } });
+  A.Hub?.on?.('voice_context', d => {
+    if (d?.patient_id) setContext({ asked: today(), date: d.date || today(), indicator: d.indicator,
+                                  facts: d.facts || [], suggest_doctor: d.suggest_doctor === true });
+  });
   A.Hub?.on?.('ack', d => { if (d?.transcript_id) setOutbox(outbox().filter(x => x.transcript_id !== d.transcript_id)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) V.stop(); });
 })();
