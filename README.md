@@ -153,9 +153,10 @@ When plugged in over USB-C, `wendy discover` finds the boards directly (faster d
 Home maintenance companion after TMS for depression: a two-minute wordless game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and a local hub with a clinician dashboard. All patient data in the demo is simulated. Developed on the `afferent-app` branch and merged here.
 
 - `hub/` Python hub: API, analytics, bedside simulator, serves the game and dashboard
-- `demo/` the game (web, wrapped by Capacitor), `design/` specs, tokens and mockups, `art/` art pipeline
+- `demo/` the game (web, wrapped by Capacitor), `design/` tokens, fonts and the final concept art, `art/` art pipeline
 - `ios/App/` and `android/` Capacitor shells for the game (separate from the native `ios/Afferent` app)
-- `contracts/` API and session schemas; `STATUS.md`, `GameDesign.md`, `Statistics.md` and the other top-level docs
+- `contracts/` JSON schemas and fixtures shared by game and hub
+- `hub/afferent_hub/team/` teammates' hub code (`jetson/hub`, `jetson/data_manager`), copied byte-identical with source branch and commit in `manifest.json`, attached through `hub/afferent_hub/team_adapters/`
 
 Run it:
 

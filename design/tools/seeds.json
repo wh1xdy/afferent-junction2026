@@ -1,0 +1,21 @@
+{
+  "about": "Seeds for the Afferent GUI colour system. Brand seeds are fixed pigments from design/tokens.json: sun is the primary (pinned to #F2C230 in dark schemes), kaamos gives the dark neutrals and the light-scheme primary (chroma 40, tone 30), ply gives the light neutrals and secondary, spring the tertiary, apricot the error palette at hue 55. Sky seeds come from QuantizerCelebi(128) plus Score(filter false) on the top 60% of a rendered game sky frame (demo/js/world.js), HCT hue rounded to 5 degrees; they only refine neutrals at runtime. Night and dawn are provisional until the lamination and grade changes land and the rendered skies are re-quantized. Keys renamed from lantern and aurora: gen-gui-tokens.mjs must be ported from design/concept/final/theme.mjs before the next run.",
+  "sun": "#F2C230",
+  "kaamos": "#1E3150",
+  "spring": "#9DBE8C",
+  "ply": "#E2C79C",
+  "apricot": "#F3A57A",
+  "skies": {
+    "night": { "from": "provisional: expected rendered kaamos sky hue 255 to 262, re-quantize after the lamination and grade land", "hue": 260, "chroma": 20 },
+    "aurora": { "from": "rendered aurora sky, quantized #2E374B, re-quantize with the night", "hue": 265, "chroma": 18 },
+    "dawn": { "from": "provisional: rendered dawn sky quantized #FDBD85 before the regrade, re-quantize from the new dawn", "hue": 60, "chroma": 32 },
+    "clinic": { "from": "tokens.json color.pigment.kaamos", "hex": "#1E3150" }
+  },
+  "states": {
+    "stable": "#3F8C4E",
+    "watch": "#3D6DB8",
+    "call": "#AD8500",
+    "booster": "#B95F28",
+    "simulated": "#9DB9CC"
+  }
+}
