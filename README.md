@@ -123,11 +123,52 @@ On-device, nothing leaves the phone. Three tabs:
   shown), distance coaching, activation score. Debug mode: face mesh, eye arrows, pulse regions,
   raw blendshapes. Sessions export as JSON → `ios/tools/analyze_session.py`.
 - **Check-in** — PHQ-9 with crisis resources (112, Mieli 09 2525 0111, Självmordslinjen 90101, 1177).
-  Screening support, not a diagnosis.
+  Support for follow-up, not a diagnosis.
 
 Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first build read 0 for every
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
 6/min was recovered by both breathing sources.
+
+## Health-data hub (`jetson/hub`), the patient's own
+
+**The hub never talks to a doctor.** It sends nothing to anyone and only the patient can read it: no
+clinician login, token, live view or chatbot. A doctor sees what the patient hands over in person, the
+printed handover report or the FHIR file the patient downloaded.
+
+Local SQLite on the Jetson (persistent volume `afferent-data`). It collects the finger readings from the
+UNO Q over Wendy Net and takes expression sessions and PHQ-9 check-ins from the app.
+
+- `GET /report/handover?days=14`: "Report for my doctor", the page the patient prints. PHQ-9 with item 9
+  at the top, a fixed-template summary (no language model), coverage, daily trends for resting pulse, HRV
+  (RMSSD) and breathing rate, and how every number is computed. No diagnosis.
+- `GET /report/patient?days=7`: "Your week", the same period in plain words.
+- `GET /fhir?days=14`: FHIR R4 Bundle as a download the patient can hand to a clinic.
+- `GET /summary` (all numbers as JSON), `POST /sessions` (a session marked simulated is refused),
+  `POST /phq9 {"answers": [...]}`.
+- `?demo=1`: a synthetic 14-day patient, no token, read-only, marked SIMULATED on every output.
+
+One access token, the patient's (`jetson/hub/auth.py`). The hub generates it on first start, keeps it in
+the volume and prints it to its log that one time; `--env AFFERENT_PATIENT_TOKEN=…` sets it instead. APIs
+take `Authorization: Bearer <token>`; the two HTML reports also take `?token=` and swap it for a 12 h
+cookie. `/health` answers `{"ok": true}` to anyone and adds the collector counters with the token.
+
+```sh
+wendy device logs afferent-hub --tail 200 --no-follow --device <jetson>    # the token, after the first start
+wendy net forward 8090:18090 --device <jetson>
+open "http://localhost:8090/report/handover?token=$PATIENT"
+curl -H "Authorization: Bearer $PATIENT" -OJ localhost:8090/fhir
+```
+
+Collector (`store_state()` in `app.py`), every 5 s from the UNO Q's `/state`. Only what was measured on
+the patient just now is stored, labelled `finger_ppg`; the rest stays missing, never 0:
+
+- pulse: presence `active`, quality reported and at least 0.3, newest beat at most 3 s old. Otherwise it
+  is counted in `collector.skipped_low_quality` or `skipped_stale` and not stored.
+- HRV and breathing rate: only after 6 s of presence `active`.
+- nothing from the fingers while the two clips are on two different people (`finger.two_hearts`).
+
+Tests: `cd jetson/hub && python3 -m unittest discover tests`. The collector rules have run in tests only,
+not against the UNO Q.
 
 ## Team access
 
@@ -169,8 +210,9 @@ Live demo: https://afferent-demo.david-noel-vinu.workers.dev
 Needs Python 3. Creates `hub/.venv` on first run and prints the LAN addresses for the phone.
 
 - Clinic dashboard: http://localhost:8000/clinic/
-- Game: http://localhost:8000/app/?input=auto&clock=morning
+- Game: http://localhost:8000/app/
 - Patient view: http://localhost:8000/app/patient.html?patient=anna
+- `?input=auto` (opt-in, never the default): autoplay story, only for unattended demos
 
 `./start.sh --help` lists the options. Reset the demo data with `curl -X POST localhost:8000/api/demo/reset`.
 
@@ -201,16 +243,60 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 `npm run open:android` opens the project in Android Studio instead.
 
+Toolchain, before any Gradle or adb command (JDK 21 and the Android SDK from Homebrew; `android/local.properties` with `sdk.dir=` also works and is never committed):
+
+```
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21; export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+```
+
+- Tests: `cd android && ./gradlew testDebugUnitTest`. After a change in `demo/`, `npm run sync` first, or the APK carries the old web layer.
+- Native, with the same plugin names, calls and events as on iOS: `AfferentFinger` (the finger clips over Bluetooth: pulse, per-finger pulse, breathing rate, RMSSD) and `AfferentPresence` (Home and visitors). Haptics and the morning reminder come from the Capacitor npm plugins. Both Bluetooth plugins stop scanning and let go of the board a few seconds after the app leaves the foreground (as iOS does by suspending the app) and look again when it is back.
+- Not available on Android: ARKit and the TrueDepth camera. Eye input uses the front camera with the MediaPipe model bundled in the app (no network, source `mediapipe`); what it cannot measure arrives as "not available" (null), never as zero.
+- State: builds and passes its unit tests. Not yet run on an Android phone or against the UNO Q.
+
 ### Real sensors in the app
 
-The two finger clips on the UNO Q feed the app with pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
+The two finger clips on the UNO Q feed the app with pulse, per-finger pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
 
-- Phone, direct: the `AfferentFinger` plugin reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading).
-- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone and the clinic view.
+- Phone, direct: the `AfferentFinger` plugin (iOS and Android, same calls and events) reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading; RMSSD byte `255` = above 254 ms, shown as no reading).
+- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone only.
 
-Rules: a reading counts for 3 s, quality is never invented, real and simulated are never mixed inside a session, and anything simulated is marked in `simulated_fields`. For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`; the clinic view shows them under Signals.
+Nothing live goes to the clinic. The patient hands data over in person (signed QR code, printed report or file). The Jetson hub (`jetson/hub`, above) stores the finger readings for the patient's own report and serves only the patient.
 
-Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
+Rules, the same on both paths:
+
+- A reading counts for 3 s, counted from the age of the value. Presence and contact expire the same way when the sensor goes quiet.
+- A fused pulse with reported quality below 0.3, or with no reported quality, is not shown, not recorded and does not drive the game. Quality is never invented; a missing value stays missing. The camera pulse (`rppg`) has the same 3 s rule, is its own number and never drives the game (below).
+- With both paths live, the one that has a usable pulse is used, Bluetooth first. A Bluetooth reading without usable quality never hides the hub pulse.
+- Real and simulated are never mixed inside a session. The session decides at its start: with a live sensor it uses real readings only, without one it runs on the simulated pulse to its end and clips put on later do not count in it, so put the clips on first. A frame the hub flags `simulated` has `source: simulated` on both sides, and anything simulated is marked in `simulated_fields`.
+- The app first asks for Bluetooth when the patient opens Settings or Your signals or starts a session with the pulse stone switch on, not at launch.
+
+For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`.
+
+Camera pulse on the phone: the `AfferentPulse` plugin estimates the pulse from the front camera (POS rPPG, `ios/Afferent/FacePulse.swift` and `PulseEstimator.swift`, the reference app's own files compiled into the app), labelled `rppg`. It reads the frames of the app's one ARKit face session (`ios/App/App/FaceSession.swift`), the same session and the same delegate that give `AfferentEyes` its eyes and the face measures theirs; the session runs while any of the three wants it. Per frame it reads the skin patches inside the callback and keeps no frame; the estimate runs once a second off the frame queue. It runs while the phone camera switch is on and the app is visible (`demo/js/campulse.js`), needs ARKit face tracking, and sends one `pulse` event a second into `A.Sensors.feedNativePulse` with `source` (`rppg`), `bpm`, `quality` (the trust score / 100), `trust` {score, label, reasons} from the estimator unchanged, and `light` (mean skin luma, `dark`/`ok`/`bright`, the frame's exposure time; `iso` is null because ARKit does not give it). Without a reading `bpm`, `quality` and `trust` are null or absent, never 0. Rules: it is its own number ("Pulse, camera estimate" on Your signals, `vitals.camera_pulse` in the session), it never feeds `pulse()` and never drives the game, a reading counts for 3 s, and below trust 40 (the app's "unreliable") no bpm is shown or recorded. Exposure and white balance are locked 2.8 s after a start when the camera offers a lockable device; the ARKit face camera never does, so it then measures under auto exposure (`exposure: 'auto'` in the event) and starts its window over whenever the exposure time or offset moves. A second in which no new samples came in (face blown out, for example) sends no bpm instead of the last one (`AfferentPulseGate.swift`). Every event and `status()` say why there is no camera pulse when there is none (`reason`: `no_face`, `exposure_not_locked`, `too_dark`, `too_bright`, `moving`, `warming_up`, `weak_signal`, with `warmup_s_left` while waiting); the web layer has it as `A.Sensors.cameraWhy(now)`. The camera bpm and trust score are not in `live_metrics`: they reach the home hub only in the session document at the end of a session. Frames stay on the phone and are not stored. Estimator and gate tests: `cd ios/App/TeamTests && swift test`. There is one camera plugin, `AfferentPulse`, for the pulse and the face measures, and no second capture session. The app needs iOS 17, so every iPhone it runs on has an A12 chip or later, and Apple documents ARKit face tracking on those with or without a TrueDepth camera. Where face tracking is not supported (an iPad without a Neural Engine) "Your signals" says "Not available on this phone" for the camera pulse and the game falls back to touch.
+
+Face measures from the phone camera: `A.Face` in `demo/js/face.js` starts them on the same `AfferentPulse` plugin (`faceStart`, `faceStop`, `faceStatus`; events `faceState`, `face` once a second, `micro` per brief facial movement) while the Phone camera setting is on and the app is visible. Pulse and face measures start and stop on their own. They need a TrueDepth camera: ARKit tracks faces without one, but the session says `arkit_truedepth`, so on such a phone the state is `unavailable`: no Face group and no `vitals.face`, while eyes and camera pulse still run. The measures are named by what the face does: smiling, facial movement, blinks, looking away, brief facial movements by face region, breathing from head motion. They are shown under Face on "Your signals" and stored per session in the optional `vitals.face` block; shares and rates are over tracked seconds and null below 30 of them. Camera frames, images, face meshes and the raw blendshape stream stay in the native layer; the web layer only gets the per-second numbers. The face numbers go to the patient's own home hub in the session document at the end of a session, like every other vitals block, and from there to a doctor only through the QR handover: the hub keeps them in its store, and its clinic routes (`/api/patients/{id}`, `/api/sessions/{id}`, the clinic export) leave the face block out. No face number is in a live message, and none drives the game. Without the plugin the app shows and stores nothing about faces. Tests: `node demo/tests/face.test.js`. The plugin's face half is `ios/App/App/FaceMeasures.swift`; the measures are the Swift package `ios/App/FaceCore` (`cd ios/App/FaceCore && swift test`), ported from `ios/Afferent`. Gaze calibration: `calibrationStart`, `calibrationPoint({ x, y, hold_ms })` once per dot, `calibrationFinish`, `calibrationStatus`, `calibrationClear`, documented at the top of `FaceMeasures.swift`. The fit is the reference app's (gain and offset per axis, stored under `afferent.gazeCalibration`), run on dots whose place on the glass is known: the screen's size comes from the panel's pixel count and the pixel density of the hardware model, not from an assumed size. A fit that is not good enough is reported and not stored.
+
+Breathing task: while the clips give a real breathing rate that is at most 3 s old, the task draws a ring around the guide and one line ("You: 9 breaths a minute · Guide: 6"); without one the task is unchanged, and Settings > Sensors > Breathing pace turns it off. The sensor derives the rate from its last 40 s of heart rhythm, so it describes a pace, not a breath; the average shown after the task, on the "Your signals" sheet and in `tasks[].extra.breathing` covers the task and the 40 s before it. Logic in `demo/js/breathing.js`, tests in `demo/tests/breathing.test.js`.
+
+What the app claims matches the hardware: the "pulse stone" is the two finger clips, the "bedside light" is one small LED, and there is no bed sensor, so the `presence` switch is always off and never offered (`demo/tests/hardware.test.js`).
+
+Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`). Off unless the patient turns it on. The bedside unit heard over Bluetooth means home; its silence means "could not look", so leaving home is only decided when the saved home Wi-Fi (two devices or more) is gone too. Learning who is usually around counts watched time only: app open and Bluetooth on.
+
+### Sensor numbers in the handover
+
+No sensor number is sent or streamed to the clinic page. Its socket only says which stored document changed (`session_added`: ids, day, status; `analytics_updated`: the list row). The page has two inputs: the stored session documents on the patient's own hub, which it reads over HTTP and re-reads when a session has been stored (Signals in the patient detail), and the code the patient shows or prints (Signals in the imported view).
+
+This holds for the clinic page, not for the hub's network. `GET /api/bedside/state` gives the current pulse and `physio` to the hub's own machine only, but `/ws/app` relays the current readings to any client that connects as the phone, and the stored documents have no login. Closing that needs a pairing token for the phone: not decided yet.
+
+The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numbers from the finger clips for its 8 weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms).
+
+- Built in `hub/afferent_hub/qr.py` (`vitals_block`) from the `vitals` blocks of the stored sessions: per day the last played session, per week the median, as for the other measures. The pulse is the session mean of the fused finger pulse, with the clips on during play. It is not `morning_pulse`, which is the bedside morning reading of `daily.v1` and has no real source today.
+- The recorder (`demo/js/record.js`) keeps a finger reading only when its reported quality is 0.3 or more; a weaker stretch is a gap. A session counts only when its finger block reports quality, that quality never fell below 0.3, and it has at least 10 s of readings; the clinic's Signals section applies the same rule to a stored session. A week without such a session has no value (never 0). Simulated sessions are used only when there is no measured one, and the number is then marked simulated.
+- In the code they are map key 18, and the version stays 1. A code made before this still decodes (no key 18: "carries no finger sensor numbers"). A code made after it decodes in an older reader, which shows everything else and ignores key 18; the signature covers the whole body either way. New numbers go into a new key, never into `FEATURES`, whose fixed lengths older readers check.
+- Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
+- The printed page lists the same weekly numbers under the code.
 
 ### Layout
 

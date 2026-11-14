@@ -84,14 +84,14 @@
           A.Skill?.progress(ID, 0, n);
           this.boats = pos.map((bp, j) => {
             const bt = { j, ferry: j === n - 1, li: -1, moor: 0, passes: 0, state: 'wait', tele: 2, tA: 0, tR: 0, mt: -9, resT: 0, dockAt: 0, hitAt: -9, missAt: -9, grade: null, rs: 0, rv: V_LANE, face0: 1, ex: 1 };
-            this.at(bt, bp);
+            this.place(bt, bp);
             return bt;
           });
           fx.limit = 90;
           this.log();
         },
 
-        at(bt, p) {
+        place(bt, p) {
           bt.p = p; bt.tl = this.t0 + p * this.P; bt.side = p % 1 ? 0 : Math.round(p) % 2 ? -1 : 1;
           bt.plan = undefined; bt.botTapped = false;
         },
@@ -105,14 +105,14 @@
             let q = bt.p;
             while (q < minB) q += 2;
             const delta = q - bt.p;
-            for (const o of this.boats) if (o === bt || o.state === 'wait') this.at(o, o.p + delta);
+            for (const o of this.boats) if (o === bt || o.state === 'wait') this.place(o, o.p + delta);
             while (this.t0 + ferry.p * this.P > lim) {
               const rest = this.boats.filter(o => o.state === 'wait' && !o.ferry);
               if (rest.length < 2) break;
               const drop = rest[rest.length - 1];
               this.boats.splice(this.boats.indexOf(drop), 1);
               const last = Math.max(bt.p, ...this.boats.filter(o => !o.ferry).map(o => o.p));
-              this.at(ferry, last + (last % 1 ? 2.5 : 2));
+              this.place(ferry, last + (last % 1 ? 2.5 : 2));
             }
             this.n = this.boats.length;
             this.practice++;
@@ -120,14 +120,14 @@
           }
           if (bt.ferry) {
             if (this.t0 + minB * this.P > lim) return false;
-            this.at(bt, minB);
+            this.place(bt, minB);
             return true;
           }
           if (ferry.state !== 'wait') return false;
           const last = Math.max(...this.boats.filter(o => !o.ferry && o !== bt && (o.state === 'wait' || o.state === 'in' || o.state === 'out')).map(o => o.p), -9);
           const q = Math.max(minB, Math.ceil(last + 1.5)), fp = q + 2;
           if (this.t0 + fp * this.P > lim) return false;
-          this.at(bt, q); this.at(ferry, fp);
+          this.place(bt, q); this.place(ferry, fp);
           return true;
         },
 
@@ -213,6 +213,8 @@
         },
 
         miss(bt, now) {
+          this.rt?.cue(bt, 'beat', bt.tR);
+          if (this.taps) this.rt?.lapse(bt); else this.rt?.drop(bt);
           this.resolve(bt, now);
           this.missed++;
           if (this.taps) this.trial('miss', now);
@@ -294,6 +296,8 @@
             this.offs.push(Math.round(off * 1000));
             if (near.state === 'in' && a <= w.barely) {
               this.wins.push(w.barely);
+              this.rt?.cue(near, 'beat', near.tR);
+              this.rt?.hit(near, ts);
               this.hit(near, a <= w.perfect ? 'perfect' : a <= w.good ? 'good' : 'barely', now);
               return;
             }

@@ -14,7 +14,7 @@
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
   const DAWN_S = 8, PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 102, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
-  const MEASURE_RIDE_S = 20, SPARK_S = 0.7, SPARK_C = hex('#FFD9A0');
+  const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8, SPARK_S = 0.7, SPARK_C = hex('#FFD9A0');
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
   const RP = () => A.PRESENT?.reaction || {};
@@ -67,7 +67,7 @@
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
-      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0),
+      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0), face: A.Record.faceTrack(),
 
       rec: {
         schema: 'afferent.session/3', session_id: uuid(), patient_id: A.config.patientId, device_id: A.config.deviceId, app_version: A.config.appVersion,
@@ -80,7 +80,7 @@
       setPhase(p) { this.phase = p; this.phaseAt = A.now(); A.bus.emit('segment', p); },
       light(rgbHex, level, fade_ms, reason) {
         if (this.night && A.config.quietNight !== false) level = Math.min(level, QUIET_CAP);
-        this.lastLightLevel = level;
+        if (A.config.sensors.bedside_light && A.Hub?.connected) this.lastLightLevel = level;
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
         if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },
@@ -162,6 +162,7 @@
 
       startRt(now) {
         this.core.nextTrialAt = now + 0.3 + (RP().leadIn || 0);
+        this.rtArmed = this.auto || this.moodStart != null;
         this.setPhase('rt');
       },
 
@@ -173,6 +174,7 @@
       updateRt(now, dt) {
         const c = this.core, t = now - this.phaseAt;
         RP().update?.(this, now, dt);
+        if (!this.rtArmed) { this.phaseAt = now; c.nextTrialAt = now + 0.3 + (RP().leadIn || 0); return; }
         let tr = c.trial;
         if (!tr && c.trials.length < 5 && now >= c.nextTrialAt) tr = c.trial = { fp: 1 + R() * 1.5, start: now, onset: null, autoAt: null };
         if (tr) {
@@ -211,7 +213,7 @@
           rest: {
             duration_ms: Math.round(restS * 1000), pulse_bpm: r1(med(c.pulse)), pulse_quality: pq === null ? null : r3(pq),
             blink_rate_per_min: c.open.length ? r1(c.blinks / restS * 60) : null, blink_count: c.open.length ? c.blinks : null,
-            blink_quality: c.open.length ? r3(0.6 * trackedRatio) : null,
+            blink_quality: c.open.length ? trackedRatio : null,
             eye_openness: c.open.length ? r3(med(c.open)) : null, eye_quality: c.open.length ? trackedRatio : null, eyes_tracked_ratio: trackedRatio,
             head_pitch_deg: r1(med(c.pitch)), head_pitch_quality: c.pitch.length ? q(c.pitch.length, c.frames) : null,
             ambient_light: c.ambient.length ? r3(med(c.ambient)) : null,
@@ -348,9 +350,10 @@
           if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) g.cycles = 1;
         }
         g.bare ??= true;
+        if (!measure) g.rt = A.RT?.log() ?? null;
         const kind = measure ? 'measurement' : 'adaptive', taskMode = measure ? 'measure' : gameMode, def = A.MINIGAMES[id];
         A.J?.beat.set(def?.bpm ? def.bpm(MODES[gameMode].tempo, k ?? 0) : MODES[gameMode].tempo, now);
-        Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind });
+        Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind, inputs0: this.inputs });
         this.game = g; this.gameMode = taskMode;
         if (this.T.taskStart(g, now) && A.Skill?.cur?.id === id) { const c = A.Skill.cur; c.c = c.tiers[0]; c.tier = 1; c.carry = true; }
         this.track = A.Record.track({ id, slot, kind, mode: taskMode, director_mode: mode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight), assign_p: assignP }, now);
@@ -366,6 +369,10 @@
         const out = { completed_by: by, completed: g.done, items: g.items, errors: g.errors, sessionT0: this.t0 };
         if (g.id === 'breath') out.breath_sync = g.sync;
         if (g.kind !== 'measurement' && g.extra && Object.keys(g.extra).length) out.extra = { ...g.extra };
+        const breathing = g.id === 'breath' ? g.fb?.result() ?? null : null;
+        if (breathing) { out.extra = { ...out.extra, breathing }; this.breathResult = { ...breathing, until: now + BREATH_RESULT_S }; }
+        const rt = g.kind === 'measurement' ? null : g.rt?.summary();
+        if (rt) out.extra = { ...out.extra, rt };
         const dda = g.kind === 'measurement' ? null : A.Skill?.finish(g.id);
         if (dda) out.extra = { ...out.extra, dda };
         if (g.id === 'fork') { this.forkRec = A.Record.fork(g); out.extra = { glows: g.glows, hard_sides: g.choices.map(c => c.hard_side), ...A.PRESENT?.fork?.extra?.(g) }; out.completed = g.done && this.forkRec.choices.every(c => c.completed); }
@@ -396,7 +403,7 @@
       startDawn(now) {
         this.dawnAt = now; V.dawnT = 0;
         this.setPhase('dawn');
-        Au.dawnPhrase();
+        if (!A.Music) Au.dawnPhrase();
         const hexc = this.night ? '#FFC98A' : '#FFF3DC', level = this.night ? A.config.dawnLevel : 60;
         V.borderColor = hex(hexc);
         this.light(hexc, level, 4000, 'dawn');
@@ -451,7 +458,8 @@
         V.fogDrift = m === 'calm' || m === 'rest' ? 0.5 : 1 + k;
         V.sparkle = ema(V.sparkle, m === 'wake' ? 0.3 + 0.5 * k : 0, dt, 1);
         V.border = ema(V.border, m === 'fatigue' && !this.night ? 0.25 : 0.1, dt, 1.5);
-        if (this.phase !== 'dawn' && this.phase !== 'end') Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
+        const fileBed = A.Music?.bed && !A.Music.bed.procedural;
+        if (this.phase !== 'dawn' && this.phase !== 'end' && !fileBed) Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
       },
 
       sample(now, dt, p, f) {
@@ -487,7 +495,7 @@
           head_pitch_deg: f?.tracked && f.head_pitch_deg != null ? r1(f.head_pitch_deg) : null, face_tracked: !!f?.tracked,
           arousal: r3(this.a), fatigue: r3(this.fat), ambient_light: f?.ambient_light == null ? null : r3(f.ambient_light),
           profile: this.profile, simulated: p.source === 'simulated' || this.eyesSource === 'simulated' || this.auto || this.profile !== 'live',
-          physio: A.Sensors.livePhysio(now), camera_pulse: A.Sensors.cameraPulse(now),
+          physio: A.Sensors.livePhysio(now),
         };
       },
 
@@ -549,7 +557,7 @@
           g.t += dt;
           g.update(dt, now);
           if (this.auto && !g.done) g.auto?.(dt, now);
-          if (g.done && now - g.finishedAt > 0.7) this.endGame(now, 'touch');
+          if (g.done && now - g.finishedAt > 0.7) this.endGame(now, this.auto || this.inputs > g.inputs0 ? 'touch' : 'auto');
           else if (!g.done && g.t >= g.max) this.endGame(now, 'auto');
           else if (g.id === 'breath' && g.mode === 'rest' && this.playLeft(now) <= 0) this.endGame(now, 'touch');
         }
@@ -591,7 +599,7 @@
         if (type === 'pdown' || type === 'key') this.inputs++;
         if (type === 'exit') { this.finish('partial'); return; }
         if (this.T.handle(type, d)) return;
-        if (this.phase === 'rt' && (type === 'pdown' || type === 'key')) { this.coreTap(RP().tapTime ? RP().tapTime(d) : d.t); return; }
+        if (this.phase === 'rt' && (type === 'pdown' || type === 'key')) { if (this.rtArmed) this.coreTap(RP().tapTime ? RP().tapTime(d) : d.t); else this.rtArmed = true; return; }
         const g = this.phase === 'checkin' ? this.panel : this.phase === 'game' ? this.game : null;
         if (!g || g.world || g.done || type === 'key') return;
         const b = this.box(), u = (d.x - b.x) / b.w, v = (d.y - b.y) / b.h;
@@ -655,6 +663,7 @@
         if (this.game) this.closeTask(A.now(), 'auto');
         if (!this.coreRec && status !== 'declined') this.coreRec = this.phase === 'fadein' ? null : this.buildCore(A.now());
         this.done = true; this.panel = null;
+        if (A.Sensors.faceTrack === this.face) A.Sensors.faceTrack = null;
         const doc = A.Record.session(this, status);
         const ride = this.T?.record();
         if (ride) doc.ride = ride;
@@ -666,6 +675,7 @@
         A.bus.emit('sessionEnd', doc);
       },
     };
+    A.Sensors.faceTrack = s.face;
     A.Skill?.begin(s);
     s.T = A.Traverse.create(s);
     return s;

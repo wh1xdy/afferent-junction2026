@@ -1,9 +1,12 @@
 (() => {
   const S = A.Sensors;
-  const MAX_AGE_MS = 3000;
+  const MAX_AGE_MS = 3000, ASKED = 'afferent.finger.asked';
+  const asked = () => { try { return localStorage.getItem(ASKED) === '1'; } catch { return false; } };
 
   const Finger = A.Finger = {
-    plugin: null, listeners: null, starting: false,
+    // armed: the patient has been where the finger sensor is used or explained (Settings, Your signals,
+    // a session). The plugin's first start shows the iOS Bluetooth prompt, so it never starts before that.
+    plugin: null, listeners: null, starting: false, armed: asked(),
 
     available() { return !!(this.plugin || (this.plugin = A.plug('AfferentFinger') ?? null)); },
 
@@ -38,7 +41,12 @@
       S.setFingerLink(this.available() ? 'off' : 'unavailable');
     },
 
-    sync() { return A.config?.sensors?.pulse_stone && this.available() ? this.start() : this.stop(); },
+    sync() { return this.armed && A.config?.sensors?.pulse_stone && this.available() ? this.start() : this.stop(); },
+
+    arm() {
+      if (!this.armed) { this.armed = true; try { localStorage.setItem(ASKED, '1'); } catch {} }
+      return this.sync();
+    },
 
     onReading(d) {
       if (!d) return;

@@ -1,0 +1,45 @@
+:root {
+  --af-safe-t: env(safe-area-inset-top, 0px);
+  --af-safe-r: env(safe-area-inset-right, 0px);
+  --af-safe-b: env(safe-area-inset-bottom, 0px);
+  --af-safe-l: env(safe-area-inset-left, 0px);
+  --af-gutter: 16px;
+
+  --af-ease-glide: cubic-bezier(0.22, 1, 0.36, 1);
+  --af-ease-drift: cubic-bezier(0.45, 0, 0.2, 1);
+  --af-dur-drift: 900ms;
+
+  --af-ink-deep: #060D1C;
+  --af-ember: #FFB54A;
+  --af-quote-ink: #3A3226;
+  --af-hush: #121212;
+
+  --af-glass: color-mix(in srgb, var(--af-fjord) 40%, transparent);
+  --af-glass-strong: color-mix(in srgb, var(--af-fjord) 66%, transparent);
+  --af-glass-blur: blur(22px) saturate(1.6) brightness(1.06);
+  --af-glass-edge: inset 0 0 0 1px rgba(242, 238, 230, 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(3, 8, 20, 0.18);
+  --af-hair: rgba(242, 238, 230, 0.08);
+
+  --af-lift-1: 0 1px 2px rgba(3, 8, 20, 0.20), 0 6px 16px rgba(3, 8, 20, 0.22);
+  --af-lift-2: 0 2px 6px rgba(3, 8, 20, 0.22), 0 12px 28px rgba(3, 8, 20, 0.30), 0 28px 60px rgba(3, 8, 20, 0.26);
+  --af-lift-sheet: 0 -1px 0 rgba(255, 255, 255, 0.10), 0 -12px 30px rgba(3, 8, 20, 0.30), 0 -30px 80px rgba(3, 8, 20, 0.34);
+
+  --af-glow-accent: 0 0 0 1px color-mix(in srgb, var(--af-sun, #F2C230) 30%, transparent), 0 0 18px color-mix(in srgb, var(--af-honey) 30%, transparent), 0 0 44px color-mix(in srgb, var(--af-honey) 14%, transparent);
+  --af-text-lift: 0 1px 2px rgba(3, 8, 20, 0.28), 0 2px 18px color-mix(in srgb, var(--af-fjord) 72%, transparent);
+  --af-icon-lift: drop-shadow(0 1px 6px rgba(3, 8, 20, 0.45));
+
+  --af-sheen: linear-gradient(to bottom, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 55%);
+  --af-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.46 0 0 0 0 0.4 0.30 0 0 0 -0.09'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --af-grain-size: 180px;
+
+  --af-label-track: 0.16em;
+  --af-warm-spill: radial-gradient(closest-side, color-mix(in srgb, var(--af-honey) 34%, transparent), color-mix(in srgb, var(--af-ember) 12%, transparent) 55%, transparent);
+  --af-vignette: radial-gradient(125% 90% at 50% 45%, transparent 52%, rgba(3, 8, 20, 0.42) 100%);
+}
+
+#phone::after {
+  content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  background: var(--af-grain), var(--af-vignette); background-size: var(--af-grain-size), auto;
+  opacity: 0.85;
+}
+

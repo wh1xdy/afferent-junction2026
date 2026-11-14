@@ -127,6 +127,7 @@ def codebook(daily_cols: list[str], feature_cols: list[str], checkin_cols: list[
     return _csv(rows)
 
 def build(patient: dict, sessions: list[dict], daily: list[dict], analytics: dict, checkins: list[dict]):
+    sessions = [views.without_face(s) for s in sessions]
     simulated = bool(patient.get("simulated", True)) or any(s.get("simulated") for s in sessions) or any(
         d.get("simulated") for d in daily)
     nd = views.now_day(patient)

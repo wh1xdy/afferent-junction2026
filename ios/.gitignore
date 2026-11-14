@@ -1,4 +1,5 @@
 App/build
+build-*/
 App/Pods
 App/output
 App/App/public
@@ -12,3 +13,5 @@ capacitor-cordova-ios-plugins
 App/App/capacitor.config.json
 App/App/config.xml
 App/FingerTests/.build
+App/TeamTests/.build
+App/TeamTests/.swiftpm

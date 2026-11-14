@@ -1,12 +1,22 @@
+import ipaddress
+
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse, Response
 
+from .. import views
 from ..service import Hub, HubError
 
 router = APIRouter(prefix="/api")
 
 def hub(request: Request) -> Hub:
     return request.app.state.hub
+
+def _same_machine(request: Request) -> bool:
+    try:
+        ip = ipaddress.ip_address(request.client.host)
+    except (AttributeError, ValueError):
+        return False
+    return (getattr(ip, "ipv4_mapped", None) or ip).is_loopback
 
 def _obj(body) -> dict:
     if not isinstance(body, dict):
@@ -54,6 +64,14 @@ async def export(pid: str, request: Request):
     name, data = hub(request).export(pid)
     return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+@router.post("/export/publish")
+async def export_publish(request: Request, body=Body(...)):
+    return hub(request).export_publish(_obj(body))
+
+@router.get("/export/dashboard")
+async def export_dashboard(request: Request):
+    return Response(hub(request).export_dashboard(), media_type="text/html")
+
 @router.post("/patients/{pid}/flags/clear")
 async def flags_clear(pid: str, request: Request):
     await hub(request).clear_flags(pid)
@@ -64,7 +82,7 @@ async def session(sid: str, request: Request):
     doc = hub(request).store.session(sid)
     if doc is None:
         raise HubError(404, "unknown_session", f"No session with id {sid!r}")
-    return doc
+    return views.without_face(doc)
 
 @router.post("/sessions")
 async def post_session(request: Request, body=Body(...)):
@@ -99,7 +117,11 @@ async def demo_profile(request: Request, body=Body(...)):
 
 @router.get("/bedside/state")
 async def bedside_state(request: Request):
-    return hub(request).bedside.snapshot()
+    snap = hub(request).bedside.snapshot()
+    if not _same_machine(request):
+        snap.pop("pulse", None)
+        snap.pop("physio", None)
+    return snap
 
 @router.post("/bedside/camera")
 async def bedside_camera(request: Request, body=Body(...)):

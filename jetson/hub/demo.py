@@ -17,9 +17,9 @@ def demo_store(now=None, seed=2):
         second = d >= 7
         for k in range(120):
             ts = t0 + k * 5
-            s.add_reading("finger_bpm", (72 if second else 64) + rnd.gauss(0, 4) + abs(rnd.gauss(0, 6)), ts)
-            s.add_reading("hrv_rmssd", (38 if second else 55) + rnd.gauss(0, 5), ts)
-            s.add_reading("breathing", (16 if second else 13) + rnd.gauss(0, 1), ts)
+            s.add_reading("finger_bpm", (72 if second else 64) + rnd.gauss(0, 4) + abs(rnd.gauss(0, 6)), ts, "simulated")
+            s.add_reading("hrv_rmssd", (38 if second else 55) + rnd.gauss(0, 5), ts, "simulated")
+            s.add_reading("breathing", (16 if second else 13) + rnd.gauss(0, 1), ts, "simulated")
     s.add_phq9([1, 1, 1, 1, 1, 0, 1, 0, 0], now - 12 * DAY)
     s.add_phq9([2, 2, 1, 2, 1, 1, 1, 0, 1], now - 1 * DAY)
     s.add_session({"summary": {"smileShare": 0.08, "expressivity": 0.05, "blinksPerMinute": 14,

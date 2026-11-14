@@ -15,7 +15,7 @@
   "input_backend": "arkit",
   "duration_ms": 109800,
   "sharing": "summary",
-  "sensors": { "phone_camera": true, "pulse_stone": false, "bedside_camera": false, "bedside_light": true, "presence": true, "phone_motion": false },
+  "sensors": { "phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": false, "phone_motion": false },
   "signal": {
     "pulse_source": "simulated",
     "pulse_quality_mean": 0.9,

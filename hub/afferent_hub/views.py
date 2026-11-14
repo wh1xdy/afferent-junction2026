@@ -7,12 +7,12 @@ WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MOOD_HEX = {1: "#34476E", 2: "#5A7CA6", 3: "#A9A79A", 4: "#E8B867", 5: "#FFCB5C"}
 
 SENSORS = [
-    ("phone_camera", "Phone camera", "Eye openness, blinks and head angle as numbers. Never images."),
+    ("phone_camera", "Phone camera", "Eye openness, blinks, head angle, a camera pulse estimate and how your face moves (smiling, how much it moves, looking away, brief movements by face region, breathing) as numbers. Never images."),
     ("pulse_stone", "Pulse stone",
      "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."),
     ("bedside_camera", "Bedside camera", "A stick figure while you play. Never images."),
-    ("bedside_light", "Bedside light", "Nothing. It only receives light colours."),
-    ("presence", "Bed presence", "Time in bed and restless moments."),
+    ("bedside_light", "Bedside light",
+     "Nothing. It is one small LED on the bedside unit and only receives colours."),
     ("phone_presence", "Home or away", "Hours at home and a count of nearby unknown devices. Nobody is identified."),
     ("phone_motion", "Steps", "A daily step count (simulated in this demo)."),
 ]
@@ -20,7 +20,7 @@ SENSORS = [
 DEFAULT_PRIVACY = {
     "sharing": "summary",
     "sensors": {"phone_camera": True, "pulse_stone": True, "bedside_camera": False, "bedside_light": True,
-                "presence": True, "phone_presence": True, "phone_motion": True},
+                "presence": False, "phone_presence": True, "phone_motion": True},
 }
 
 HELPED_TEXT = {
@@ -53,7 +53,7 @@ DAWN_TEXT = "Days with the dawn light are often followed by brighter check-ins (
 
 CLINIC_SEES = [
     "Numbers from your sessions compared with your own baseline",
-    "Sleep and rest pattern from the bed sensor",
+    "Sleep and rest pattern, simulated in this demo (there is no bed sensor)",
     "A weekly summary written from those numbers",
     "Never camera images, sound or messages",
 ]
@@ -102,7 +102,14 @@ def _get(d, *path, default=None):
         d = d.get(k)
     return default if d is None else d
 
+def without_face(s: dict | None) -> dict | None:
+    v = (s or {}).get("vitals")
+    if not isinstance(v, dict) or "face" not in v:
+        return s
+    return {**s, "vitals": {k: x for k, x in v.items() if k != "face"}}
+
 def compact_session(s: dict) -> dict:
+    s = without_face(s)
     return {
         "session_id": s["session_id"], "day_index": s.get("day_index"), "started_iso": s.get("started_iso"),
         "status": s.get("status"), "profile": s.get("profile"), "simulated": s.get("simulated"),
@@ -113,10 +120,8 @@ def compact_session(s: dict) -> dict:
     }
 
 def session_added(s: dict) -> dict:
-    c = compact_session(s)
-    return {"type": "session_added", "patient_id": s["patient_id"],
-            **{k: c[k] for k in ("session_id", "day_index", "status", "profile", "simulated", "pre_post",
-                                 "rt_median_ms", "mood_start", "mood_end")}}
+    return {"type": "session_added", "patient_id": s["patient_id"], "session_id": s["session_id"],
+            "day_index": s.get("day_index"), "status": s.get("status")}
 
 def day_sessions(sessions: list[dict], day: int) -> list[dict]:
     return [s for s in sessions if s.get("day_index") == day and s.get("status") in PLAYED]

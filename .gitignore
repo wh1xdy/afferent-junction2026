@@ -48,3 +48,7 @@ art/v5review/
 art/final2/raw/
 art/final2/hires/
 art/final2/sheets/
+art/audio/raw/
+
+# Voice relay address and access code baked in at build time (npm run voiceconfig)
+demo/js/voice-config.js

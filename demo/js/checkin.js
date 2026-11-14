@@ -291,6 +291,7 @@
     if (had === v && timer) return;
     if (had !== undefined && had !== v) run.changed[k] = (run.changed[k] || 0) + 1;
     run.answers[k] = v;
+    A.J?.hap('light');
     run.ms[k] = Math.round(performance.now() - run.shownAt);
     sheet.querySelectorAll('.ci-opt').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
     saveDraft();

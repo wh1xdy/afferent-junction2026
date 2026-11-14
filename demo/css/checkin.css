@@ -35,7 +35,9 @@
 
 .ci {
   position: absolute; inset: 0; z-index: 30; overflow: hidden;
-  background: var(--ll-surface); color: var(--ll-on-surface);
+  background: var(--af-grain), radial-gradient(130% 55% at 50% -12%, color-mix(in srgb, var(--ll-secondary-container) 70%, transparent), transparent 72%), var(--ll-surface);
+  background-size: var(--af-grain-size), auto, auto;
+  color: var(--ll-on-surface);
   font-family: var(--ll-font); -webkit-font-smoothing: antialiased;
 }
 .ci *, .ci *::before, .ci *::after { box-sizing: border-box; }
@@ -46,11 +48,11 @@
   display: flex; flex-direction: column;
   padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
   overflow-y: auto; overscroll-behavior: contain;
-  animation: ciIn 400ms var(--ll-ease-in) both;
+  animation: ciIn 620ms var(--ll-ease-in) both;
 }
 .ci-sheet.ci-question { animation-name: ciAxis; }
-@keyframes ciIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-@keyframes ciAxis { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@keyframes ciIn { from { opacity: 0; transform: translateY(28px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+@keyframes ciAxis { from { opacity: 0; transform: translateX(32px); } to { opacity: 1; transform: none; } }
 
 .ci-bar { display: flex; align-items: center; justify-content: flex-end; min-height: 48px; margin: 0 -2px; }
 .ci-talk {
@@ -59,7 +61,7 @@
 }
 .ci-talk::before {
   content: ""; position: absolute; inset: 2px; border-radius: 50%;
-  background: var(--ll-surface-high); transition: background 150ms var(--ll-ease);
+  background: var(--ll-surface-highest); transition: background 150ms var(--ll-ease);
 }
 .ci-talk:active::before { background: var(--ll-surface-highest); }
 .ci-talk svg { position: relative; width: 24px; height: 24px; }
@@ -68,7 +70,8 @@
 
 .ci-tile {
   width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center;
-  background: var(--ll-primary-container); color: var(--ll-on-primary-container);
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--ll-sun) 26%, transparent), transparent 70%), var(--ll-primary-container); color: var(--ll-on-primary-container);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 28px color-mix(in srgb, var(--ll-sun) 26%, transparent);
 }
 .ci-tile svg { width: 26px; height: 26px; }
 .ci-tile svg.lantern { width: 20px; height: 32px; }
@@ -78,7 +81,7 @@
 .ci-stem { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.1px; color: var(--ll-on-surface-variant); }
 .ci-item {
   margin: 0; outline: none; text-wrap: pretty;
-  font-family: var(--ll-brand); font-weight: 400; font-size: 28px; line-height: 36px; letter-spacing: 0; color: var(--ll-on-surface);
+  font-family: var(--ll-brand); font-weight: 300; font-size: 32px; line-height: 40px; letter-spacing: -0.3px; color: var(--ll-on-surface);
 }
 .ci-item.long { font-size: 22px; line-height: 30px; }
 .ci-item.xlong { font-family: var(--ll-font); font-size: 17px; line-height: 26px; font-weight: 400; }
@@ -88,20 +91,22 @@
 .ci-opt {
   position: relative; display: flex; align-items: center; gap: 18px; width: 100%;
   min-height: 72px; padding: 12px 20px 12px 22px; border: 0; border-radius: 8px;
-  background: var(--ll-surface-mid); color: var(--ll-on-surface);
+  background: color-mix(in srgb, var(--ll-surface-high) 88%, transparent); color: var(--ll-on-surface);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ll-on-surface) 7%, transparent), 0 4px 14px rgba(3, 8, 20, 0.12);
   font-size: 17px; line-height: 24px; font-weight: 500; text-align: left; letter-spacing: 0.1px;
-  transition: border-radius 300ms var(--ll-ease), background-color 300ms var(--ll-ease), color 300ms var(--ll-ease);
+  transition: border-radius 300ms var(--ll-ease), background-color 300ms var(--ll-ease), color 300ms var(--ll-ease), box-shadow 300ms var(--ll-ease), transform 150ms var(--ll-ease);
 }
 .ci-opt:first-child { border-top-left-radius: 28px; border-top-right-radius: 28px; }
 .ci-opt:last-child { border-bottom-left-radius: 28px; border-bottom-right-radius: 28px; }
 .ci-opt::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity 150ms var(--ll-ease); pointer-events: none; }
 .ci-opt:active::after { opacity: 0.1; }
+.ci-opt:active { transform: scale(0.99); }
 .ci-opt .lb { flex: 1; }
 .ci-dots { display: inline-flex; gap: 4px; flex: none; width: 34px; color: var(--ll-on-surface-variant); }
 .ci-dots i { width: 7px; height: 7px; border-radius: 50%; border: 1.4px solid currentColor; }
 .ci-dots i.on { background: currentColor; }
 .ci-check { width: 24px; height: 24px; flex: none; opacity: 0; transform: scale(0.6); transition: opacity 200ms var(--ll-ease), transform 300ms var(--ll-ease); }
-.ci-opt[aria-checked="true"] { border-radius: 999px; background: var(--ll-primary-container); color: var(--ll-on-primary-container); }
+.ci-opt[aria-checked="true"] { border-radius: 999px; background: var(--ll-primary-container); color: var(--ll-on-primary-container); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 0 0 1px color-mix(in srgb, var(--ll-primary) 40%, transparent), 0 10px 28px color-mix(in srgb, var(--ll-primary) 22%, transparent); }
 .ci-opt[aria-checked="true"] .ci-dots { color: var(--ll-on-primary-container); }
 .ci-opt[aria-checked="true"] .ci-check { opacity: 1; transform: none; }
 .ci :focus-visible { outline: 3px solid var(--ll-secondary); outline-offset: 2px; }
@@ -116,7 +121,7 @@
 .ci-body > .ci-tile { margin-bottom: 24px; }
 .ci-title {
   margin: 0; outline: none; text-wrap: balance;
-  font-family: var(--ll-brand); font-weight: 400; font-size: 32px; line-height: 40px; color: var(--ll-on-surface);
+  font-family: var(--ll-brand); font-weight: 300; font-size: 38px; line-height: 46px; letter-spacing: -0.4px; color: var(--ll-on-surface);
 }
 .ci-sub { margin: 16px 0 0; font-size: 17px; line-height: 26px; color: var(--ll-on-surface-variant); }
 .ci-line { margin: 0; font-size: 17px; line-height: 26px; color: var(--ll-on-surface-variant); }
@@ -135,14 +140,15 @@
 .ci-btn::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity 150ms var(--ll-ease); pointer-events: none; }
 .ci-btn:active { border-radius: 12px; }
 .ci-btn:active::after { opacity: 0.1; }
-.ci-btn.filled { background: var(--ll-primary); color: var(--ll-on-primary); }
+.ci-btn.filled { background: var(--af-sheen), var(--ll-primary); color: var(--ll-on-primary); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 1px 2px rgba(3, 8, 20, 0.16), 0 10px 26px color-mix(in srgb, var(--ll-primary) 26%, transparent); }
 .ci-btn.tonal { background: var(--ll-secondary-container); color: var(--ll-on-secondary-container); }
 .ci-btn.text { background: none; color: var(--ll-on-surface-variant); min-height: 48px; }
 
 .ci-thanks .ci-body, .ci-saved .ci-body { align-items: center; text-align: center; }
 .ci-thanks .ci-title, .ci-saved .ci-title { font-weight: 300; font-size: 36px; line-height: 44px; }
 .ci-glow { position: relative; width: 112px; height: 112px; margin-bottom: 20px; display: grid; place-items: center; color: var(--ll-sun); }
-.ci-glow::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--ll-sun) 34%, transparent), transparent); }
+.ci-glow::before { content: ""; position: absolute; inset: -24px; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--ll-sun) 46%, transparent), color-mix(in srgb, var(--ll-sun) 12%, transparent) 55%, transparent); animation: ciGlow 5200ms cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+@keyframes ciGlow { 0%, 100% { transform: scale(0.92); opacity: 0.75; } 50% { transform: scale(1.06); opacity: 1; } }
 .ci-glow svg { position: relative; width: 28px; height: 44px; }
 
 .ci-anchor .ci-title, .ci-cssrs-intro .ci-title { font-size: 28px; line-height: 36px; }
@@ -168,7 +174,7 @@
 }
 .ci-contact:first-child { border-top-left-radius: 28px; border-top-right-radius: 28px; }
 .ci-contact:last-child { border-bottom-left-radius: 28px; border-bottom-right-radius: 28px; }
-.ci-contact.main { box-shadow: inset 0 0 0 1px var(--ll-primary); background: var(--ll-surface-high); }
+.ci-contact.main { box-shadow: inset 0 0 0 1px var(--ll-primary), 0 10px 28px color-mix(in srgb, var(--ll-primary) 14%, transparent); background: var(--ll-surface-high); }
 .ci-contact::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity 150ms var(--ll-ease); pointer-events: none; }
 .ci-contact:active::after { opacity: 0.08; }
 .ci-contact.plain:active::after { opacity: 0; }
@@ -193,9 +199,11 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ci-sheet, .ci-sheet.ci-question { animation: ciFade 150ms linear both; }
+  .ci-glow::before { animation: none; }
   .ci-opt, .ci-check, .ci-btn { transition: none; }
 }
 :root[data-motion="reduced"] .ci-sheet { animation: ciFade 150ms linear both; }
+:root[data-motion="reduced"] .ci-glow::before { animation: none; }
 :root[data-motion="reduced"] .ci-opt, :root[data-motion="reduced"] .ci-check { transition: none; }
 @keyframes ciFade { from { opacity: 0; } to { opacity: 1; } }
 

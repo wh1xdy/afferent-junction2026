@@ -162,7 +162,7 @@
     "id": "phone_camera",
     "label": "Phone camera",
     "on": true,
-    "shares": "Eye openness, blinks and head angle as numbers. Never images."
+    "shares": "Eye openness, blinks, head angle, a camera pulse estimate and how your face moves (smiling, how much it moves, looking away, brief movements by face region, breathing) as numbers. Never images."
    },
    {
     "id": "pulse_stone",
@@ -180,13 +180,7 @@
     "id": "bedside_light",
     "label": "Bedside light",
     "on": true,
-    "shares": "Nothing. It only receives light colours."
-   },
-   {
-    "id": "presence",
-    "label": "Bed presence",
-    "on": true,
-    "shares": "Time in bed and restless moments."
+    "shares": "Nothing. It is one small LED on the bedside unit and only receives colours."
    },
    {
     "id": "phone_presence",
@@ -204,7 +198,7 @@
  },
  "clinic_sees": [
   "Numbers from your sessions compared with your own baseline",
-  "Sleep and rest pattern from the bed sensor",
+  "Sleep and rest pattern, simulated in this demo (there is no bed sensor)",
   "A weekly summary written from those numbers",
   "Never camera images, sound or messages"
  ],

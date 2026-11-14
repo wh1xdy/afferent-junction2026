@@ -9,7 +9,7 @@
 .sig-row .txt { overflow-wrap: anywhere; }
 .sig-val {
   flex: none; min-width: 44px; text-align: right; white-space: nowrap; color: var(--md-sys-color-on-surface);
-  font: 400 26px/32px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0;
+  font: 300 38px/40px var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: -0.5px;
 }
 .sig-row .sig-sim {
   align-self: flex-start; margin-top: 2px; padding: 0 8px; border-radius: 10px;
@@ -22,9 +22,20 @@
 .live-chip {
   position: absolute; z-index: 3; top: calc(var(--safe-top) + 52px); left: 50%; transform: translateX(-50%); pointer-events: none;
   display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; white-space: nowrap;
-  background: color-mix(in srgb, var(--af-fjord) 72%, transparent); color: var(--af-birch);
+  background: var(--af-glass-strong); color: var(--af-birch);
+  box-shadow: var(--af-glass-edge), var(--af-lift-1);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
   font: 500 12px/16px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
 }
+
+.breath-line {
+  position: absolute; z-index: 3; left: 24px; right: 24px; top: 60%; margin: 0; pointer-events: none; text-align: center;
+  color: var(--af-birch); font: 500 15px/22px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.1px;
+  text-shadow: 0 1px 12px color-mix(in srgb, var(--af-fjord) 85%, transparent); text-wrap: balance;
+  opacity: 0; transition: opacity 200ms linear;
+}
+.breath-line.on { opacity: 1; transition: opacity 600ms var(--af-ease-in); }
+.breath-line .sub { display: block; margin-top: 2px; color: var(--af-frost); font: 400 12px/16px var(--af-font-ui); letter-spacing: 0.02em; }
 
 :root[data-motion="reduced"] #signals .sheet { animation: fadeIn 150ms linear; }
 @media (prefers-reduced-motion: reduce) {

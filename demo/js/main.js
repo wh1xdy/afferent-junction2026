@@ -18,12 +18,13 @@
   A.config = {
     deviceId, appVersion: '0.3.0', patientId: q.get('patient') || 'anna', dawnLevel: 15, baselinePulse: 68,
     reducedMotion: saved.reducedMotion ?? prefersCalm,
-    sensors: { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: true, phone_motion: false, ...saved.sensors },
+    sensors: A.switches(saved.sensors),
     sharing: saved.sharing || 'summary',
     simulator: saved.simulator ?? true,
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
     signalsOverlay: saved.signalsOverlay ?? false,
+    breathFeedback: saved.breathFeedback ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -35,7 +36,7 @@
   const PROFILES = ['live', 'good_day', 'bad_day'];
   const hour = new Date().getHours();
   const ui = {
-    input: ['auto', 'touch', 'camera'].includes(q.get('input')) ? q.get('input') : 'touch',
+    input: A.Input.parse(q.get('input')),
     clock: q.get('clock') === 'night' || (!q.get('clock') && (hour >= 21 || hour < 6)) ? 'night' : 'morning',
     stage: q.get('stage') === '1',
     profile: PROFILES.includes(q.get('profile')) ? q.get('profile') : 'live',
@@ -80,7 +81,7 @@
     camGlyph();
   };
   const camGlyph = () => {
-    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera());
+    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera() || ['starting', 'on'].includes(S.camLink.state) || ['starting', 'tracking', 'no_face'].includes(S.faceState));
     $('camBtn').hidden = !on;
   };
   const setProfile = (p, from) => {
@@ -92,7 +93,7 @@
   };
   const DEV_ACT = {
     input: () => {
-      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'auto' } : { auto: 'touch', touch: 'auto', camera: 'auto' };
+      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'touch' } : { auto: 'touch', touch: 'touch', camera: 'touch' };
       ui.input = order[ui.input]; chips();
     },
     clock: () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); },
@@ -104,6 +105,7 @@
   chips();
 
   $('weekBtn').href = 'patient.html' + location.search;
+  $('qrBtn').href = 'patient.html' + location.search + '#settings';
 
   const hubKey = 'afferent.hub';
   const normHub = v => {
@@ -133,7 +135,7 @@
     A.bus.emit('home');
   };
 
-  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog'];
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog', 'voice'];
   const show = (id, on) => {
     $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
     if (CARDS.includes(id)) {
@@ -148,6 +150,7 @@
   };
   document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => show(b.dataset.close, false));
+  document.querySelectorAll('[data-open="settings"], [data-open="signals"]').forEach(b => b.addEventListener('click', () => A.Finger.arm()));
   A.bus.on('crisisOffer', () => { show('offer', true); log('talk offer shown (lowest lantern twice)'); });
   $('offerYes').onclick = () => { show('offer', false); crisis('mood'); };
   $('offerNo').onclick = () => { show('offer', false); log('talk offer declined'); };
@@ -155,7 +158,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, breathFeedback: A.config.breathFeedback, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -170,14 +173,17 @@
     $('quietSw').checked = A.config.quietNight;
     $('checkinSw').checked = A.config.checkin;
     $('sigSw').checked = A.config.signalsOverlay;
+    $('breathSw').checked = A.config.breathFeedback;
     camGlyph();
   };
+  const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
     const sensor = el.dataset.sensor;
     A.config.sensors[sensor] = el.checked;
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
-    if (sensor === 'pulse_stone') { A.Finger.sync(); if (!el.checked) S.feedPulse({ bpm: null, source: 'finger_ppg' }); }
+    if (sensor === 'pulse_stone') { if (el.checked) A.Finger.arm(); else { A.Finger.sync(); S.feedPulse({ bpm: null, source: 'finger_ppg' }); } }
+    if (sensor === 'phone_camera') { syncCamPulse(); A.Face.sync(); }
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
@@ -191,30 +197,35 @@
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
+  $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
-    if (pv.sensors) Object.assign(A.config.sensors, pv.sensors);
+    if (pv.sensors) Object.assign(A.config.sensors, A.switches(A.config.sensors, pv.sensors));
     if (pv.sharing) A.config.sharing = pv.sharing;
     syncSensors(); toggles(); saveSettings();
-    A.Finger.sync();
+    A.Finger.sync(); A.Face.sync();
     if (!A.config.sensors.pulse_stone) S.feedPulse({ bpm: null, source: 'finger_ppg' });
+    syncCamPulse();
   };
   morningText(); toggles();
-  A.Finger.sync();
+  A.Finger.sync(); A.Face.sync();
+  syncCamPulse();
+  document.addEventListener('visibilitychange', syncCamPulse);
 
   let timeline = [];
 
   document.querySelectorAll('#moodEnd .mood-lantern').forEach(b => b.onclick = () => A.session?.setMood(Number(b.dataset.v)));
 
   const begin = async () => {
+    A.Finger.arm();
     A.Audio.on = ui.sound;
     A.Audio.start(0.25);
     A.Input.mode = ui.input;
     if (ui.input === 'camera' && !S.camera()) {
       $('begin').disabled = true;
       log('starting camera');
-      try { log(`camera on (${await S.startCamera()}), only eye openness and head tilt are read`); }
+      try { log(`camera on (${await S.startCamera()}), only numbers are read: eye openness, head tilt${S.camLink.state === 'on' ? ', the pulse estimate' : ''}${['starting', 'tracking', 'no_face'].includes(S.faceState) ? ', face measures' : ''}`); }
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();
@@ -311,8 +322,11 @@
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
     log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
-    show('closeBtn', false); show('simBadge', false); show('liveChip', false); cue('');
-    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) { A.lastVitals = r.vitals; A.lastVitalsAt = Date.now(); }
+    show('closeBtn', false); show('simBadge', false); show('liveChip', false); $('breathLine').classList.remove('on'); cue('');
+    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) {
+      A.lastVitals = r.vitals; A.lastVitalsAt = Date.now();
+      A.lastBreath = [...(r.tasks || [])].reverse().find(t => t.extra?.breathing)?.extra.breathing ?? null;
+    }
     if (S.camera()) S.stop();
     camGlyph();
     if (leaving || r.status === 'declined') return;
@@ -352,6 +366,7 @@
   }
   const presets = { stressBtn: { offset: 22 }, flatBtn: { offset: -9 }, tiredBtn: { drowsy: 0.85 }, shutBtn: { eyesShut: true }, normalBtn: { offset: 0, drowsy: 0, eyesShut: false } };
   for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + $(id).textContent); };
+  addEventListener('keydown', e => { if (e.code === 'Backquote' && !e.target.closest?.('input, textarea')) document.body.classList.toggle('panel'); });
 
   const Hub = A.Hub;
   Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = (on ? 'Connected' : 'Offline') + (Hub.url ? ' · ' + Hub.httpBase().replace(/^https?:\/\//, '') : ''); log(on ? 'hub connected' : 'hub disconnected'); });
@@ -395,7 +410,7 @@
   function panel(s, now) {
     const p = S.pulse(now);
     $('pulseVal').textContent = s && p.bpm != null ? p.bpm.toFixed(0) : '--';
-    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'face (rPPG)', simulated: 'SIMULATED' }[p.source] || 'none';
+    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', simulated: 'SIMULATED' }[p.source] || 'none';
     for (const [id, key] of Object.entries(sliders)) { const el = $(id); if (!el.dataset.active) el.value = A.Sim[key]; }
     $('pulseSliderVal').textContent = (A.Sim.offset >= 0 ? '+' : '') + A.Sim.offset.toFixed(0) + ' bpm';
     $('drowsySliderVal').textContent = A.Sim.drowsy.toFixed(2);
@@ -415,6 +430,9 @@
     const chip = A.config.signalsOverlay ? A.Vitals.chip(s, p) : null;
     if (chip) $('liveChip').textContent = chip;
     show('liveChip', !!chip);
+    const breath = A.Vitals.breath(s, now);
+    if (breath) { $('breathMain').textContent = breath[0]; $('breathSub').textContent = breath[1]; }
+    $('breathLine').classList.toggle('on', !!breath);
   }
 
   let last = A.now(), frame = 0, lastLive = 0;

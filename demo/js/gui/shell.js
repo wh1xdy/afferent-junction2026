@@ -6,7 +6,7 @@
   const sw = attrs => `<span class="switch"><input type="checkbox" role="switch" ${attrs}><span class="track"></span><span class="thumb"><span class="ms">check</span></span></span>`;
 
   const lead = r => r.glyph ? `<span class="lead-glyph" aria-hidden="true">${r.glyph}</span>` : r.icon ? `<span class="ms" aria-hidden="true">${r.icon}</span>` : '';
-  const text = r => `<span class="txt"><span class="hl">${r.label}</span>${r.sup != null ? `<span class="sup"${r.supId ? ` id="${r.supId}"` : ''}>${r.sup}</span>` : ''}</span>`;
+  const text = r => `<span class="txt"><span class="hl">${r.label}</span>${r.sup != null ? `<span class="sup"${r.supId ? ` id="${r.supId}"` : ''}>${r.sup}</span>` : ''}${r.liveId ? `<span class="sup" id="${r.liveId}"></span>` : ''}</span>`;
   const row = r => {
     if (r.html) return r.html;
     const two = r.sup != null ? ' two' : '';
@@ -22,18 +22,19 @@
 
   const dev = q.has('dev');
   const GROUPS = [
-    { title: 'Sensors', hint: 'Only numbers leave the phone, never camera images.', rows: [
+    { title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
-      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Finger sensor', supId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
-      { icon: 'lightbulb', label: 'Bedside light', sw: 'data-sensor="bedside_light"' },
+      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
+      { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
-      { icon: 'sensor_occupied', label: 'Presence sensor', sw: 'data-sensor="presence"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
-    { title: 'Export to your clinic', hint: 'One export a day, at 07:00. Nobody watches live.', rows: [
+    { title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
       { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
         <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
-      { icon: 'schedule', label: 'Next export', static: true, val: '', valId: 'nextExport' },
+      { icon: 'ios_share', label: 'Show to my doctor', href: 'patient.html#settings', id: 'qrBtn' },
+      { icon: 'dashboard', label: 'Clinic dashboard', sup: 'Wi-Fi + link', href: 'patient.html#share', id: 'exportBtn' },
       { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
       { icon: 'description', label: 'What is in an export', sup: 'Lanterns, play times, sensor numbers', static: true },
     ] },
@@ -43,7 +44,7 @@
     { id: 'morningsGroup', title: 'Mornings', rows: [] },
     { title: 'Sound and light', rows: [
       { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
-      { icon: 'nightlight', label: 'Dim light', sup: 'Light at most 25%', sw: 'id="quietSw"' },
+      { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
     ] },
     { title: 'Help', rows: [
@@ -76,12 +77,6 @@
     };
     body.querySelectorAll('[data-anchor]').forEach(b => b.onclick = () => A.Checkin?.anchor?.());
     body.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => toast(b.getAttribute('aria-label')));
-    const next = () => {
-      const d = new Date(), h = d.getHours();
-      $('nextExport').textContent = h < 7 ? 'Today 07:00' : 'Tomorrow 07:00';
-    };
-    next();
-    document.querySelectorAll('[data-open="settings"]').forEach(b => b.addEventListener('click', next));
   };
 
   let toastEl = null, toastT = 0;
@@ -92,18 +87,25 @@
   };
 
   const HOLD_MS = 900;
+  const buildGap = p => 170 - 125 * p;
+  const smoothHap = () => (window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.AfferentHaptics : null) || null;
   const kindle = () => {
     const btn = $('begin');
     if (!btn) return;
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
-    const fill = btn.querySelector('.fill'), C = 2 * Math.PI * 46;
-    let p = 0, t0 = 0, raf = 0, holding = false, lit = false;
-    const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); btn.style.setProperty('--p', v.toFixed(3)); };
-    const fire = () => { lit = true; btn.classList.add('lit'); navigator.vibrate?.(18); btn.dispatchEvent(new CustomEvent('kindle')); };
+    const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
+    let p = 0, t0 = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
+    const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 && v < 1 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
+    const buzz = n => (A.J ? A.J.hap(n) : navigator.vibrate?.(n === 'success' ? [12, 60, 22] : n === 'light' ? 6 : 3));
+    const fire = () => { lit = true; btn.classList.add('lit'); const H = smoothHap(); if (H) H.success().catch(() => buzz('success')); else buzz('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
     const tick = () => {
       if (!holding) return;
       set(Math.min(1, (performance.now() - t0) / HOLD_MS));
       if (p >= 1) { holding = false; fire(); return; }
+      const now = performance.now();
+      if (smoothHap()) { raf = requestAnimationFrame(tick); return; }
+      if (p >= 0.75) { if (!swell) { swell = true; buzz('light'); } }
+      else if (now >= buzzAt) { buzz('tick'); buzzAt = now + Math.max(70, buildGap(p)); }
       raf = requestAnimationFrame(tick);
     };
     const drain = () => {
@@ -117,16 +119,18 @@
       try { A.Audio?.init?.(); A.Audio?.ctx?.resume?.(); } catch {}
       try { btn.setPointerCapture(e.pointerId); } catch {}
       cancelAnimationFrame(raf);
-      holding = true; btn.classList.add('holding');
+      holding = true; btn.classList.add('holding'); buzzAt = performance.now() + buildGap(p); swell = p >= 0.75;
+      const H = smoothHap();
+      if (H) H.holdStart({ durationMs: (1 - p) * HOLD_MS, from: p }).catch(() => {}); else buzz('tick');
       t0 = performance.now() - p * HOLD_MS;
       raf = requestAnimationFrame(tick);
     });
-    const release = () => { if (!holding) return; holding = false; btn.classList.remove('holding'); if (!lit) { drain(); hint(); } };
+    const release = () => { if (!holding) return; holding = false; btn.classList.remove('holding'); if (!lit) { smoothHap()?.holdStop().catch(() => {}); drain(); hint(); } };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => btn.addEventListener(t, release));
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
     const hint = () => { const l = $('beginLabel'); l.classList.remove('nudge'); void l.offsetWidth; l.classList.add('nudge'); };
-    A.bus.on('home', () => { lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); });
+    A.bus.on('home', () => { cancelAnimationFrame(raf); lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); });
   };
 
   const MOODS = [['#34476E', 0.35], ['#5A7CA6', 0.5], ['#A9A79A', 0.65], ['#E8B867', 0.82], ['#FFCB5C', 1]];
@@ -215,7 +219,7 @@
   const layers = () => {
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      const open = ['hubDialog', 'info', 'signals', 'crisis', 'settings'].map($).find(el => el && !el.classList.contains('hidden'));
+      const open = ['hubDialog', 'info', 'signals', 'crisis', 'settings', 'voice'].map($).find(el => el && !el.classList.contains('hidden'));
       if (open) { e.preventDefault(); open.querySelector('[data-close]')?.click(); }
     });
   };
@@ -231,7 +235,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals', 'voice'].includes(id)) return;
       if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
       else delete el.dataset.scheme;
     }, true);
@@ -239,6 +243,8 @@
 
   const sheet = document.querySelector('.end-sheet');
   if (sheet) sheet.prepend(frag(G.wave()));
-  buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped();
-  A.Shell = { toast, week, phase, row, group };
+  const noLoupe = () => ['begin', 'game'].forEach(id => $(id)?.addEventListener('touchstart', e => e.preventDefault(), { passive: false }));
+
+  buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped(); noLoupe();
+  A.Shell = { toast, week, phase, row, group, groups: GROUPS };
 })();

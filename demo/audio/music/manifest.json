@@ -2,5 +2,84 @@
  "v": 1,
  "key": "D",
  "pad_s": 0.5,
- "tracks": {}
+ "tracks": {
+  "kaamos_pad": {
+   "role": "bed",
+   "mode": "kaamos",
+   "layer": "pad",
+   "bpm": 69.96,
+   "meter": 4,
+   "len_s": 174.957125,
+   "bars": 51,
+   "channels": 2,
+   "lufs": -20.0,
+   "true_peak": -8.0,
+   "files": {
+    "m4a": "mu_kaamos_pad.m4a"
+   },
+   "src": {
+    "raw": "G1 Kaamos v5.mp3",
+    "start_s": 3.605,
+    "plan": "G1"
+   }
+  },
+  "flow_pad": {
+   "role": "bed",
+   "mode": "flow",
+   "layer": "pad",
+   "bpm": 99.95,
+   "meter": 4,
+   "len_s": 76.838417,
+   "bars": 32,
+   "channels": 2,
+   "lufs": -20.0,
+   "true_peak": -9.4,
+   "files": {
+    "m4a": "mu_flow_pad.m4a"
+   },
+   "src": {
+    "raw": "G3 Flow v5.mp3",
+    "start_s": 19.285,
+    "plan": "G3"
+   }
+  },
+  "dawn_rise": {
+   "role": "bed",
+   "mode": "dawn",
+   "layer": "pad",
+   "bpm": 90,
+   "meter": 4,
+   "len_s": 10.666667,
+   "bars": 4,
+   "channels": 2,
+   "lufs": -20.1,
+   "true_peak": -9.7,
+   "files": {
+    "m4a": "mu_dawn_rise.m4a"
+   },
+   "src": {
+    "raw": "G10 Dawn v5.mp3",
+    "start_s": 8.9,
+    "plan": "G10"
+   }
+  },
+  "dawn_bloom": {
+   "role": "oneshot",
+   "mode": "dawn",
+   "hit_s": 0.5,
+   "bpm": 90,
+   "meter": 4,
+   "channels": 2,
+   "lufs": -18.1,
+   "true_peak": -7.4,
+   "files": {
+    "m4a": "mu_dawn_bloom.m4a"
+   },
+   "src": {
+    "raw": "G10 Dawn v5.mp3",
+    "start_s": 21.9,
+    "plan": "G10"
+   }
+  }
+ }
 }

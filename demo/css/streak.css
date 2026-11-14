@@ -1,28 +1,29 @@
 .morning-mark {
   position: absolute; left: 16px; right: 16px; top: calc(29.4% - 22px); z-index: 1;
   display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none !important;
-  animation: markIn 900ms var(--af-ease-in) 200ms both;
+  animation: markIn 1300ms var(--af-ease-glide) 220ms both;
 }
-@keyframes markIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes markIn { from { opacity: 0; transform: translateY(14px) scale(0.96); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }
 .morning-mark .chip {
-  pointer-events: auto; display: inline-flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px 0 18px;
-  border-radius: 22px; text-decoration: none; color: var(--af-birch);
-  background: color-mix(in srgb, #3E5478 52%, transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 12px; height: 54px; padding: 0 24px 0 20px;
+  border-radius: 27px; text-decoration: none; color: var(--af-birch);
+  background: var(--af-glass);
+  box-shadow: var(--af-glass-edge), var(--af-lift-2);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
 }
 .morning-mark .chip:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
 .morning-mark .laminate { width: 30px; height: 25px; flex: none; }
-.morning-mark .n { font: 300 28px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; }
-.morning-mark .u { font: 500 13px/16px var(--af-font-ui); letter-spacing: 0.2px; color: color-mix(in srgb, var(--af-birch) 88%, transparent); }
+.morning-mark .n { font: 200 38px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; text-shadow: 0 0 18px color-mix(in srgb, var(--af-honey) 22%, transparent); }
+.morning-mark .u { font: 600 11px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: color-mix(in srgb, var(--af-birch) 78%, transparent); }
 .morning-mark .bye {
-  margin: 0; font: 300 19px/26px var(--af-font-brand); color: var(--af-frost);
-  text-shadow: 0 1px 14px color-mix(in srgb, var(--af-fjord) 80%, transparent);
+  margin: 0; font: 300 19px/26px var(--af-font-brand); color: var(--af-frost); letter-spacing: 0.01em;
+  text-shadow: var(--af-text-lift);
 }
 
 .end-count { margin: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; color: var(--md-sys-color-on-surface); }
-.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 30px; overflow: hidden; font: 400 26px/30px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
-.end-count .unit { font: 500 13px/16px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
-.end-count .tick { display: block; position: relative; height: 30px; }
+.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 40px; overflow: hidden; font: 200 40px/40px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
+.end-count .unit { font: 600 11px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: var(--md-sys-color-on-surface-variant); }
+.end-count .tick { display: block; position: relative; height: 40px; }
 .end-count .tick span { position: absolute; right: 0; top: 0; }
 .end-count .tick .old { opacity: 0; }
 .end-count .tick.roll .old { animation: tkOut 520ms var(--af-ease-std) 1650ms both; }
@@ -37,16 +38,16 @@
 .week-lights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 30px); }
 .week-lights .day { --c: var(--af-honey); display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .week-lights .light { position: relative; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; }
-.week-lights .d { font: 600 12px/16px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
-.week-lights .lit .light { background: var(--c); }
-.week-lights .sun .light { background: var(--md-sys-color-sun); box-shadow: 0 0 0 3px var(--md-sys-color-sun-container); }
+.week-lights .d { font: 600 11px/16px var(--af-font-ui); letter-spacing: 0.06em; color: var(--md-sys-color-on-surface-variant); }
+.week-lights .lit .light { background: radial-gradient(circle at 38% 32%, color-mix(in srgb, white 30%, var(--c)), var(--c) 62%); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 40%, transparent); }
+.week-lights .sun .light { background: radial-gradient(circle at 38% 32%, #FFF0D2, var(--md-sys-color-sun) 60%); box-shadow: 0 0 0 3px var(--md-sys-color-sun-container), 0 0 14px 2px color-mix(in srgb, var(--md-sys-color-sun) 45%, transparent); }
 .week-lights .sun .d { color: var(--md-sys-color-on-surface); }
 .week-lights .missed .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline); }
 .week-lights .frozen .light { box-shadow: inset 0 0 0 2px var(--af-frost); }
 .week-lights .rest .light { width: 11px; height: 11px; margin: 5px 0 0; box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline-variant); }
 .week-lights .rest .d { margin-top: -5px; }
 .week-lights .today .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-sun); }
-.week-lights .today .light::after { content: ""; position: absolute; left: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: #FFB54A; }
+.week-lights .today .light::after { content: ""; position: absolute; left: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--af-ember); }
 .week-lights .future .light, .week-lights .none .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline-variant); }
 .week-lights .future .d, .week-lights .none .d { opacity: 0.6; }
 
@@ -64,7 +65,7 @@
 .quote-line blockquote { margin: 0; max-width: 32ch; }
 .quote-line p {
   margin: 0; font: 300 21px/31px var(--af-font-voice); font-variation-settings: "opsz" 48;
-  color: #3A3226; white-space: pre-line; overflow-wrap: break-word; text-wrap: pretty;
+  color: var(--af-quote-ink); white-space: pre-line; overflow-wrap: break-word; text-wrap: pretty;
 }
 .quote-line.mid p { font-size: 19px; line-height: 28px; }
 .quote-line.long p { font-size: 17px; line-height: 25px; }

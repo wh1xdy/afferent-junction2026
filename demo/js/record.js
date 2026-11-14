@@ -104,9 +104,10 @@
     },
   });
 
-  const SERIES_STEP_S = 5, SERIES_MAX = 240;
+  const SERIES_STEP_S = 5, SERIES_MAX = 240, MIN_QUALITY = 0.3;
+  const NO_ROW = { pulse: null, q: null, f1: null, f2: null, br: null, rmssd: null, sdnn: null, vsb: null };
   const physioTrack = t0 => ({
-    t0, next: t0, seconds: 0, rows: [], cam: [], pres: { idle: 0, probing: 0, active: 0 }, presSeen: false, meta: null, qualityReported: false, otherSource: 0,
+    t0, next: t0, seconds: 0, rows: [], cam: [], pres: { idle: 0, probing: 0, active: 0 }, presSeen: false, meta: null, qualityReported: false, otherSource: 0, via: {},
     series: { t_s: [], pulse_bpm: [], breathing_per_min: [], rmssd_ms: [] },
     frame(now, f, c) {
       if (now < this.next) return;
@@ -115,14 +116,16 @@
       if (f && this.meta && f.source !== this.meta.source) { this.otherSource++; f = null; }
       if (f) {
         this.meta = this.meta || { source: f.source, transport: f.transport };
+        this.via[f.transport] = (this.via[f.transport] || 0) + 1;
         this.qualityReported = this.qualityReported || !!f.quality_reported;
-        this.rows.push({ pulse: f.pulse_bpm, q: f.quality, f1: f.finger_bpm?.[0] ?? null, f2: f.finger_bpm?.[1] ?? null, br: f.breathing_per_min, rmssd: f.rmssd_ms, sdnn: f.sdnn_ms, vsb: f.rmssd_vs_baseline });
+        const usable = f.quality_reported === true && f.quality != null && f.quality >= MIN_QUALITY;
+        this.rows.push(usable ? { pulse: f.pulse_bpm, q: f.quality, f1: f.finger_bpm?.[0] ?? null, f2: f.finger_bpm?.[1] ?? null, br: f.breathing_per_min, rmssd: f.rmssd_ms, sdnn: f.sdnn_ms, vsb: f.rmssd_vs_baseline } : NO_ROW);
         if (f.presence in this.pres) { this.pres[f.presence]++; this.presSeen = true; }
       }
-      if (c) this.cam.push({ bpm: c.bpm, score: c.trust_score, label: c.trust_label });
-      const se = this.series;
+      if (c && c.trust_score != null) this.cam.push({ bpm: c.bpm, score: c.trust_score, label: c.trust_label });
+      const se = this.series, row = f ? this.rows[this.rows.length - 1] : NO_ROW;
       if (tick % SERIES_STEP_S === 0 && se.t_s.length < SERIES_MAX) {
-        se.t_s.push(Math.round(now - this.t0)); se.pulse_bpm.push(r1(f?.pulse_bpm)); se.breathing_per_min.push(r1(f?.breathing_per_min)); se.rmssd_ms.push(r1(f?.rmssd_ms));
+        se.t_s.push(Math.round(now - this.t0)); se.pulse_bpm.push(r1(row.pulse)); se.breathing_per_min.push(r1(row.br)); se.rmssd_ms.push(r1(row.rmssd));
       }
     },
     summary() {
@@ -131,7 +134,7 @@
       const labels = { reliable: 0, uncertain: 0, unreliable: 0 };
       for (const x of this.cam) if (x.label in labels) labels[x.label]++;
       const finger = !this.rows.length ? null : {
-        source: src, transport: this.meta.transport, quality_reported: this.qualityReported, seconds: this.seconds,
+        source: src, transport: Object.entries(this.via).sort((a, b) => b[1] - a[1])[0]?.[0] ?? this.meta.transport, quality_reported: this.qualityReported, seconds: this.seconds,
         pulse_bpm: stat(col('pulse')), quality: stat(col('q'), r2), finger_1_bpm: stat(col('f1')), finger_2_bpm: stat(col('f2')),
         fingers_abs_diff_bpm: diff.length ? r1(mean(diff)) : null,
         presence_s: this.presSeen ? { ...this.pres } : null,
@@ -140,8 +143,24 @@
         finger,
         breathing: has('br') ? { source: src, method: 'pulse_rhythm', rate_per_min: stat(col('br')) } : null,
         hrv: has('rmssd') ? { source: src, window_s: 60, rmssd_ms: stat(col('rmssd')), sdnn_ms: has('sdnn') ? stat(col('sdnn')) : null, rmssd_vs_baseline: has('vsb') ? stat(col('vsb'), r3) : null } : null,
-        camera_pulse: this.cam.length ? { source: 'rppg', pulse_bpm: stat(this.cam.map(x => x.bpm)), trust_score: stat(this.cam.map(x => x.score)), trust_label_s: labels } : null,
+        camera_pulse: this.cam.some(x => x.bpm != null) ? { source: 'rppg', pulse_bpm: stat(this.cam.map(x => x.bpm)), trust_score: stat(this.cam.map(x => x.score)), trust_label_s: labels } : null,
         series: finger ? { step_s: SERIES_STEP_S, ...this.series } : null,
+      };
+    },
+  });
+
+  const faceTrack = () => ({
+    rows: [], micros: [],
+    second(f) { this.rows.push(f); },
+    micro(m) { this.micros.push(m); },
+    summary() {
+      if (!this.rows.length) return null;
+      const st = A.Sensors.faceStats(this.rows, this.micros), m = st.micro, br = st.breathing;
+      return {
+        source: 'arkit_truedepth', seconds_tracked: st.seconds_tracked, smile_share: r3(st.smile_share),
+        movement: st.movement ? stat(st.movement, r3) : null, blinks_per_min: r1(st.blinks_per_min), gaze_away_share: r3(st.gaze_away_share),
+        micro: m ? { count: m.count, per_min: r1(m.per_min), median_duration_ms: m.median_duration_ms == null ? null : Math.round(m.median_duration_ms), by_region: m.by_region } : null,
+        breathing_depth: br.length ? { rate_per_min: stat(br), seconds: br.length } : null,
       };
     },
   });
@@ -181,14 +200,15 @@
     const eyesSrc = s.eyesSource;
     const simFields = [];
     const ph = s.physio ? s.physio.summary() : { finger: null, breathing: null, hrv: null, camera_pulse: null, series: null };
-    const measured = ph.finger?.source === 'finger_ppg' || !!ph.camera_pulse;
+    const face = s.face?.summary() ?? null;
+    const measured = ph.finger?.source === 'finger_ppg' || !!ph.camera_pulse || !!face;
     if (sig.pulseSources.simulated > 0) {
       simFields.push('signal.pulse_source', 'core.rest.pulse_bpm', 'tasks.pulse', 'pre_post.pulse');
       simFields.push(...(measured ? ['vitals.pulse_mean_bpm', 'vitals.pulse_min_bpm', 'vitals.pulse_max_bpm', 'vitals.pulse_source'] : ['vitals']));
     }
     if (ph.finger?.source === 'simulated') simFields.push(...['finger', 'breathing', 'hrv', 'series'].filter(k => ph[k]).map(k => 'vitals.' + k));
     if (eyesSrc === 'simulated') simFields.push('signal.eyes_source', 'core.rest.eye_openness', 'core.rest.blink_rate_per_min', 'core.rest.head_pitch_deg', 'tasks.eye_openness_mean', 'tasks.perclos', 'tasks.head_pitch_delta_deg', 'pre_post.eye_openness', 'pre_post.head_pitch');
-    if (s.auto) simFields.push('player', 'core.rt', 'core.mood_start', 'mood_end', 'fork', 'two_lanterns');
+    if (s.auto) simFields.push('player', 'core.rt', 'tasks.extra.rt', 'core.mood_start', 'mood_end', 'fork', 'two_lanterns');
     const pres = A.Presence?.sessionContext?.() ?? { home: null, visitors_present: null, simulated: false };
     if (pres.simulated) simFields.push('context.home', 'context.visitors_present');
     const end = s.endWindow(), rest = core?.rest;
@@ -227,14 +247,14 @@
         tasks_completed: done.filter(t => t.completed).length, tasks_total: s.tasks.length,
         reminder_iso: s.reminderIso ?? null, time_to_start_s: s.timeToStart ?? null,
       },
-      vitals: ps.length || ph.finger || ph.camera_pulse ? {
+      vitals: ps.length || ph.finger || ph.camera_pulse || face ? {
         pulse_mean_bpm: r1(mean(ps)), pulse_min_bpm: ps.length ? r1(Math.min(...ps)) : null, pulse_max_bpm: ps.length ? r1(Math.max(...ps)) : null,
-        pulse_source: ps.length ? pulseSrc : null, ...ph,
+        pulse_source: ps.length ? pulseSrc : null, ...ph, ...(face ? { face } : {}),
       } : null,
       context: { room_temp_c: null, home: pres.home, visitors_present: pres.visitors_present, bedside_light_level: s.lastLightLevel ?? null },
     };
     return doc;
   };
 
-  A.Record = { r1, r2, r3, mean, med, quantile, isoLocal, rtStats, prt, pulseResponse, track, physioTrack, stat, skipped, fork, lanterns, session, DIRECTION };
+  A.Record = { r1, r2, r3, mean, med, quantile, isoLocal, rtStats, prt, pulseResponse, track, physioTrack, faceTrack, stat, skipped, fork, lanterns, session, DIRECTION };
 })();
