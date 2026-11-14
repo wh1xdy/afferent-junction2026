@@ -91,8 +91,9 @@ own values:
 
 **Haptics.** One vocabulary for the whole app (touch, tick, hit, bright, miss, land, rise, success,
 complete, rhythm, heart, plus hold, drag and breath) through `demo/js/haptics.js`, on Core Haptics on iOS
-and a matching Android plugin. Calm and night play softer. Settings has a Vibration switch and a Heartbeat
-touch level (Off, Soft, Medium, Strong).
+and a matching Android plugin. Every control answers a tap with one touch or tick (`demo/js/gui/feel.js`).
+Calm and night play softer. Settings has a Vibration switch and a Heartbeat touch level (Off, Soft, Medium,
+Strong).
 
 **Clip check.** Before a session: "Put a finger in each clip", a live check with a clear OK, and the camera
 pulse as fallback when the clips give nothing. Only a real, fresh, quality-gated reading counts as OK.
