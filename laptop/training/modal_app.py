@@ -209,6 +209,9 @@ def pull(remote_dir: str = "/work", local_dir: str = "work_dirs") -> None:
     local_root = Path(local_dir)
     local_root.mkdir(parents=True, exist_ok=True)
 
+    # listdir returns paths without a leading slash; normalise remote_dir the
+    # same way or relative_to() fails.
+    remote = remote_dir.strip("/")
     entries = vol.listdir(remote_dir, recursive=True)
     files = [e for e in entries if e.type != modal.volume.FileEntryType.DIRECTORY]
     if not files:
@@ -216,7 +219,7 @@ def pull(remote_dir: str = "/work", local_dir: str = "work_dirs") -> None:
         return
 
     for e in files:
-        rel = PurePosixPath(e.path).relative_to(remote_dir)
+        rel = PurePosixPath(e.path).relative_to(remote) if remote else PurePosixPath(e.path)
         dest = local_root / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         with open(dest, "wb") as f:
