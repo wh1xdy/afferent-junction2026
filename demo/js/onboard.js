@@ -7,7 +7,7 @@
   const sw = id => `<span class="switch"><input type="checkbox" role="switch" id="${id}"><span class="track"></span><span class="thumb"><span class="ms">check</span></span></span>`;
   const toggle = (id, text, icon) => `<label class="li state"><span class="ms" aria-hidden="true">${icon}</span><span class="txt"><span class="hl">${text}</span></span>${sw(id)}</label>`;
   const STEPS = [['person', 'Someone to message', 'chat_bubble', 'a name'], ['place', 'A place to walk to', 'directions_walk', 'the shop'], ['task', 'A small task', 'task_alt', 'water the plants']];
-  const stepRows = pre => STEPS.map(([k, text, icon, ph]) => `<label class="li state step-row"><span class="ms" aria-hidden="true">${icon}</span><span class="txt"><span class="hl">${text}</span></span><input type="text" id="${pre}${k}" class="time-val step-in" maxlength="40" autocomplete="off" spellcheck="false" placeholder="${ph}"></label>`).join('');
+  const stepRows = pre => STEPS.map(([k, text, icon, ph]) => `<label class="li state step-row"><span class="ms" aria-hidden="true">${icon}</span><span class="txt"><span class="hl">${text}</span></span><input type="text" id="${pre}${k}" class="time-val step-in" maxlength="40" autocomplete="off" spellcheck="false" enterkeyhint="done" placeholder="${ph}"></label>`).join('');
   const fillSteps = pre => { const m = A.BA?.menu?.() || {}; STEPS.forEach(([k]) => { const el = $(pre + k); if (el) el.value = m[k] || ''; }); };
   const readSteps = pre => Object.fromEntries(STEPS.map(([k]) => [k, $(pre + k)?.value || '']));
 
@@ -74,7 +74,7 @@
       <div class="sheet onboard-sheet">
         <div class="handle" aria-hidden="true"></div>
         <span class="ob-mark" aria-hidden="true">${A.Glyph ? A.Glyph.laminate() : ''}</span>
-        <p id="obLead" class="ob-lead">When I <input id="obCue" type="text" autocomplete="off" spellcheck="false" aria-label="When I"> I light the lantern.</p>
+        <p id="obLead" class="ob-lead">When I <input id="obCue" type="text" autocomplete="off" spellcheck="false" enterkeyhint="done" aria-label="When I"> I light the lantern.</p>
         <div class="group">
           <label class="li state"><span class="ms" aria-hidden="true">schedule</span><span class="txt"><span class="hl">Usual wake time</span></span><input type="time" id="obWake" class="time-val" step="900"></label>
           ${toggle('obAim', 'Aim for a week of mornings', 'wb_twilight')}

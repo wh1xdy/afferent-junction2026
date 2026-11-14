@@ -33,7 +33,7 @@
 .ba-follow.thanked { box-shadow: 0 0 0 2px #FFD58A, 0 0 28px rgba(255, 213, 138, 0.4); }
 .ba-follow.thanked .ba-ans { visibility: hidden; }
 
-.step-row .step-in { width: 9.5em; text-align: right; }
+.step-row .step-in { width: 142px; text-align: right; }
 .step-row .step-in::placeholder { color: color-mix(in srgb, var(--md-sys-color-on-surface-variant) 55%, transparent); }
 
 .stay-btn { gap: 8px; margin: 14px auto 0; display: flex; }

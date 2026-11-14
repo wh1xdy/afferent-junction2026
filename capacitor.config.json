@@ -5,5 +5,8 @@
   "backgroundColor": "#0D182A",
   "ios": { "contentInset": "never", "backgroundColor": "#0D182A" },
   "server": { "androidScheme": "http", "cleartext": true },
-  "android": { "allowMixedContent": true, "backgroundColor": "#0D182A" }
+  "android": { "allowMixedContent": true, "backgroundColor": "#0D182A" },
+  "plugins": {
+    "Keyboard": { "resize": "native" }
+  }
 }
