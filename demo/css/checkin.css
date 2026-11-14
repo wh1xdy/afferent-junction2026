@@ -76,7 +76,20 @@
 .ci-tile svg { width: 26px; height: 26px; }
 .ci-tile svg.lantern { width: 20px; height: 32px; }
 
-.ci-question { justify-content: space-between; gap: 24px; padding-top: max(56px, calc(env(safe-area-inset-top) + 40px)); padding-left: 24px; padding-right: 24px; }
+.ci-question { justify-content: space-between; gap: 24px; padding-left: 24px; padding-right: 24px; }
+.ci-question .ci-head { margin-bottom: auto; }
+.ci-qbar { justify-content: space-between; gap: 8px; margin: 0 -10px -8px; }
+.ci-stop {
+  position: relative; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; flex: none;
+  display: grid; place-items: center; background: none; color: var(--ll-on-surface-variant);
+}
+.ci-stop::before { content: ""; position: absolute; inset: 2px; border-radius: 50%; background: currentColor; opacity: 0; transition: opacity 150ms var(--ll-ease); }
+.ci-stop:active::before { opacity: 0.12; }
+.ci-stop svg { position: relative; width: 24px; height: 24px; }
+.ci-progress {
+  flex: 1; margin: 0; text-align: center; font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: 0.3px;
+  color: var(--ll-on-surface-variant); font-variant-numeric: tabular-nums;
+}
 .ci-head { display: flex; flex-direction: column; gap: 16px; }
 .ci-stem { margin: 0; font-size: 16px; line-height: 24px; font-weight: 500; letter-spacing: 0.1px; color: var(--ll-on-surface-variant); }
 .ci-item {
@@ -194,7 +207,6 @@
   .ci-item { font-size: 24px; line-height: 32px; }
   .ci-item.long { font-size: 20px; line-height: 28px; }
   .ci-opt { min-height: 60px; }
-  .ci-question { padding-top: max(32px, env(safe-area-inset-top)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
