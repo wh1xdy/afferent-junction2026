@@ -1,4 +1,4 @@
-"""Offline tests for the BLE payload (AFF1 v2), the idle reset and GET /state (no board, no Bluetooth).
+"""Offline tests for the BLE payload (AFF1 v3), the idle reset and GET /state (no board, no Bluetooth).
 
     cd uno-q/modulino-hub && python3 -m unittest discover tests -v
 
@@ -46,12 +46,26 @@ class FakeStop:
 
 class PackAff1(unittest.TestCase):
     def test_golden_payload(self):
-        self.assertEqual(ble.pack_aff1([71, 73], 6, 46, 0.62, 'active').hex(' '), "47 49 06 2e 3e 03")
+        self.assertEqual(ble.pack_aff1([71, 73], 6, 46, 0.62, 'active').hex(' '), "47 49 06 2e 3e 03 00")
+        self.assertEqual(ble.pack_aff1([64, 92], 0, 0, 0.41, 'active', True).hex(' '), "40 5c 00 00 29 03 01")
 
-    def test_always_six_bytes_and_a_bytearray(self):
+    def test_always_seven_bytes_and_a_bytearray(self):
         p = ble.pack_aff1([0, 0], 0, 0, None, None)
         self.assertIsInstance(p, bytearray)
-        self.assertEqual(bytes(p), bytes([0, 0, 0, 0, 255, 0]))
+        self.assertEqual(bytes(p), bytes([0, 0, 0, 0, 255, 0, 0]))
+        self.assertEqual(bytes(p), bytes(ble.EMPTY_AFF1))
+
+    def test_the_first_six_bytes_are_the_v2_payload(self):
+        # a 6-byte v2 client reads the same bytes 0..5 as before and ignores byte 6
+        for two in (False, True):
+            self.assertEqual(ble.pack_aff1([71, 73], 6, 46, 0.62, 'active', two)[:6].hex(' '), "47 49 06 2e 3e 03")
+
+    def test_two_hearts_flag_is_bit_0_of_byte_6(self):
+        self.assertEqual(ble.FLAG_TWO_HEARTS, 0x01)
+        self.assertEqual(ble.pack_aff1([64, 92], 0, 0, 0.4, 'active', True)[6], 1)
+        self.assertEqual(ble.pack_aff1([64, 92], 0, 0, 0.4, 'active', False)[6], 0)
+        for unclear in (None, 1, "yes", [True]):            # only an explicit True sets the flag
+            self.assertEqual(ble.pack_aff1([64, 92], 0, 0, 0.4, 'active', unclear)[6], 0, repr(unclear))
 
     def test_quality_none_is_255(self):
         self.assertEqual(ble.pack_aff1([71, 73], 6, 46, None, 'active')[4], 255)
@@ -75,13 +89,13 @@ class PackAff1(unittest.TestCase):
 
     def test_clamping(self):
         p = ble.pack_aff1([300, 256], 999, 300.4, 1.7, 'active')
-        self.assertEqual(list(p), [255, 255, 255, 255, 100, 3])
+        self.assertEqual(list(p), [255, 255, 255, 255, 100, 3, 0])
         p = ble.pack_aff1([-5, -1], -3, -0.4, -0.2, 'idle')
-        self.assertEqual(list(p), [0, 0, 0, 0, 0, 1])
+        self.assertEqual(list(p), [0, 0, 0, 0, 0, 1, 0])
 
     def test_missing_readings_are_zero(self):
-        self.assertEqual(list(ble.pack_aff1([None, 73], None, None, 0.5, 'active')), [0, 73, 0, 0, 50, 3])
-        self.assertEqual(list(ble.pack_aff1(None, 0, 0, None, 'idle')), [0, 0, 0, 0, 255, 1])
+        self.assertEqual(list(ble.pack_aff1([None, 73], None, None, 0.5, 'active')), [0, 73, 0, 0, 50, 3, 0])
+        self.assertEqual(list(ble.pack_aff1(None, 0, 0, None, 'idle')), [0, 0, 0, 0, 255, 1, 0])
 
     def test_rmssd_is_rounded(self):
         self.assertEqual(ble.pack_aff1([0, 0], 0, 45.6, None, None)[3], 46)
@@ -105,9 +119,10 @@ class PackAff1(unittest.TestCase):
         # pack_aff1 must be usable without Bluetooth: bless is imported only inside _start
         self.assertNotIn("bless", sys.modules)
 
-    def test_initial_characteristic_value_is_the_empty_v2_payload(self):
+    def test_initial_characteristic_value_is_the_empty_v3_payload(self):
+        self.assertEqual(bytes(ble.EMPTY_AFF1), bytes([0, 0, 0, 0, 255, 0, 0]))
         with open(os.path.join(ROOT, "ble.py")) as f:
-            self.assertIn("bytearray([0, 0, 0, 0, 255, 0])", f.read())
+            self.assertIn("bytearray(EMPTY_AFF1)", f.read())
 
 
 class Broadcaster(unittest.TestCase):
@@ -120,7 +135,7 @@ class Broadcaster(unittest.TestCase):
         b = recorder()
         b.update_status(0.62, 'active')
         self.assertEqual(len(b.pushed), 1)
-        self.assertEqual(b.pushed[-1][0][4:], bytes([62, 3]))
+        self.assertEqual(b.pushed[-1][0][4:], bytes([62, 3, 0]))
         b.update_status(0.62, 'active')                      # same payload: silent
         b.update_status(0.624, 'active')                     # same byte after rounding: silent
         self.assertEqual(len(b.pushed), 1)
@@ -129,8 +144,24 @@ class Broadcaster(unittest.TestCase):
         b.update_status(0.40, 'active')                      # quality changed
         b.update_status(None, 'idle')                        # mode changed
         self.assertEqual(len(b.pushed), 4)
-        self.assertEqual(b.pushed[-1][0], bytes([0, 0, 0, 0, 255, 1]))
+        self.assertEqual(b.pushed[-1][0], bytes([0, 0, 0, 0, 255, 1, 0]))
         self.assertTrue(all(hrm is None for _, hrm, _ in b.pushed), "status never touches 2A37")
+
+    def test_two_hearts_change_notifies_and_travels_with_every_reading(self):
+        b = recorder()
+        b.update_status(0.41, 'active')
+        b.update_finger(0, 64)
+        b.update_finger(1, 92)
+        n = len(b.pushed)
+        b.update_status(0.41, 'active', two_hearts=True)        # only the flag changed
+        self.assertEqual(len(b.pushed), n + 1)
+        self.assertEqual(b.pushed[-1][0].hex(' '), "40 5c 00 00 29 03 01")
+        b.update_status(0.41, 'active', two_hearts=True)        # nothing new: silent
+        self.assertEqual(len(b.pushed), n + 1)
+        b.update_finger(0, 63)                                  # a beat keeps the flag
+        self.assertEqual(b.pushed[-1][0][6], 1)
+        b.update_status(0.41, 'active')                         # one person again
+        self.assertEqual(b.pushed[-1][0][6], 0)
 
     def test_first_status_is_sent_even_when_it_equals_the_initial_value(self):
         b = recorder()
@@ -144,7 +175,7 @@ class Broadcaster(unittest.TestCase):
         b.update_finger(1, 73)
         b.update_breathing(6)
         b.update_hrv(46.2)
-        self.assertEqual(b.pushed[-1][0].hex(' '), "47 49 06 2e 3e 03")
+        self.assertEqual(b.pushed[-1][0].hex(' '), "47 49 06 2e 3e 03 00")
         b.update_status(0.62, 'active')      # nothing changed since the last notify
         self.assertEqual(len(b.pushed), 5)
 
@@ -153,7 +184,7 @@ class Broadcaster(unittest.TestCase):
         b.update(0, 72)
         self.assertEqual(b.pushed[-1][1], 72)
 
-    def test_clear_readings_zeroes_bytes_0_to_3_and_keeps_4_to_5(self):
+    def test_clear_readings_zeroes_bytes_0_to_3_and_keeps_4_to_6(self):
         b = recorder()
         b.update_status(0.62, 'active')
         b.update_finger(0, 71)
@@ -164,7 +195,7 @@ class Broadcaster(unittest.TestCase):
         b.clear_readings()
         self.assertEqual(len(b.pushed), n + 1, "clear_readings notifies")
         payload, hrm, hrm_reset = b.pushed[-1]
-        self.assertEqual(payload, bytes([0, 0, 0, 0, 62, 3]))
+        self.assertEqual(payload, bytes([0, 0, 0, 0, 62, 3, 0]))
         self.assertIsNone(hrm, "no 2A37 notification without a pulse")
         self.assertTrue(hrm_reset, "the stored 2A37 value is reset for clients that read it")
         b.update_breathing(0)                # already 0: silent
@@ -219,7 +250,7 @@ class AppWiring(unittest.TestCase):
         app.presence.update(mode="active", since=time.time() - 60)
         app.fused.update(quality=0.62)
         app.ble_status(1)
-        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([62, 3]))
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([62, 3, 0]))
         app.ble_status(3)                                   # odd tick, unchanged: silent
         self.assertEqual(len(app.ble.pushed), 1)
         app.ble_status(4)                                   # even tick: keepalive
@@ -229,13 +260,26 @@ class AppWiring(unittest.TestCase):
         app.fused.update(quality=0.62)                      # stale number from before
         app.presence.update(mode="idle", since=time.time())
         app.ble_status(1)
-        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 1]))
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 1, 0]))
         app.presence.update(mode="probing", since=time.time())
         app.ble_status(3)
-        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 2]))
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 2, 0]))
         app.presence.update(mode="active", since=time.time())    # warming up: readings do not count yet
         app.ble_status(5)
-        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 3]))
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 3, 0]))
+
+    def test_ble_status_sends_the_two_hearts_flag_only_while_sensing(self):
+        app.presence.update(mode="active", since=time.time() - 60)
+        app.fused.update(quality=0.41, two_hearts=True)
+        app.ble_status(1)
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([41, 3, 1]))
+        app.fused.update(two_hearts=False)
+        app.ble_status(3)                                   # odd tick, but the flag changed
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([41, 3, 0]))
+        app.fused.update(two_hearts=True)                   # a stale flag from before
+        app.presence.update(mode="idle", since=time.time())
+        app.ble_status(5)
+        self.assertEqual(app.ble.pushed[-1][0][4:], bytes([255, 1, 0]), "nobody measured: nobody on the clips")
 
     def test_keepalive_at_least_every_two_seconds_while_idle(self):
         app.presence.update(mode="idle", since=time.time())
@@ -251,7 +295,7 @@ class AppWiring(unittest.TestCase):
         app.beats[0].append((1000, 800))
         app.state["fingers"][0] = {"bpm_live": 71, "t": time.time()}
         app._forget_beats()
-        self.assertEqual(app.ble.pushed[-1][0], bytes([0, 0, 0, 0, 20, 3]))
+        self.assertEqual(app.ble.pushed[-1][0], bytes([0, 0, 0, 0, 20, 3, 0]))
         self.assertEqual(len(app.beats[0]), 0)
         self.assertIsNone(app.state["fingers"][0])
 
@@ -289,7 +333,7 @@ class AppWiring(unittest.TestCase):
         self._assert_live_metrics_cleared()
         self.assertIsNone(app.fused["bpm"])
         self.assertEqual(app.fused["fingers"], [None, None])
-        self.assertEqual(app.ble.pushed[-1][0], bytes([0, 0, 0, 0, 255, 1]))
+        self.assertEqual(app.ble.pushed[-1][0], bytes([0, 0, 0, 0, 255, 1, 0]))
         self.assertTrue(all(hrm is None for _, hrm, _ in app.ble.pushed), "no 2A37 without a pulse")
 
 

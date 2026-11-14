@@ -216,7 +216,7 @@
 
     pulse(now) {
       const fresh = x => x && now - x.at < FRESH_S && x.quality != null && x.quality >= MIN_QUALITY;
-      const on = this.enabled.pulse_stone;
+      const on = this.enabled.pulse_stone && !this.twoPeople();
       const stone = on ? this.blePulse(now) || (fresh(this.stone) ? this.stone : null) : null;
       const measured = stone && stone.source !== 'simulated' ? stone : null;
       const sim = () => this.enabled.simulator ? { bpm: Sim.pulse(now), quality: 0.9, source: 'simulated' } : NO_PULSE;
@@ -249,9 +249,15 @@
           finger_bpm: [pos(d.finger_bpm?.[0]), pos(d.finger_bpm?.[1])], breathing_per_min: pos(d.breathing_per_min),
           rmssd_ms: d.rmssd_ms >= RMSSD_OVER ? null : pos(d.rmssd_ms),
           quality: unit(d.quality), presence: PRESENCE.includes(d.presence) ? d.presence : null, quality_reported: d.payload_len >= 5, affAt: now,
+          two_hearts: d.two_hearts === true,
         });
+        A.bus.emit('fingerAff1', d);
       }
     },
+
+    // The sensor box says the two clips are on two people (AFF1 v3 flag, Heart Duel): nothing from the fingers is the patient's,
+    // as in the hub's store_state. Cleared with the next packet without the flag or when the link changes.
+    twoPeople() { return !!this.fingerBle?.two_hearts; },
 
     blePulse(now) {
       const b = this.fingerBle, live = at => at != null && now - at < FRESH_S;
@@ -307,7 +313,7 @@
     },
 
     fingerFrame(now) {
-      if (!this.enabled.pulse_stone) return null;
+      if (!this.enabled.pulse_stone || this.twoPeople()) return null;
       const b = this.bleFrame(now), h = this.hubFrame(now);
       if (b && b.pulse_bpm != null) return b;
       if (h && !h.simulated && h.pulse_bpm != null) return h;

@@ -52,7 +52,7 @@ import java.util.UUID
  *   event "reading": {kind: 'hrm', bpm, t_ms}                         2A37 notification with a pulse
  *                    {kind: 'aff1', finger_bpm: [Int|null, Int|null], breathing_per_min: Int|null,
  *                     rmssd_ms: Int|null, quality: 0..1|null, presence: 'idle'|'probing'|'active'|null,
- *                     payload_len: Int, t_ms}                          AFF1 notification
+ *                     two_hearts: Boolean|null, payload_len: Int, t_ms}  AFF1 notification
  *   t_ms = wall clock (ms since 1970) when the notification arrived on the phone.
  *
  * How the iOS states map to Android:
