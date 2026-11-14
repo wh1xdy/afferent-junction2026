@@ -250,7 +250,7 @@ struct Activation: Equatable {
     var score: Int                      // 0-100
     var notes: [String]
 
-    static func from(_ s: ExpressionSession.Summary, restingBpm: Int?) -> Activation {
+    static func from(_ s: ExpressionSession.Summary, restingBpm: Int?, breathsPerMinute: Int? = nil) -> Activation {
         var parts: [Double] = [], notes: [String] = []
         // typical resting blink rate ~15-20/min (Bentivoglio et al. 1997)
         let blink = min(max((s.blinksPerMinute - 18) / 20, 0), 1)
@@ -262,6 +262,10 @@ struct Activation: Equatable {
         if let bpm = restingBpm {
             let hr = min(max((Double(bpm) - 80) / 30, 0), 1)
             parts.append(hr); if hr > 0.5 { notes.append("elevated pulse (\(bpm) BPM)") }
+        }
+        if let br = breathsPerMinute {   // adult resting ~12-20 breaths/min
+            let b = min(max((Double(br) - 18) / 10, 0), 1)
+            parts.append(b); if b > 0.5 { notes.append("fast breathing (\(br)/min)") }
         }
         let score = Int((100 * parts.reduce(0, +) / Double(max(parts.count, 1))).rounded())
         return Activation(score: score, notes: notes)

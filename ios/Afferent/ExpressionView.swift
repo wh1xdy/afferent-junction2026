@@ -35,6 +35,16 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         calibration.save()
     }
     @Published var showDebug = false
+    // TrueDepth extras: camera pulse pinned to the mesh, breathing from head motion, distance coaching
+    @Published var facePulseReading: PulseReading?
+    @Published var breathing: BreathingMath.Reading?
+    @Published var distanceCm: Double?
+    @Published var coaching: String?
+    let facePulse = FacePulse()
+    private var breathSamples: [(t: Double, dist: Double, y: Double)] = []
+    private var lastEstimate = 0.0
+    private var lastPos: (t: Double, p: SIMD3<Float>)?
+    private var speed = 0.0                               // smoothed head speed, m/s
 
     let supported = ARFaceTrackingConfiguration.isSupported
     weak var session: ARSession?
@@ -53,16 +63,45 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         finished = nil
         microCount = 0
         recentMicro = nil
+        facePulse.reset()
+        breathSamples.removeAll()
+        facePulseReading = nil
+        breathing = nil
         running = true
         let cfg = ARFaceTrackingConfiguration()
         cfg.maximumNumberOfTrackedFaces = 1
         session?.run(cfg, options: [.resetTracking, .removeExistingAnchors])
+        ScreenLight.shared.begin()
+        lockCameraSoon()
+    }
+
+    /// Like the Pulse tab: let ARKit's camera auto-expose on the face, set the screen light from
+    /// the room's darkness, then lock exposure + white balance for the pulse measurement.
+    private func lockCameraSoon() {
+        guard let dev = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            ScreenLight.shared.setFromAmbient(iso: dev.iso)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) {
+            guard (try? dev.lockForConfiguration()) != nil else { return }
+            if dev.isExposureModeSupported(.locked) { dev.exposureMode = .locked }
+            if dev.isWhiteBalanceModeSupported(.locked) { dev.whiteBalanceMode = .locked }
+            dev.unlockForConfiguration()
+            self.facePulse.reset()
+        }
     }
 
     func stop() {
         running = false
         finished = expr.summary
         exportURL = writeRecording()
+        ScreenLight.shared.end()
+        if let dev = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera,
+           (try? dev.lockForConfiguration()) != nil {
+            dev.exposureMode = .continuousAutoExposure
+            dev.whiteBalanceMode = .continuousAutoWhiteBalance
+            dev.unlockForConfiguration()
+        }
     }
 
     /// Session as JSON for offline analysis (AirDrop it to the Mac).
@@ -73,6 +112,11 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
             "hz": 60,
             "columns": ["t", "gaze_yaw_deg", "gaze_pitch_deg", "eye_yaw_raw", "eye_pitch_raw",
                         "cam_yaw", "cam_pitch"] + keys,
+            "cameraPulse": facePulseReading.map { ["bpm": $0.bpm, "snr": $0.snr, "trust": $0.trust.score,
+                                                   "regions": $0.regionsBpm.map { $0 ?? 0 }] as [String: Any] } ?? [:],
+            "breathing": breathing.map { ["perMinute": $0.perMinute, "snr": $0.snr, "amplitudeMM": $0.amplitudeMM] } ?? [:],
+            "breathSamples": breathSamples.suffix(60 * 35).enumerated().compactMap { i, x in
+                i % 6 == 0 ? [x.t, x.dist, x.y] : nil },        // 10 Hz, for validating breathing offline
             "calibration": ["gainYaw": calibration.gainYaw, "offsetYaw": calibration.offsetYaw,
                             "gainPitch": calibration.gainPitch, "offsetPitch": calibration.offsetPitch],
             "frames": rec.map { $0.map { (Double($0) * 1000).rounded() / 1000 } },
@@ -98,6 +142,21 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         let g = gaze(face, frame)
         let vals = ExpressionKind.values(b)
         let tracked = face.isTracked
+        // distance + head motion from TrueDepth (camera space)
+        let facePos = simd_make_float3(face.transform.columns.3)
+        let camPos = simd_make_float3(frame.camera.transform.columns.3)
+        let dist = Double(simd_distance(facePos, camPos))
+        if let lp = lastPos, frame.timestamp > lp.t {
+            let v = Double(simd_distance(facePos, lp.p)) / (frame.timestamp - lp.t)
+            speed += (v - speed) * 0.1
+        }
+        lastPos = (frame.timestamp, facePos)
+        let coach: String? = !tracked ? nil
+            : dist < 0.20 ? "Move the phone a bit further away"
+            : dist > 0.45 ? "Come a bit closer"
+            : speed > 0.06 ? "Hold still"
+            : nil
+        facePulse.prepare(face.geometry)
         if calibrating && tracked {
             if calStart == nil { calStart = frame.timestamp }
             calPairs.append((Self.eyeAngles(face), Self.cameraAngles(face, frame)))
@@ -118,12 +177,27 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
                 self.faceTracked = tracked
                 self.gazeNow = g
                 self.live = vals
+                self.distanceCm = dist * 100
+                self.coaching = coach
                 if self.showDebug { self.topShapes = b.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) } }
             }
             return
         }
         let t = frame.timestamp
         if t0 == nil { t0 = t }
+        facePulse.feed(frame: frame, face: face)
+        // breathing: distance to the phone + vertical position in camera space (m)
+        let up = simd_make_float3(frame.camera.transform.columns.1)
+        breathSamples.append((t, dist, Double(simd_dot(facePos - camPos, up))))
+        if breathSamples.count > 60 * 40 { breathSamples.removeFirst(breathSamples.count - 60 * 40) }
+        var pulseNow: PulseReading?, breathNow: BreathingMath.Reading?, newEstimate = false
+        if t - lastEstimate >= 1 {
+            lastEstimate = t
+            pulseNow = facePulse.estimate()
+            breathNow = BreathingMath.estimate(breathSamples)
+            newEstimate = true
+        }
+        let faceLuma = facePulse.luma
         let before = expr.events.count
         expr.feed(b, t: t)
         if tracked { expr.feedGaze(yaw: g.yaw, pitch: g.pitch, t: t) }
@@ -142,6 +216,13 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
                 self.topShapes = b.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) }
             }
             if let m = newMicro { self.recentMicro = m; self.microCount += 1 }
+            self.distanceCm = dist * 100
+            self.coaching = coach
+            if newEstimate {
+                self.facePulseReading = pulseNow
+                self.breathing = breathNow
+                if el > 3 { ScreenLight.shared.track(faceLuma: faceLuma) }
+            }
             if el >= Self.duration && self.running { self.stop() }
         }
     }
@@ -194,6 +275,7 @@ struct FaceTrackingView: UIViewRepresentable {
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.visible = eyeDebug
         context.coordinator.calibration = tracker.calibration
+        context.coordinator.roiVertices = tracker.facePulse.regionVertices
     }
     static func dismantleUIView(_ uiView: ARSCNView, coordinator: EyeArrows) { uiView.session.pause() }
 }
@@ -203,6 +285,25 @@ struct FaceTrackingView: UIViewRepresentable {
 final class EyeArrows: NSObject, ARSCNViewDelegate {
     var visible = false { didSet { root?.isHidden = !visible } }
     var calibration = GazeCalibration.identity
+    /// where the camera pulse samples skin (forehead, cheeks): drawn as dots on the mesh
+    var roiVertices: [[Int]] = [] { didSet { if roiVertices.map(\.count) != oldValue.map(\.count) { rebuildDots() } } }
+    private var dots: [(node: SCNNode, vertex: Int)] = []
+    private let dotsRoot = SCNNode()
+
+    private func rebuildDots() {
+        dotsRoot.childNodes.forEach { $0.removeFromParentNode() }
+        dots.removeAll()
+        let colors: [UIColor] = [.orange, .red, .red]
+        for (r, idxs) in roiVertices.enumerated() {
+            for v in idxs where v % 2 == 0 {                       // every other vertex is plenty
+                let n = SCNNode(geometry: SCNSphere(radius: 0.0012))
+                n.geometry?.firstMaterial?.diffuse.contents = colors[min(r, 2)]
+                n.geometry?.firstMaterial?.lightingModel = .constant
+                dotsRoot.addChildNode(n)
+                dots.append((n, v))
+            }
+        }
+    }
     private var root: SCNNode?
     private let left = EyeArrows.arrow(color: .cyan)
     private let right = EyeArrows.arrow(color: .magenta)
@@ -237,7 +338,7 @@ final class EyeArrows: NSObject, ARSCNViewDelegate {
         guard anchor is ARFaceAnchor else { return nil }
         let n = SCNNode()
         let r = SCNNode()
-        r.addChildNode(left); r.addChildNode(right); r.addChildNode(focus)
+        r.addChildNode(left); r.addChildNode(right); r.addChildNode(focus); r.addChildNode(dotsRoot)
         // what ARKit "sees": its fitted 3D face model as a wireframe
         if let dev = renderer.device, let g = ARSCNFaceGeometry(device: dev) {
             g.firstMaterial?.fillMode = .lines
@@ -255,6 +356,8 @@ final class EyeArrows: NSObject, ARSCNViewDelegate {
     func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
         guard let face = anchor as? ARFaceAnchor else { return }
         mesh?.update(from: face.geometry)
+        let verts = face.geometry.vertices
+        for d in dots where d.vertex < verts.count { d.node.simdPosition = verts[d.vertex] }
         // arrow at each eye, along the calibrated gaze direction (ARKit's own eye rotation is too small)
         for (node, t) in [(left, face.leftEyeTransform), (right, face.rightEyeTransform)] {
             let dir = GazeMath.direction(calibration.apply(GazeMath.angles(GazeMath.eyeForward(t))))
@@ -280,7 +383,11 @@ struct ExpressionView: View {
                 Text("Face tracking needs a TrueDepth camera (iPhone X or newer).")
                     .multilineTextAlignment(.center).padding()
             } else if let s = tracker.finished {
-                ExpressionReport(summary: s, pulse: finger.freshBpm ?? lastCameraBpm, export: tracker.exportURL) { tracker.start() }
+                ExpressionReport(summary: s,
+                                 cameraPulse: tracker.facePulseReading,
+                                 fingerPulse: finger.freshBpm,
+                                 breathing: tracker.breathing,
+                                 export: tracker.exportURL) { tracker.start() }
             } else {
                 VStack(spacing: 16) {
                     Text("EXPRESSIONS").font(.system(size: 13, weight: .semibold)).tracking(4)
@@ -290,6 +397,7 @@ struct ExpressionView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .stroke(tracker.faceTracked ? Color.green.opacity(0.7) : Color.black.opacity(0.1), lineWidth: 3))
+                    statusLine
                     if tracker.running {
                         Text(prompt).font(.headline).multilineTextAlignment(.center).padding(.horizontal, 24)
                         ProgressView(value: min(tracker.elapsed / ExpressionTracker.duration, 1))
@@ -314,6 +422,26 @@ struct ExpressionView: View {
             }
         }
         .preferredColorScheme(.light)
+    }
+
+    /// distance coaching (always) + live camera pulse / breathing (during a session)
+    private var statusLine: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 10) {
+                if let d = tracker.distanceCm { Text("\(Int(d)) cm").monospacedDigit() }
+                if let c = tracker.coaching { Text(c).foregroundStyle(.orange).fontWeight(.semibold) }
+            }
+            if tracker.running {
+                HStack(spacing: 14) {
+                    if let p = tracker.facePulseReading {
+                        Text("♥ \(p.bpm) BPM · \(p.trust.label.rawValue)").monospacedDigit()
+                            .opacity(p.trust.label == .reliable ? 1 : 0.5)
+                    } else { Text("♥ measuring…") }
+                    if let b = tracker.breathing { Text("breathing \(b.perMinute)/min").monospacedDigit() }
+                }
+            }
+        }
+        .font(.caption).foregroundStyle(.black.opacity(0.6))
     }
 
     /// what the face tracking sees right now: gaze + the strongest raw blendshapes
@@ -380,12 +508,18 @@ struct ExpressionView: View {
 
 struct ExpressionReport: View {
     let summary: ExpressionSession.Summary
-    let pulse: Int?
+    let cameraPulse: PulseReading?
+    let fingerPulse: Int?
+    let breathing: BreathingMath.Reading?
     let export: URL?
+    /// finger sensor if present, else the camera pulse when it's trustworthy
+    private var pulse: Int? {
+        fingerPulse ?? (cameraPulse?.trust.label == .reliable ? cameraPulse?.bpm : nil)
+    }
     let again: () -> Void
 
     var body: some View {
-        let act = Activation.from(summary, restingBpm: pulse)
+        let act = Activation.from(summary, restingBpm: pulse, breathsPerMinute: breathing.flatMap { $0.snr > 0 ? $0.perMinute : nil })
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Session summary").font(.title2.bold())
@@ -404,7 +538,9 @@ struct ExpressionReport: View {
                     row("Eyes wide", "\(Int(summary.eyeWideShare * 100)) %")
                 }
                 section("Activation \(act.score)/100") {
-                    if let pulse { row("Pulse", "\(pulse) BPM") }
+                    if let c = cameraPulse { row("Camera pulse", "\(c.bpm) BPM · \(c.trust.label.rawValue)") }
+                    if let f = fingerPulse { row("Finger pulse", "\(f) BPM") }
+                    if let b = breathing { row("Breathing", "\(b.perMinute)/min" + (b.snr > 0 ? "" : " (weak signal)")) }
                     if act.notes.isEmpty { Text("Nothing stands out.").font(.subheadline) }
                     ForEach(act.notes, id: \.self) { Text("• \($0)").font(.subheadline) }
                 }

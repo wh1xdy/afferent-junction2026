@@ -45,7 +45,6 @@ struct PulseView: View {
     @ObservedObject var finger: FingerSensor
     @Binding var lastBpm: Int?
     @State private var tick = Date()
-    @State private var savedBrightness: CGFloat = 0.5
 
     var body: some View {
         ZStack {
@@ -81,13 +80,12 @@ struct PulseView: View {
         .preferredColorScheme(.light)
         .onChange(of: cam.reading?.bpm) { _, v in if let v, cam.reading?.trust.label == .reliable { lastBpm = v } }
         .onAppear {
-            savedBrightness = UIScreen.main.brightness
-            UIScreen.main.brightness = 1.0
+            ScreenLight.shared.begin()        // variable screen light, see ScreenLight
             UIApplication.shared.isIdleTimerDisabled = true
             cam.start()
         }
         .onDisappear {
-            UIScreen.main.brightness = savedBrightness
+            ScreenLight.shared.end()
             UIApplication.shared.isIdleTimerDisabled = false
             cam.stop()
         }

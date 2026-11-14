@@ -117,6 +117,22 @@ final class ExpressionTests: XCTestCase {
         XCTAssertEqual(b.pitch, a.pitch, accuracy: 0.01)
     }
 
+    func testBreathingFromHeadMotion() {
+        // 12 breaths/min: head moves ~2 mm towards the phone, plus slow leaning and sensor noise
+        var r = 1
+        func noise() -> Double { r = (r &* 1103515245 &+ 12345) & 0x7fffffff; return Double(r) / Double(0x7fffffff) - 0.5 }
+        var s: [(t: Double, dist: Double, y: Double)] = []
+        for i in 0..<(60 * 35) {
+            let t = Double(i) / 60
+            let breath = 0.001 * sin(2 * .pi * 0.2 * t)
+            s.append((t, 0.30 + 0.0003 * t + breath + 0.0004 * noise(), 0.0004 * noise()))
+        }
+        let b = BreathingMath.estimate(s)
+        XCTAssertNotNil(b)
+        XCTAssertEqual(Double(b!.perMinute), 12, accuracy: 1)
+        XCTAssertGreaterThan(b!.snr, 0)
+    }
+
     func testARKitNamesAreNormalized() {
         XCTAssertEqual(ExpressionTracker.normalized("mouthSmile_L"), "mouthSmileLeft")
         XCTAssertEqual(ExpressionTracker.normalized("eyeBlink_R"), "eyeBlinkRight")
