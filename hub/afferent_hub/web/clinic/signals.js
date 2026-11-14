@@ -19,6 +19,9 @@
     connecting: 'connecting to the sensor', connected: 'sensor connected', unavailable: 'sensor not reachable',
   };
   const SERIES = { pulse: 'pulse_bpm', breathing: 'breathing_per_min', rmssd: 'rmssd_ms' };
+  // The sensor keeps one running median of its last 10 minutes of RMSSD readings, whoever wore the clip
+  // (uno-q/modulino-hub/app.py update_hrv). It is not a baseline kept per person, so it is not called one.
+  const VS_NOTE = 'RMSSD against the sensor’s median of its last 10 minutes of readings; not kept per person';
 
   const esc = (s) => C.esc(s);
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -46,7 +49,7 @@
       row('breathing', 'Breathing rate', fmt(physio.breathing_per_min), 'per min');
       row('rmssd', 'HRV (RMSSD)', fmt(physio.rmssd_ms), 'ms');
       if (isNum(physio.sdnn_ms)) row('sdnn', 'SDNN', fmt(physio.sdnn_ms), 'ms');
-      if (isNum(physio.rmssd_vs_baseline)) row('vs_baseline', 'vs own baseline', pct(physio.rmssd_vs_baseline), '%', 'RMSSD against the wearer’s own median on the sensor');
+      if (isNum(physio.rmssd_vs_baseline)) row('vs_baseline', 'vs recent median', pct(physio.rmssd_vs_baseline), '%', VS_NOTE);
       row('presence', 'Finger detection', PRESENCE[physio.presence] || (physio.presence == null ? 'not reported' : null), '');
     }
     if (camera && camera.source === 'rppg') {
@@ -88,7 +91,7 @@
       const r = h.rmssd_ms;
       push(m, 'rmssd', 'HRV (RMSSD)', has(r) ? fmt(r.mean) : null, 'ms', has(r) && isNum(r.first) && isNum(r.last) ? `${fmt(r.first)} → ${fmt(r.last)}, first to last` : '', SERIES.rmssd);
       if (has(h.sdnn_ms)) push(m, 'sdnn', 'SDNN', fmt(h.sdnn_ms.mean), 'ms');
-      if (has(h.rmssd_vs_baseline)) push(m, 'vs_baseline', 'vs own baseline', pct(h.rmssd_vs_baseline.mean), '%', 'RMSSD against the wearer’s own median on the sensor');
+      if (has(h.rmssd_vs_baseline)) push(m, 'vs_baseline', 'vs recent median', pct(h.rmssd_vs_baseline.mean), '%', VS_NOTE);
     }
     if (c) {
       const t = c.trust_score, l = c.trust_label_s;
@@ -136,7 +139,9 @@
     if (!rows.length && !srows.length && !o.bound) return '';
     const out = [];
     if (rows.length) {
-      const link = o.physio && o.via === 'phone' && LINK[o.physio.link];
+      // `link` is the phone's Bluetooth link. It says nothing about a frame the phone got from the hub
+      // (transport hub_http): those values are current while the Bluetooth link may be off or searching.
+      const link = o.physio && o.via === 'phone' && o.physio.transport !== 'hub_http' && LINK[o.physio.link];
       const from = [o.via === 'phone' ? 'relayed by the phone' : o.via === 'hub' ? 'from the bedside source on the hub' : '', link || ''].filter(Boolean).join(' · ');
       out.push(`<div class="sig-block" data-part="now"><div class="sig-h"><h3>Current readings</h3><span class="muted">${esc(from)}</span></div><div class="sig-rows">${rows.map((r) => rowHtml(r)).join('')}</div></div>`);
     } else if (o.bound) {

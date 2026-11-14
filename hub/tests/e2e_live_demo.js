@@ -58,7 +58,15 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   await app.goto(`${HUB}/app/?input=auto&patient=${PATIENT}${CLOCK}`, { waitUntil: 'load' });
   await app.waitForSelector('#begin', { state: 'visible', timeout: 15000 });
   await app.waitForTimeout(1000);
-  await app.click('#begin');
+  // A first launch shows the lantern anchor card over the start screen (demo/js/checkin.js); the
+  // patient taps "Got it" once. Without this the card intercepts the tap on Begin.
+  const gotIt = app.locator('#checkin:not(.hidden) button', { hasText: 'Got it' });
+  if (await gotIt.count()) {
+    await gotIt.first().click();
+    await app.waitForSelector('#checkin', { state: 'hidden', timeout: 5000 });
+  }
+  // Begin is "Hold to kindle" (demo/js/gui/shell.js, 900 ms): press and hold like a patient does.
+  await app.click('#begin', { delay: 1300 });
   const t0 = Date.now();
 
   let shotAt = 0;
@@ -116,6 +124,16 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   check('game sent dawn light', dawnSent, dawnSent ? JSON.stringify(dawnSent.m) : 'no light with reason dawn');
   check('bedside light changed at dawn', atDawn && (atDawn.rgb !== bedsideBefore.light.rgb || atDawn.level !== bedsideBefore.light.level),
     atDawn ? `${bedsideBefore.light.rgb}/${bedsideBefore.light.level} -> ${atDawn.rgb}/${atDawn.level} (${atDawn.reason}); now ${bedsideAfter.light.rgb}/${bedsideAfter.light.level} (${bedsideAfter.light.reason})` : `bedside lights seen: ${bedsideLights.map((l) => l.reason + ':' + l.level).join(' ')}`);
+
+  // Decisions I5 and I53: with no finger sensor and no camera, the whole pulse of the run is the
+  // simulator's and says so; no finger block appears and the relayed live data has no physio.
+  const doc = sentEnd && sentEnd.m.session;
+  const lives = clinicMsgs.filter((x) => x.m.type === 'live' && forPatient(x.m));
+  const simOk = doc && doc.signal && doc.signal.pulse_source === 'simulated' && doc.simulated === true
+    && (doc.simulated_fields || []).includes('vitals') && !(doc.vitals && doc.vitals.finger)
+    && lives.length > 0 && lives.every((x) => x.m.physio == null && x.m.pulse_source !== 'finger_ppg');
+  check('simulated run stays labelled simulated, no finger data', simOk,
+    doc ? `pulse_source ${doc.signal && doc.signal.pulse_source}, simulated_fields has vitals ${(doc.simulated_fields || []).includes('vitals')}, finger ${JSON.stringify(doc.vitals && doc.vitals.finger)}` : 'no session');
 
   check('no errors in clinic page', errors.clinic.length === 0, errors.clinic.slice(0, 5).join(' | '));
   check('no errors in app page', errors.app.length === 0, errors.app.slice(0, 5).join(' | '));

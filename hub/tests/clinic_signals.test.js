@@ -60,7 +60,7 @@ const CAM = { source: 'rppg', bpm: 74.5, trust_score: 82, trust_label: 'reliable
 {
   const rows = Sg.liveRows(HTTP, null, 1.6);
   const r = byKey(rows);
-  same(rows.map((x) => x.label), ['Pulse (fused)', 'Finger 1', 'Finger 2', 'Breathing rate', 'HRV (RMSSD)', 'SDNN', 'vs own baseline', 'Finger detection']);
+  same(rows.map((x) => x.label), ['Pulse (fused)', 'Finger 1', 'Finger 2', 'Breathing rate', 'HRV (RMSSD)', 'SDNN', 'vs recent median', 'Finger detection']);
   assert.strictEqual(r.pulse.note, 'signal quality 0.62');
   same([r.rmssd.value, r.rmssd.unit], ['41.5', 'ms']);
   same([r.sdnn.value, r.sdnn.unit], ['46', 'ms']);
@@ -118,7 +118,7 @@ const fixture = json('session_finger_example.json');
 {
   const rows = Sg.sessionRows(fixture.vitals, fixture.simulated_fields);
   const r = byKey(rows);
-  same(rows.map((x) => x.label), ['Pulse (fused)', 'Finger 1', 'Finger 2', 'Between the fingers', 'Finger detection', 'Breathing rate', 'HRV (RMSSD)', 'SDNN', 'vs own baseline', 'Pulse (camera)']);
+  same(rows.map((x) => x.label), ['Pulse (fused)', 'Finger 1', 'Finger 2', 'Between the fingers', 'Finger detection', 'Breathing rate', 'HRV (RMSSD)', 'SDNN', 'vs recent median', 'Pulse (camera)']);
   assert.ok(rows.every((x) => x.simulated === true), 'every block of the fixture is simulated');
   same([r.pulse.value, r.pulse.unit, r.pulse.note], ['73.9', 'bpm', '71 to 79, signal quality 0.62']);
   same([r.finger_1.value, r.finger_2.value, r.fingers_diff.value, r.fingers_diff.unit], ['74.3', '73.2', '2.1', 'bpm']);
@@ -182,8 +182,14 @@ const NOW = 1_800_000_000_000;
   assert.ok(!ble.includes('sim-badge') && !ble.includes('No finger sensor reading yet') && !ble.includes('Last session'));
   checkWording(ble, 'ble');
 
+  // a hub frame that came back through the phone's live relay: the phone's Bluetooth link state does not describe it
+  const relayed = Sg.html({ physio: { ...HTTP, link: 'unavailable' }, camera: null, at: NOW - 400, via: 'phone', session: null, bound: true, nowMs: NOW });
+  assert.ok(relayed.includes('relayed by the phone') && relayed.includes('finger sensor (PPG), hub HTTP') && relayed.includes('signal quality 0.62'));
+  for (const s of ['sensor not reachable', 'looking for the sensor', 'Bluetooth off']) assert.ok(!relayed.includes(s), s);
+  assert.ok(!Sg.html({ physio: { ...HTTP, link: 'scanning' }, camera: null, at: NOW - 400, via: 'phone', session: null, bound: true, nowMs: NOW }).includes('looking for the sensor'));
+
   const http = Sg.html({ physio: HTTP, camera: null, at: NOW - 1000, via: 'hub', session: null, bound: true, nowMs: NOW });
-  for (const s of ['from the bedside source on the hub', 'finger sensor (PPG), hub HTTP', 'signal quality 0.62', 'SDNN', 'vs own baseline', '−8<small>%</small>', 'measuring']) assert.ok(http.includes(s), s);
+  for (const s of ['from the bedside source on the hub', 'finger sensor (PPG), hub HTTP', 'signal quality 0.62', 'SDNN', 'vs recent median', '−8<small>%</small>', 'measuring']) assert.ok(http.includes(s), s);
   checkWording(http, 'http');
 
   const stale = Sg.html({ physio: HTTP, camera: null, at: NOW - 9000, via: 'hub', session: null, bound: true, nowMs: NOW });

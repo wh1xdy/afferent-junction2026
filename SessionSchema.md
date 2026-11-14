@@ -144,7 +144,7 @@ Five optional blocks hold what the finger sensor and the phone camera measured d
 | `vitals.hrv.source`, `window_s` | | `finger_ppg` or `simulated`; 60 |
 | `vitals.hrv.rmssd_ms` | ms, stat | RMSSD over the last 60 s |
 | `vitals.hrv.sdnn_ms` | ms, stat or null | SDNN over the same window; null over Bluetooth (HTTP path only) |
-| `vitals.hrv.rmssd_vs_baseline` | fraction, stat or null | RMSSD relative to the wearer's own median on the sensor (-0.3 is 30% below); null over Bluetooth (HTTP path only) |
+| `vitals.hrv.rmssd_vs_baseline` | fraction, stat or null | RMSSD relative to the sensor's running median of its last 10 minutes of readings (at least 2 minutes of them; kept on the sensor, not per person) (-0.3 is 30% below); null over Bluetooth (HTTP path only) |
 | `vitals.camera_pulse.source` | | `rppg` (the phone camera) |
 | `vitals.camera_pulse.pulse_bpm` | bpm, stat | Camera pulse |
 | `vitals.camera_pulse.trust_score` | 0 to 100, stat | Trust score of the camera pulse |

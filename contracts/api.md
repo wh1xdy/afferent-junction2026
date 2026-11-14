@@ -389,14 +389,14 @@ What the current hardware does with this (Decisions I13, I53; Alex A6, A12):
 
 ### 3.5 Sensor data (I53)
 
-Decisions I53 (Alex and David, 2026-11-14) makes the physiological data of the UNO Q finger sensor first-class data in the app: fused finger pulse, pulse per finger, breathing rate, HRV (RMSSD, plus SDNN and the value against the wearer's own baseline where the HTTP path gives them), the finger-detection state, and the phone camera pulse with its trust score. This section is the contract for it. Every number in the examples of this file and in `fixtures/session_finger_example.json` shows the shape only and is never a measurement.
+Decisions I53 (Alex and David, 2026-11-14) makes the physiological data of the UNO Q finger sensor first-class data in the app: fused finger pulse, pulse per finger, breathing rate, HRV (RMSSD, plus SDNN and the value against the sensor's recent median where the HTTP path gives them), the finger-detection state, and the phone camera pulse with its trust score. This section is the contract for it. Every number in the examples of this file and in `fixtures/session_finger_example.json` shows the shape only and is never a measurement.
 
 #### Two paths, one object
 
 | | Path | Needs | Gives |
 |---|---|---|---|
 | 1 (primary) | UNO Q Bluetooth LE to the phone: Capacitor plugin `AfferentFinger`, then `demo/js/finger.js`, then `A.Sensors` | No network. The UNO Q advertises as `Afferent Finger` | Fused pulse, pulse per finger, breathing rate, RMSSD; quality and finger detection only with AFF1 v2 |
-| 2 (second) | UNO Q HTTP to the hub: `AFFERENT_BEDSIDE=unoq:<base url>`, source `unoq_http` (section 5.5) | The UNO Q HTTP API is published only on the Wendy Net mesh (port 18080). The hub host needs the wendy CLI, Alex's org login and `wendy net forward <local>:18080 --device <uno-q>`; a direct connection to the device port is refused | Everything of path 1 plus quality, SDNN, RMSSD against the wearer's own baseline, breathing SNR, finger detection, knob turns, thermo, and the KY-016 through `POST /led` |
+| 2 (second) | UNO Q HTTP to the hub: `AFFERENT_BEDSIDE=unoq:<base url>`, source `unoq_http` (section 5.5) | The UNO Q HTTP API is published only on the Wendy Net mesh (port 18080). The hub host needs the wendy CLI, Alex's org login and `wendy net forward <local>:18080 --device <uno-q>`; a direct connection to the device port is refused | Everything of path 1 plus quality, SDNN, RMSSD against the sensor's recent median, breathing SNR, finger detection, knob turns, thermo, and the KY-016 through `POST /led` |
 
 Both paths produce the same physio object, so the game, the recorder, the phone screens and the clinic view have one shape and one set of rules.
 
@@ -433,7 +433,7 @@ The hub WebSocket message `physio` (to the phone, to the dashboard and from a de
 | `breathing_per_min` | number or null | Breaths per minute, derived on the sensor from the heart-rate rhythm |
 | `rmssd_ms` | number or null | HRV: RMSSD over the last 60 s, ms |
 | `sdnn_ms` | number or null | HRV: SDNN over the same window, ms. HTTP only, null over Bluetooth |
-| `rmssd_vs_baseline` | number or null | RMSSD relative to the wearer's own median on the sensor, as a fraction (`-0.3` is 30% below). HTTP only, null over Bluetooth |
+| `rmssd_vs_baseline` | number or null | RMSSD relative to the sensor's running median of its last 10 minutes of readings (at least 2 minutes of them; kept on the sensor, not per person), as a fraction (`-0.3` is 30% below). HTTP only, null over Bluetooth |
 | `presence` | `idle`, `probing`, `active` or null | Finger detection of the sensor: LEDs off, checking for a finger, measuring. Never bed presence |
 | `age_s` | number or null | Age of the newest value in the object when it was sent, seconds |
 
