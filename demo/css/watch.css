@@ -1,0 +1,7 @@
+/* Settings, Sensors: "Heart rate from a watch or strap" (watch.js) and "Apple Watch" (health.js). */
+#watchGroup [hidden], #healthGroup[hidden] { display: none !important; }
+/* The visible last row gets the rounded bottom, also when "Forget this device" or the list is hidden. */
+#watchGroup .group > :nth-last-child(1 of :not([hidden])) { border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
+.watch-list { display: flex; flex-direction: column; padding: 4px 0; }
+.watch-list .li { background: transparent; }
+.watch-empty { margin: 0; padding: 12px 20px; }
