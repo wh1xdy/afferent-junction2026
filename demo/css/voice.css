@@ -2,7 +2,10 @@
    and Jost headline like the support card, tile list like "How it works", pill buttons, lantern glow. */
 .voice { z-index: 6; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); animation: rise var(--af-dur-enter) var(--af-ease-in); }
 
-.voice-intro { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; justify-content: center; padding: 8px 0 16px; }
+/* Centred while it fits; when it does not, it scrolls from the top instead of overflowing under the app bar
+   (justify-content: center in a scrolling box pushes the top out of reach). The auto margins do the centring. */
+.voice-intro { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; justify-content: flex-start; padding: 8px 0 16px; }
+.voice-intro::before, .voice-intro::after { content: ""; flex: none; margin: auto 0; }
 .voice-tile { width: 56px; height: 56px; margin: 0 24px; border-radius: 18px; }
 .voice-tile svg { width: 20px; height: 32px; }
 .voice-intro h3 { margin: 20px 24px 16px; color: var(--md-sys-color-on-surface); text-wrap: balance; }
@@ -34,6 +37,7 @@
 
 .voice-dock { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 16px calc(var(--safe-bottom) + 24px); }
 .voice-status { min-height: 20px; margin: 0 8px 8px; text-align: center; color: var(--md-sys-color-on-surface-variant); }
+.voice-setup { margin: -8px 0 4px; }
 .voice[data-state="error"] .voice-status { font-weight: 400; color: var(--md-sys-color-error); }
 
 /* Lantern that glows with the voice: the mic level while listening, a slow breath while speaking. */

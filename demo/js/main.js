@@ -14,13 +14,18 @@
   const deviceId = store.get('afferent.device') || 'inst-' + Math.random().toString(16).slice(2, 8);
   store.set('afferent.device', deviceId);
   const prefersCalm = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // Simulated sensors: on in the browser demo, off on a phone, where a made-up pulse would read as the patient's own.
+  // On a phone only a choice made in Developer settings turns them on (an older saved "on" was just the old default).
+  const native = !!window.Capacitor?.isNativePlatform?.();
+  const simDefault = native ? (saved.simulatorChosen ? !!saved.simulator : false) : (saved.simulator ?? true);
 
   A.config = {
     deviceId, appVersion: '0.3.0', patientId: q.get('patient') || 'anna', dawnLevel: 15, baselinePulse: 68,
     reducedMotion: saved.reducedMotion ?? prefersCalm,
     sensors: A.switches(saved.sensors),
     sharing: saved.sharing || 'summary',
-    simulator: saved.simulator ?? true,
+    simulator: simDefault,
+    simulatorChosen: !!saved.simulatorChosen,
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
     signalsOverlay: saved.signalsOverlay ?? false,
@@ -169,15 +174,12 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
-  const sharingSeg = () => {
-    const bs = [...document.querySelectorAll('#sharingSeg button')];
-    bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
-    $('sharingSeg').style.setProperty('--idx', Math.max(0, bs.findIndex(b => b.dataset.v === A.config.sharing)));
-  };
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
+  const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Answers about your safety are still shared.' };
+  const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
   const toggles = () => {
     document.querySelectorAll('[data-sensor]').forEach(el => { el.checked = !!A.config.sensors[el.dataset.sensor]; });
-    sharingSeg();
+    sharingText();
     $('simSw').checked = A.config.simulator;
     $('motionSw').checked = A.config.reducedMotion;
     $('soundSw').checked = ui.sound;
@@ -200,12 +202,7 @@
     if (sensor === 'phone_camera') { syncCamPulse(); A.Face.sync(); }
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
-  document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
-    if (A.config.sharing === b.dataset.v) return;
-    A.config.sharing = b.dataset.v; sharingSeg(); saveSettings();
-    A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sharing: A.config.sharing });
-  });
-  $('simSw').onchange = e => { A.config.simulator = e.target.checked; syncSensors(); saveSettings(); camGlyph(); };
+  $('simSw').onchange = e => { A.config.simulator = e.target.checked; A.config.simulatorChosen = true; syncSensors(); saveSettings(); camGlyph(); };
   $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; A.Theme.motion(); saveSettings(); };
   $('soundSw').onchange = e => setSound(e.target.checked);
   $('hapticSw').onchange = e => { A.Haptics.setEnabled(e.target.checked); if (e.target.checked) A.Haptics.play('touch'); };

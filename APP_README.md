@@ -19,7 +19,7 @@ Needs Python 3 (the script creates `hub/.venv` and installs `hub/requirements.tx
 
 Options: `--no-sim` (no bedside simulator), `--serial /dev/tty.usbmodemXXXX` (real Arduino UNO Q), `--ws` (bedside unit over Wi-Fi), `--sim-pulse` (simulated pulse stone during sessions), `--port 8000`.
 
-Game query options: `patient=anna|juha|mikko|leena|sofia|eero`, `input=auto|touch|camera`, `clock=morning|night`, `profile=live|good_day|bad_day`, `stage=1` (60 s stage mode), `dev=1` (show the demo chips on the start screen on a phone).
+Game query options: `patient=anna|juha|mikko|leena|sofia|eero`, `input=auto|touch|camera`, `clock=morning|night`, `profile=live|good_day|bad_day`, `stage=1` (60 s stage mode), `dev=1` (show the Developer section in Settings, open).
 
 ## Reset the demo
 
@@ -40,7 +40,7 @@ or `./start.sh --reset`, or the dashboard Demo menu > Reset.
 
 Without the native app, open `http://<hub-ip>:8000/app/` in Safari on the phone (touch and simulated sensors work; the camera needs the native app or `localhost`).
 
-In the native app the input, clock, session length and profile chips are in the Settings card (under the sensor switches).
+In the native app the input, clock, session length and profile chips are in Settings, in the Developer section. It is hidden from patients: tap the version line at the bottom of Settings 7 times (or hold it) to show or hide it. Simulated sensors are off by default in the native app (on in the browser); turn them on there for a demo without the finger clips.
 
 ## Tests
 

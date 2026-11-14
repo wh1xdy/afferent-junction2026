@@ -165,6 +165,7 @@
     shield: '<path d="M12 3.5l7 2.8v5.2c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6.3z"/><path d="M9 12l2.2 2.2L15.5 10"/>',
     checklist: '<path d="M4.5 7.5l1.8 1.8 3.2-3.3M4.5 15.5l1.8 1.8 3.2-3.3M13 8h6.5M13 16h6.5"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
   };
   const CALL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.95 21q-3.12 0-6.17-1.36t-5.55-3.86q-2.5-2.5-3.86-5.55T3 4.05q0-.45.3-.75t.75-.3H8.1q.35 0 .62.24t.33.56l.65 3.5q.05.4-.02.68T9.4 8.45L6.98 10.9q.5.93 1.19 1.79t1.51 1.66q.78.78 1.63 1.44T13.1 17l2.35-2.35q.23-.23.59-.34t.71-.06l3.45.7q.35.1.58.36T21 15.9v4.05q0 .45-.3.75t-.75.3z"/></svg>';
   const LANTERN = '<svg class="lantern" viewBox="0 0 26 40" aria-hidden="true"><circle cx="13" cy="3.6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 10.5h10l-2-4.2h-6z" fill="currentColor"/><rect x="6.5" y="10.5" width="13" height="20" rx="4.5" fill="color-mix(in srgb, currentColor 22%, transparent)" stroke="currentColor" stroke-width="1.5"/><ellipse cx="13" cy="21.5" rx="2.7" ry="4.3" fill="currentColor"/><rect x="8.5" y="30.5" width="9" height="3.2" rx="1.2" fill="currentColor"/></svg>';
@@ -178,6 +179,18 @@
     return b;
   };
   const bar = () => { const b = el('div', 'ci-bar'); b.append(talkIcon()); return b; };
+  // The question screens: a visible way out (stop, the answers so far are kept), where you are (3 of 9) and the same
+  // talk button as every other check-in screen. Swiping down still stops too.
+  const questionBar = k => {
+    const b = el('div', 'ci-bar ci-qbar');
+    const stop = btn('ci-stop', null, () => finish('stop'));
+    stop.setAttribute('aria-label', 'Stop check-in');
+    stop.innerHTML = icon('close');
+    const i = PHQ_KEYS.indexOf(k), at = el('p', 'ci-progress');
+    if (i >= 0) { at.append(el('span', 'ci-sr', 'Question ')); at.append(`${i + 1} of ${PHQ_KEYS.length}`); }
+    b.append(stop, at, talkIcon());
+    return b;
+  };
 
   const contacts = (kind) => {
     const c = cfg().clinic;
@@ -268,8 +281,7 @@
       b.append(el('span', 'lb', label), html('span', 'ci-check', icon('check')));
       group.append(b);
     });
-    const stop = btn('ci-sr', 'Stop check-in', () => finish('stop'));
-    s.append(head, group, stop);
+    s.append(questionBar(k), head, group);
     run.shownAt = performance.now();
     focusFirst();
   };
@@ -322,7 +334,7 @@
     const items = [
       ['schedule', 'Nine short questions about the last 2 weeks.'],
       ['doc', (c.protocol ? 'Your clinic sees your answers on the next working day.' : 'Your clinic will see your answers.') + ' This is not watched around the clock.'],
-      ['swipe', 'You can stop at any time by swiping down.'],
+      ['swipe', 'You can stop at any time with the cross at the top, or by swiping down.'],
     ];
     if (A.config?.sharing === 'paused') items.push(['shield', 'Sharing is paused, but answers about your safety still reach your clinic.']);
     info('intro', { lead: tile(icon('checklist')), title: 'Check-in', items, buttons: [['Start', begin], ['Later', later, 'text']] });
