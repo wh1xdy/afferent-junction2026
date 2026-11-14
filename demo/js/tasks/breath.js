@@ -62,6 +62,7 @@
         gather: 0, flare: 0, downAt: -9, topAt: -9, launchAt: -9, touched: false, wasHolding: false,
         anchor: null, drift: 0, loose: false, cy: null, perfRun: 0, ribbon: false, spilled: false,
         dim: 0, eyes: 1, vis: 0, waitA: 0, strengths: [], early: 0, late: 0, lit: 0, clear: 0, lastUpT: null, pendingUp: null,
+        fb: A.Breathing?.track(60 / CYCLE) ?? null,
 
         geo() {
           const { W, H } = J.size(), u = H / 844;
@@ -101,6 +102,7 @@
         update(dt, now) {
           this.visual(dt, now);
           if (this.done) return;
+          this.fb?.tick(now, dt);
           const ct = this.t % CYCLE, inhale = ct < IN;
           this.b = inhale ? E.breath(ct / IN) : 1 - E.breath((ct - IN) / (CYCLE - IN));
           const holding = !!(this.autoHold ?? A.Input.holding());
@@ -343,6 +345,7 @@
 
           if (this.waitA > 0.01) J.sprite(ctx, 'ring', col, x, y, (112 + 8 * Math.sin(at * Math.PI)) * u, 0.3 * this.waitA * (0.6 + 0.4 * Math.sin(at * Math.PI)), true);
           this.drawArc(ctx, at, ct, inhale, u, col);
+          this.drawPace(ctx, u, rm);
           this.drawMotes(ctx, at, u, rm);
           this.drawPetals(ctx, at, open, u, night);
           this.drawFlame(ctx, at, u, open, night);
@@ -371,6 +374,19 @@
           const tp = clamp((at - this.topAt) / 0.5, 0, 1);
           if (tp < 1) J.sprite(ctx, 'glow', C.glow, x, y - r, (8 + 16 * tp) * u, 0.8 * (1 - tp), true);
           ctx.globalAlpha = ga;
+        },
+
+        drawPace(ctx, u, rm) {
+          const f = this.fb?.ring;
+          if (!f || f.a <= 0.01) return;
+          const { x, y } = this.geo(), near = clamp(f.near ?? 0, 0, 1), gap = 9 * u * (1 - near);
+          ctx.save();
+          ctx.globalAlpha *= f.a;
+          ctx.strokeStyle = rgb(mixc(C.silver300, C.glow, f.solid ? near : 0), f.solid ? 0.3 + 0.4 * near : 0.4);
+          ctx.lineWidth = (f.solid ? 1.8 : 2) * u; ctx.lineCap = 'round';
+          ctx.setLineDash(!f.solid ? [0.1, 7 * u] : gap > 0.5 ? [10 * u, gap] : []);
+          ctx.beginPath(); ctx.arc(x, y, (128 + (rm ? 0 : 14 * (1 - near))) * u, 0, TAU); ctx.stroke();
+          ctx.restore();
         },
 
         drawMotes(ctx, at, u, rm) {

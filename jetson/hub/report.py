@@ -1,12 +1,34 @@
-"""Clinician and patient reports (HTML, printable) from Store.summary().
+"""The patient's two reports (HTML) from Store.summary().
 
-Clinician: objective measures over time, PHQ-9 with item 9 flagged, data coverage and quality,
-how each number was computed. No diagnosis - the clinician interprets.
-Patient: the same week in plain words, with support lines.
+Handover ("Report for my doctor"): the document the patient prints or saves and hands to a doctor.
+The hub sends it nowhere. A template summary (grounding.summary_text, no LLM), objective measures
+over time, PHQ-9 with item 9 flagged, data coverage, how each number was computed, when it was
+generated and that the patient printed it. No diagnosis - the doctor interprets.
+Patient ("Your week"): the same period in plain words, with support lines.
+
+A summary marked "simulated" (the ?demo=1 patient) says so at the top of both, also in print.
+
+clinician() is the old name of handover(), kept for code that still calls it (the copy of this file
+in hub/afferent_hub): same document, and a `narrative` passed to it is not shown.
 """
 import html
+import os
+import re
+import time
+from datetime import datetime, timezone
 
 from store import METRICS
+
+try:
+    import grounding
+except ImportError:
+    # loaded as a single file by path (hub/afferent_hub/team_adapters/loader.py), with only `store`
+    # importable: take grounding.py from the folder this file is in
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location(
+        "afferent_report_grounding", os.path.join(os.path.dirname(os.path.abspath(__file__)), "grounding.py"))
+    grounding = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(grounding)
 
 CSS = """
 :root { --ink:#1d1d1f; --muted:#6e6e73; --line:#e5e5ea; --flag:#c62828; --ok:#2e7d32; --bg:#fff; }
@@ -18,8 +40,20 @@ table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums 
   border-bottom:1px solid var(--line); vertical-align:middle } th { font-weight:600; font-size:13px; color:var(--muted) }
 .flag { color:var(--flag); font-weight:700 } .muted { color:var(--muted); font-size:13px } .box { border:1px solid var(--line);
   border-radius:10px; padding:12px 14px; margin:12px 0 } .alert { border-color:var(--flag); background:#fdecea }
-svg { vertical-align:middle } @media print { body { margin:0 } }
+svg { vertical-align:middle } td div.muted { white-space:nowrap }
+@page { margin:15mm }
+@media print {
+  body { max-width:none; margin:0; padding:0; font-size:11pt }
+  .screen { display:none }                      /* hints for the patient at the screen, not part of the document */
+  .muted { color:#444 } th { color:#444 }
+  h2 { break-after:avoid } table, tr, .box { break-inside:avoid } thead { display:table-header-group }
+  .alert, .flag { -webkit-print-color-adjust:exact; print-color-adjust:exact }
+  a { color:inherit; text-decoration:none }
+}
 """
+
+SIMULATED = ('<div class="box alert"><b class="flag">SIMULATED DATA.</b> This is a synthetic demo patient, not '
+             'measurements of a real person. It is not a report to hand over.</div>')
 
 
 def spark(values, w=140, h=28):
@@ -38,9 +72,57 @@ def fmt(v, unit=""):
     return "—" if v is None else f"{v:g}{(' ' + unit) if unit else ''}"
 
 
-def clinician(summary, patient_label="Patient", narrative=None):
+def summary_box(summary):
+    """the deterministic summary, with its fact labels set in grey"""
+    text = html.escape(grounding.summary_text(summary))
+    text = re.sub(r"(\[[^\]]+\])", r'<span class="muted">\1</span>', text)
+    return (f'<div class="box"><b>Summary</b><br>{text}<div class="muted">Written by a fixed template from the numbers '
+            'below, without a language model. The labels in brackets name the source of each statement: Q = PHQ-9 entry, '
+            'F = item-9 flag, T = 7-day trend, D = one day, B = facial behaviour, P = period, C = coverage.</div></div>')
+
+
+def unreadable_box(summary):
+    """Entries stored with a timestamp that cannot be read are in no table of the report; say so,
+    and never let a PHQ-9 with item 9 above 0 go missing without a word."""
+    u = summary.get("unreadable") or {}
+    n = u.get("sessions", 0) + u.get("phq9", 0)
+    if not n:
+        return ""
+    risk = u.get("phq9_item9", 0)
+    text = (f"<b>{n} stored {'entry has' if n == 1 else 'entries have'} a timestamp that cannot be read</b> and "
+            f"{'is' if n == 1 else 'are'} not in this report: app sessions {u.get('sessions', 0)}, PHQ-9 entries {u.get('phq9', 0)}.")
+    if risk:
+        text += (f" <b class=\"flag\">PHQ-9 item 9 is above 0 in {risk} of those PHQ-9 entries</b> (date unknown). "
+                 "Please assess risk.")
+    return f'<div class="box{" alert" if risk else ""}">{text}</div>'
+
+
+def support_box(summary, screen_only=False):
+    """support lines for the patient when item 9 is above 0, also in a check-in whose date is unreadable"""
+    if not (summary["phq9_item9_flag"] or (summary.get("unreadable") or {}).get("phq9_item9")):
+        return ""
+    return (f'<div class="box alert{" screen" if screen_only else ""}">You mentioned thoughts of hurting yourself. '
+            'You don\'t have to handle this alone: call <b>112</b>, Mieli crisis line <b>09 2525 0111</b> (Finland) '
+            'or Självmordslinjen <b>90101</b> (Sweden).</div>')
+
+
+def handover(summary, patient_label="Patient", now=None):
+    """The document the patient hands to a doctor. `now` (unix time) is when it is generated."""
     s = summary
     e = html.escape
+    generated = datetime.fromtimestamp(now or time.time(), timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    simulated = bool(s.get("simulated"))
+    if simulated:
+        origin, shared, hint = "simulated demo data", "", ""
+    else:
+        origin = "printed by the patient from their own device"
+        shared = ("<p><b>Shared by the patient.</b> This report was made on the patient's own device from the data "
+                  "stored there. The patient chose to print or save it and to hand it over. The device sends nothing to "
+                  "anyone and gives no one else access to the data.</p>")
+        # for the patient at the screen; the printed document does not carry it
+        hint = ('<div class="box screen"><b>This is your report to hand over.</b> Print it, or save it as a PDF from the '
+                'print dialog, and give it to your doctor yourself. Nothing is sent from your device: your doctor sees '
+                'only what you hand over.</div>') + support_box(s, screen_only=True)
     rows = []
     for m, (name, unit, how) in METRICS.items():
         vals = [d[m] for d in s["daily"]]
@@ -57,28 +139,37 @@ def clinician(summary, patient_label="Patient", narrative=None):
     cov = s["coverage"]
     alert = ('<div class="box alert"><b class="flag">PHQ-9 item 9 answered above 0</b> (thoughts of being better off dead '
              'or of self-harm) in this period. Please assess risk.</div>') if s["phq9_item9_flag"] else ""
-    narr = f'<div class="box"><b>Summary</b><br>{e(narrative)}<div class="muted">Generated locally from the numbers below.</div></div>' if narrative else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Afferent clinician report</title><style>{CSS}</style></head><body>
-<h1>Afferent — clinician report</h1>
-<div class="muted">{e(patient_label)} · {s['period']['from']} to {s['period']['to']} ({s['period']['days']} days) · data stored on the patient's own device</div>
-{alert}{narr}
+<title>Report for my doctor{' (simulated)' if simulated else ''}</title><style>{CSS}</style></head><body>
+{SIMULATED if simulated else ''}{hint}
+<h1>Report for my doctor</h1>
+<div class="muted">{e(patient_label)} · {s['period']['from']} to {s['period']['to']} ({s['period']['days']} days) · generated {generated} · {origin}</div>
+{shared}
+{alert}{unreadable_box(s)}{summary_box(s)}
 <h2>Data coverage</h2>
-<table><tr><th>Days with sensor data</th><th>Sensor minutes</th><th>App sessions</th><th>PHQ-9 entries</th></tr>
+<table><thead><tr><th>Days with sensor data</th><th>Sensor minutes</th><th>App sessions</th><th>PHQ-9 entries</th></tr></thead>
 <tr><td>{cov['days_with_sensor_data']} / {s['period']['days']}</td><td>{cov['sensor_minutes']}</td><td>{cov['sessions']}</td><td>{cov['phq9_entries']}</td></tr></table>
 <h2>PHQ-9</h2>
-<table><tr><th>Date</th><th>Score</th><th>Severity band</th><th>Item 9</th></tr>{phq_rows}</table>
+<table><thead><tr><th>Date</th><th>Score</th><th>Severity band</th><th>Item 9</th></tr></thead>{phq_rows}</table>
 <h2>Physiology (finger sensors)</h2>
-<table><tr><th>Measure</th><th>Latest</th><th>Daily trend</th><th>Last 7 d vs previous 7 d</th><th>How it is computed</th></tr>{''.join(rows)}</table>
+<table><thead><tr><th>Measure</th><th>Latest</th><th>Daily trend</th><th>Last 7 d vs previous 7 d</th><th>How it is computed</th></tr></thead>{''.join(rows)}</table>
 <h2>Facial behaviour (phone sessions, averages)</h2>
-<table><tr><th>Smiling</th><th>Facial movement</th><th>Blinks</th><th>Looking away</th><th>Micro-expressions</th></tr>
+<table><thead><tr><th>Smiling</th><th>Facial movement</th><th>Blinks</th><th>Looking away</th><th>Micro-expressions</th></tr></thead>
 <tr><td>{fmt(None if b['smile_share'] is None else round(b['smile_share'] * 100), '%')}</td><td>{fmt(b['expressivity'])}</td>
 <td>{fmt(None if b['blinks_per_min'] is None else round(b['blinks_per_min']), '/min')}</td>
 <td>{fmt(None if b['gaze_away_share'] is None else round(b['gaze_away_share'] * 100), '%')}</td><td>{fmt(b['micro_expressions_per_session'])} / session</td></tr></table>
 <p class="muted">Afferent is a screening and monitoring aid, not a diagnostic device. Physiological and facial measures are
 behavioural context with known limitations (sensor contact, lighting, movement); the PHQ-9 is the validated instrument.
-Trends need at least 3 days with data in each 7-day window.</p>
+Trends need at least 3 days with data in each 7-day window. A day in this report is the 24 hours ending at the time of
+day the report was generated (UTC), named by the date it ends on.</p>
 </body></html>"""
+
+
+def clinician(summary, patient_label="Patient", narrative=None):
+    """Old name of handover(), for callers written before the hub became the patient's own. The
+    document is the handover report. `narrative` is accepted and not shown: the report says its
+    summary comes from a fixed template, and a text from elsewhere would make that untrue."""
+    return handover(summary, patient_label)
 
 
 def patient(summary, narrative=None):
@@ -87,22 +178,26 @@ def patient(summary, narrative=None):
     lines = []
     if t["hrv_rmssd"]:
         d = t["hrv_rmssd"]["change_pct"]
-        if d is not None:
-            lines.append("Your heart-rate variability was " + (f"{abs(d)} % higher" if d > 0 else f"{abs(d)} % lower")
-                         + " than the week before" + (" — usually a sign of less strain." if d > 0 else " — this can happen with stress, poor sleep or illness."))
+        if d is not None:                               # the number only: what it means is not for this page to say
+            change = f"{abs(d)} % higher than" if d > 0 else f"{abs(d)} % lower than" if d < 0 else "about the same as"
+            lines.append(f"Your heart-rate variability (RMSSD) was {change} the week before.")
     if t["finger_bpm"]:
         lines.append(f"Your resting pulse was around {t['finger_bpm']['recent']:g} BPM (the week before: {t['finger_bpm']['previous']:g}).")
+    if t["breathing"]:
+        lines.append(f"Your breathing rate was around {t['breathing']['recent']:g} breaths per minute (the week before: {t['breathing']['previous']:g}).")
     if s["phq9"]:
         p = s["phq9"][-1]
         lines.append(f"Your latest check-in score was {p['score']} out of 27.")
     if not lines:
         lines.append("There isn't enough data yet for a weekly picture — a few minutes with the finger clips on most days is enough.")
-    support = ('<div class="box alert">You mentioned thoughts of hurting yourself. You don\'t have to handle this alone: '
-               'call <b>112</b>, Mieli crisis line <b>09 2525 0111</b> (Finland) or Självmordslinjen <b>90101</b> (Sweden).</div>') if s["phq9_item9_flag"] else ""
+    simulated = bool(s.get("simulated"))
     narr = f'<p>{html.escape(narrative)}</p>' if narrative else ""
     items = "".join(f"<li>{html.escape(x)}</li>" for x in lines)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Your week</title><style>{CSS}</style></head><body>
+<title>Your week{' (simulated)' if simulated else ''}</title><style>{CSS}</style></head><body>
+{SIMULATED if simulated else ''}
 <h1>Your week</h1><div class="muted">{s['period']['from']} to {s['period']['to']}</div>
-{support}{narr}<ul>{items}</ul>
-<p class="muted">These are measurements to talk about with your doctor, not a diagnosis.</p></body></html>"""
+{support_box(s)}{narr}<ul>{items}</ul>
+<p class="muted">These are measurements to talk about with your doctor, not a diagnosis.</p>
+<p class="screen"><a href="handover{'?demo=1' if simulated else ''}">Report for my doctor</a>: a page you print or save
+and hand over yourself. Nothing is sent from your device.</p></body></html>"""

@@ -56,6 +56,7 @@ KNOB_STEP = 2
 FAILS_TO_DISCONNECT = 3
 MUTE_RETRY_S = 10.0
 LIGHT_MIN_GAP_S = 0.3        # A6: /led goes through the Arduino Bridge, a few calls per second at most
+LIGHT_RETRY_S = 1.0          # a failed /led is sent again after this long
 ENABLE_SETTLE_S = 0.7        # one presence loop tick (0.5 s) so the forced mode is in place
 RESUME_HOLD_S = 8.0          # after re-enabling: LEAVE_AFTER_S (5 s) plus loop ticks on the device
 
@@ -133,7 +134,8 @@ def map_state(state: dict, mem: dict, now_mono: float) -> list[dict]:
             v = _num(raw[c]) if c < len(raw) else None
             t = beat_t[c] if c < len(beat_t) else None
             stale = device_now is not None and t is not None and device_now - t > MAX_AGE_S
-            per_finger[c] = v if v and not stale else None
+            # no beat time for this finger: the number is left over from an earlier wearing
+            per_finger[c] = v if v and t is not None and not stale else None
 
     since = _num(presence.get("since"))
     settled = bool(active and device_now is not None and since is not None and device_now - since >= SETTLE_S)
@@ -188,6 +190,7 @@ class UnoQHttp:
     name = "unoq_http"
     settle_s = ENABLE_SETTLE_S
     light_gap_s = LIGHT_MIN_GAP_S
+    light_retry_s = LIGHT_RETRY_S
     resume_hold_s = RESUME_HOLD_S
 
     def __init__(self, base_url: str, poll_s: float = 1.0, transport=None):
@@ -377,7 +380,9 @@ class UnoQHttp:
             # ms <= 0 holds the colour until the next call
             ok = await self._post(f"/led?r={r}&g={g}&b={b}&ms=0")
             self._light_sent = rgb if ok else None
-            await asyncio.sleep(self.light_gap_s)
+            await asyncio.sleep(self.light_gap_s if ok else self.light_retry_s)
+            if not ok:
+                self._light_wake.set()  # the colour is held until the next call, so a lost one is sent again
 
     async def _post(self, path: str) -> bool:
         if self._client is None:

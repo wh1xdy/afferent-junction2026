@@ -58,6 +58,20 @@ final class AfferentFingerParserTests: XCTestCase {
         XCTAssertEqual(r?.length, 6)
     }
 
+    func testAff1RmssdAboveTheByteIsNoReading() {
+        // ble.py RMSSD_OVER: 255 = above 254 ms. It must never reach the app as a measured 255 ms.
+        XCTAssertEqual(AfferentFingerParser.rmssdOverRange, 255)
+        let over = AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0xFF, 0x3E, 0x03]))
+        XCTAssertNotNil(over)
+        XCTAssertNil(over?.rmssd)
+        XCTAssertEqual(over?.finger1, 71, "the other fields are untouched")
+        XCTAssertEqual(over?.breathing, 6)
+        XCTAssertEqual(AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0xFE, 0x3E, 0x03]))?.rmssd, 254)
+        XCTAssertNil(AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0xFF]))?.rmssd, "also in a 4-byte payload")
+        let event = AfferentFingerParser.aff1Event(over!, tMs: 1)
+        XCTAssertTrue(event["rmssd_ms"] is NSNull)
+    }
+
     func testAff1QualityNotAvailable() {
         let r = AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0x2E, 0xFF, 0x03]))
         XCTAssertNotNil(r)

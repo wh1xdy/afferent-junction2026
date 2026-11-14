@@ -58,8 +58,10 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     @objc func start(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
             if self.central == nil {
-                // Created here and not at app start, so the Bluetooth permission prompt appears
-                // only when the finger sensor is switched on. The manager reports its state in
+                // Created here and not at app start: this is what shows the Bluetooth permission
+                // prompt. The web layer (demo/js/finger.js, Finger.arm) calls start() only with the
+                // pulse stone switch on and once the patient has opened Settings or Your signals or
+                // started a session, never at first launch. The manager reports its state in
                 // centralManagerDidUpdateState; until then the state stays "off".
                 self.central = CBCentralManager(
                     delegate: self, queue: .main,
@@ -216,7 +218,11 @@ public class AfferentFingerPlugin: CAPPlugin, CAPBridgedPlugin, CBCentralManager
     }
 
     public func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
-        guard p === peripheral, error == nil else { return }
+        guard p === peripheral else { return }
+        if error != nil {
+            drop(p, ignore: false)                   // "connected" without notifications would never recover
+            return
+        }
         for ch in s.characteristics ?? [] where ch.uuid == Self.measurement || ch.uuid == Self.fingerValues {
             p.setNotifyValue(true, for: ch)          // notifications only, see the rules above
         }
