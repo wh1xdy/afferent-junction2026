@@ -78,18 +78,19 @@
     ctx.restore();
   };
 
-  const pairState = g => {
+  const pairState = (g, pre = false) => {
     const L = g.L, P = L.prac;
     if (P && !P.done) {
       if (L.rt < INTRO) return null;
-      const t = L.rt - INTRO, phase = P.resp ? 'fb' : t < 0.32 ? 'ready' : 'cue';
-      return { t, phase, ft: P.resp ? L.rt - P.respRt : 0, resp: P.resp, rich: P.rich, big: P.big, scale: 1.3, cueOn: phase === 'cue', cueT: 0.32, practice: true };
+      const t = L.rt - INTRO, resp = pre ? null : P.resp, phase = resp ? 'fb' : t < 0.32 ? 'ready' : 'cue';
+      return { t, phase, ft: resp ? L.rt - P.respRt : 0, resp, rich: P.rich, big: P.big, scale: 1.3, cueOn: phase === 'cue', sized: phase !== 'fb', cueT: 0.32, practice: true };
     }
     const tr = g.tr;
     if (!tr) return null;
     const big = tr.L === 'rich' ? tr.richSide : tr.richSide === 'left' ? 'right' : 'left';
-    const cueT = tr.cueT ?? 0.32, cueOn = tr.phase === 'cue' && tr.t - cueT < 0.4;
-    return { t: tr.t, phase: tr.phase, ft: tr.phase === 'fb' ? tr.t - tr.fbT : 0, resp: tr.resp, rich: tr.richSide, big, scale: 1.08, cueOn, cueT };
+    const phase = pre && tr.phase === 'fb' ? 'cue' : tr.phase, t = pre && tr.phase === 'fb' ? tr.fbT : tr.t;
+    const cueT = tr.cueT ?? 0.32, cueOn = phase === 'cue' && t - cueT < 0.4;
+    return { t, phase, ft: phase === 'fb' ? tr.t - tr.fbT : 0, resp: pre ? null : tr.resp, rich: tr.richSide, big, scale: 1.08, cueOn, sized: cueOn, cueT };
   };
 
   const dipOf = (g, G, ps, at) => {
@@ -107,26 +108,27 @@
   const skyPos = (s, at) => {
     const age = at - s.born;
     if (rm()) {
-      if (age < 0.3) { const p = age / 0.3; return { x: s.x0, y: s.y0 - 40 * p, sc: 1, a: 1 - p, p: 0, age }; }
+      if (age < 0.3) { const p = age / 0.3; return { x: s.x0, y: s.y0 - 40 * p, sc: s.sc0, a: 1 - p, p: 0, age }; }
       return { x: s.tx, y: s.ty, sc: SKY_SC, a: clamp((age - 0.3) / 0.3, 0, 1), p: 1, age };
     }
     const p = E.outSoft(clamp(age / 1.2, 0, 1)), drift = Math.max(0, age - 1.2);
     const sway = Math.sin(age * 2.1 + s.seed) * 7 * Math.min(1, age * 2) * (1 - 0.7 * p);
-    return { x: lerp(s.x0, s.tx, p) + sway + s.dir * 2.5 * drift, y: lerp(s.y0, s.ty, p) + Math.sin(at * 0.7 + s.seed) * 2 * p, sc: lerp(1, SKY_SC, p), a: 1, p, age };
+    return { x: lerp(s.x0, s.tx, p) + sway + s.dir * 2.5 * drift, y: lerp(s.y0, s.ty, p) + Math.sin(at * 0.7 + s.seed) * 2 * p, sc: lerp(s.sc0, SKY_SC, p), a: 1, p, age };
   };
 
   const getB = g => g.L.b || A.session?.box?.() || { x: 27, y: 101, w: 335, h: 388 };
 
   const release = (g, side, rewarded, at) => {
-    const L = g.L, G = geo(getB(g)), ps = pairState(g), i = side === 'left' ? 0 : 1, dir = i ? 1 : -1;
-    const c = (ps?.rich ?? 'left') === side ? AMBER : SILVER, y0 = ropeY(G, G.hx[i], dipOf(g, G, ps, at)) + G.HG;
+    const L = g.L, G = geo(getB(g)), ps = pairState(g, true), i = side === 'left' ? 0 : 1, dir = i ? 1 : -1;
+    const shown = ps && pairLayout(g, G, ps, at, dipOf(g, G, ps, at)).find(l => l.side === side);
+    const c = (ps?.rich ?? 'left') === side ? AMBER : SILVER, x0 = shown?.x ?? G.hx[i], y0 = shown?.y ?? ropeY(G, x0, 0) + G.HG, sc0 = shown?.sc ?? 1;
     const { W, H } = J.size();
     const tx = rewarded ? clamp(G.hx[i] + dir * 0.05 * W, 0.4 * W, 0.6 * W) : clamp(G.hx[i] + dir * (0.04 + 0.14 * R()) * W, 0.08 * W, 0.92 * W), ty = (rewarded ? 0.1 : 0.06 + 0.1 * R()) * H;
-    L.sky.push({ x0: G.hx[i], y0, tx, ty, born: at, c, rewarded, seed: R() * 6.283, dir, fever: null });
+    L.sky.push({ x0, y0, sc0, tx, ty, born: at, c, rewarded, seed: R() * 6.283, dir, fever: null });
     const live = L.sky.filter(s => s.fadeAt == null);
     if (live.length > 6) live[0].fadeAt = at;
     L.recoilAt = at;
-    if (!rm()) fx.rise(G.hx[i], y0 - G.HG, 6, C.glow, { life: 0.8 });
+    if (!rm()) fx.rise(x0, y0 - G.HG * sc0, 6, C.glow, { life: 0.8 });
     hap('light');
     J.sfx('lantern_release', { piano: [2, 0.06] });
   };
@@ -242,9 +244,8 @@
     ctx.restore();
   };
 
-  const drawPair = (ctx, g, G, ps, at, dip) => {
-    if (!ps) return;
-    const P = g.L.prac, settle = ps.cueOn ? 1 : ps.phase === 'cue' ? lerp(1, 0.78, E.outSoft(clamp((ps.t - ps.cueT - 0.4) / 0.15, 0, 1))) : 0.45;
+  const pairLayout = (g, G, ps, at, dip) => {
+    const P = g.L.prac, out = [];
     for (let i = 0; i < 2; i++) {
       const side = i ? 'right' : 'left', dir = i ? 1 : -1;
       if (ps.phase === 'fb' && ps.resp === side) continue;
@@ -267,9 +268,18 @@
         else { x = lerp(G.hx[i], knot, p); lift = 46 * G.U * p; a = 1 - clamp((p - 0.35) / 0.65, 0, 1); }
       }
       if (ps.practice && P?.wrong?.side === side) { const [dx, m] = J.wobble(at - P.wrong.at); x += dx; a *= m; }
-      const scale = ps.cueOn && ps.big === side ? ps.scale : 1;
-      const y = ropeY(G, x, dip) + G.HG * (ps.practice ? scale : 1) - lift;
-      lantern(ctx, G, x, y, { c, sc: scale, sx, sy, a, rot, hang: true, bright: settle, at, seed: 1.3 });
+      const sc = ps.sized && ps.big === side ? ps.scale : 1;
+      const y = ropeY(G, x, dip) + G.HG * (ps.practice ? sc : 1) - lift;
+      out.push({ side, c, x, y, sc, sx, sy, a, rot });
+    }
+    return out;
+  };
+
+  const drawPair = (ctx, g, G, ps, at, dip) => {
+    if (!ps) return;
+    const settle = ps.cueOn ? 1 : ps.phase === 'cue' ? lerp(1, 0.78, E.outSoft(clamp((ps.t - ps.cueT - 0.4) / 0.15, 0, 1))) : 0.45;
+    for (const { c, x, y, sc, sx, sy, a, rot } of pairLayout(g, G, ps, at, dip)) {
+      lantern(ctx, G, x, y, { c, sc, sx, sy, a, rot, hang: true, bright: settle, at, seed: 1.3 });
       sprite(ctx, 'soft', c, x, G.wy + 14 * G.U, 0.1 * G.b.h, 0.2 * settle * a, true, 0.22, 1);
     }
   };
@@ -406,6 +416,10 @@
     extra(g) {
       if (!A.session?.auto && g.trials) memo.set({ last: Date.now(), unanswered: g.trials.filter(t => t.response === null).length });
       return { presentation: 'release_v1', reduced_motion: rm(), practice_shown: !!g.L?.practiceShown };
+    },
+    pair(g, b, at) {
+      const G = geo(b), ps = g.L && pairState(g);
+      return ps ? pairLayout(g, G, ps, at, dipOf(g, G, ps, at)).filter(l => l.a > 0.01) : [];
     },
     draw(g, ctx, b, at) {
       if (!g.L) return;
