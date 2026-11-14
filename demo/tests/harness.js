@@ -1,5 +1,6 @@
 // Shared loader for the node tests: runs the plain browser scripts of demo/js in a vm context with a manual clock.
-// Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js).
+// Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger),
+// camera (a fake Capacitor.Plugins.AfferentPulse and a document with a `hidden` flag), vitals (also load vitals.js).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -20,20 +21,36 @@ const fakeFinger = () => {
   };
 };
 
-const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
+const fakeCamera = () => {
+  let ls = [];
+  return {
+    running: false, starts: 0, stops: 0, reject: null,
+    async addListener(ev, fn) { ls.push(fn); return { remove: () => { ls = ls.filter(f => f !== fn); } }; },
+    async start() {
+      if (this.reject) throw Object.assign(new Error(this.reject), { code: this.reject });
+      this.running = true; this.starts++;
+      return { state: 'on' };
+    },
+    async stop() { this.running = false; this.stops++; },
+    emit(d) { ls.forEach(f => f(d)); },
+    count() { return ls.length; },
+  };
+};
+
+const load = ({ uuid = false, finger = false, camera = false, vitals = false } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
   ctx.navigator = {};
   ctx.location = { search: '', protocol: 'file:', pathname: '/' };
   ctx.addEventListener = () => {};
-  const plugin = finger ? fakeFinger() : null;
-  if (plugin) ctx.Capacitor = { Plugins: { AfferentFinger: plugin } };
+  const plugin = finger ? fakeFinger() : null, cam = camera ? fakeCamera() : null;
+  if (plugin || cam) ctx.Capacitor = { Plugins: { ...(plugin ? { AfferentFinger: plugin } : {}), ...(cam ? { AfferentPulse: cam } : {}) } };
   vm.createContext(ctx);
   const run = f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
   run('util.js');
   let clock = 0;
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
-  for (const f of ['sensors.js', 'finger.js', 'input.js', 'record.js']) run(f);
+  for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'input.js', 'record.js']) run(f);
   const noop = () => {};
   ctx.A.Audio = new Proxy({}, { get: () => noop });
   const game = id => ({ id, modes: [], make: () => ({ id, max: 12, t: 0, done: false, items: 0, errors: 0, update: noop, draw: noop, choices: [], trials: [], rewards: { rich: 0, lean: 0 }, counts: () => ({ rc: 0, ri: 0, lc: 0, li: 0 }) }) });
@@ -47,7 +64,8 @@ const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
   run('traverse.js');
   run('engine.js');
   if (vitals) run('vitals.js');
-  return { A: ctx.A, tick: dt => { clock += dt; }, plugin };
+  if (cam) ctx.document = { hidden: false };
+  return { A: ctx.A, tick: dt => { clock += dt; }, plugin, cam, doc: ctx.document };
 };
 
 // Advance a session in 50 ms steps; `each` runs before every step, `second` once per whole simulated second.
@@ -62,4 +80,4 @@ const run = (A, tick, s, seconds, each, second) => {
 // Objects made inside the vm context have their own prototypes; compare plain copies.
 const plain = x => JSON.parse(JSON.stringify(x));
 
-module.exports = { load, run, plain, fakeFinger, JS };
+module.exports = { load, run, plain, fakeFinger, fakeCamera, JS };

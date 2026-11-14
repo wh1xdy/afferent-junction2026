@@ -1,122 +1,234 @@
+import ARKit
+import AVFoundation
 import Capacitor
-import Combine
+
+final class FaceFrames {
+    static let shared = FaceFrames()
+    var onFrame: ((ARFrame) -> Void)?
+    var onEyes: ((Bool) -> Void)?
+    private(set) var eyes = false
+
+    func eyesSession(_ on: Bool) {
+        guard eyes != on else { return }
+        eyes = on
+        onEyes?(on)
+    }
+}
 
 @objc(AfferentPulsePlugin)
-public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
+public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate {
     public let identifier = "AfferentPulsePlugin"
     public let jsName = "AfferentPulse"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "relock", returnType: CAPPluginReturnPromise),
     ]
 
-    private var camera: PulseCamera?
-    private var tap: PulseFrameTap?
-    private var subs = Set<AnyCancellable>()
-    private var light: LightReading?
-    private var lastEyes = 0.0
-    private var pending: CAPPluginCall?
+    private static let settleS = 2.8
+    private static let badLightS = 5
+    private static let relockEveryS = 30.0
+    private static let maxQueued = 3
+
+    private let pulse = FacePulse()
+    private let work = DispatchQueue(label: "afferent.pulse")
+    private var session: ARSession?
+    private var wanted = false
+    private var running = false
+    private var locked = false
+    private var epoch = 0
+    private var queued = 0
+    private var lastFace = 0.0
+    private var lastSample = 0.0
+    private var lastEmit = 0.0
+    private var lastRelock = 0.0
+    private var badLight = 0
 
     @objc func start(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            if self.camera?.state == .running { call.resolve(); return }
-            self.teardown()
-            let cam = PulseCamera()
-            self.camera = cam
-            self.pending = call
-            cam.$state.dropFirst().sink { [weak plugin = self, weak cam] state in
-                guard let plugin, let cam, plugin.camera === cam else { return }
-                switch state {
-                case .running:
-                    plugin.attach(cam)
-                    plugin.pending?.resolve(); plugin.pending = nil
-                case .noPermission: plugin.teardown("camera permission denied")
-                case .noCamera: plugin.teardown("no front camera")
-                case .idle: break
+        guard #available(iOS 16.0, *), ARFaceTrackingConfiguration.isSupported else {
+            call.reject("needs iOS 16 and a TrueDepth camera", "unsupported")
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            DispatchQueue.main.async {
+                self.begin()
+                call.resolve(["state": "on"])
+            }
+        case .notDetermined:
+            DispatchQueue.main.async { self.wanted = true }
+            AVCaptureDevice.requestAccess(for: .video) { ok in
+                DispatchQueue.main.async {
+                    guard ok else {
+                        self.wanted = false
+                        call.reject("camera permission denied", "unauthorized")
+                        return
+                    }
+                    guard self.wanted else { call.resolve(["state": "off"]); return }
+                    self.begin()
+                    call.resolve(["state": "on"])
                 }
-            }.store(in: &self.subs)
-            ScreenLight.shared.begin()
-            cam.start()
+            }
+        default:
+            call.reject("camera permission denied", "unauthorized")
         }
     }
 
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            self.teardown()
+            self.end()
             call.resolve()
         }
     }
 
-    @objc func relock(_ call: CAPPluginCall) {
-        DispatchQueue.main.async {
-            guard let cam = self.camera else { call.reject("not running"); return }
-            cam.lockExposureSoon()
-            call.resolve()
+    private func begin() {
+        wanted = true
+        guard !running else { return }
+        running = true
+        FaceFrames.shared.onFrame = { [weak self] frame in self?.feed(frame) }
+        FaceFrames.shared.onEyes = { [weak self] on in self?.eyesChanged(on) }
+        if !FaceFrames.shared.eyes { runOwn() }
+        relock()
+    }
+
+    private func end() {
+        wanted = false
+        guard running else { return }
+        running = false
+        epoch += 1
+        FaceFrames.shared.onFrame = nil
+        FaceFrames.shared.onEyes = nil
+        session?.pause()
+        session = nil
+        locked = false
+        work.async { self.pulse.reset() }
+        exposure(locked: false)
+    }
+
+    private func runOwn() {
+        let own = ARSession()
+        own.delegate = self
+        let config = ARFaceTrackingConfiguration()
+        config.maximumNumberOfTrackedFaces = 1
+        own.run(config, options: [.resetTracking, .removeExistingAnchors])
+        session = own
+    }
+
+    private func eyesChanged(_ on: Bool) {
+        guard running else { return }
+        if on {
+            session?.pause()
+            session = nil
+        } else {
+            runOwn()
+        }
+        relock()
+    }
+
+    private func relock() {
+        epoch += 1
+        let mine = epoch
+        locked = false
+        badLight = 0
+        lastRelock = CACurrentMediaTime()
+        work.async { self.pulse.reset() }
+        exposure(locked: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleS) { [weak self] in
+            guard let self, self.running, self.epoch == mine else { return }
+            guard self.exposure(locked: true) else { self.relock(); return }
+            self.work.async { self.pulse.reset() }
+            self.locked = true
         }
     }
 
-    private func teardown(_ reason: String = "stopped") {
-        pending?.reject(reason)
-        pending = nil
-        subs.removeAll()
-        tap?.uninstall()
-        camera?.stop()
-        camera = nil
-        tap = nil
-        light = nil
-        ScreenLight.shared.end()
+    @discardableResult
+    private func exposure(locked: Bool) -> Bool {
+        guard #available(iOS 16.0, *),
+              let dev = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera,
+              (try? dev.lockForConfiguration()) != nil else { return false }
+        let exp: AVCaptureDevice.ExposureMode = locked ? .locked : .continuousAutoExposure
+        let wb: AVCaptureDevice.WhiteBalanceMode = locked ? .locked : .continuousAutoWhiteBalance
+        if dev.isExposureModeSupported(exp) { dev.exposureMode = exp }
+        if dev.isWhiteBalanceModeSupported(wb) { dev.whiteBalanceMode = wb }
+        dev.unlockForConfiguration()
+        return !locked || exposureHeld()
     }
 
-    private func attach(_ cam: PulseCamera) {
-        let tap = PulseFrameTap(camera: cam)
-        tap.onEyes = { [weak self, weak tap] e in
-            DispatchQueue.main.async { if let self, let tap, self.tap === tap { self.emitEyes(e) } }
-        }
-        tap.onLight = { [weak self, weak tap] l in
-            DispatchQueue.main.async { if let self, let tap, self.tap === tap { self.light = l } }
-        }
-        tap.install()
-        self.tap = tap
-        cam.$reading.sink { [weak self, weak cam] r in
-            guard let self, let cam else { return }
-            self.emitPulse(r, cam)
-        }.store(in: &subs)
+    private func exposureHeld() -> Bool {
+        guard #available(iOS 16.0, *),
+              let dev = ARFaceTrackingConfiguration.configurableCaptureDeviceForPrimaryCamera else { return false }
+        return PulseGate.held(exposureLocked: dev.exposureMode == .locked,
+                              whiteBalanceLocked: dev.whiteBalanceMode == .locked,
+                              whiteBalanceLockable: dev.isWhiteBalanceModeSupported(.locked))
     }
 
-    private func emitEyes(_ e: EyesReading) {
-        guard e.t - lastEyes >= 1.0 / 30.0 else { return }
-        lastEyes = e.t
-        var data: [String: Any] = ["tracked": e.tracked, "t": e.t, "source": "vision"]
-        if e.tracked {
-            data["blink_l"] = e.blinkL
-            data["blink_r"] = e.blinkR
-            data["openness"] = e.openness
-            if let p = e.pitchDeg { data["pitch_deg"] = p }
-            if let l = e.faceLuma { data["ambient"] = l }
-        }
-        notifyListeners("eyes", data: data)
+    public func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        guard session === self.session else { return }
+        feed(frame)
     }
 
-    private func emitPulse(_ r: PulseReading?, _ cam: PulseCamera) {
+    public func sessionInterruptionEnded(_ session: ARSession) {
+        guard running, session === self.session else { return }
+        relock()
+    }
+
+    private func feed(_ frame: ARFrame) {
+        guard running else { return }
+        let t = frame.timestamp
+        let face = frame.anchors.compactMap { $0 as? ARFaceAnchor }.first { $0.isTracked }
+        if let face {
+            if lastFace > 0, t - lastFace > PulseGate.lostS { work.async { self.pulse.reset() } }
+            lastFace = t
+            if locked, t - lastSample >= 1 / PulseMath.sampleHz, queued < Self.maxQueued {
+                lastSample = t
+                queued += 1
+                work.async {
+                    self.pulse.feed(frame: frame, face: face)
+                    DispatchQueue.main.async { self.queued -= 1 }
+                }
+            }
+        }
+        guard t - lastEmit >= 1 else { return }
+        lastEmit = t
+        if locked, !exposureHeld() { relock() }
+        let tracked = face != nil, measuring = tracked && locked, mine = epoch
+        work.async {
+            var reading: PulseReading?
+            if measuring {
+                switch PulseGate.step(now: t, lastAppended: self.pulse.lastAppended) {
+                case .estimate: reading = self.pulse.estimate()
+                case .hold: break
+                case .reset: self.pulse.reset()
+                }
+            }
+            let luma = self.pulse.luma, clipped = self.pulse.clipped
+            DispatchQueue.main.async {
+                guard self.running, self.epoch == mine else { return }
+                self.emit(reading, tracked: tracked, measuring: measuring, luma: luma, clipped: clipped)
+            }
+        }
+    }
+
+    private func emit(_ reading: PulseReading?, tracked: Bool, measuring: Bool, luma: Double, clipped: Double) {
         var data: [String: Any] = [
             "source": "rppg",
-            "t": CACurrentMediaTime(),
-            "face": cam.faceFound,
-            "locked": cam.locked,
-            "window_s": cam.windowSeconds,
-            "bpm": r.map { $0.bpm as Any } ?? NSNull(),
-            "quality": r.map { Double($0.trust.score) / 100 } ?? 0,
+            "t_ms": Int(Date().timeIntervalSince1970 * 1000),
+            "face": tracked,
+            "locked": locked,
+            "with_eyes": FaceFrames.shared.eyes,
+            "bpm": reading.map { $0.bpm as Any } ?? NSNull(),
         ]
-        if let r {
+        if let r = reading {
             data["trust"] = ["score": r.trust.score, "label": r.trust.label.rawValue, "reasons": r.trust.reasons]
-            data["snr"] = r.snr
-            data["motion"] = r.motion
+            data["window_s"] = r.windowSeconds
             data["regions_bpm"] = r.regionsBpm.map { $0.map { $0 as Any } ?? NSNull() }
+            if r.snr.isFinite { data["snr_db"] = r.snr }
+            if r.motion.isFinite { data["motion"] = r.motion }
         }
-        if let l = light {
-            data["light"] = ["face_luma": l.faceLuma, "level": l.level, "iso": l.iso, "exposure_ms": l.exposureMs]
+        if measuring, luma.isFinite {
+            data["face_luma"] = luma / 255
+            badLight = clipped > 0.05 || luma > 215 || luma < 50 ? badLight + 1 : 0
         }
         notifyListeners("pulse", data: data)
+        if badLight >= Self.badLightS, CACurrentMediaTime() - lastRelock >= Self.relockEveryS { relock() }
     }
 }

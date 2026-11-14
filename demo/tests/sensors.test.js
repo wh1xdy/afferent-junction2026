@@ -18,6 +18,7 @@ const hubFrame = (o = {}) => ({
   finger_bpm: [71, 73], breathing_per_min: 6, rmssd_ms: 46, sdnn_ms: 40, rmssd_vs_baseline: -0.1, presence: 'active', age_s: 0.4, ...o,
 });
 const connect = A => A.Sensors.setFingerLink('connected', 'Afferent Finger');
+const cam = (S, o = {}) => S.feedNativePulse({ source: 'rppg', bpm: 80, face: true, trust: { score: 82, label: 'reliable', reasons: [] }, ...o });
 const ble = (A, aff = aff6()) => { A.Sensors.feedFingerBle(hrm()); A.Sensors.feedFingerBle(aff); };
 const start = A => A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
 const finish = (A, s) => { let doc = null; A.bus.on('sessionEnd', d => { doc = d; }); s.finish('partial'); return plain(doc); };
@@ -267,32 +268,111 @@ const tests = {
     assert.strictEqual(doc.simulated, true);
   },
 
-  'k: the camera pulse keeps its trust score, live and in the session document'() {
-    const { A, tick } = load(), S = A.Sensors;
-    const cam = (bpm = 80, label = 'reliable', score = 82) => S.feedNativePulse({ source: 'rppg', bpm, quality: 0.7, trust: { score, label, reasons: [] }, light: { lux: 12 } });
-    cam();
+  'k: the camera pulse keeps its trust score and its own source, and is never the pulse the game uses'() {
+    const { A } = load(), S = A.Sensors;
+    S.enabled.simulator = false;
+    cam(S);
     assert.deepStrictEqual(plain(S.cameraPulse(A.now())), { source: 'rppg', bpm: 80, trust_score: 82, trust_label: 'reliable', age_s: 0 });
-    assert.deepStrictEqual(plain(S.light), { lux: 12 });
-    assert.strictEqual(S.pulse(A.now()).source, 'rppg');
-    const s = start(A);
-    assert.strictEqual(S.pulseMode, 'real');
-    run(A, tick, s, 8, null, i => cam(80, i < 6 ? 'reliable' : 'uncertain', i < 6 ? 82 : 55));
-    S.feedNativePulse({ source: 'rppg', bpm: null, quality: 0, trust: { score: 10, label: 'unreliable', reasons: ['dark'] } });
-    assert.deepStrictEqual(plain(S.cameraPulse(A.now())), { source: 'rppg', bpm: null, trust_score: 10, trust_label: 'unreliable', age_s: 0 });
-    tick(3.1);
-    assert.strictEqual(S.cameraPulse(A.now()), null);
-    const c = finish(A, s).vitals.camera_pulse;
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: null, quality: 0, source: null }, 'no finger and no simulator: the game has no pulse');
+    assert.strictEqual(S.realProducer(A.now()), false, 'the camera is not a pulse producer for the game');
+    assert.strictEqual(S.lockPulse(A.now()), 'real');
+    assert.strictEqual(S.pulse(A.now()).bpm, null);
+    S.unlockPulse();
+    S.enabled.simulator = true;
+    assert.strictEqual(S.pulse(A.now()).source, 'simulated');
+    assert.strictEqual(S.lockPulse(A.now()), 'simulated', 'a camera pulse does not make a session a measured one');
+    S.unlockPulse();
+
+    connect(A); ble(A);
+    cam(S, { bpm: 95 });
+    assert.deepStrictEqual([S.pulse(A.now()).bpm, S.pulse(A.now()).source], [72, 'finger_ppg']);
+    assert.deepStrictEqual([S.fingerFrame(A.now()).pulse_bpm, S.fingerFrame(A.now()).source], [72, 'finger_ppg']);
+    assert.deepStrictEqual([S.cameraPulse(A.now()).bpm, S.cameraPulse(A.now()).source], [95, 'rppg'], 'two separate numbers');
+
+    for (const source of ['finger_ppg', 'simulated', 'ky039', undefined]) S.feedNativePulse({ source, bpm: 60, face: true, trust: { score: 90, label: 'reliable', reasons: [] } });
+    assert.strictEqual(S.droppedCam, 4);
+    assert.strictEqual(S.cameraPulse(A.now()).bpm, 95, 'a reading under another label never lands in the camera slot');
+    S.feedPulse({ bpm: 61, quality: 0.9, contact: true, source: 'rppg' });
+    assert.strictEqual(S.stone, null, 'and rppg is not accepted as a finger or stone source');
+  },
+
+  'k2: a camera reading below the trust limit, without a trust score, or older than 3 s is not a measurement'() {
+    const { A, tick } = load(), S = A.Sensors, at = () => plain(S.cameraPulse(A.now()));
+    cam(S, { bpm: 77, trust: { score: 39, label: 'unreliable', reasons: ['head moving'] } });
+    assert.deepStrictEqual(at(), { source: 'rppg', bpm: null, trust_score: 39, trust_label: 'unreliable', age_s: 0 });
+    cam(S, { bpm: 77, trust: { score: 40, label: 'uncertain', reasons: [] } });
+    assert.deepStrictEqual(at(), { source: 'rppg', bpm: 77, trust_score: 40, trust_label: 'uncertain', age_s: 0 });
+    cam(S, { bpm: 77, trust: { score: 55, label: 'unreliable', reasons: [] } });
+    assert.strictEqual(at().bpm, null, 'the unreliable label alone is enough');
+    cam(S, { bpm: 77, trust: { score: 12.5, label: 'unreliable', reasons: [] } });
+    assert.strictEqual(at().trust_score, 12.5, 'the score is passed on as it came');
+
+    cam(S, { bpm: 77, trust: undefined });
+    assert.strictEqual(at(), null, 'no trust score: nothing is shown and no score is made up');
+    cam(S, { bpm: 77, trust: { label: 'reliable' } });
+    assert.strictEqual(at(), null);
+    cam(S, { bpm: null, face: false, trust: undefined });
+    assert.strictEqual(at(), null);
+    assert.deepStrictEqual(plain(S.cameraState(A.now())), { link: 'unavailable', face: false, reason: null });
+
+    cam(S);
+    assert.strictEqual(at().bpm, 80);
+    cam(S, { bpm: null, trust: undefined });
+    assert.strictEqual(at(), null, 'a second without a reading clears the last one at once, not after 3 s');
+
+    cam(S);
+    tick(2.9);
+    assert.deepStrictEqual([at().bpm, at().age_s], [80, 2.9]);
+    tick(0.2);
+    assert.strictEqual(at(), null);
+    cam(S, { t_ms: Date.now() - 2000 });
+    assert.strictEqual(at().age_s, 2, 'the 3 s count from when the phone measured it');
+    tick(1.1);
+    assert.strictEqual(at(), null);
+
+    cam(S);
+    S.enabled.phone_camera = false;
+    assert.strictEqual(at(), null);
+    cam(S, { bpm: 99 });
+    S.enabled.phone_camera = true;
+    assert.strictEqual(at().bpm, 80, 'nothing is taken in while the camera is switched off');
+  },
+
+  'k3: the session records the camera pulse in its own block with source rppg; unreliable seconds add no bpm'() {
+    let { A, tick } = load(), S = A.Sensors;
+    let s = start(A);
+    assert.strictEqual(S.pulseMode, 'simulated');
+    run(A, tick, s, 12, null, i => i < 6 ? cam(S) : i < 8 ? cam(S, { bpm: 84, trust: { score: 55, label: 'uncertain', reasons: [] } })
+      : cam(S, { bpm: 140, trust: { score: 10, label: 'unreliable', reasons: ['head moving'] } }));
+    let doc = finish(A, s), c = doc.vitals.camera_pulse;
     assert.deepStrictEqual(keys(c), ['pulse_bpm', 'source', 'trust_label_s', 'trust_score']);
     isStat(c.pulse_bpm, 'camera_pulse.pulse_bpm'); isStat(c.trust_score, 'camera_pulse.trust_score');
     assert.deepStrictEqual(keys(c.trust_label_s), ['reliable', 'uncertain', 'unreliable']);
-    assert.deepStrictEqual([c.source, c.pulse_bpm.mean, c.trust_score.max, c.trust_score.min], ['rppg', 80, 82, 55]);
-    assert.ok(c.trust_label_s.reliable >= 3 && c.trust_label_s.uncertain >= 1, JSON.stringify(c.trust_label_s));
+    assert.deepStrictEqual([c.source, c.pulse_bpm.min, c.pulse_bpm.max, c.trust_score.max, c.trust_score.min], ['rppg', 80, 84, 82, 10]);
+    assert.ok(c.trust_label_s.reliable >= 3 && c.trust_label_s.uncertain >= 1 && c.trust_label_s.unreliable >= 2, JSON.stringify(c.trust_label_s));
+    assert.strictEqual(c.pulse_bpm.samples, c.trust_label_s.reliable + c.trust_label_s.uncertain, 'only trusted seconds carry a bpm');
+    assert.deepStrictEqual([doc.vitals.pulse_source, doc.signal.pulse_source, doc.vitals.finger], ['simulated', 'simulated', null]);
+    assert.ok(doc.vitals.pulse_max_bpm < 100, 'the camera number never enters the pulse the game used');
+    assert.ok(doc.simulated_fields.includes('vitals.pulse_source') && !doc.simulated_fields.includes('vitals') && !doc.simulated_fields.includes('vitals.camera_pulse'));
+
+    ({ A, tick } = load()); S = A.Sensors;
+    s = start(A);
+    run(A, tick, s, 6, null, () => cam(S, { bpm: 140, trust: { score: 10, label: 'unreliable', reasons: [] } }));
+    assert.strictEqual(finish(A, s).vitals.camera_pulse, null, 'only unreliable readings: no camera block');
+
+    ({ A, tick } = load()); S = A.Sensors;
+    connect(A); ble(A); tick(1); S.feedFingerBle(hrm());
+    s = start(A);
+    run(A, tick, s, 6, null, () => { ble(A); cam(S, { bpm: 95 }); });
+    doc = finish(A, s);
+    assert.deepStrictEqual([doc.vitals.pulse_source, doc.vitals.pulse_mean_bpm, doc.vitals.finger.source, doc.vitals.finger.pulse_bpm.mean], ['finger_ppg', 72, 'finger_ppg', 72]);
+    assert.deepStrictEqual([doc.vitals.camera_pulse.source, doc.vitals.camera_pulse.pulse_bpm.mean], ['rppg', 95]);
   },
 
-  'l: liveMetrics carries physio and camera_pulse'() {
+  'l: liveMetrics carries physio; the camera pulse stays on the phone'() {
     const { A, tick } = load(), S = A.Sensors;
     let s = start(A), m = s.liveMetrics(A.now());
-    assert.deepStrictEqual([m.physio, m.camera_pulse], [null, null]);
+    assert.deepStrictEqual([m.physio, 'camera_pulse' in m], [null, false]);
     s.finish('partial');
     connect(A);
     s = start(A);
@@ -300,11 +380,12 @@ const tests = {
     assert.deepStrictEqual(keys(m.physio), PHYSIO);
     assert.deepStrictEqual([m.physio.source, m.physio.link, m.physio.pulse_bpm, m.pulse_bpm, m.pulse_source], [null, 'connected', null, null, null]);
     ble(A); tick(1); S.feedFingerBle(hrm());
-    S.feedNativePulse({ source: 'rppg', bpm: 80, quality: 0.7, trust: { score: 82, label: 'reliable', reasons: [] } });
+    cam(S);
     m = plain(s.liveMetrics(A.now()));
     assert.deepStrictEqual(keys(m.physio), PHYSIO);
     assert.deepStrictEqual([m.physio.source, m.physio.transport, m.physio.pulse_bpm, m.physio.rmssd_ms, m.pulse_source, m.pulse_bpm], ['finger_ppg', 'ble', 72, 46, 'finger_ppg', 72]);
-    assert.deepStrictEqual(keys(m.camera_pulse), ['age_s', 'bpm', 'source', 'trust_label', 'trust_score']);
+    assert.strictEqual(S.cameraPulse(A.now()).bpm, 80);
+    assert.ok(!('camera_pulse' in m) && !/rppg|trust_score|trust_label/.test(JSON.stringify(m)), 'no camera bpm or trust score in what goes out live');
   },
 
   'm: wording guard for the Your signals sheet'() {
@@ -365,12 +446,13 @@ const tests = {
 
     ({ A, tick } = load({ vitals: true })); S = A.Sensors; V = A.Vitals;
     S.feedFingerHub(hubFrame({ source: 'simulated', simulated: true }));
-    S.feedNativePulse({ source: 'rppg', bpm: 80, quality: 0.7, trust: { score: 82, label: 'reliable', reasons: [] } });
+    cam(S);
     m = V.model(A.now());
     const rows = lines(m);
     for (const r of rows.slice(0, 4)) assert.ok(r.includes('Simulated'), r.join(' | '));
     assert.deepStrictEqual(rows[4], ['Sensor', null, 'Simulated. Measuring', 'Connected through the home hub']);
-    assert.deepStrictEqual(rows[5], ['Pulse (camera)', '80', 'beats per minute', 'Signal steady · 82 of 100']);
+    assert.deepStrictEqual(rows[5], ['Pulse, camera estimate', '80', 'beats per minute', 'Signal quality 82 of 100 · steady']);
+    assert.ok(rows[0].includes('Simulated') && rows[0][1] !== '80', 'the Pulse row is not the camera');
     S.feedFingerHub(hubFrame({ presence: null, pulse_bpm: null, contact: false }));
     assert.deepStrictEqual(lines(V.model(A.now())).find(r => r[0] === 'Sensor'), ['Sensor', null, 'Connected through the home hub']);
     S.enabled.pulse_stone = false;
@@ -387,7 +469,6 @@ const tests = {
 
     const s = { done: false, gameMode: 'calm', phase: 'game' };
     assert.strictEqual(V.chip(s, { bpm: 72.4, source: 'finger_ppg' }), '72 bpm · finger sensor');
-    assert.strictEqual(V.chip(s, { bpm: 80, source: 'rppg' }), '80 bpm · camera');
     assert.strictEqual(V.chip(s, { bpm: 68, source: 'simulated' }), 'SIMULATED');
     assert.strictEqual(V.chip(s, { bpm: null, source: null }), 'no reading');
     assert.strictEqual(V.chip({ ...s, gameMode: 'measure' }, { bpm: 72, source: 'finger_ppg' }), null);
@@ -407,6 +488,108 @@ const tests = {
     delete A.Presence;
     F.onReading(hrm());   // presence.js not loaded: no error
     assert.strictEqual(A.Sensors.fingerBle.pulse_bpm, 72);
+  },
+
+  'p: the camera row says what it is, shows its signal quality, and never fills the Pulse row'() {
+    const { A, tick } = load({ vitals: true }), S = A.Sensors, V = A.Vitals;
+    const row = () => plain(V.model(A.now())).rows.filter(r => r.label === 'Pulse, camera estimate').map(r => [r.value ?? null, ...r.lines]);
+    const pulse = () => plain(V.model(A.now())).rows[0];
+    S.enabled.simulator = false;
+    assert.deepStrictEqual(row(), [], 'no camera pulse on this device: no row');
+    S.setCameraLink('starting');
+    assert.deepStrictEqual(row(), [[null, 'Starting the camera']]);
+    S.setCameraLink('unauthorized');
+    assert.deepStrictEqual(row(), [[null, 'Camera is off for Afferent in Settings']]);
+    S.setCameraLink('unsupported');
+    assert.deepStrictEqual(row(), [[null, 'Not available on this phone']]);
+    S.setCameraLink('on');
+    assert.deepStrictEqual(row(), [[null, 'Starting the camera']]);
+    cam(S, { bpm: null, face: false, trust: undefined });
+    assert.deepStrictEqual(row(), [[null, 'No face in view']]);
+    cam(S, { bpm: null, trust: undefined });
+    assert.deepStrictEqual(row(), [[null, 'Hold still. Takes about ten seconds']]);
+    cam(S, { bpm: 91, trust: { score: 22, label: 'unreliable', reasons: ['head moving', 'weak pulse signal'] } });
+    assert.deepStrictEqual(row(), [[null, 'No steady reading right now', 'Signal quality 22 of 100 · weak', 'Hold the phone still']]);
+    cam(S, { bpm: 84, trust: { score: 55, label: 'uncertain', reasons: ['still settling'] } });
+    assert.deepStrictEqual(row(), [['84', 'beats per minute', 'Signal quality 55 of 100 · uncertain']]);
+    cam(S);
+    assert.deepStrictEqual(row(), [['80', 'beats per minute', 'Signal quality 82 of 100 · steady']]);
+    assert.deepStrictEqual([pulse().label, pulse().value ?? null, pulse().lines], ['Pulse', null, ['No reading right now']], 'the Pulse row stays empty without a finger');
+    tick(3.1);
+    assert.deepStrictEqual(row(), [[null, 'Starting the camera']], 'a reading older than 3 s is gone');
+    cam(S);
+    S.enabled.phone_camera = false;
+    assert.deepStrictEqual(row(), [[null, 'Switched off']]);
+    S.enabled.phone_camera = true;
+
+    const stat = mean => ({ mean });
+    A.lastVitalsAt = Date.now();
+    A.lastVitals = { finger: { source: 'finger_ppg', pulse_bpm: stat(71.6) }, breathing: null, hrv: null, camera_pulse: { source: 'rppg', pulse_bpm: stat(78.2), trust_score: stat(74.4) } };
+    assert.deepStrictEqual(plain(V.model(A.now()).earlier).rows.map(r => [r.label, r.value, ...r.lines]), [
+      ['Pulse', '72', 'beats per minute, average', 'Finger sensor'], ['Pulse, camera estimate', '78', 'beats per minute, average', 'Signal quality 74 of 100, average'],
+    ]);
+    A.lastVitals = { finger: null, breathing: null, hrv: null, camera_pulse: { source: 'rppg', pulse_bpm: stat(78.2), trust_score: stat(74.4) } };
+    assert.deepStrictEqual(plain(V.model(A.now()).earlier).rows.map(r => r.label), ['Pulse, camera estimate'], 'the camera average is never shown as "Pulse"');
+  },
+
+  async 'q: the camera pulse plugin starts and stops with the phone camera switch and the app visibility'() {
+    const { A, cam: plugin, doc } = load({ camera: true }), S = A.Sensors, C = A.CamPulse;
+    const event = (o = {}) => ({ source: 'rppg', bpm: 80, face: true, locked: true, trust: { score: 82, label: 'reliable', reasons: [] }, t_ms: Date.now(), ...o });
+    const set = on => { A.config.sensors.phone_camera = on; S.enabled.phone_camera = on; };
+    S.enabled.simulator = false;
+    assert.strictEqual(C.available(), true);
+    await C.sync();
+    assert.deepStrictEqual([plugin.starts, plugin.running, plugin.count(), S.camLink.state], [1, true, 1, 'on']);
+    await C.sync();
+    assert.strictEqual(plugin.starts, 1, 'a second sync does not start it twice');
+    plugin.emit(event());
+    assert.deepStrictEqual([S.cameraPulse(A.now()).bpm, S.cameraPulse(A.now()).trust_score, S.cameraPulse(A.now()).source], [80, 82, 'rppg']);
+    assert.strictEqual(S.pulse(A.now()).bpm, null, 'the plugin never feeds the pulse the game uses');
+    plugin.emit(event({ bpm: 99, t_ms: Date.now() - 5000 }));
+    assert.strictEqual(S.cameraPulse(A.now()).bpm, 80, 'an event older than 3 s is dropped');
+
+    set(false);
+    await C.sync();
+    assert.deepStrictEqual([plugin.stops, plugin.running, plugin.count(), S.camLink.state, S.cameraPulse(A.now())], [1, false, 0, 'off', null]);
+    plugin.emit(event());
+    C.onReading(event());
+    assert.strictEqual(S.camPulse, null, 'nothing is taken in after the switch is off');
+    set(true);
+    await C.sync();
+    assert.deepStrictEqual([plugin.starts, plugin.running, S.camLink.state], [2, true, 'on']);
+
+    plugin.emit(event());
+    doc.hidden = true;
+    await C.sync();
+    assert.deepStrictEqual([plugin.stops, plugin.running, S.camLink.state, S.cameraPulse(A.now())], [2, false, 'off', null], 'the camera stops when the app is hidden');
+    doc.hidden = false;
+    await C.sync();
+    assert.deepStrictEqual([plugin.starts, plugin.running], [3, true]);
+    await C.stop();
+
+    const starting = C.start();
+    doc.hidden = true;
+    const stopping = C.sync();
+    await Promise.all([starting, stopping]);
+    assert.deepStrictEqual([plugin.running, plugin.count(), S.camLink.state], [false, 0, 'off'], 'hiding the app during a start still ends with the camera off');
+    doc.hidden = false;
+
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      for (const code of ['unauthorized', 'unsupported']) {
+        plugin.reject = code;
+        await C.sync();
+        assert.deepStrictEqual([plugin.running, plugin.count(), S.camLink.state], [false, 0, code]);
+      }
+      plugin.reject = 'boom';
+      await C.sync();
+      assert.strictEqual(S.camLink.state, 'unavailable');
+    } finally { console.warn = warn; }
+
+    const bare = load();
+    await bare.A.CamPulse.sync();
+    assert.deepStrictEqual([bare.A.CamPulse.available(), bare.A.Sensors.camLink.state], [false, 'unavailable'], 'no plugin in this build');
   },
 };
 

@@ -60,6 +60,7 @@
   const plug = A.plug = n => window.Capacitor?.Plugins?.[n] ?? window.Capacitor?.registerPlugin?.(n);
   const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
+  const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'];
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const unit = x => Number.isFinite(x) ? clamp(x, 0, 1) : null;
   const num = x => Number.isFinite(x) ? x : null;
@@ -73,16 +74,16 @@
   const Sensors = A.Sensors = {
     source: 'simulated', ready: true, last: null,
     enabled: { phone_camera: true, pulse_stone: true, simulator: true },
-    stone: null, rppg: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
+    stone: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
     pulseMode: null, droppedPulse: 0, droppedPhysio: 0, realAt: null,
     fingerLink: { state: 'unavailable', name: null }, fingerBle: null, fingerHub: null,
-    camPulse: null, light: null, plugin: null, listeners: [], stopping: null,
+    camLink: { state: 'unavailable' }, camPulse: null, droppedCam: 0, plugin: null, listeners: [], stopping: null,
 
     async start(source) {
       this.stop();
       await this.stopping;
       if (source === 'arkit' || source === 'vision') {
-        const name = source === 'vision' ? 'AfferentPulse' : 'AfferentEyes';
+        const name = source === 'vision' ? 'AfferentVision' : 'AfferentEyes';
         this.plugin = plug(name);
         if (!this.plugin) throw new Error(`${name} plugin is not available in this build`);
         await this.plugin.start();
@@ -107,8 +108,8 @@
     async startCamera() {
       const native = window.Capacitor?.isNativePlatform?.();
       if (!native || window.Capacitor.getPlatform() !== 'ios') return this.start('mediapipe');
-      try { return await this.start('vision'); } catch { this.stop(); }
-      return this.start('arkit');
+      try { return await this.start('arkit'); } catch { this.stop(); }
+      return this.start('vision');
     },
 
     stop() {
@@ -170,34 +171,47 @@
       else this.stone = null;
     },
 
-    setPulse(bpm, quality, source = 'rppg') { this.rppg = bpm ? { bpm, quality, source, at: A.now() } : null; },
+    setCameraLink(state) {
+      this.camLink = { state: state || 'unavailable' };
+      if (state !== 'on') this.camPulse = null;
+    },
 
     feedNativePulse(d) {
-      this.setPulse(d.bpm, d.quality ?? 0, 'rppg');
-      this.camPulse = { bpm: d.bpm ?? null, trust_score: d.trust?.score ?? null, trust_label: d.trust?.label ?? null, at: A.now() };
-      if (d.light) this.light = d.light;
+      if (!this.enabled.phone_camera || !d) return;
+      if (d.source !== 'rppg') { this.droppedCam++; return; }
+      const late = Number.isFinite(d.t_ms) ? Math.max(0, (Date.now() - d.t_ms) / 1000) : 0;
+      const score = Number.isFinite(d.trust?.score) ? d.trust.score : null, reason = d.trust?.reasons?.[0];
+      this.camPulse = {
+        bpm: score == null ? null : pos(d.bpm), trust_score: score, trust_label: CAM_LABELS.includes(d.trust?.label) ? d.trust.label : null,
+        face: typeof d.face === 'boolean' ? d.face : null, reason: typeof reason === 'string' ? reason : null, at: A.now() - late,
+      };
     },
 
     cameraPulse(now) {
       const c = this.camPulse;
-      if (!c || !this.enabled.phone_camera || now - c.at >= FRESH_S) return null;
-      return { source: 'rppg', bpm: c.bpm, trust_score: c.trust_score, trust_label: c.trust_label, age_s: age(now - c.at) };
+      if (!c || !this.enabled.phone_camera || c.trust_score == null || now - c.at >= FRESH_S) return null;
+      const trusted = c.bpm != null && c.trust_score >= CAM_MIN_TRUST && c.trust_label !== 'unreliable';
+      return { source: 'rppg', bpm: trusted ? c.bpm : null, trust_score: c.trust_score, trust_label: c.trust_label, age_s: age(now - c.at) };
+    },
+
+    cameraState(now) {
+      const c = this.camPulse, fresh = !!c && now - c.at < FRESH_S, link = this.source === 'vision' ? 'on' : this.camLink.state;
+      return { link: link === 'unavailable' || this.enabled.phone_camera ? link : 'off', face: fresh ? c.face : null, reason: fresh ? c.reason : null };
     },
 
     pulse(now) {
       const fresh = x => x && now - x.at < FRESH_S && x.quality != null && x.quality >= MIN_QUALITY;
       const stone = this.enabled.pulse_stone && fresh(this.stone) ? this.stone : null;
-      const rppg = this.enabled.phone_camera && fresh(this.rppg) ? this.rppg : null;
-      const measured = stone && stone.source !== 'simulated' ? stone : rppg;
+      const measured = stone && stone.source !== 'simulated' ? stone : null;
       const sim = () => this.enabled.simulator ? { bpm: Sim.pulse(now), quality: 0.9, source: 'simulated' } : NO_PULSE;
       if (this.pulseMode === 'real') return measured || NO_PULSE;
       if (this.pulseMode === 'simulated') return stone && stone.source === 'simulated' ? stone : sim();
-      return stone || rppg || sim();
+      return stone || sim();
     },
 
     realProducer(now) {
       const recent = at => at != null && now - at < PRODUCER_S;
-      return this.fingerAttached(now) || (this.enabled.pulse_stone && recent(this.realAt)) || (this.enabled.phone_camera && !!this.rppg && recent(this.rppg.at));
+      return this.fingerAttached(now) || (this.enabled.pulse_stone && recent(this.realAt));
     },
 
     lockPulse(now) { return (this.pulseMode = this.realProducer(now) || !this.enabled.simulator ? 'real' : 'simulated'); },

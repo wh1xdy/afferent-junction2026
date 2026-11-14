@@ -80,7 +80,7 @@
     camGlyph();
   };
   const camGlyph = () => {
-    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera());
+    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera() || ['starting', 'on'].includes(S.camLink.state));
     $('camBtn').hidden = !on;
   };
   const setProfile = (p, from) => {
@@ -172,12 +172,14 @@
     $('sigSw').checked = A.config.signalsOverlay;
     camGlyph();
   };
+  const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
     const sensor = el.dataset.sensor;
     A.config.sensors[sensor] = el.checked;
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
     if (sensor === 'pulse_stone') { A.Finger.sync(); if (!el.checked) S.feedPulse({ bpm: null, source: 'finger_ppg' }); }
+    if (sensor === 'phone_camera') syncCamPulse();
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
@@ -199,9 +201,12 @@
     syncSensors(); toggles(); saveSettings();
     A.Finger.sync();
     if (!A.config.sensors.pulse_stone) S.feedPulse({ bpm: null, source: 'finger_ppg' });
+    syncCamPulse();
   };
   morningText(); toggles();
   A.Finger.sync();
+  syncCamPulse();
+  document.addEventListener('visibilitychange', syncCamPulse);
 
   let timeline = [];
 
@@ -214,7 +219,7 @@
     if (ui.input === 'camera' && !S.camera()) {
       $('begin').disabled = true;
       log('starting camera');
-      try { log(`camera on (${await S.startCamera()}), only eye openness and head tilt are read`); }
+      try { log(`camera on (${await S.startCamera()}), only eye openness, head tilt${S.camLink.state === 'on' ? ' and the pulse estimate' : ''} are read`); }
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();
@@ -382,7 +387,7 @@
   function panel(s, now) {
     const p = S.pulse(now);
     $('pulseVal').textContent = s && p.bpm != null ? p.bpm.toFixed(0) : '--';
-    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'face (rPPG)', simulated: 'SIMULATED' }[p.source] || 'none';
+    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', ky039: 'pulse stone', simulated: 'SIMULATED' }[p.source] || 'none';
     for (const [id, key] of Object.entries(sliders)) { const el = $(id); if (!el.dataset.active) el.value = A.Sim[key]; }
     $('pulseSliderVal').textContent = (A.Sim.offset >= 0 ? '+' : '') + A.Sim.offset.toFixed(0) + ' bpm';
     $('drowsySliderVal').textContent = A.Sim.drowsy.toFixed(2);

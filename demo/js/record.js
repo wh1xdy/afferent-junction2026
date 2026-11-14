@@ -119,7 +119,7 @@
         this.rows.push({ pulse: f.pulse_bpm, q: f.quality, f1: f.finger_bpm?.[0] ?? null, f2: f.finger_bpm?.[1] ?? null, br: f.breathing_per_min, rmssd: f.rmssd_ms, sdnn: f.sdnn_ms, vsb: f.rmssd_vs_baseline });
         if (f.presence in this.pres) { this.pres[f.presence]++; this.presSeen = true; }
       }
-      if (c) this.cam.push({ bpm: c.bpm, score: c.trust_score, label: c.trust_label });
+      if (c && c.trust_score != null) this.cam.push({ bpm: c.bpm, score: c.trust_score, label: c.trust_label });
       const se = this.series;
       if (tick % SERIES_STEP_S === 0 && se.t_s.length < SERIES_MAX) {
         se.t_s.push(Math.round(now - this.t0)); se.pulse_bpm.push(r1(f?.pulse_bpm)); se.breathing_per_min.push(r1(f?.breathing_per_min)); se.rmssd_ms.push(r1(f?.rmssd_ms));
@@ -140,7 +140,7 @@
         finger,
         breathing: has('br') ? { source: src, method: 'pulse_rhythm', rate_per_min: stat(col('br')) } : null,
         hrv: has('rmssd') ? { source: src, window_s: 60, rmssd_ms: stat(col('rmssd')), sdnn_ms: has('sdnn') ? stat(col('sdnn')) : null, rmssd_vs_baseline: has('vsb') ? stat(col('vsb'), r3) : null } : null,
-        camera_pulse: this.cam.length ? { source: 'rppg', pulse_bpm: stat(this.cam.map(x => x.bpm)), trust_score: stat(this.cam.map(x => x.score)), trust_label_s: labels } : null,
+        camera_pulse: this.cam.some(x => x.bpm != null) ? { source: 'rppg', pulse_bpm: stat(this.cam.map(x => x.bpm)), trust_score: stat(this.cam.map(x => x.score)), trust_label_s: labels } : null,
         series: finger ? { step_s: SERIES_STEP_S, ...this.series } : null,
       };
     },
