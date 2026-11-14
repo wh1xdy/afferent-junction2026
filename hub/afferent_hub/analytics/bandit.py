@@ -4,16 +4,22 @@ from . import stats
 from .features import PLAYED, get
 
 MODE_ARMS = {
-    "calm": ["breath", "loyly", "stars"],
-    "wake": ["fireflies", "beacon", "bells", "shutters"],
-    "fatigue": ["shutters", "bells", "beacon", "fireflies"],
+    "calm": ["breath", "loyly", "stars", "birds", "faces", "drips", "steps", "fog"],
+    "wake": ["fireflies", "beacon", "bells", "shutters", "windows", "vihta", "swans", "owls",
+             "seals", "reindeer", "ferry", "buoys", "glance", "signpost"],
+    "fatigue": ["shutters", "bells", "beacon", "fireflies", "windows", "vihta", "owls", "seals", "ferry"],
     "rest": ["breath"],
 }
-FLOW = ["threads", "stars"]
+FLOW = ["threads", "stars", "birds", "swans", "faces", "owls", "reindeer", "ferry", "drips", "buoys",
+        "steps", "glance", "signpost", "runes", "fog"]
 MODES = ["calm", "flow", "wake", "fatigue", "rest"]
 LABELS = {"breath": "Breath", "loyly": "Löyly", "threads": "Aurora threads", "stars": "Constellation",
           "fireflies": "Fireflies", "beacon": "Beacon", "bells": "Bells", "shutters": "Shutters",
-          "fork": "Fork", "lanterns": "Two lanterns"}
+          "fork": "Fork", "lanterns": "Two lanterns", "windows": "Cabin windows", "vihta": "Vihta",
+          "birds": "Same bird", "swans": "Swan line", "faces": "Frost faces", "owls": "Owl search",
+          "seals": "Seal holes", "reindeer": "Reindeer watch", "ferry": "Ferry dock", "drips": "Drip rhythm",
+          "buoys": "Buoy trail", "steps": "Snow steps", "glance": "Harbour glance", "signpost": "Signpost",
+          "runes": "Rune turn", "fog": "Fog faces"}
 VERBS = {"calm": "settled the pulse", "rest": "settled the pulse", "wake": "lifted the pulse",
          "fatigue": "lifted the pulse"}
 PRIOR = (1, 1)

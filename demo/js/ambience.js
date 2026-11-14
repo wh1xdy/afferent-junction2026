@@ -35,7 +35,7 @@
     dawn: { beds: { amb_dawn_woodland: -3, amb_night_air: -12, amb_shore_waves: -12 }, events: [], bare: true, fade: 8 },
     nightEnd: { beds: { amb_lake_ice_night: -8, amb_shore_waves: -16, amb_night_air: -8 }, events: [], bare: true, fade: 6 },
   };
-  const TASK_SCENE = { loyly: 'stove', threads: 'forest', stars: 'stars', fireflies: 'fireflies', beacon: 'harbour', bells: 'bells', shutters: 'shutters', fork: 'fell', lanterns: 'harbour' };
+  const TASK_SCENE = { loyly: 'stove', threads: 'forest', stars: 'stars', fireflies: 'fireflies', beacon: 'harbour', bells: 'bells', shutters: 'shutters', fork: 'fell', lanterns: 'harbour', windows: 'shutters', vihta: 'stove', birds: 'forest', swans: 'harbour', faces: 'stove', owls: 'forest', seals: 'harbour', reindeer: 'fell', ferry: 'harbour', drips: 'stove', buoys: 'harbour', steps: 'fell', glance: 'harbour', signpost: 'forest', runes: 'stars', fog: 'harbour' };
   const EV = {
     foghorn: { f: 'sfx_foghorn_far', every: [70, 140], loud: true, once: true, far: true, az: [-60, -40], el: [0, 5] },
     chime: { f: 'sfx_chime_single', every: [25, 50], dB: -18, far: true, az: [25, 55], el: [5, 20] },

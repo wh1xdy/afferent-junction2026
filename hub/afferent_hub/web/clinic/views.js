@@ -21,7 +21,7 @@
     reward_bias: ['Reward bias', 'lower than usual', 'higher than usual'],
   };
   const MODE = { calm: ['Calm', 'spa'], wake: ['Wake', 'light_mode'], fatigue: ['Fatigue', 'wb_twilight'], rest: ['Rest', 'bedtime'], flow: ['Flow', 'animation'] };
-  const TASK = { breath: 'Breath', loyly: 'Löyly', threads: 'Aurora threads', stars: 'Constellation', fireflies: 'Fireflies', beacon: 'Beacon', bells: 'Bells', shutters: 'Shutters', fork: 'Fork', lanterns: 'Two lanterns', joutsen: 'Joutsen', bite: 'Bite' };
+  const TASK = { breath: 'Breath', loyly: 'Löyly', threads: 'Aurora threads', stars: 'Constellation', fireflies: 'Fireflies', beacon: 'Beacon', bells: 'Bells', shutters: 'Shutters', fork: 'Fork', lanterns: 'Two lanterns', windows: 'Cabin windows', vihta: 'Vihta', birds: 'Same bird', swans: 'Swan line', faces: 'Frost faces', owls: 'Owl search', seals: 'Seal holes', reindeer: 'Reindeer watch', ferry: 'Ferry dock', drips: 'Drip rhythm', buoys: 'Buoy trail', steps: 'Snow steps', glance: 'Harbour glance', signpost: 'Signpost', runes: 'Rune turn', fog: 'Fog faces', joutsen: 'Joutsen', bite: 'Bite' };
   const SHARING = { summary: 'Summary', nothing_tonight: 'Skip today', paused: 'Paused 7 days' };
   const BAND = { minimal: 'Minimal', mild: 'Mild', moderate: 'Moderate', moderately_severe: 'Moderately severe', severe: 'Severe' };
   const TIER = { high: 'High', moderate: 'Moderate', incomplete: 'Incomplete', low: 'Low', none: 'None', not_answered: 'Not reached' };

@@ -4,9 +4,10 @@ const vm = require('vm');
 const assert = require('assert');
 
 const JS = path.join(__dirname, '..', 'js');
-const load = () => {
+const load = storage => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, URLSearchParams };
   ctx.window = ctx; ctx.navigator = {}; ctx.location = { search: '' }; ctx.addEventListener = () => {};
+  if (storage) ctx.localStorage = storage;
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(JS, 'util.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(JS, 'minigames.js'), 'utf8'), ctx);
@@ -38,6 +39,20 @@ const tests = {
     const { id, p } = A.pickGame('wake', 'bells', new Set(['fireflies', 'beacon', 'bells', 'shutters']));
     assert.notStrictEqual(id, 'bells');
     assert.strictEqual(p, 1 / 3);
+  },
+  'rotation: games seen in recent sessions are skipped while two fresh ones remain'() {
+    const store = {}, A = load({ getItem: k => store[k] ?? null, setItem: (k, v) => { store[k] = v; } });
+    {
+      for (let i = 0; i < 100; i++) {
+        store['afferent.recentGames.v1'] = JSON.stringify(['fireflies', 'beacon']);
+        const { id, p } = A.pickGame('wake', null, new Set());
+        assert.ok(id === 'bells' || id === 'shutters', id);
+        assert.strictEqual(p, 0.5);
+      }
+      store['afferent.recentGames.v1'] = JSON.stringify(['fireflies', 'beacon', 'bells']);
+      const { p } = A.pickGame('wake', null, new Set());
+      assert.strictEqual(p, 1 / 4, 'only one fresh game left, so the whole pool is used');
+    }
   },
   'instruction lines: one short line per task, no success or failure words'() {
     const A = load();

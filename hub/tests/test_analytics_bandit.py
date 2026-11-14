@@ -21,13 +21,13 @@ def test_counts_only_adaptive_with_outcome():
 def test_arms_shape_and_posterior():
     s = [session(d, [task("calm", "breath", True), task("calm", "loyly", d % 2 == 0)]) for d in range(10)]
     arms = {(a["mode"], a["task_id"]): a for a in bandit.arms(s)}
-    assert len(arms) == 12
+    assert len(arms) == sum(len(v) for v in bandit.MODE_ARMS.values())
     b = arms[("calm", "breath")]
     assert set(b) == {"mode", "task_id", "label", "alpha", "beta", "n", "helped", "mean", "ci90", "p_best"}
     assert (b["alpha"], b["beta"], b["n"], b["helped"]) == (11, 1, 10, 10)
     assert b["mean"] == pytest.approx(11 / 12, abs=1e-3)
     assert b["ci90"][0] < b["mean"] < b["ci90"][1]
-    assert b["p_best"] > 0.9
+    assert b["p_best"] > 0.5 and b["p_best"] == max(a["p_best"] for (m, _), a in arms.items() if m == "calm")
     assert arms[("rest", "breath")]["p_best"] == 1.0
 
 def test_p_best_deterministic_and_sums_to_one():
@@ -44,14 +44,14 @@ def test_weights_floor_and_normalise():
     for mode, ws in w.items():
         assert sum(ws.values()) == pytest.approx(1, abs=0.01)
     assert w["calm"]["loyly"] == pytest.approx(0.05 / 1.05, abs=0.01)
-    assert w["flow"] == {"threads": 0.5, "stars": 0.5}
+    assert set(w["flow"]) == set(bandit.FLOW) and len(set(w["flow"].values())) == 1
     assert w["rest"] == {"breath": 1.0}
 
 def test_empty_history_gives_uniformish_weights():
     w = bandit.task_weights([])
-    assert w["calm"]["breath"] == pytest.approx(1 / 3, abs=0.05)
-    assert set(w["fatigue"]) == {"shutters", "bells", "beacon", "fireflies"}
-    assert set(w["wake"]) == {"fireflies", "beacon", "bells", "shutters"} and "stars" in w["calm"]
+    assert w["calm"]["breath"] == pytest.approx(1 / len(bandit.MODE_ARMS["calm"]), abs=0.05)
+    assert set(w["fatigue"]) == set(bandit.MODE_ARMS["fatigue"]) and {"shutters", "windows", "vihta"} <= set(w["fatigue"])
+    assert set(w["wake"]) == set(bandit.MODE_ARMS["wake"]) and "stars" in w["calm"]
     assert sum(w["wake"].values()) == pytest.approx(1, abs=0.01)
     assert bandit.headline(bandit.arms([]))["task_id"] is None
 
