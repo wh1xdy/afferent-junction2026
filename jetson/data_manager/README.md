@@ -180,10 +180,6 @@ curl "$DM/api/v1/profile?metric=vitals.heart_rate_bpm&from=-28d"
 
 ## Who sends what
 
-> **Status:** this section is the integration contract. Wiring the producers below is a
-> separate change (it edits those apps); until it lands, nothing pushes automatically and
-> data arrives only from whoever calls the API (e.g. `tools/simulate.py`).
-
 Every producer carries a copy of [`client/data_manager_client.py`](client/data_manager_client.py)
 (one stdlib file: each Wendy app is built from its own directory; keep the copies in sync).
 It never blocks and never raises: values are queued (up to 50 000) and sent in batches by a
@@ -192,7 +188,7 @@ the server with `DATA_MANAGER_URL`, or over mDNS (`role=data-manager`) when `zer
 installed; `DATA_MANAGER_URL=off` disables it. `DATA_MANAGER_TOKEN` carries the API token.
 `Downsampler` turns a high-rate signal into one mean/median per window. `dm.get(path, **params)` reads any endpoint (see [API.md](API.md#6-code)).
 
-| Producer (planned) | What | Metric / source | Rate |
+| Producer | What | Metric / source | Rate |
 |---|---|---|---|
 | `uno-q/modulino-hub` | Thermo | `env.temperature_c`, `env.humidity_pct` / `modulino-hub` | mean over 60 s |
 | | **fused** finger reading (only while a finger is on the clip), HRV, breathing | `vitals.heart_rate_bpm`, `vitals.hrv_rmssd_ms`, `vitals.breathing_rate_per_min` / `modulino-hub` | per reading |
@@ -201,7 +197,7 @@ installed; `DATA_MANAGER_URL=off` disables it. `DATA_MANAGER_TOKEN` carries the 
 | `posture-analysis/posture` | minute medians per context, **standing / walking only** (`afferent/datasink.py`), **opt-in** | `posture.trunk_inclination_deg`, `posture.head_trunk_angle_deg` / `posture/<site>/<activity>-<orientation>`; p10/p90/n in `meta` | per minute |
 | CO2 sensor | not built yet | `env.co2_ppm` | every 30–60 s |
 
-How each one will find the data manager:
+How each one finds the data manager:
 
 - **modulino-hub** (UNO Q, mesh) and **vision** (Jetson, mesh): mDNS on their mesh
   interface, nothing to configure. Override with `DATA_MANAGER_URL=… wendy run …`.
@@ -211,18 +207,17 @@ How each one will find the data manager:
 - **posture** (laptop POC): off unless `DATA_MANAGER_URL` is set in `.env`, so nothing
   leaves the laptop by default.
 
-Once wired, each app should expose `DataManagerClient.status()` in its own status
-endpoint (modulino-hub `GET /state`, presence `GET /health`, vision `GET /rppg`):
+Each app reports the client state: `GET /state` → `data_manager` (modulino-hub),
+`GET /health` → `data_manager` (presence), `GET /rppg` → `data_manager` (vision):
 URL found, items queued / sent / rejected, last error.
 
-Posture (pipeline in `posture-analysis/posture`, not on `main` yet): the angles must be
-the pipeline's own `geometry.py` values, exactly what the runtime computes and stores in
-its minute rows (no parallel implementation), including its
+Posture: the angles are the pipeline's own `geometry.py` values, exactly what the runtime
+computes and stores in its minute rows (no parallel implementation), including its
 per-orientation validity (trunk: profile, ~3/4; head vs trunk: face, profile, ~3/4).
-Only standing and walking minutes are to be sent: the runtime's sitting rule is knee < 120°,
+Only standing and walking minutes are sent: the runtime's sitting rule is knee < 120°,
 with the hip–ankle span test only as a fallback when the knees are not visible.
 One source per (room, activity, orientation), so daily aggregates never mix contexts
-(posture implementation review, P1); query one with
+(`docs/implementation_review.md`, P1); query one with
 `source=posture/<site>/standing-profile`. The pooled `source=*` mixes contexts.
 
 ## Deploy

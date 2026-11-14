@@ -77,11 +77,12 @@ docker compose logs -f posture
 | Action | How |
 |---|---|
 | Enroll target face | Dashboard "Enroll target" (or `POST /api/enroll/start` then `/stop`) |
+| Enroll/check face from a photo | `POST /api/enroll/face-image` — raw image bytes; `?mode=match` tests against the gallery without storing (see `/docs`) |
 | Delete all face embeddings | Dashboard "Delete gallery" (or `DELETE /api/gallery`) |
 | Upright reference (10 s stand) | Dashboard "Calibrate upright" (or `POST /api/calibration/upright`) |
 | Floor plane (4 clicks) | Dashboard "Calibrate floor" (or `POST /api/calibration/floor`) |
 | Guided session (normal / simulated slow walk) | Dashboard "Start session" (+ `simulated` checkbox) |
-| Dev-only raw recording | `POST /api/record/start` → writes `/recordings/*.mp4` (future fine-tuning data; off by default via `RECORDING_ENABLED=0`) |
+| Dev-only raw recording | `POST /api/record/start` → writes `/recordings/*.mp4` (future fine-tuning data; off by default via `RECORDING_ENABLED=0`); list/download on the dashboard or `GET /api/recordings`, `GET /api/recordings/{name}` |
 | Switch site (room) | Dashboard site input, or `POST /api/site/<id>` |
 
 ## Multi-room (sites)
@@ -147,11 +148,27 @@ works in both cases. With `DEVICE=cuda`, `POSE_MODE` defaults to `balanced` and
 ## API summary
 
 `GET /` dashboard · `GET /stream.mjpg` annotated preview · `GET /api/status` ·
-`POST /api/enroll/start|stop` · `DELETE /api/gallery` ·
+`POST /api/enroll/start|stop` · `POST /api/enroll/face-image?mode=enroll|match&face_index=N` ·
+`DELETE /api/gallery` ·
 `POST /api/calibration/floor|upright` · `POST /api/session/start|stop` ·
 `POST /api/site/{id}` ·
 `GET /api/minutes?since=` · `GET /api/sessions` · `GET /api/days` ·
-`POST /api/record/start|stop` · `POST /api/days/refresh`
+`POST /api/record/start|stop` · `POST /api/days/refresh` ·
+`GET /api/recordings` · `GET|DELETE /api/recordings/{name}`
+
+Saved recordings are listed on the dashboard; `RECORD_ANNOTATED=1` bakes the
+skeleton+angles overlay into the .mp4 (raw camera frames when 0).
+
+## Data manager (optional)
+
+Set `DATA_MANAGER_URL` in `.env` (an address reachable from inside the container) to also
+push, for every minute row, the runtime's own medians of **trunk vs vertical**
+(`trunk_inclination`) and **head vs trunk** (`head_trunk_angle`) to `jetson/data_manager`
+— the same `geometry.py` values the minute table stores, with the same per-orientation
+validity. Only **standing / walking** minutes are sent (sitting = knee < 120°, hip–ankle
+span only as a fallback when the knees are not visible). One source per context:
+`posture/<site>/<activity>-<orientation>`. Off by default: nothing leaves the machine.
+See `afferent/datasink.py`.
 
 ## Privacy / storage defaults
 

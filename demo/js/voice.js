@@ -1,9 +1,9 @@
 // Voice companion: speech-to-speech conversation with Gemini Live on Vertex AI, with a live transcript.
 // The phone talks to our relay (voice-relay/, on Cloud Run), which holds the Google Cloud identity,
 // the model and the system prompt. Audio goes to Google while a conversation is open; the transcript
-// is kept on this device only.
+// is kept on this device and sent to the home hub over the app link (never to the clinic).
 (() => {
-  const IN_RATE = 16000, OUT_RATE = 24000, KEEP = 20, KEY = 'afferent.voice.relay';
+  const IN_RATE = 16000, OUT_RATE = 24000, KEEP = 20, KEY = 'afferent.voice.relay', OUTBOX = 'afferent.voice.outbox', CTX = 'afferent.voice.context';
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -43,6 +43,29 @@
     };
   };
 
+  // Finished conversations wait here until the hub acks them (checkin.js pattern): pushed on save,
+  // resent on every hub connect, dropped on the matching ack — the transcript itself stays a JSONL
+  // line in the hub's rotating files, it is not a metric.
+  const outbox = () => { try { return JSON.parse(store.get(OUTBOX)) || []; } catch { return []; } };
+  const setOutbox = v => store.set(OUTBOX, JSON.stringify(v.slice(-50)));
+  const flushOutbox = () => outbox().forEach(d => A.bus?.emit('ws', { type: 'transcript', ...d }));
+
+  // Once a day the hub is asked how the patient seems to be doing (ws `voice_context`); the
+  // cached answer rides along in the relay auth message so the companion can gently raise it.
+  const ctxKey = () => CTX + '.' + (A.config?.patientId || 'anna');
+  const today = () => new Date().toISOString().slice(0, 10);
+  const context = () => { try { return JSON.parse(store.get(ctxKey())) || null; } catch { return null; } };
+  const setContext = v => store.set(ctxKey(), JSON.stringify(v));
+  const askContext = () => {
+    if (!A.Hub?.connected || context()?.asked === today()) return;
+    if (A.Hub.send({ type: 'voice_context', patient_id: A.config?.patientId || 'anna' }))
+      setContext({ ...context(), asked: today() });
+  };
+  const relayContext = () => {
+    const c = context();
+    return c?.indicator ? { date: c.date, indicator: c.indicator, facts: c.facts, suggest_doctor: c.suggest_doctor } : undefined;
+  };
+
   const fail = (code, msg) => Object.assign(new Error(msg || code), { code });
   // Relay address and access code: typed in the app, else baked in at build time (js/voice-config.js, `npm run voiceconfig`).
   const relay = () => {
@@ -65,6 +88,7 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       const s = this.s = { playing: new Set(), nextT: 0, ready: false };
       this.log = transcript();
+      A.Music?.session();
       try {
         if (!AC || !navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') throw fail('unsupported');
         // Contexts are created before any await so they start inside the tap that opened the conversation.
@@ -75,7 +99,7 @@
         const r = relay();
         try {
           s.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-        } catch { throw fail('mic'); }
+        } catch (e) { throw fail('mic', [e?.name, e?.message].filter(Boolean).join(': ')); }
         if (this.s !== s) { s.stream.getTracks().forEach(t => t.stop()); return; }
         await s.inCtx.audioWorklet.addModule('js/voice-worklet.js');
         if (this.s !== s) return;
@@ -91,7 +115,7 @@
 
         const ws = s.ws = new WebSocket(wsUrl(r.url));
         ws.binaryType = 'arraybuffer';
-        ws.onopen = () => ws.send(JSON.stringify({ auth: r.code }));
+        ws.onopen = () => ws.send(JSON.stringify({ auth: r.code, context: relayContext() }));
         ws.onmessage = e => {
           let m;
           try { m = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data)); } catch { return; }
@@ -146,6 +170,7 @@
       s.playing.forEach(n => { try { n.stop(); } catch {} });
       try { s.inCtx?.close(); s.outCtx?.close(); } catch {}
       this.save();
+      A.Music?.session();
       if (reason) this.set('error', { code: reason, text: detail }); else this.set('idle');
     },
 
@@ -154,7 +179,11 @@
     save() {
       const turns = (this.log?.turns || []).map(t => ({ role: t.role, text: t.text.trim() })).filter(t => t.text);
       if (!turns.length) return;
-      store.set(this.histKey(), JSON.stringify([...this.history(), { t_iso: new Date().toISOString(), turns }].slice(-KEEP)));
+      const doc = { transcript_id: A.uuid(), patient_id: A.config?.patientId || 'anna',
+                    t_iso: new Date().toISOString(), turns };
+      store.set(this.histKey(), JSON.stringify([...this.history(), { t_iso: doc.t_iso, turns }].slice(-KEEP)));
+      setOutbox([...outbox().filter(d => d.transcript_id !== doc.transcript_id), doc]);
+      flushOutbox();
     },
     setRelay(url, code) { store.set(KEY, url && code ? JSON.stringify({ url: url.trim(), code: code.trim() }) : null); },
   };
@@ -199,7 +228,7 @@
     const live = state !== 'idle' && state !== 'error';
     $('voiceStart').classList.toggle('hidden', live);
     $('voiceEnd').classList.toggle('hidden', !live);
-    $('voiceStatus').textContent = state === 'error' ? ERRORS[detail?.code] || ERRORS.failed : STATUS[state];
+    $('voiceStatus').textContent = state === 'error' ? (ERRORS[detail?.code] || ERRORS.failed) + (detail?.code === 'mic' && detail.text ? ` (${detail.text})` : '') : STATUS[state];
     $('voiceKeyForm').classList.toggle('hidden', !(state === 'error' && ['no_relay', 'code', 'refused'].includes(detail?.code)));
     if (state === 'connecting') { rows.clear(); $('voiceLog').textContent = ''; }
     el.classList.toggle('talked', live || rows.size > 0);
@@ -216,5 +245,11 @@
   };
   el.querySelector('[data-close="voice"]').addEventListener('click', () => V.stop());
   A.bus.on('ws', m => { if (m?.type === 'crisis') V.stop(); });
+  A.Hub?.on?.('connected', on => { if (on) { flushOutbox(); askContext(); } });
+  A.Hub?.on?.('voice_context', d => {
+    if (d?.patient_id) setContext({ asked: today(), date: d.date || today(), indicator: d.indicator,
+                                  facts: d.facts || [], suggest_doctor: d.suggest_doctor === true });
+  });
+  A.Hub?.on?.('ack', d => { if (d?.transcript_id) setOutbox(outbox().filter(x => x.transcript_id !== d.transcript_id)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) V.stop(); });
 })();

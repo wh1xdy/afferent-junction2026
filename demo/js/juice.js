@@ -82,8 +82,18 @@
   };
   const disc = (ctx, x, y, r, c, a = 1) => { ctx.fillStyle = rgb(c, a); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); };
 
+  const HAND = typeof Image === 'function' ? Object.assign(new Image(), { src: 'assets/hand-cursor.png' }) : null;
+  const HAND_TIP = [0.338, 0.027];
   const finger = (ctx, x, y, s, a) => {
     if (a <= 0.01) return;
+    if (HAND?.complete && HAND.naturalWidth) {
+      const h = s * 1.45, w = h * HAND.naturalWidth / HAND.naturalHeight;
+      ctx.save();
+      ctx.globalAlpha *= a;
+      ctx.drawImage(HAND, x - w * HAND_TIP[0], y - h * HAND_TIP[1], w, h);
+      ctx.restore();
+      return;
+    }
     const k = s / 30;
     ctx.save();
     ctx.translate(x, y); ctx.rotate(-0.4); ctx.scale(k, k);
@@ -100,6 +110,7 @@
     ctx.beginPath(); ctx.moveTo(6, 17); ctx.lineTo(16, 17); ctx.moveTo(6, 23); ctx.lineTo(16, 23); ctx.stroke();
     ctx.restore();
   };
+
 
   const tapCue = (ctx, x, y, U, now, a = 1) => {
     if (a <= 0.01) return;

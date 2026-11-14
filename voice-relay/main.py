@@ -24,14 +24,59 @@ MAX_SECONDS = int(os.environ.get("MAX_SESSION_SECONDS", "900"))
 AUTH_TIMEOUT = 10
 
 PROMPT = " ".join([
-    "You are the voice companion inside Afferent, an app that supports people living with depression.",
+    "You are the voice companion inside Afferent, an app that supports a person who may be living with depression.",
+    "Your whole job is friendly, everyday conversation. You are not an assistant: no research, no fact-checking,",
+    " no code, no task lists, no advice beyond listening. If the person asks for those, gently steer back to talking.",
+    "Chat about light, ordinary things and follow the person's lead: pets and animals, food and cooking — a dish",
+    " they are proud of, a meal they loved — nature and trees, seasons, music, small daily moments. These are",
+    " examples, not a script: pick topics freely and vary them, and never return to a question or a subject",
+    " already covered in this conversation.",
+    "Practise active listening in the spirit of Carl Rogers: reflect back what you hear, name the feeling",
+    " underneath it, ask short open questions, and give the person room to answer.",
     "Always speak English, whatever language you hear.",
     "Be warm, calm and brief: one to three short sentences, then let the person talk. Ask one question at a time.",
-    "Listen and reflect back what you hear. Do not diagnose, do not give medical or medication advice, and do not claim to be a therapist.",
+    "Do not diagnose, do not give medical or medication advice, and do not claim to be a therapist.",
     "If the person mentions wanting to die, hurting themselves or being in danger, say you are glad they told you,"
     " tell them to tap the support button at the top right of the screen or to call 112,"
     " and encourage them to reach a person they trust right now.",
 ])
+
+INDICATORS = ("ok", "watch", "bad")
+CTX_FACT_MAX, CTX_FACT_LEN = 8, 160
+
+
+def clean_context(v) -> dict | None:
+    """The phone may pass the hub's daily wellbeing read as `context` in the auth message.
+    It is validated and reshaped here, so the phone can colour today's session — never
+    rewrite the prompt itself."""
+    if not isinstance(v, dict):
+        return None
+    ind = v.get("indicator")
+    raw = v.get("facts")
+    facts = [f.strip()[:CTX_FACT_LEN] for f in raw
+             if isinstance(f, str) and f.strip()][:CTX_FACT_MAX] if isinstance(raw, list) else []
+    ctx = {"indicator": ind if ind in INDICATORS else None,
+           "date": str(v.get("date") or v.get("day") or "")[:10] or None,
+           "facts": facts,
+           "suggest_doctor": v.get("suggest_doctor") is True}
+    return ctx if ctx["indicator"] or facts else None
+
+
+def _context_text(ctx: dict) -> str:
+    bits = ["Context for this conversation, reported by the person's home hub"
+            + (f" (dated {ctx['date']})" if ctx.get("date") else "") + "."]
+    if ctx["facts"]:
+        bits.append("Recent observations: " + "; ".join(ctx["facts"]) + ".")
+    if ctx["indicator"] == "bad" or ctx["suggest_doctor"]:
+        bits.append("The person's wellbeing indicators suggest they may not be doing well lately."
+                    " When it fits the conversation, gently acknowledge how things have been — it is"
+                    " not easy — remind them this app and their care team are here exactly for that,"
+                    " and kindly suggest they think about contacting their doctor. Raise it once,"
+                    " warmly; do not insist, do not repeat it, and never sound alarmed or annoyed.")
+    elif ctx["indicator"] == "watch":
+        bits.append("The person's wellbeing indicators look slightly off;"
+                    " keep an extra gentle ear on how they sound.")
+    return " ".join(bits)
 
 app = FastAPI(title="Afferent voice relay")
 _creds = None
@@ -52,14 +97,15 @@ async def access_token() -> str:
     return await asyncio.to_thread(_refresh)
 
 
-def setup_message() -> dict:
+def setup_message(context: dict | None = None) -> dict:
+    prompt = PROMPT if not context else PROMPT + " " + _context_text(context)
     return {"setup": {
         "model": f"projects/{_project}/locations/{LOCATION}/publishers/google/models/{MODEL}",
         "generation_config": {
             "response_modalities": ["AUDIO"],
             "speech_config": {"voice_config": {"prebuilt_voice_config": {"voice_name": VOICE}}},
         },
-        "system_instruction": {"parts": [{"text": PROMPT}]},
+        "system_instruction": {"parts": [{"text": prompt}]},
         "input_audio_transcription": {},
         "output_audio_transcription": {},
     }}
@@ -102,6 +148,7 @@ async def live(ws: WebSocket):
     if not _authorised(first.get("auth") if isinstance(first, dict) else None):
         await ws.close(4401, "wrong access code")
         return
+    context = clean_context(first.get("context"))
 
     try:
         token = await access_token()
@@ -111,7 +158,7 @@ async def live(ws: WebSocket):
         return
 
     async def to_phone():
-        await upstream.send(json.dumps(setup_message()))
+        await upstream.send(json.dumps(setup_message(context)))
         async for msg in upstream:
             if isinstance(msg, bytes):
                 msg = msg.decode()

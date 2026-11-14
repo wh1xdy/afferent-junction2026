@@ -88,6 +88,38 @@ def test_relay_refuses_everything_when_no_code_is_configured(vertex, monkeypatch
     assert e.value.code == 4401
 
 
+def test_clean_context():
+    assert main.clean_context(None) is None
+    assert main.clean_context("bad") is None
+    assert main.clean_context({}) is None
+    assert main.clean_context({"indicator": "bogus"}) is None          # nothing usable
+    assert main.clean_context({"facts": []}) is None
+    ctx = main.clean_context({"indicator": "bad", "date": "2026-11-15", "suggest_doctor": 1,
+                              "facts": ["a" * 300, "  ", 42, "ok"]})
+    assert ctx["indicator"] == "bad" and ctx["suggest_doctor"] is False
+    assert ctx["date"] == "2026-11-15" and ctx["facts"] == ["a" * 160, "ok"]
+    assert main.clean_context({"indicator": "watch", "day": "2026-11-15"})["date"] == "2026-11-15"
+
+
+def test_context_colours_the_setup(vertex):
+    with TestClient(main.app) as c, c.websocket_connect("/live") as ws:
+        ws.send_text(json.dumps({"auth": "s3cret", "context": {
+            "indicator": "bad", "date": "2026-11-15", "suggest_doctor": True,
+            "facts": ["went outside on 0 of the last 5 days"]}}))
+        assert json.loads(ws.receive_text()) == {"setupComplete": {}}
+    text = vertex.sent[0]["setup"]["system_instruction"]["parts"][0]["text"]
+    assert "went outside on 0 of the last 5 days" in text
+    assert "doctor" in text and "home hub" in text and "English" in text
+
+
+def test_garbage_context_changes_nothing(vertex):
+    with TestClient(main.app) as c, c.websocket_connect("/live") as ws:
+        ws.send_text(json.dumps({"auth": "s3cret", "context": {"indicator": {"bad": True}, "facts": "yes"}}))
+        assert json.loads(ws.receive_text()) == {"setupComplete": {}}
+    text = vertex.sent[0]["setup"]["system_instruction"]["parts"][0]["text"]
+    assert "home hub" not in text and "English" in text
+
+
 def test_camel_converts_nested_keys():
     assert main.camel({"server_content": {"model_turn": {"parts": [{"inline_data": {"mime_type": "x"}}]}}}) == \
         {"serverContent": {"modelTurn": {"parts": [{"inlineData": {"mimeType": "x"}}]}}}

@@ -5,14 +5,26 @@ Gemini Live on Vertex AI and streams the voice and the transcript back.
 
 ```
 phone ──wss /live──► relay (Cloud Run) ──wss + OAuth──► Vertex AI Gemini Live
-       {auth: code}   holds the Google identity, the model and the system prompt
+   {auth, context?}   holds the Google identity, the model and the system prompt
 ```
 
 Why a relay: the phone must not carry Google Cloud credentials, and a browser WebSocket cannot send
 the `Authorization` header Vertex requires. The relay only accepts phones that send the access code
-(`RELAY_CODE`) as their first message, sets the session up itself (model, voice, English-only prompt,
+(`RELAY_CODE`) as their first message, sets the session up itself (model, voice, prompt,
 transcription on both sides), and forwards only audio from the phone, so the phone cannot change the
 model or the prompt.
+
+The prompt makes Gemini Live a companion for light conversation — pets, food and cooking, nature,
+small daily moments — with active listening in the spirit of Carl Rogers. It is not an assistant and
+does not do research or tasks; the safety lines (support button, 112) are always in.
+
+Once a day the phone asks its home hub for a wellbeing read (`GET /api/patients/{pid}/wellbeing`,
+see the main README) and may pass it in the auth message as `context`:
+`{indicator: "ok"|"watch"|"bad", date, facts: […], suggest_doctor}`. The relay validates and
+truncates it (`clean_context`), then appends it to the system instruction under a fixed header — the
+phone can colour today's session, never rewrite the prompt. On a `bad` day the companion is asked to
+gently raise the facts, remind the person their care team is there, and suggest once — without
+pushing — that they talk to their doctor.
 
 Privacy: audio passes through Google while a conversation is open. The relay stores nothing and logs
 no audio or text. The transcript is kept on the phone only.

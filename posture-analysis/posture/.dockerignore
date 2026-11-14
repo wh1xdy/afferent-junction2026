@@ -1,0 +1,12 @@
+# Keep the build context small: cached/downloaded weights live on the
+# /models volume at runtime; only models/custom ships inside the image.
+models/*
+!models/custom/
+
+data/
+recordings/
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc

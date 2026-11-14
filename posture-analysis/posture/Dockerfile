@@ -45,6 +45,10 @@ COPY web/ ./web/
 COPY tests/ ./tests/
 COPY pytest.ini ./
 
+# Fine-tuned pose ONNX bundled in the image (not under /models, which is a
+# volume that starts empty on WendyOS). Point POSE_MODEL_PATH at it.
+COPY models/custom/ /opt/posture_models/
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     MODELS_DIR=/models \

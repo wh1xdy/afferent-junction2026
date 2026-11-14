@@ -9,13 +9,14 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from . import export, modules, qr, views
+from . import export, modules, qr, views, wellbeing
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
 from .db import Store
 from .settings import ROOT, Settings
 from .summary import ollama
+from .transcripts import TranscriptLog
 from .ws.manager import Client, Rooms
 
 log = logging.getLogger("afferent.hub")
@@ -80,6 +81,11 @@ class Hub:
                                pulse_allowed=self._pulse_allowed)
         self.bedside.patient_id = settings.bound_patient
         self._export: dict | None = None
+        self.transcripts = TranscriptLog(settings.transcripts_dir,
+                                         file_max=int(settings.transcript_file_mb * 1024 * 1024),
+                                         total_max=int(settings.transcript_total_mb * 1024 * 1024))
+        # Set by main.py to the team's SensorSource; stays None in tests and without the data manager.
+        self.sensors = None
 
     def _pulse_allowed(self) -> bool:
         return bool(self.privacy(self.settings.bound_patient).get("sensors", {}).get("pulse_stone", True))
@@ -413,6 +419,35 @@ class Hub:
         return {"ok": True, "duplicate": False, "checkin_id": doc["checkin_id"], "patient_id": pid,
                 "safety_flag": flag["type"] if flag else None}
 
+    def ingest_transcript(self, pid: str, msg: dict) -> dict:
+        self.patient(pid)
+        turns = msg.get("turns")
+        if (not isinstance(turns, list) or not turns or len(turns) > 2000
+                or not all(isinstance(t, dict) and isinstance(t.get("role"), str)
+                           and isinstance(t.get("text"), str) and t["text"].strip() for t in turns)):
+            raise HubError(422, "bad_transcript", "turns must be a non-empty list of {role, text}")
+        record = {"transcript_id": msg.get("transcript_id"), "patient_id": pid,
+                  "t_iso": msg.get("t_iso"), "received_iso": views.now_iso(),
+                  "turns": [{"role": t["role"], "text": t["text"].strip()} for t in turns]}
+        try:
+            written = self.transcripts.write(record)
+        except ValueError as e:
+            raise HubError(413, "transcript_too_large", str(e))
+        return {"duplicate": not written}
+
+    async def voice_context(self, pid: str) -> dict:
+        p = self.patient(pid)
+        nd = views.now_day(p)
+        phq = views.phq_block(p, self.store.checkins(pid), nd)
+        analytics = self.analytics(pid)
+        level = wellbeing.indicator(analytics, phq)
+        facts = wellbeing.hub_facts(analytics, phq) if level != "ok" else []
+        if level == "bad" and self.sensors is not None and self.sensors.enabled:
+            facts += await asyncio.to_thread(wellbeing.sensor_facts, self.sensors.get)
+        return {"type": "voice_context", "patient_id": pid, "date": views.day_date(p, nd).isoformat(),
+                "indicator": level, "facts": facts[:wellbeing.FACT_MAX],
+                "suggest_doctor": level == "bad"}
+
     def flags(self, pid: str) -> list[dict]:
         keep = ("type", "t_iso", "source", "label", "checkin_id", "screen")
         return views.sort_flags([{k: v for k, v in f.items() if k in keep} for f in self.store.flags(pid)])
@@ -584,6 +619,17 @@ class Hub:
                 ack = {"type": "ack", "checkin_id": cid, "ok": False, "duplicate": False,
                        "error": f"{e.code}: {e.detail}"}
             await self.rooms.send(client, ack)
+        elif t == "transcript":
+            tid = msg.get("transcript_id")
+            try:
+                res = self.ingest_transcript(msg.get("patient_id") or pid, msg)
+                ack = {"type": "ack", "transcript_id": tid, "ok": True, "duplicate": res["duplicate"], "error": None}
+            except HubError as e:
+                ack = {"type": "ack", "transcript_id": tid, "ok": False, "duplicate": False,
+                       "error": f"{e.code}: {e.detail}"}
+            await self.rooms.send(client, ack)
+        elif t == "voice_context":
+            await self.rooms.send(client, await self.voice_context(msg.get("patient_id") or pid))
         elif t == "crisis":
             await self.add_flag(msg.get("patient_id") or pid, "talk_request", msg.get("source") or "talk_button",
                                 session_id=msg.get("session_id"), t_iso=msg.get("t_iso"))

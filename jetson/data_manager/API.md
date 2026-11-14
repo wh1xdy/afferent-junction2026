@@ -215,10 +215,9 @@ re-posting a custom one updates its unit / range / description (not its kind).
   "…"]}
 ```
 
-Built-in metrics and their intended producers (the producer wiring is a separate change;
-until it lands, only direct API calls write data):
+Built-in metrics and who sends them today:
 
-| Metric | Kind | Unit | Range | Intended producer (source) |
+| Metric | Kind | Unit | Range | Sent by (source) |
 |---|---|---|---|---|
 | `env.temperature_c` | sample | °C | −20…60 | `modulino-hub` (mean / 60 s) |
 | `env.humidity_pct` | sample | %RH | 0…100 | `modulino-hub` (mean / 60 s) |
