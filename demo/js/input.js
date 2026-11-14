@@ -28,7 +28,10 @@
   };
 
   A.Input = {
-    mode: 'auto',
+    mode: 'touch',
+    MODES: ['auto', 'touch', 'camera'],
+
+    parse(value) { return this.MODES.includes(value) ? value : 'touch'; },
 
     init(el) {
       const pos = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };

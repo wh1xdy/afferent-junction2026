@@ -79,6 +79,7 @@ class Hub:
         self.bedside = Bedside(make_source(settings), self._to_bound_app, self._to_devices,
                                pulse_allowed=self._pulse_allowed)
         self.bedside.patient_id = settings.bound_patient
+        self._export: dict | None = None
 
     def _pulse_allowed(self) -> bool:
         return bool(self.privacy(self.settings.bound_patient).get("sensors", {}).get("pulse_stone", True))
@@ -220,7 +221,7 @@ class Hub:
         return {
             "patient": {**p, "now_day": views.now_day(p)},
             "privacy": self.privacy(pid),
-            "latest_session": sessions[-1] if sessions else None,
+            "latest_session": views.without_face(sessions[-1]) if sessions else None,
             "sessions": [views.compact_session(s) for s in sessions],
             "daily": self.daily(pid),
             "checkins": checkins,
@@ -272,6 +273,18 @@ class Hub:
         p = self.patient(pid)
         return qr.build(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid), self.analytics(pid),
                         self.store.checkins(pid), self.store.flags(pid))
+
+    def export_publish(self, body: dict) -> dict:
+        html, pid = body.get("html"), body.get("patient_id")
+        if not isinstance(html, str) or not html.strip() or len(html) > 8_000_000:
+            raise HubError(400, "bad_export", "Body needs an html string (<= 8 MB)")
+        self._export = {"html": html, "patient_id": pid, "served_iso": views.now_iso()}
+        return {"ok": True, "url": "/api/export/dashboard", "bytes": len(html)}
+
+    def export_dashboard(self) -> str:
+        if not self._export:
+            raise HubError(404, "no_export", "No dashboard has been published yet")
+        return self._export["html"]
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
         await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics)})

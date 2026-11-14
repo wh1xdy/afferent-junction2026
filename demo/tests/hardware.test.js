@@ -180,9 +180,10 @@ const tests = {
     S.enabled.simulator = false;
     assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: null, quality: null, source: null }, 'no reading has no quality');
 
-    S.feedNativePulse({ bpm: 80 });
-    assert.strictEqual(S.rppg.quality, null, 'camera pulse without a quality');
-    assert.strictEqual(S.pulse(A.now()).bpm, null);
+    S.feedNativePulse({ source: 'rppg', bpm: 80, trust: { score: 80, label: 'reliable', reasons: [] } });
+    assert.strictEqual(S.camPulse.quality, null, 'camera pulse without a quality');
+    assert.deepStrictEqual([S.cameraPulse(A.now()).bpm, S.cameraPulse(A.now()).quality], [80, null], 'its own number, with no quality made up');
+    assert.strictEqual(S.pulse(A.now()).bpm, null, 'the camera pulse never drives the game');
 
     S.feedFingerHub(hubFrame());
     assert.deepStrictEqual([S.fingerHub.quality, S.fingerHub.quality_reported], [null, false]);
