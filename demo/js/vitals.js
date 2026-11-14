@@ -15,6 +15,11 @@
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
   const NO_QUALITY = 'This sensor version does not report signal quality yet, so the game does not use this pulse.';
   const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
+  const CAM = 'Phone camera', LAST_MIN = 'in the last minute', OF_TIME = 'of the time, last minute';
+  const FACE_OFF = { off: 'Switched off', denied: 'Camera access is off for Afferent in Settings' };
+  const FACE_START = 'Starting the camera', NO_FACE = 'The camera does not see your face right now';
+  const FACE_WAIT = 'Takes about half a minute with your face in view', BREATH_WAIT = 'Takes about half a minute of sitting still';
+  const pct = x => x == null ? null : `${Math.round(x * 100)}%`;
 
   const sensorLines = ph => {
     if (!S.enabled.pulse_stone) return ['Switched off'];
@@ -56,6 +61,24 @@
     return [row('videocam', 'Pulse (camera)', int(cam.bpm), [cam.bpm == null ? NONE : BPM, [trust, score].filter(Boolean).join(' · ')])];
   };
 
+  const faceRows = f => {
+    if (!f) return [];
+    if (FACE_OFF[f.state]) return [row('videocam', CAM, null, [FACE_OFF[f.state]])];
+    const hold = f.state === 'starting' ? FACE_START : !f.fresh ? NONE : !f.tracked ? NO_FACE : null;
+    const line = (icon, label, value, unit, wait = FACE_WAIT) => hold || value == null ? row(icon, label, null, [hold || wait, CAM]) : row(icon, label, value, [unit, CAM]);
+    const m = f.micro, where = m ? S.FACE.REGIONS.filter(r => m.by_region[r]).map(r => `${r} ${m.by_region[r]}`).join(' · ') : '';
+    const brief = hold || m?.per_min == null ? row('auto_awesome', 'Brief facial movements', null, [hold || FACE_WAIT, CAM])
+      : row('auto_awesome', 'Brief facial movements', String(m.count), [`${LAST_MIN} · ${m.per_min.toFixed(1)} per minute`, where, CAM]);
+    return [
+      line('person', 'Smiling', pct(f.smile_share), OF_TIME),
+      line('animation', 'Facial movement', f.movement == null ? null : f.movement.toFixed(3), 'average change per second across the face'),
+      line('visibility_off', 'Blinks per minute', int(f.blinks_per_min), LAST_MIN),
+      line('arrow_forward', 'Looking away', pct(f.gaze_away_share), OF_TIME),
+      brief,
+      line('air', 'Breathing from the camera', int(f.breathing_per_min), 'breaths per minute', BREATH_WAIT),
+    ];
+  };
+
   const earlier = () => {
     const v = A.lastVitals, at = A.lastVitalsAt;
     if (!v || !at || new Date(at).toDateString() !== new Date().toDateString()) return null;
@@ -72,7 +95,8 @@
     const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now);
     const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam)];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
-    return { rows, note, earlier: earlier() };
+    const face = faceRows(S.faceLive(now));
+    return { rows, note, face: face.length ? { title: 'Face', rows: face } : null, earlier: earlier() };
   };
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -101,6 +125,7 @@
     drawn = key;
     const nodes = [groupEl(m.rows)];
     if (m.note) nodes.push(el('p', 't-body-s muted sig-note', m.note));
+    if (m.face) nodes.push(groupEl(m.face.rows, m.face.title));
     if (m.earlier) nodes.push(groupEl(m.earlier.rows, m.earlier.title));
     body.replaceChildren(...nodes);
   };

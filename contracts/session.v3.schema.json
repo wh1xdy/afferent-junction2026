@@ -1196,9 +1196,20 @@
             }
           ],
           "description": "Down-sampled time series for the clinic view, or null"
+        },
+        "face": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_face"
+            }
+          ],
+          "description": "What the face did during the session, from the phone camera, or null"
         }
       },
-      "description": "Session-level vitals. The four pulse_* keys describe the pulse the game used. finger, breathing, hrv, camera_pulse and series are optional sensor blocks (I53): absent or null when the sensor gave nothing; each names its own source. None of them enters the composite, daily.v1 or the patient view."
+      "description": "Session-level vitals. The four pulse_* keys describe the pulse the game used. finger, breathing, hrv, camera_pulse, series and face are optional sensor blocks (I53): absent or null when the sensor gave nothing; each names its own source. None of them enters the composite, daily.v1 or the patient view."
     },
     "stat": {
       "type": "object",
@@ -1491,6 +1502,175 @@
           "items": {
             "$ref": "#/$defs/num_or_null"
           }
+        }
+      }
+    },
+    "vitals_face": {
+      "type": "object",
+      "description": "What the face did during the session, measured on the phone with the TrueDepth camera (ARKit face tracking) and kept as numbers only: no camera frame and no face mesh is stored or leaves the phone, and nothing here is sent while the session runs. Every measure is named by what the face does and says nothing about how the person feels. Built from one reading per second; a second counts as tracked when a face was tracked for at least half of it. Shares and rates are computed over tracked seconds only and are null when fewer than 30 tracked seconds carried the value.",
+      "required": [
+        "source",
+        "seconds_tracked",
+        "smile_share",
+        "movement",
+        "blinks_per_min",
+        "gaze_away_share",
+        "micro",
+        "breathing_depth"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "arkit_truedepth"
+        },
+        "seconds_tracked": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Seconds of the session with a tracked face"
+        },
+        "smile_share": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of tracked seconds in which the mean of the left and right smile blendshape was more than 0.04 above the person's own baseline; null below 30 tracked seconds"
+        },
+        "movement": {
+          "description": "Facial movement: mean absolute blendshape change per second, over tracked seconds; null below 30 tracked seconds",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/stat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "blinks_per_min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "Completed blinks per minute of tracked time; null below 30 tracked seconds"
+        },
+        "gaze_away_share": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of tracked time with the gaze more than 25 degrees off the screen; null below 30 tracked seconds"
+        },
+        "micro": {
+          "description": "Brief facial movements: 40 to 500 ms, against the person's own baseline, one facial action counted once, none counted while the person looks away. Counted by face region. null when no second was tracked",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "count",
+                "per_min",
+                "median_duration_ms",
+                "by_region"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "per_min": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "description": "Per minute of tracked time; null below 30 tracked seconds"
+                },
+                "median_duration_ms": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "minimum": 40,
+                  "maximum": 500,
+                  "description": "null when count is 0"
+                },
+                "by_region": {
+                  "type": "object",
+                  "description": "Count per face region. The six counts add up to count",
+                  "required": [
+                    "brow",
+                    "eye",
+                    "cheek",
+                    "nose",
+                    "mouth",
+                    "jaw"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "brow": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "eye": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "cheek": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "nose": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "mouth": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "jaw": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "breathing_depth": {
+          "description": "Breaths per minute from head motion seen by the depth camera (4 to 36 per minute, clear signal only). Kept apart from vitals.breathing, which comes from the finger sensor. null when no second had a clear value",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "required": [
+                "rate_per_min",
+                "seconds"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "rate_per_min": {
+                  "$ref": "#/$defs/stat",
+                  "description": "Breaths per minute"
+                },
+                "seconds": {
+                  "type": "number",
+                  "minimum": 0,
+                  "description": "Seconds with a clear value"
+                }
+              }
+            }
+          ]
         }
       }
     },

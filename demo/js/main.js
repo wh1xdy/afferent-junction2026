@@ -178,6 +178,7 @@
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
     if (sensor === 'pulse_stone') { A.Finger.sync(); if (!el.checked) S.feedPulse({ bpm: null, source: 'finger_ppg' }); }
+    if (sensor === 'phone_camera') A.Face.sync();
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
@@ -197,11 +198,11 @@
     if (pv.sensors) Object.assign(A.config.sensors, pv.sensors);
     if (pv.sharing) A.config.sharing = pv.sharing;
     syncSensors(); toggles(); saveSettings();
-    A.Finger.sync();
+    A.Finger.sync(); A.Face.sync();
     if (!A.config.sensors.pulse_stone) S.feedPulse({ bpm: null, source: 'finger_ppg' });
   };
   morningText(); toggles();
-  A.Finger.sync();
+  A.Finger.sync(); A.Face.sync();
 
   let timeline = [];
 

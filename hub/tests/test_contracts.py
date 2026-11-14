@@ -275,3 +275,149 @@ def test_sensor_data_stays_out_of_daily_and_the_patient_view():
     stone = next(s for s in view["privacy"]["sensors"] if s["id"] == "pulse_stone")
     assert stone["label"] == "Pulse stone"
     assert stone["shares"] == "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."
+
+
+# Face measures in session.v3: the optional vitals.face block from the phone's TrueDepth camera.
+# The numbers below are test inputs, not measurements.
+
+FACE_REGIONS = ("brow", "eye", "cheek", "nose", "mouth", "jaw")
+FACE_NULLABLE = ("smile_share", "movement", "blinks_per_min", "gaze_away_share", "micro", "breathing_depth")
+FEELING_WORDS = ("sad", "sadness", "angry", "anger", "contempt", "disgust", "surprise", "surprised", "happy", "happiness", "fear",
+                 "emotion", "emotions", "emotional", "mood", "moods", "expression", "expressions", "depression", "depressed",
+                 "anxiety", "anxious", "stress", "diagnosis", "diagnose", "screening")
+
+
+def face_block():
+    return {
+        "source": "arkit_truedepth",
+        "seconds_tracked": 96,
+        "smile_share": 0.125,
+        "movement": {"mean": 0.031, "min": 0.012, "max": 0.094, "first": 0.02, "last": 0.027, "samples": 96},
+        "blinks_per_min": 14.4,
+        "gaze_away_share": 0.083,
+        "micro": {"count": 5, "per_min": 3.1, "median_duration_ms": 210,
+                  "by_region": {"brow": 2, "eye": 0, "cheek": 0, "nose": 0, "mouth": 3, "jaw": 0}},
+        "breathing_depth": {"rate_per_min": {"mean": 13.2, "min": 12, "max": 15, "first": 12, "last": 14, "samples": 41},
+                            "seconds": 41},
+    }
+
+
+def face_doc(change=None, base="session_example.json"):
+    doc = load(FIX / base)
+    doc["vitals"]["face"] = face_block()
+    if change:
+        change(doc["vitals"]["face"])
+    return doc
+
+
+def test_face_block_valid(session_schema):
+    assert errors(session_schema, face_doc()) == []
+    assert errors(session_schema, face_doc(base="session_finger_example.json")) == []
+    assert sum(face_block()["micro"]["by_region"].values()) == face_block()["micro"]["count"]
+
+
+def test_documents_without_a_face_block_stay_valid(session_schema):
+    for name in ("session_example.json", "session_finger_example.json"):
+        doc = load(FIX / name)
+        assert "face" not in doc["vitals"], name
+        assert errors(session_schema, doc) == [], name
+        doc["vitals"]["face"] = None
+        assert errors(session_schema, doc) == [], name
+    doc = load(FIX / "session_example.json")
+    doc["vitals"] = None
+    assert errors(session_schema, doc) == []
+
+
+@pytest.mark.parametrize("key", FACE_NULLABLE)
+def test_face_nullable_field_null(session_schema, key):
+    assert errors(session_schema, face_doc(lambda b: b.update({key: None}))) == []
+
+
+def test_face_everything_null_but_the_tracked_seconds(session_schema):
+    def empty(b):
+        b.update({k: None for k in FACE_NULLABLE}, seconds_tracked=0)
+
+    assert errors(session_schema, face_doc(empty)) == []
+
+
+@pytest.mark.parametrize("key", ["per_min", "median_duration_ms"])
+def test_face_micro_nullable_field_null(session_schema, key):
+    assert errors(session_schema, face_doc(lambda b: b["micro"].update({key: None}))) == []
+
+
+@pytest.mark.parametrize("key", ["source", "seconds_tracked", *FACE_NULLABLE])
+def test_face_rejects_missing_key(session_schema, key):
+    assert errors(session_schema, face_doc(lambda b: b.pop(key)))
+
+
+@pytest.mark.parametrize("region", ["forehead", "lip", "left_eye", "contempt", "smile"])
+def test_face_unknown_region_rejected(session_schema, region):
+    assert errors(session_schema, face_doc(lambda b: b["micro"]["by_region"].update({region: 1})))
+
+
+@pytest.mark.parametrize("region", FACE_REGIONS)
+def test_face_every_region_required_and_counted(session_schema, region):
+    assert errors(session_schema, face_doc(lambda b: b["micro"]["by_region"].pop(region)))
+    assert errors(session_schema, face_doc(lambda b: b["micro"]["by_region"].update({region: -1})))
+    assert errors(session_schema, face_doc(lambda b: b["micro"]["by_region"].update({region: 1.5})))
+    assert errors(session_schema, face_doc(lambda b: b["micro"]["by_region"].update({region: None})))
+
+
+@pytest.mark.parametrize("key", ["mood", "sad", "contempt", "valence", "label"])
+def test_face_rejects_unknown_key(session_schema, key):
+    assert errors(session_schema, face_doc(lambda b: b.update({key: 0.4})))
+    assert errors(session_schema, face_doc(lambda b: b["micro"].update({key: 1})))
+    assert errors(session_schema, face_doc(lambda b: b["breathing_depth"].update({key: 1})))
+
+
+@pytest.mark.parametrize("key,value", [
+    ("source", "mediapipe"),
+    ("source", "simulated"),
+    ("source", None),
+    ("seconds_tracked", -1),
+    ("seconds_tracked", None),
+    ("smile_share", 1.2),
+    ("smile_share", -0.1),
+    ("smile_share", "12%"),
+    ("movement", 0.03),
+    ("blinks_per_min", -1),
+    ("gaze_away_share", 1.01),
+    ("micro", {"count": 2}),
+    ("micro", 5),
+    ("breathing_depth", {"rate_per_min": 12, "seconds": 41}),
+    ("breathing_depth", {"rate_per_min": dict(EMPTY_STAT)}),
+    ("breathing_depth", {"rate_per_min": dict(EMPTY_STAT), "seconds": -1}),
+])
+def test_face_rejects_wrong_value(session_schema, key, value):
+    assert errors(session_schema, face_doc(lambda b: b.update({key: value})))
+
+
+@pytest.mark.parametrize("key,value", [
+    ("count", -1), ("count", 2.5), ("count", None), ("per_min", -0.5), ("median_duration_ms", 39), ("median_duration_ms", 501),
+])
+def test_face_micro_rejects_wrong_value(session_schema, key, value):
+    assert errors(session_schema, face_doc(lambda b: b["micro"].update({key: value})))
+
+
+def test_face_stat_shape(session_schema):
+    assert errors(session_schema, face_doc(lambda b: b["movement"].pop("samples")))
+    assert errors(session_schema, face_doc(lambda b: b["movement"].update(median=0.03)))
+    assert errors(session_schema, face_doc(lambda b: b["breathing_depth"]["rate_per_min"].pop("mean")))
+    assert errors(session_schema, face_doc(lambda b: b.update(movement=dict(EMPTY_STAT)))) == []
+
+
+def test_face_schema_names_what_the_face_does_and_no_feeling():
+    schema = load(CONTRACTS / "session.v3.schema.json")
+    text = json.dumps(schema["$defs"]["vitals_face"]).lower() + json.dumps(schema["$defs"]["vitals"]["properties"]["face"]).lower()
+    words = set("".join(c if c.isalpha() else " " for c in text).split())
+    assert not words & set(FEELING_WORDS), words & set(FEELING_WORDS)
+    regions = schema["$defs"]["vitals_face"]["properties"]["micro"]["oneOf"][1]["properties"]["by_region"]
+    assert tuple(regions["required"]) == FACE_REGIONS and regions["additionalProperties"] is False
+
+
+def test_face_stays_out_of_daily_and_the_patient_view():
+    daily = json.dumps(load(CONTRACTS / "daily.v1.schema.json")).lower()
+    view = json.dumps(load(FIX / "patient_view_anna.json")).lower()
+    for word in ("smile", "blinks_per_min", "gaze_away", "micro", "arkit", "vitals.face", "facial"):
+        assert word not in daily, word
+        assert word not in view, word

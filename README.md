@@ -210,6 +210,8 @@ The two finger clips on the UNO Q feed the app with pulse, breathing rate and HR
 
 Rules: a reading counts for 3 s, quality is never invented, real and simulated are never mixed inside a session, and anything simulated is marked in `simulated_fields`. For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`; the clinic view shows them under Signals.
 
+Face measures from the phone camera: `A.Face` in `demo/js/face.js` listens to an `AfferentFace` plugin (events `state`, `face` once a second, `micro` per brief facial movement) while the Phone camera setting is on and the app is visible. The measures are named by what the face does: smiling, facial movement, blinks, looking away, brief facial movements by face region, breathing from head motion. They are shown under Face on "Your signals" and stored per session in the optional `vitals.face` block; shares and rates are over tracked seconds and null below 30 of them. Camera frames and face meshes stay in the native layer, no face number is in a live message, and none drives the game. Without the plugin the app shows and stores nothing about faces. Tests: `node demo/tests/face.test.js`.
+
 Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
 
 ### Layout

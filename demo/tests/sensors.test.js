@@ -308,18 +308,21 @@ const tests = {
   },
 
   'm: wording guard for the Your signals sheet'() {
-    const js = fs.readFileSync(path.join(JS, 'vitals.js'), 'utf8'), html = fs.readFileSync(path.join(JS, '..', 'index.html'), 'utf8');
+    const js = fs.readFileSync(path.join(JS, 'vitals.js'), 'utf8'), faceJs = fs.readFileSync(path.join(JS, 'face.js'), 'utf8'), html = fs.readFileSync(path.join(JS, '..', 'index.html'), 'utf8');
     const a = html.indexOf('<div id="signals"'), b = html.indexOf('<div id="settings"');
     assert.ok(a > 0 && b > a, 'the #signals markup was not found');
     const sheet = html.slice(a, b);
     assert.ok(sheet.includes('Your signals') && sheet.includes('id="signalsBody"') && sheet.includes('data-close="signals"'));
-    for (const [name, text] of [['vitals.js', js], ['#signals', sheet]]) {
+    for (const [name, text] of [['vitals.js', js], ['face.js', faceJs], ['#signals', sheet]]) {
       for (const w of ['stress', 'strain', 'screening', 'treat']) assert.ok(!text.toLowerCase().includes(w), `${name} contains "${w}"`);
       assert.ok(!text.includes('HRV'), `${name} contains "HRV"`);
       assert.strictEqual(text.replace(/not a diagnosis/g, '').toLowerCase().includes('diagnos'), false, `${name} uses "diagnos" outside "not a diagnosis"`);
+      const label = text.match(/\b(sad|sadness|angry|anger|contempt|disgust|disgusted|surprise|surprised|happy|happiness|fear|emotion|emotions|emotional|mood|moods|expression|expressions)\b/gi);
+      assert.strictEqual(label, null, `${name} names a feeling: ${label}`);
     }
+    for (const row of ['Smiling', 'Facial movement', 'Blinks per minute', 'Looking away', 'Brief facial movements', 'Breathing from the camera', 'Phone camera']) assert.ok(js.includes(`'${row}'`), `vitals.js lacks the row "${row}"`);
     const shown = (js.match(/'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) || []).join('\n') + '\n' + sheet.replace(/<[^>]*>/g, ' ');
-    const banned = shown.match(/\b(hrv|high|low|normal|abnormal|elevated|healthy|unhealthy|good|bad|poor|calm|anxious|tense|relaxed|happy|sad|worried|risk|alert|warning)\b/gi);
+    const banned = shown.match(/\b(hrv|high|low|normal|abnormal|elevated|healthy|unhealthy|good|bad|poor|calm|anxious|tense|relaxed|happy|sad|angry|contempt|disgust|surprise|mood|worried|risk|alert|warning)\b/gi);
     assert.strictEqual(banned, null, `judgement or emotion word in patient text: ${banned}`);
     assert.strictEqual((sheet.match(/not a diagnosis/g) || []).length, 1);
   },
