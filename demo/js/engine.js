@@ -13,9 +13,9 @@
   const BLOOM_ORDER = ['yellow', 'blue', 'green'];
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
-  const DAWN_S = 8, PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 102, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
+  const DAWN_S = 8, PLAY_S = 120, PLAY_MIN_S = 100, SESSION_PLAY_END_S = 150, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
   const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8, SPARK_S = 0.7, SPARK_C = hex('#FFD9A0');
-  const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
+  const LEG_S = 16, LEG_STAGE_S = 12, STAGE_PLAY_S = 72;
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
   // The state behind the mode. Arousal is (pulse - rest pulse) / 10: up at +8 bpm, low at -3 bpm, near rest within 5 bpm.
   // A raised pulse is stress or energy; only HRV (RMSSD) and the breathing pace, each against this person's own values
@@ -78,7 +78,7 @@
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [], pulseFromMs: null },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
-      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0), face: A.Record.faceTrack(),
+      playSamples: [], tweens: [], playS: opts.stage ? STAGE_PLAY_S : PLAY_S, physio: A.Record.physioTrack(t0), face: A.Record.faceTrack(),
 
       rec: {
         schema: 'afferent.session/3', session_id: uuid(), patient_id: A.config.patientId, device_id: A.config.deviceId, app_version: A.config.appVersion,
@@ -123,7 +123,8 @@
         ctx.fillStyle = 'rgba(255,240,214,0.95)';
         ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 6.29); ctx.fill();
       },
-      playLeft(now) { return this.playS - (now - (this.firstPlayAt ?? now)); },
+      // Play time left. Waiting at an exit dot for the tap to go on is not play, so it does not use the clock up.
+      playLeft(now) { return this.playS - (now - (this.firstPlayAt ?? now) - (this.T?.waited?.() ?? 0)); },
       tween(obj, key, from, to, dur) { this.tweens = this.tweens.filter(x => !(x.obj === obj && x.key === key)); this.tweens.push({ obj, key, from, to, start: A.now(), dur }); },
       bloom(group, dur) { this.tween(V.sat, group, V.sat[group], 1, dur); },
 
@@ -364,17 +365,20 @@
 
       measureNext(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).sort((a, b) => a - b)[0] ?? null; },
 
+      legS() { return this.stage ? LEG_STAGE_S : LEG_S; },
+
       planNext(now) {
-        const m = this.mode;
-        if (m === 'rest') return { kind: 'drift' };
-        const hills = { calm: 1, flow: 1, wake: 2, fatigue: 2 }[m] || 1;
-        if (forced()) return { kind: 'task', hills };
-        const left = this.playLeft(now), pend = this.measuresPending(this.slot), ride = (SEC_HILL[m] || 4) + 3;
-        const short = left - ride * hills - (MEASURE_RIDE_S + ride) * pend < 12;
-        if (this.measureAt(this.slot + 1)) return { kind: 'task', hills: short ? 1 : hills };
-        if (left - ride - (MEASURE_RIDE_S + ride) * pend - 5 >= 10) return { kind: 'task', hills: short ? 1 : hills };
-        if (pend > 0) { this.slot = this.measureNext(this.slot) - 1; return { kind: 'task', hills: 1 }; }
-        return { kind: 'summit', seconds: clamp(left, 4, 12) };
+        if (this.mode === 'rest') return { kind: 'drift' };
+        const leg = this.legS(), brief = Math.round(leg * 0.6);
+        if (forced()) return { kind: 'task', seconds: leg };
+        const left = this.playLeft(now), pend = this.measuresPending(this.slot), ride = leg + 3;
+        const seconds = !this.stage && left - ride - (MEASURE_RIDE_S + ride) * pend < 12 ? brief : leg;
+        if (this.measureAt(this.slot + 1)) return { kind: 'task', seconds };
+        // The first adaptive game always comes, however long the core, the Fork or the waits took; the clock only trims the rest.
+        const firstGame = !this.tasks.some(t => t.kind === 'adaptive');
+        if (firstGame || left - ride - (MEASURE_RIDE_S + ride) * pend - 5 >= 10) return { kind: 'task', seconds };
+        if (pend > 0) { this.slot = this.measureNext(this.slot) - 1; return { kind: 'task', seconds: this.stage ? leg : brief }; }
+        return { kind: 'summit', seconds: clamp(left, brief, leg) };
       },
 
       planTask(now) {
@@ -532,11 +536,12 @@
           calm: { warm: 0.15, fog: 0.6, stars: 60, beam: 0, daylight: 0, exposure: 0.92 },
           flow: { warm: 0.04, fog: 0.35, stars: 120, beam: 0.1, daylight: 0, exposure: 1 },
           wake: { warm: 0, fog: 0.15, stars: 200, beam: 0.6 + 0.4 * k, daylight: 0.05, exposure: 1 },
-          fatigue: { warm: 0, fog: 0.1, stars: 40, beam: 1, daylight: 0.45 + 0.3 * k + 0.25 * this.daylightBoost + (V.daylightRide || 0), exposure: 1 },
+          fatigue: { warm: 0, fog: 0.1, stars: 40, beam: 1, daylight: 0.45 + 0.3 * k + 0.25 * this.daylightBoost, exposure: 1 },
           rest: { warm: 0.1, fog: 0.7, stars: 80, beam: 0, daylight: 0, exposure: 0.7 },
         }[m];
         this.pw = ema(this.pw, 0.3, dt, 40);
         if (prof) for (const key of ['warm', 'fog', 'stars', 'exposure']) tgt[key] = lerp(tgt[key], prof[key], this.pw);
+        if (m !== 'rest') tgt.daylight += (this.night ? 0.3 : 1) * (V.daylightRide || 0);
         V.lanternGain = ema(V.lanternGain, lerp(1, prof?.lanternGain ?? 1, this.pw), dt, 2);
         for (const key of ['warm', 'fog', 'stars', 'beam', 'daylight', 'exposure']) V[key] = ema(V[key], tgt[key], dt, 2);
         V.fogDrift = m === 'calm' || m === 'rest' ? 0.5 : 1 + k;
