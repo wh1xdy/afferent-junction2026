@@ -23,6 +23,24 @@ enum PulseGate {
         exposureLocked && (whiteBalanceLocked || !whiteBalanceLockable)
     }
 
+    // Under auto exposure (the ARKit face camera offers no lockable device), a step this large
+    // between two frames moves the skin colour more than a heartbeat does: the window starts over.
+    static let exposureDurationStep = 0.04   // relative change of the exposure time
+    static let exposureOffsetStep = 0.15     // EV
+
+    /// duration in seconds, offset in EV, as ARCamera gives them. nil before the first frame.
+    static func exposureMoved(from last: (duration: Double, offset: Double)?, to now: (duration: Double, offset: Double)) -> Bool {
+        guard let last else { return false }
+        let rel = last.duration > 0 ? abs(now.duration - last.duration) / last.duration : 0
+        return rel > exposureDurationStep || abs(now.offset - last.offset) > exposureOffsetStep
+    }
+
+    /// The word in the event's light block, with the same limits as the reasons below.
+    static func level(luma: Double, clipped: Double) -> String {
+        if clipped > clippedShare || luma > brightLuma { return "bright" }
+        return luma < darkLuma ? "dark" : "ok"
+    }
+
     /// Why there is no camera pulse right now. nil = one is being measured.
     enum Reason: String {
         case off, unsupported, unauthorized
@@ -41,6 +59,7 @@ enum PulseGate {
     }
 
     /// One second of the plugin, in the order a person can do something about it.
+    /// - locked: exposure has settled, locked or measured under auto exposure (a camera with no lock)
     /// - settleLeftS: seconds until the exposure lock is tried (only read while not locked)
     /// - light: mean skin luma 0...255 and the share of clipped pixels, nil before the first sample
     /// - fresh: a sample reached the buffer within `freshS`

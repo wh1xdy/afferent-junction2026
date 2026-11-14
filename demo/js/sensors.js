@@ -60,7 +60,7 @@
   const plug = A.plug = n => window.Capacitor?.Plugins?.[n] ?? window.Capacitor?.registerPlugin?.(n);
   const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
-  const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'];
+  const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'], CAM_LIGHT = ['dark', 'ok', 'bright'];
   const CAM_WHY = ['no_face', 'exposure_not_locked', 'too_dark', 'too_bright', 'moving', 'warming_up', 'weak_signal'];
   const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
   const FACE_REGIONS = ['brow', 'eye', 'cheek', 'nose', 'mouth', 'jaw'];
@@ -90,13 +90,11 @@
     async start(source) {
       this.stop();
       await this.stopping;
-      if (source === 'arkit' || source === 'vision') {
-        const name = source === 'vision' ? 'AfferentVision' : 'AfferentEyes';
-        this.plugin = plug(name);
-        if (!this.plugin) throw new Error(`${name} plugin is not available in this build`);
+      if (source === 'arkit') {
+        this.plugin = plug('AfferentEyes');
+        if (!this.plugin) throw new Error('AfferentEyes plugin is not available in this build');
         await this.plugin.start();
         this.listeners.push(await this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); }));
-        if (source === 'vision') this.listeners.push(await this.plugin.addListener('pulse', d => this.feedNativePulse(d)));
       } else if (source === 'mediapipe') {
         const base = new URL('vendor/mediapipe', document.baseURI).href;
         const v = await import(`${base}/vision_bundle.mjs`);
@@ -115,9 +113,7 @@
 
     async startCamera() {
       const native = window.Capacitor?.isNativePlatform?.();
-      if (!native || window.Capacitor.getPlatform() !== 'ios') return this.start('mediapipe');
-      try { return await this.start('arkit'); } catch { this.stop(); }
-      return this.start('vision');
+      return this.start(native && window.Capacitor.getPlatform() === 'ios' ? 'arkit' : 'mediapipe');
     },
 
     stop() {
@@ -127,13 +123,13 @@
       this.source = 'simulated'; this.ready = true;
     },
 
-    camera() { return this.source === 'arkit' || this.source === 'vision' || this.source === 'mediapipe'; },
+    camera() { return this.source === 'arkit' || this.source === 'mediapipe'; },
 
     eyesSource() { return this.camera() ? this.source : this.enabled.simulator ? 'simulated' : null; },
 
     read(now, dt) {
       let f = null;
-      if (this.source === 'arkit' || this.source === 'vision') f = this.readArkit(now);
+      if (this.source === 'arkit') f = this.readArkit(now);
       else if (this.source === 'mediapipe') f = this.readMediapipe(now);
       else if (this.enabled.simulator) f = Sim.face(now, dt);
       return (this.last = f);
@@ -189,8 +185,10 @@
       if (d.source !== 'rppg') { this.droppedCam++; return; }
       const late = Number.isFinite(d.t_ms) ? Math.max(0, (Date.now() - d.t_ms) / 1000) : 0;
       const score = Number.isFinite(d.trust?.score) ? d.trust.score : null, reason = d.trust?.reasons?.[0];
+      const l = d.light && typeof d.light === 'object' ? d.light : null;
       this.camPulse = {
-        bpm: score == null ? null : pos(d.bpm), trust_score: score, trust_label: CAM_LABELS.includes(d.trust?.label) ? d.trust.label : null,
+        bpm: score == null ? null : pos(d.bpm), quality: unit(d.quality), trust_score: score, trust_label: CAM_LABELS.includes(d.trust?.label) ? d.trust.label : null,
+        light: l && { face_luma: unit(l.face_luma), level: CAM_LIGHT.includes(l.level) ? l.level : null, iso: pos(l.iso), exposure_ms: pos(l.exposure_ms) },
         face: typeof d.face === 'boolean' ? d.face : null, reason: typeof reason === 'string' ? reason : null, at: A.now() - late,
         why: CAM_WHY.includes(d.reason) ? d.reason : null, warmup: Number.isFinite(d.warmup_s_left) && d.warmup_s_left >= 0 ? d.warmup_s_left : null,
       };
@@ -206,11 +204,11 @@
       const c = this.camPulse;
       if (!c || !this.enabled.phone_camera || c.trust_score == null || now - c.at >= FRESH_S) return null;
       const trusted = c.bpm != null && c.trust_score >= CAM_MIN_TRUST && c.trust_label !== 'unreliable';
-      return { source: 'rppg', bpm: trusted ? c.bpm : null, trust_score: c.trust_score, trust_label: c.trust_label, age_s: age(now - c.at) };
+      return { source: 'rppg', bpm: trusted ? c.bpm : null, quality: c.quality, trust_score: c.trust_score, trust_label: c.trust_label, light: c.light, age_s: age(now - c.at) };
     },
 
     cameraState(now) {
-      const c = this.camPulse, fresh = !!c && now - c.at < FRESH_S, link = this.source === 'vision' ? 'on' : this.camLink.state;
+      const c = this.camPulse, fresh = !!c && now - c.at < FRESH_S, link = this.camLink.state;
       return { link: link === 'unavailable' || this.enabled.phone_camera ? link : 'off', face: fresh ? c.face : null, reason: fresh ? c.reason : null };
     },
 

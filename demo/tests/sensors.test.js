@@ -18,7 +18,13 @@ const hubFrame = (o = {}) => ({
   finger_bpm: [71, 73], breathing_per_min: 6, rmssd_ms: 46, sdnn_ms: 40, rmssd_vs_baseline: -0.1, presence: 'active', age_s: 0.4, ...o,
 });
 const connect = A => A.Sensors.setFingerLink('connected', 'Afferent Finger');
-const cam = (S, o = {}) => S.feedNativePulse({ source: 'rppg', bpm: 80, face: true, trust: { score: 82, label: 'reliable', reasons: [] }, ...o });
+// The AfferentPulse event as the native plugin sends it: quality is the trust score / 100, light comes from the same skin pixels.
+const LIGHT = { face_luma: 0.42, level: 'ok', iso: null, exposure_ms: 16.7 };
+const cam = (S, o = {}) => {
+  const d = { source: 'rppg', bpm: 80, face: true, trust: { score: 82, label: 'reliable', reasons: [] }, light: LIGHT, ...o };
+  if (!('quality' in o)) d.quality = Number.isFinite(d.trust?.score) ? d.trust.score / 100 : null;
+  return S.feedNativePulse(d);
+};
 const ble = (A, aff = aff6()) => { A.Sensors.feedFingerBle(hrm()); A.Sensors.feedFingerBle(aff); };
 const start = A => A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
 const finish = (A, s) => { let doc = null; A.bus.on('sessionEnd', d => { doc = d; }); s.finish('partial'); return plain(doc); };
@@ -272,7 +278,7 @@ const tests = {
     const { A } = load(), S = A.Sensors;
     S.enabled.simulator = false;
     cam(S);
-    assert.deepStrictEqual(plain(S.cameraPulse(A.now())), { source: 'rppg', bpm: 80, trust_score: 82, trust_label: 'reliable', age_s: 0 });
+    assert.deepStrictEqual(plain(S.cameraPulse(A.now())), { source: 'rppg', bpm: 80, quality: 0.82, trust_score: 82, trust_label: 'reliable', light: LIGHT, age_s: 0 });
     assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: null, quality: 0, source: null }, 'no finger and no simulator: the game has no pulse');
     assert.strictEqual(S.realProducer(A.now()), false, 'the camera is not a pulse producer for the game');
     assert.strictEqual(S.lockPulse(A.now()), 'real');
@@ -299,9 +305,9 @@ const tests = {
   'k2: a camera reading below the trust limit, without a trust score, or older than 3 s is not a measurement'() {
     const { A, tick } = load(), S = A.Sensors, at = () => plain(S.cameraPulse(A.now()));
     cam(S, { bpm: 77, trust: { score: 39, label: 'unreliable', reasons: ['head moving'] } });
-    assert.deepStrictEqual(at(), { source: 'rppg', bpm: null, trust_score: 39, trust_label: 'unreliable', age_s: 0 });
+    assert.deepStrictEqual(at(), { source: 'rppg', bpm: null, quality: 0.39, trust_score: 39, trust_label: 'unreliable', light: LIGHT, age_s: 0 });
     cam(S, { bpm: 77, trust: { score: 40, label: 'uncertain', reasons: [] } });
-    assert.deepStrictEqual(at(), { source: 'rppg', bpm: 77, trust_score: 40, trust_label: 'uncertain', age_s: 0 });
+    assert.deepStrictEqual(at(), { source: 'rppg', bpm: 77, quality: 0.4, trust_score: 40, trust_label: 'uncertain', light: LIGHT, age_s: 0 });
     cam(S, { bpm: 77, trust: { score: 55, label: 'unreliable', reasons: [] } });
     assert.strictEqual(at().bpm, null, 'the unreliable label alone is enough');
     cam(S, { bpm: 77, trust: { score: 12.5, label: 'unreliable', reasons: [] } });
@@ -607,7 +613,7 @@ const tests = {
     assert.deepStrictEqual([bare.A.CamPulse.available(), bare.A.Sensors.camLink.state], [false, 'unavailable'], 'no plugin in this build');
   },
 
-  async 'r: on iOS the camera starts on the ARKit eyes; the capture plugin is the fallback and its pulse stays a camera estimate'() {
+  async 'r: on iOS the camera input is the ARKit eyes alone; no second camera plugin is started and a failed start is not retried elsewhere'() {
     const { A, ctx } = load(), S = A.Sensors;
     const fake = () => {
       const ls = {};
@@ -617,28 +623,65 @@ const tests = {
         async stop() { this.stops++; },
         async addListener(ev, fn) { (ls[ev] = ls[ev] || []).push(fn); return { remove() { ls[ev] = ls[ev].filter(f => f !== fn); } }; },
         emit(ev, d) { (ls[ev] || []).forEach(f => f(d)); },
+        count() { return Object.values(ls).reduce((n, a) => n + a.length, 0); },
       };
     };
-    const eyes = fake(), vision = fake();
-    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: { AfferentEyes: eyes, AfferentVision: vision } };
+    const eyes = fake(), pulse = fake();
+    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: { AfferentEyes: eyes, AfferentPulse: pulse } };
     assert.strictEqual(await S.startCamera(), 'arkit');
-    assert.deepStrictEqual([eyes.starts, vision.starts], [1, 0], 'with a TrueDepth camera the one ARKit session is used, not a second capture');
-    eyes.emit('pulse', { source: 'rppg', bpm: 91, trust: { score: 90, label: 'reliable', reasons: [] } });
+    assert.deepStrictEqual([eyes.starts, pulse.starts, pulse.count()], [1, 0, 0], 'the game camera only holds the eyes; the pulse plugin is A.CamPulse\'s alone');
+    eyes.emit('eyes', { tracked: true, blink_l: 0.1, blink_r: 0.1, openness: 0.9 });
+    assert.strictEqual(S.read(A.now(), 0.05).tracked, true);
+    eyes.emit('pulse', { source: 'rppg', bpm: 91, quality: 0.9, trust: { score: 90, label: 'reliable', reasons: [] } });
     assert.strictEqual(S.cameraPulse(A.now()), null, 'the eyes plugin is not listened to for a pulse');
     S.stop();
     await S.stopping;
+    assert.strictEqual(eyes.stops, 1);
 
     eyes.fail = true;
-    assert.strictEqual(await S.startCamera(), 'vision');
-    assert.deepStrictEqual([eyes.starts, vision.starts], [1, 1]);
-    vision.emit('eyes', { tracked: true, blink_l: 0.1, blink_r: 0.1, openness: 0.9 });
-    assert.strictEqual(S.read(A.now(), 0.05).tracked, true);
-    vision.emit('pulse', { source: 'rppg', bpm: 88, quality: 0.8, face: true, trust: { score: 80, label: 'reliable', reasons: [] } });
-    assert.deepStrictEqual([S.cameraPulse(A.now()).bpm, S.cameraState(A.now()).link], [88, 'on']);
+    await assert.rejects(() => S.startCamera(), /TrueDepth/);
+    assert.deepStrictEqual([eyes.starts, pulse.starts, S.camera(), S.source], [1, 0, false, 'simulated'], 'no fallback capture: main.js switches the game to touch');
     S.enabled.simulator = false;
     assert.deepStrictEqual([S.pulse(A.now()).bpm, S.realProducer(A.now())], [null, false], 'never the pulse the game uses');
-    S.stop();
-    assert.strictEqual(vision.stops, 1);
+  },
+
+  's: one camera pulse plugin, one ARKit session, one way into feedNativePulse'() {
+    const IOS = path.join(JS, '..', '..', 'ios', 'App', 'App');
+    const swift = fs.readdirSync(IOS).filter(f => f.endsWith('.swift')).map(f => [f, fs.readFileSync(path.join(IOS, f), 'utf8')]);
+    const where = re => swift.filter(([, t]) => re.test(t)).map(([f]) => f);
+    assert.deepStrictEqual(where(/jsName = "AfferentPulse"/), ['AfferentPulse.swift'], 'exactly one AfferentPulse plugin');
+    assert.deepStrictEqual(where(/ARSession\(\)/), ['FaceSession.swift'], 'one ARKit session for eyes, pulse and face');
+    assert.deepStrictEqual(where(/AVCaptureSession\(|AVCaptureVideoDataOutput|VNDetectFaceLandmarksRequest/), [], 'no second camera capture next to it');
+    const reg = swift.find(([f]) => f === 'AfferentEyes.swift')[1].match(/registerPluginInstance\((\w+)\(\)\)/g).map(x => x.slice(23, -3));
+    assert.deepStrictEqual(reg, ['AfferentFingerPlugin', 'AfferentPresencePlugin', 'AfferentEyesPlugin', 'AfferentPulsePlugin', 'AfferentFacePlugin']);
+    const pbx = fs.readFileSync(path.join(IOS, '..', 'App.xcodeproj', 'project.pbxproj'), 'utf8');
+    for (const f of swift.map(([f]) => f)) assert.ok(pbx.includes(`/* ${f} in Sources */`), `${f} is not in the App target`);
+    for (const gone of ['AfferentVision.swift', 'VisionEyes.swift', 'PulseCamera.swift', 'ScreenLight.swift']) assert.ok(!pbx.includes(gone), `${gone} is still in the project`);
+
+    const web = fs.readdirSync(JS).filter(f => f.endsWith('.js')).map(f => [f, fs.readFileSync(path.join(JS, f), 'utf8')]);
+    const calls = web.filter(([, t]) => /feedNativePulse\(/.test(t)).map(([f]) => f).sort();
+    assert.deepStrictEqual(calls, ['campulse.js', 'sensors.js'], 'feedNativePulse is defined in sensors.js and called from campulse.js only');
+    assert.strictEqual((web.find(([f]) => f === 'sensors.js')[1].match(/feedNativePulse\(/g) || []).length, 1, 'sensors.js only defines it');
+    assert.deepStrictEqual(web.filter(([, t]) => /['"]AfferentPulse['"]/.test(t)).map(([f]) => f), ['campulse.js'], 'one place looks the plugin up');
+    assert.deepStrictEqual(web.filter(([, t]) => /AfferentVision/.test(t)).map(([f]) => f), []);
+  },
+
+  async 't: feedNativePulse takes the plugin\'s payload (source, bpm, quality, trust, light) and makes nothing up'() {
+    const { A, cam: plugin } = load({ camera: true }), S = A.Sensors;
+    await A.CamPulse.sync();
+    const ev = (o = {}) => ({ source: 'rppg', t_ms: Date.now(), face: true, locked: false, exposure: 'auto', with_eyes: false, reason: null, warmup_s_left: null, ...o });
+    plugin.emit(ev({ bpm: 83, quality: 0.81, trust: { score: 81, label: 'reliable', reasons: [] }, light: { face_luma: 0.47, level: 'ok', iso: null, exposure_ms: 8.3 },
+      window_s: 10, regions_bpm: [83, 82, null], snr_db: 4.1, motion: 0.01 }));
+    assert.deepStrictEqual(plain(S.cameraPulse(A.now())), { source: 'rppg', bpm: 83, quality: 0.81, trust_score: 81, trust_label: 'reliable',
+      light: { face_luma: 0.47, level: 'ok', iso: null, exposure_ms: 8.3 }, age_s: 0 });
+    plugin.emit(ev({ bpm: null, quality: null, light: null, reason: 'warming_up', warmup_s_left: 4 }));
+    assert.strictEqual(S.cameraPulse(A.now()), null, 'a second without a reading: no number, no quality');
+    assert.deepStrictEqual(plain(S.camPulse).quality, null);
+    assert.deepStrictEqual(plain(S.camPulse).light, null, 'no light block from the plugin: none is made up');
+    plugin.emit(ev({ bpm: 70, quality: 0.6, trust: { score: 60, label: 'uncertain', reasons: [] }, light: { face_luma: 0.1, level: 'dim', iso: 0, exposure_ms: -1 } }));
+    assert.deepStrictEqual(plain(S.cameraPulse(A.now()).light), { face_luma: 0.1, level: null, iso: null, exposure_ms: null }, 'unknown words and impossible values become null');
+    plugin.emit(ev({ bpm: 70, trust: { score: 60, label: 'uncertain', reasons: [] } }));
+    assert.deepStrictEqual([S.cameraPulse(A.now()).quality, S.cameraPulse(A.now()).light], [null, null], 'fields the plugin leaves out stay null');
   },
 };
 

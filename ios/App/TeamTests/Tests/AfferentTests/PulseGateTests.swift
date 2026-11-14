@@ -85,6 +85,30 @@ final class PulseGateTests: XCTestCase {
         XCTAssertEqual(why(light: (30, 0), reading: (55, 0.01)), Why())
     }
 
+    // Under auto exposure (the face camera has no lock) the window starts over when ARKit moves the exposure.
+    // The limits are those of camera-pulse 02cfb46, the version seen measuring on an iPhone 14 Pro.
+    func testAutoExposureStepsThatRestartTheWindow() {
+        let base = (duration: 1.0 / 60, offset: 0.0)
+        XCTAssertFalse(PulseGate.exposureMoved(from: nil, to: base), "the first frame only sets the baseline")
+        XCTAssertFalse(PulseGate.exposureMoved(from: base, to: base))
+        XCTAssertFalse(PulseGate.exposureMoved(from: base, to: (base.duration * 1.039, 0.0)))
+        XCTAssertTrue(PulseGate.exposureMoved(from: base, to: (base.duration * 1.041, 0.0)))
+        XCTAssertTrue(PulseGate.exposureMoved(from: base, to: (base.duration * 0.95, 0.0)))
+        XCTAssertFalse(PulseGate.exposureMoved(from: base, to: (base.duration, 0.149)))
+        XCTAssertTrue(PulseGate.exposureMoved(from: base, to: (base.duration, -0.151)))
+        XCTAssertFalse(PulseGate.exposureMoved(from: (0, 0), to: (1.0 / 30, 0)), "no duration yet: only the offset counts")
+    }
+
+    func testTheLightWordUsesTheReasonLimits() {
+        XCTAssertEqual(PulseGate.level(luma: 120, clipped: 0), "ok")
+        XCTAssertEqual(PulseGate.level(luma: 50, clipped: 0), "ok")
+        XCTAssertEqual(PulseGate.level(luma: 49.9, clipped: 0), "dark")
+        XCTAssertEqual(PulseGate.level(luma: 215, clipped: 0), "ok")
+        XCTAssertEqual(PulseGate.level(luma: 215.1, clipped: 0), "bright")
+        XCTAssertEqual(PulseGate.level(luma: 120, clipped: 0.06), "bright", "clipped skin is too bright even when the mean is not")
+        XCTAssertEqual(PulseGate.level(luma: 30, clipped: 0.06), "bright")
+    }
+
     func testTheReasonsReadAsPlainWords() {
         let all: [PulseGate.Reason] = [.off, .unsupported, .unauthorized, .noFace, .exposureNotLocked, .tooDark, .tooBright, .moving, .warmingUp, .weakSignal]
         XCTAssertEqual(all.map(\.rawValue), ["off", "unsupported", "unauthorized", "no_face", "exposure_not_locked", "too_dark", "too_bright",
