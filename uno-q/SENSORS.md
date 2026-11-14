@@ -129,3 +129,72 @@ detector has had no locked beat for 4 s, so a clip that came off no longer shows
 while the other clip is still worn. Finger 1 still decides when the sensors switch on, so
 player 1 puts the clip on first. None of this has been run with two real people yet.
 
+
+## Readings to the data manager on the Jetson
+
+In the repository, not yet deployed to the board. Checked on a laptop against the data manager
+of branch `data_manager` (commit c4301f8) with made-up numbers; never run between the real
+UNO Q and the real Jetson.
+
+Once a second the hub hands its readings to `afferent-data-manager` (`jetson/data_manager`).
+They go from the UNO Q to the Jetson over Wendy Net and stay in the patient's home.
+
+| Metric | Value | When | Extra |
+|---|---|---|---|
+| `vitals.heart_rate_bpm` | the fused finger pulse, BPM | every second while a reading exists | `quality` = `finger.quality` (0–1), `meta.sensor` = `finger_ppg` |
+| `vitals.hrv_rmssd_ms` | RMSSD over the last 60 s, ms | at most every 10 s | no quality (there is none), `meta.window_s` = 60 |
+| `vitals.breathing_rate_per_min` | breaths per minute, from the heart rhythm | at most every 10 s | no quality, `meta.method` = `pulse_rhythm` |
+| `env.temperature_c`, `env.humidity_pct` | mean of the Modulino Thermo readings over one minute | at most once a minute, with or without a finger | `meta.n` = readings in the mean; stamped at the middle of that minute |
+
+All with source `modulino-hub`. Pulse, HRV and breathing are handed over only when all of this holds:
+
+- the hub is sensing (`presence.mode` = `active` and the 4 s warm-up is over),
+- the value exists: a missing reading is not sent, never as 0 and never as an older number,
+- the finger(s) the number was computed from had a locked beat in the last 3 s (HRV and
+  breathing are computed from stored beats and would otherwise outlive a clip that came off),
+- the clips are on one person: nothing while `finger.two_hearts` is true, nothing in a second
+  where the two fingers show two different clear rhythms (how two people look during the 3 s
+  before `two_hearts` is decided), and HRV and breathing wait 60 s after two people, until
+  their windows hold one person's beats again.
+
+Code: `modulino-hub/data_manager_push.py` (the rules above) and `data_manager_client.py`
+(an unchanged copy of `jetson/data_manager/client/data_manager_client.py`; it queues up to
+50 000 values and sends them from its own thread, so the sensor loop never waits for the network).
+
+### Token and address
+
+Both come from the environment of the container, nothing is stored in `wendy.json` or in the
+repository:
+
+| Variable | Meaning |
+|---|---|
+| `DATA_MANAGER_TOKEN` | the data manager's `API_TOKEN` (it answers 401 without it) |
+| `DATA_MANAGER_URL` | `http://<address of the data manager>:8100`. Not set: found over mDNS (`role=data-manager`) on the mesh interface. `off`: nothing is sent |
+
+Pass them when deploying, with `--env` of `wendy run` (`--env KEY=VALUE`, repeatable; flag
+checked in `wendy run --help`, CLI 2026.11.13):
+
+```sh
+cd uno-q/modulino-hub
+read -s DATA_MANAGER_TOKEN        # paste the token; it is not shown and not in the shell history
+wendy run --device "$UNOQ" --detach --yes \
+  --env "DATA_MANAGER_URL=http://<data manager address>:8100" \
+  --env "DATA_MANAGER_TOKEN=$DATA_MANAGER_TOKEN"
+```
+
+Give `DATA_MANAGER_URL` when a token is used: with mDNS the client sends the token to the first
+host that advertises `role=data-manager`. The address is in the data manager's start log
+(`advertising … at <address>:8100`). Not verified: whether the two values survive a later
+`wendy run` without `--env`; pass them on every deploy.
+
+### Checking it, and what happens without it
+
+`GET /state` has a `data_manager` block: `url` (and `url_from_mdns`), `queued_samples`,
+`sent.samples`, `sent.rejected`, `last_error` (e.g. `HTTP 401` = wrong or missing token),
+`clock_skew_s`, and `push_error` (a problem on the hub's side). The token is never in it.
+
+- Data manager not running or not reachable: values wait in the queue and are sent with their
+  own measurement times when it is back. The hub, Bluetooth and `/state` work as before.
+- No token or a wrong one: the same, `last_error` says `HTTP 401`.
+- Client file missing from the image or failing to start: one log line
+  (`data manager: … (the hub goes on without it)`), nothing is sent, everything else works.

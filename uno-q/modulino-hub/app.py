@@ -13,6 +13,10 @@ som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
   POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat (sketch default: muted)
   POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
   POST /led/beat?on=0|1            -> red flash on every heartbeat (default off: it fakes camera rPPG)
+
+Once a second the readings are also handed to the data manager on the Jetson, inside the home
+(data_manager_push.py: fused pulse, HRV, breathing while one person wears the clips; room
+climate once a minute). GET /state shows how that is going under "data_manager".
 """
 import collections
 import json
@@ -31,6 +35,7 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from network import interface_ipv4
 from ble import HeartRateBroadcaster
+import data_manager_push
 
 PORT = 8080
 lock = threading.Lock()
@@ -118,6 +123,7 @@ sent_bpm = [0] * CHANNELS         # each finger's BPM as last handed to Bluetoot
 
 
 ble = HeartRateBroadcaster()
+dm = data_manager_push.Push()     # started in main(); until then nothing is handed over
 
 
 def on_beat(c, t_ms, ibi_ms, peak, locked):
@@ -355,6 +361,35 @@ def period_loop(stopped):
         ble_status(tick)
         if bpm:
             ble.update(0, bpm)        # standard Heart Rate Measurement = the fused finger reading
+        push_readings(bpm, br, rm, two)
+
+
+def fingers_live(chans, now):
+    """True while every finger a number was computed from had a locked beat of its own in the
+    last LIVE_S seconds. HRV and breathing are computed from a finger's stored beats, so they
+    outlive a clip that came off; such a number does not go to the data manager."""
+    if chans is None:
+        return False
+    chans = range(CHANNELS) if chans == "both" else [chans] if isinstance(chans, int) else chans
+    return all(now - last_locked[c] <= data_manager_push.LIVE_S for c in chans)
+
+
+def push_readings(bpm, br, rm, two):
+    """Once a second from period_loop: this second's readings to the data manager on the Jetson.
+    dm.tick() only queues them (data_manager_push.py). Nothing here may stop the sensor loop:
+    a problem is logged once and that second's values are dropped."""
+    try:
+        now = time.time()
+        with lock:
+            climate = state.get("climate")
+            quality, sources = fused.get("quality"), list(fused.get("sources") or [])
+            hrv_ch, breath_ch = hrv.get("channel"), breathing.get("channel")
+        dm.tick(now, sensing(), two, rhythms_apart=two_hearts["apart"] > 0,
+                bpm=bpm if fingers_live(sources, now) else None, quality=quality,
+                rmssd_ms=rm if fingers_live(hrv_ch, now) else None,
+                breaths_per_min=br if fingers_live(breath_ch, now) else None, climate=climate)
+    except Exception as e:
+        dm.problem(f"push failed: {e}")
 
 
 # ── finger presence: LEDs off until a hand is in the holders ─────────────────────────
@@ -675,6 +710,7 @@ def state_snapshot() -> dict:
     out["hrv"] = dict(hrv)
     out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}
     out["ble"] = ble.status
+    out["data_manager"] = dm.status()
     # device clock: every "t" / "since" in this document is on the same clock, so an HTTP
     # consumer can judge staleness as now - t without comparing its own clock to the board's
     out["now"] = time.time()
@@ -745,6 +781,14 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def _mdns_interfaces():
+    """the mesh interface, for finding the data manager when DATA_MANAGER_URL is not set"""
+    try:
+        return [interface_ipv4()]
+    except Exception:
+        return None
+
+
 def main():
     stopped = threading.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -753,6 +797,7 @@ def main():
     threading.Thread(target=bridge_loop, args=(stopped,), daemon=True).start()
     threading.Thread(target=period_loop, args=(stopped,), daemon=True).start()
     threading.Thread(target=presence_loop, args=(stopped,), daemon=True).start()
+    dm.start(mdns_interfaces=_mdns_interfaces())
 
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -783,6 +828,7 @@ def main():
             zc.close()
         server.shutdown()
         bridge.disconnect()
+        dm.close()
 
 
 if __name__ == "__main__":
