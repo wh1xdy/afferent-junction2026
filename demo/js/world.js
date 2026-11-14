@@ -1513,6 +1513,7 @@
     lanternPos: () => [st ? st.lx : fx + 20, st ? st.ly : gy - 30],
     // Where the carried lantern is drawn, for a touch hint that should sit on it (lanternPos is its light).
     lanternBody,
+    lanternRod: () => (st?.fig ? [st.hand[0], st.hand[1], st.tip[0], st.tip[1], st.fig.pole] : null),
     wave,
     size: () => ({ W, H, gy, fx }),
     tintStats: () => ({ ...tintStats, size: tints.size }),
