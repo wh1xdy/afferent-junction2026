@@ -28,7 +28,7 @@ const byKey = (rows) => Object.fromEntries(rows.map((r) => [r.key, r]));
 
 const NOW = 1_800_000_000_000;
 
-same(Object.keys(Sg).sort(), ['SLEEP_C', 'roomHtml', 'roomRows', 'weeklyHtml', 'weeklyRows']);
+same(Object.keys(Sg).sort(), ['weeklyHtml', 'weeklyRows']);
 
 // Wording rules for everything the sections print.
 const INTERPRETING = /\b(stress\w*|strain\w*|screening|treat\w*|normal|abnormal|elevated|reduced|worse\w*|better|improv\w*|declin\w*|risk\w*|healthy|unhealthy|good|bad|poor|high|higher|low|lower|usual|anxi\w*|calm\w*|relax\w*|tense|depress\w*|mood|warning|alarm\w*|concern\w*)\b/;
@@ -194,30 +194,6 @@ function loadPage(extra = []) {
 
   const before = section(show(scan(null, true)));
   assert.ok(before.includes('Not in this export'));
-
-  // the bedroom at night (map key 19): its own section after the signals, numbers with unit, the sleep range as the band
-  {
-    const bed = (page) => { const m = /<section class="signals" aria-label="Bedroom at night"[\s\S]*?<\/section>/.exec(page); assert.ok(m, 'Bedroom section'); return m[0]; };
-    const nights = { weekly: { temp_c_night: [null, 19.4, 21.6, 22.1, null, 18.7, 20.3, 23.5], humidity_pct: [null, 41, 38, 35, null, 44, 40, 29] }, nights: 31, simulated: false };
-    const withRoom = (room) => { const j = json('qr_body_anna.json'); if (room) j.room = room; else delete j.room; const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
-      return { cti: d.cti, fp: d.fingerprint, iat: d.iat, exp: d.exp, scanned_iso: new Date(NOW).toISOString(), body: d.body }; };
-    const r = byKey(Sg.roomRows(nights));
-    same([r.temp_c_night.value, r.temp_c_night.week, r.temp_c_night.nights, r.humidity_pct.value], ['23.5', 7, 31, '29']);
-    const imp2 = withRoom(nights), page2 = show(imp2), b = bed(page2);
-    for (const s of ['<h2>Bedroom at night, 8 weeks</h2>', 'Temperature at night', '23.5<small> °C</small>', 'Humidity at night', '29<small> %</small>',
-      '31 nights with a reading', 'band: 16 to 19 °C', 'id="room-temp_c_night"']) assert.ok(b.includes(s), s);
-    assert.ok(!b.includes('sim-badge'));
-    checkWording(visible(b), 'imported, bedroom');
-    assert.ok(page2.indexOf('aria-label="Bedroom at night"') > page2.indexOf('<section class="signals"') && page2.indexOf('Mornings lit') > page2.indexOf('aria-label="Bedroom at night"'));
-    charts.length = 0;
-    V.drawImported({}, imp2.cti);
-    const roomCharts = Object.fromEntries(charts.filter((c) => c.id.startsWith('room-')).map((c) => [c.id, c.o]));
-    same(Object.keys(roomCharts), ['room-temp_c_night', 'room-humidity_pct']);
-    same([roomCharts['room-temp_c_night'].band, roomCharts['room-temp_c_night'].bandLabel], [[16, 19], 'sleep range']);
-    assert.ok(roomCharts['room-humidity_pct'].band == null && roomCharts['room-temp_c_night'].tip(7).includes('23.5 °C'));
-    assert.strictEqual(count(bed(show(withRoom({ ...nights, simulated: true }))), '<span class="sim-badge small">Simulated</span>'), 2);
-    assert.ok(bed(show(withRoom(null))).includes('Not in this export'));
-  }
 
   // a code from the encoder before this change (frozen fixture) is shown the same way
   const frozen = json('qr_code_before_vitals.json');

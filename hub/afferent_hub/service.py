@@ -349,7 +349,16 @@ class Hub:
     def qr_body(self, pid: str) -> dict:
         p = self.patient(pid)
         return qr.build(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid), self.analytics(pid),
-                        self.store.checkins(pid), self.store.flags(pid), self.room_days(pid))
+                        self.store.checkins(pid), self.store.flags(pid))
+
+    def room_nights(self, pid: str) -> dict:
+        """The bedroom at night over the same 8 weeks as the summary, for the shared dashboard (demo/js/qrexport.js).
+        Not in the QR code: the code shares the dashboard, not the numbers."""
+        p = self.patient(pid)
+        nd = views.now_day(p)
+        block = room.weekly(self.room_days(pid), nd, qr.WEEKS, qr.PERIOD_DAYS)
+        return {"period": {"tms_end_date": p["tms_end_date"], "from_day": nd - qr.PERIOD_DAYS + 1, "to_day": nd},
+                **block, "sleep_c": list(room.SLEEP_C), "night": f"{room.NIGHT_FROM_H:02d}:00 to {room.NIGHT_TO_H:02d}:00"}
 
     def export_publish(self, body: dict) -> dict:
         html, pid = body.get("html"), body.get("patient_id")

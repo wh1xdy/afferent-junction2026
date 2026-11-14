@@ -1,5 +1,6 @@
 """Room climate: the bedside unit's thermometer to the phone (a `room` message), and the bedroom at night
-from the data manager's minute means into the patient view and the QR body. All numbers are test inputs."""
+from the data manager's minute means into the patient view and the shared dashboard (never the QR code).
+All numbers are test inputs."""
 import datetime as dt
 import json
 import os
@@ -179,17 +180,27 @@ def night_data_manager(tmp_path):
     proc.wait(10)
 
 
-def test_nights_from_the_data_manager_reach_the_week_and_the_code(tmp_path, night_data_manager):
+def test_nights_from_the_data_manager_reach_the_week_and_the_dashboard(tmp_path, night_data_manager):
     url, last = night_data_manager
     start = (dt.date.today() - dt.timedelta(days=10)).isoformat()
     s = settings(tmp_path, data_manager_url=url, data_manager_token=TOKEN)
     with paired(home_app(s, {"AFFERENT_HOME_TMS_END": start, "AFFERENT_HOME_DEMO_ROSTER": "0"})) as c:
-        body = c.get("/api/patients/anna/qr-body").json()
-        r = body["room"]
+        assert "room" not in c.get("/api/patients/anna/qr-body").json(), "the QR code shares the dashboard, not the numbers"
+        r = c.get("/api/patients/anna/room-nights").json()
         assert r["nights"] == 1 and r["simulated"] is False
+        assert r["period"]["to_day"] - r["period"]["from_day"] == qr.PERIOD_DAYS - 1 and r["period"]["tms_end_date"] == start
+        assert r["sleep_c"] == [16, 19] and r["night"] == "23:00 to 07:00"
         assert [x for x in r["weekly"]["temp_c_night"] if x is not None] == [18.5], "the sim source and the day are left out"
         assert [x for x in r["weekly"]["humidity_pct"] if x is not None] == [45]
         view = c.get("/api/patients/anna/patient-view").json()["room"]
         assert view["nights"] == 1 and view["temp_c_night"] == 18.5 and view["humidity_pct"] == 45
         assert next(d for d in view["days"] if d["date"] == last.isoformat())["temp_c_night"] == 18.5
         assert view["simulated"] is False and view["sleep_c"] == [16, 19]
+
+
+def test_the_demo_roster_dashboard_nights_are_marked_simulated_and_stay_out_of_the_code(client):
+    r = client.get("/api/patients/anna/room-nights").json()
+    assert r["simulated"] is True and 0 < r["nights"] <= qr.PERIOD_DAYS
+    assert set(r["weekly"]) == {"temp_c_night", "humidity_pct"} and all(len(v) == qr.WEEKS for v in r["weekly"].values())
+    assert "room" not in client.get("/api/patients/anna/qr-body").json()
+    assert client.get("/api/patients/nobody/room-nights").status_code == 404

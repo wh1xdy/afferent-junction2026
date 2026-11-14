@@ -190,10 +190,6 @@
     return `<section class="signals" aria-label="Signals"><div class="sect-h"><h2>Signals, 8 weeks</h2><span class="muted">finger sensor, weekly medians</span>${info('During play sessions. Not part of the index.')}</div>${C.signals.weeklyHtml(B.vitals, (i) => tiny(B, weekStart(B, i)))}</section>`;
   }
 
-  function bedroom(B) {
-    return `<section class="signals" aria-label="Bedroom at night"><div class="sect-h"><h2>Bedroom at night, 8 weeks</h2><span class="muted">bedside unit, weekly medians</span>${info('Room temperature and humidity from 23:00 to 07:00. Context, not part of the index.')}</div>${C.signals.roomHtml(B.room, (i) => tiny(B, weekStart(B, i)))}</section>`;
-  }
-
   function facts(B) {
     const m = B.mornings, c = B.complete, total = B.period.to_day - B.period.from_day + 1;
     const sensors = Object.entries(B.sensors || {}).filter(([k]) => k !== 'presence');
@@ -237,7 +233,6 @@
       ${phq(B)}
       ${measures(B)}
       ${signals(B)}
-      ${bedroom(B)}
       ${facts(B)}
       ${history(imp)}
     </div>`;
@@ -264,11 +259,6 @@
     for (const r of C.signals.weeklyRows(B.vitals)) {
       const e = document.getElementById('sig-' + r.key);
       if (e) C.seriesChart(e, { values: r.weeks, connect: false, dots: true, h: 104, xlabels: xl, aria: `${r.label}, 8 weekly medians`, tip: wtip(r.weeks, r.label, (v) => `${num(v, 1)} ${r.unit}`) });
-    }
-    for (const r of C.signals.roomRows(B.room)) {
-      const e = document.getElementById('room-' + r.key);
-      const band = r.key === 'temp_c_night' ? C.signals.SLEEP_C : null;
-      if (e) C.seriesChart(e, { values: r.weeks, connect: false, dots: true, band, bandLabel: band ? 'sleep range' : undefined, h: 104, xlabels: xl, aria: `${r.label}, 8 weekly medians`, tip: wtip(r.weeks, r.label, (v) => `${num(v, r.dp)} ${r.unit}`) });
     }
   };
 })();
