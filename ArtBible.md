@@ -66,9 +66,9 @@ Reduce Motion halves all factors above 0.1.
 
 Use this verbatim as the prefix of every generation call, then add the asset prompt:
 
-> Minimal 2D side-view illustration for a calm mobile game, flat layered silhouettes with soft watercolour texture and subtle paper grain, gentle gradients, no outlines, no text, no faces, no logos, calm and hopeful mood, small Nordic archipelago island in polar night, smooth organic shapes, generous negative space, limited palette of deep cool blues, soft greens and warm amber accents, full colour, isolated element on a transparent background, orthographic side view, even soft light from the left.
+> Minimal 2D side-view illustration for a calm mobile game, flat layered silhouettes with soft watercolour texture and subtle paper grain, gentle gradients, no outlines, no text, no faces, no logos, calm and hopeful mood, Nordic polar night atmosphere, smooth organic shapes, generous negative space, limited palette of deep cool blues, soft greens and warm amber accents, full colour, isolated element on a transparent background, orthographic side view, even soft light from the left.
 
-Reference image: the first accepted `far_mountains` asset, attached to every later call. Model: OpenAI image generation, `background: transparent`, quality high. API key only in the `OPENAI_API_KEY` environment variable, never in the repo; the generation script and outputs live outside version control except accepted PNGs.
+Reference image: not used (the image endpoint takes no style reference). An earlier version of this prompt named "a small Nordic archipelago island"; the model then drew a small island with a cabin into every asset, so the phrase was replaced by an atmosphere description. Model: OpenAI image generation, `background: transparent`, quality high. API key only in the `OPENAI_API_KEY` environment variable, never in the repo; the generation script and outputs live outside version control except accepted PNGs.
 
 ## 6. Asset list (25)
 

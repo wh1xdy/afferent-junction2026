@@ -34,6 +34,8 @@
     return rgb([d[0] * l, d[1] * l, d[2] * l], a);
   };
   const sx = wx => fx + wx - S.worldX;
+  const art = (n, x, y, w, h, g, alpha = 1) => A.Art.draw(ctxRef, n, x, y, w, h, satOf(g), Math.min(1, lightOf(g)), alpha);
+  let ctxRef = null;
   const chunkAt = wx => S.chunks.find(c => wx >= c.x0 && wx < c.x1) || S.chunks[S.chunks.length - 1];
   const visible = () => S.chunks.filter(c => sx(c.x1) > -120 && sx(c.x0) < W + 120);
 
@@ -64,6 +66,15 @@
     const a = clamp(S.aurora, 0, 1);
     if (a < 0.01) return;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    if (A.Art.has('aurora_ribbon')) {
+      const sat = Math.max(0.2, S.sat.green, S.sat.dawn);
+      for (let k = 0; k < 2; k++) {
+        const w = W * 1.5, h = w / A.Art.aspect('aurora_ribbon'), x = -W * 0.25 + Math.sin(S.t * 0.05 + k * 2) * W * 0.12;
+        A.Art.draw(ctx, 'aurora_ribbon', x, H * (0.04 + k * 0.1), w, h, sat, 1, a * (0.8 - k * 0.3));
+      }
+      ctx.restore();
+      return;
+    }
     for (let k = 0; k < 3; k++) {
       const base = H * (0.12 + k * 0.07), amp = 22 + k * 8, ph = S.t * (0.15 + k * 0.05) + k * 2, h = H * (0.16 - k * 0.03);
       ctx.beginPath();
@@ -91,6 +102,12 @@
     ctx.fillStyle = col(c, g); ctx.fill();
   }
 
+  function mountains(ctx) {
+    if (!A.Art.has('far_mountains')) { ridge(ctx, hy - 4, H * 0.12, 0.12, 3, P.mountain, 'blue'); return; }
+    const h = H * 0.15, w = h * A.Art.aspect('far_mountains'), off = -((S.worldX * 0.12) % w + w) % w;
+    for (let x = off; x < W; x += w - 1) art('far_mountains', x, hy + 8 - h, w, h, 'blue');
+  }
+
   function sun(ctx) {
     if (S.sunP <= 0) return;
     const x = W * 0.72, y = lerp(hy + 30, hy - H * 0.14, ease(S.sunP));
@@ -98,6 +115,7 @@
     g.addColorStop(0, rgb(P.sun, 0.95 * S.sunP)); g.addColorStop(0.12, rgb(P.sun, 0.8 * S.sunP));
     g.addColorStop(0.35, rgb(P.sun2, 0.3 * S.sunP)); g.addColorStop(1, rgb(P.sun2, 0));
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, gy);
+    if (A.Art.has('sun_disc_dawn_glow')) { const s = H * 0.3, w = s * A.Art.aspect('sun_disc_dawn_glow'); A.Art.draw(ctx, 'sun_disc_dawn_glow', x - w / 2, y - s / 2, w, s, 1, 1, S.sunP); }
   }
 
   function sea(ctx) {
@@ -108,6 +126,18 @@
 
   function lighthouse(ctx) {
     const x = W * 0.86, base = hy + 6, s = 0.3, h = H * 0.42 * s, wB = 34 * s, wT = 22 * s;
+    if (A.Art.has('lighthouse')) {
+      const hh = H * 0.16, ww = hh * A.Art.aspect('lighthouse');
+      art('lighthouse', x - ww / 2, base - hh, ww, hh, 'base');
+      if (S.beam > 0.02) {
+        ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.translate(x, base - hh * 0.86); ctx.rotate(Math.PI + Math.sin(S.t * 1.1) * 0.35);
+        const g = ctx.createLinearGradient(0, 0, W, 0);
+        g.addColorStop(0, rgb(P.lantern, 0.45 * S.beam)); g.addColorStop(1, rgb(P.lantern, 0));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(0, -2); ctx.lineTo(W, -70); ctx.lineTo(W, 70); ctx.lineTo(0, 2); ctx.fill();
+        ctx.restore();
+      }
+      return;
+    }
     ctx.save(); ctx.translate(x, base);
     ctx.fillStyle = col(P.white, 'base');
     ctx.beginPath(); ctx.moveTo(-wB / 2, 0); ctx.lineTo(-wT / 2, -h); ctx.lineTo(wT / 2, -h); ctx.lineTo(wB / 2, 0); ctx.fill();
@@ -129,6 +159,14 @@
   function fog(ctx) {
     const d = clamp(S.fog, 0, 1.4);
     if (d <= 0.01) return;
+    if (A.Art.has('fog_band')) {
+      for (let k = 0; k < 4; k++) {
+        const w = W * 1.4, h = w / A.Art.aspect('fog_band');
+        const x = ((k * 211 + S.t * 9 * S.fogDrift * (k % 2 ? 1 : -0.6) - S.worldX * 0.25) % (W * 2) + W * 2) % (W * 2) - W * 0.7;
+        art('fog_band', x, lerp(hy - 20, gy - 10, k / 3) - h / 2, w, h, 'blue', 0.32 * d);
+      }
+      return;
+    }
     for (let k = 0; k < 5; k++) {
       const y = lerp(hy - 10, gy + 10, k / 4), w = W * 0.9;
       const x = ((k * 173 + S.t * 9 * S.fogDrift * (k % 2 ? 1 : -0.6) - S.worldX * 0.25) % (W * 1.6) + W * 1.6) % (W * 1.6) - W * 0.3;
@@ -175,6 +213,16 @@
   }
 
   function birches(ctx, c, back) {
+    if (A.Art.has('birch_cluster')) {
+      const rr = rng(c.seed + (back ? 7 : 0)), n = back ? 3 : 4;
+      for (let i = 0; i < n; i++) {
+        const f = back ? 0.82 : 1, wx = c.x0 + 40 + i * (c.x1 - c.x0 - 80) / n + rr() * 40;
+        const h = H * (back ? 0.28 : 0.38) * (0.85 + rr() * 0.3), w = h * A.Art.aspect('birch_cluster'), x = fx + (wx - S.worldX) * f;
+        if (x + w < -20 || x > W + 20) continue;
+        art('birch_cluster', x - w / 2, gy - h + 6, w, h, 'yellow', back ? 0.6 : 1);
+      }
+      return;
+    }
     if (!c.trees) {
       const rr = rng(c.seed);
       c.trees = Array.from({ length: 14 }, (_, i) => ({ x: c.x0 + 30 + i * ((c.x1 - c.x0 - 60) / 14) + rr() * 20, h: 0.3 + rr() * 0.14, w: 5 + rr() * 4, back: i % 3 === 1, seed: rr() * 100 }));
@@ -201,6 +249,14 @@
   function hut(ctx, c) {
     const x = sx(c.x0 + (c.x1 - c.x0) * 0.45), w = 92, h = 58, y = gy - h;
     if (x < -150 || x > W + 150) return;
+    if (A.Art.has('sauna_hut')) {
+      const ww = 132, hh = ww / A.Art.aspect('sauna_hut');
+      art('sauna_hut', x - 20, gy - hh + 8, ww, hh, 'yellow');
+      const g = ctx.createRadialGradient(x + 20, gy - hh * 0.45, 0, x + 20, gy - hh * 0.45, 60 + 40 * S.stove);
+      g.addColorStop(0, rgb(P.warm, 0.2 + 0.25 * S.stove)); g.addColorStop(1, rgb(P.warm, 0));
+      ctx.fillStyle = g; ctx.fillRect(x - 80, gy - hh - 60, 200, hh + 80);
+      return;
+    }
     ctx.fillStyle = col(P.hut, 'yellow'); ctx.fillRect(x, y, w, h);
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     for (let i = 1; i < 6; i++) ctx.fillRect(x, y + i * (h / 6), w, 1.5);
@@ -284,6 +340,11 @@
   }
 
   function foreground(ctx) {
+    if (A.Art.has('foreground_reeds_rocks')) {
+      const h = H * 0.13, w = h * A.Art.aspect('foreground_reeds_rocks'), off = -((S.worldX * 1.5) % w + w) % w;
+      for (let x = off; x < W; x += w - 1) A.Art.draw(ctx, 'foreground_reeds_rocks', x, H - h + 4, w, h, 0.3, 0.25, 0.9);
+      return;
+    }
     for (const rd of REEDS) {
       const x = ((rd.x - S.worldX * 1.5) % 3600 + 3600) % 3600 - 200;
       if (x < -40 || x > W + 40) continue;
@@ -312,7 +373,7 @@
 
   function scene(ctx) {
     sky(ctx); sun(ctx); stars(ctx); aurora(ctx);
-    ridge(ctx, hy - 4, H * 0.12, 0.12, 3, P.mountain, 'blue');
+    mountains(ctx);
     sea(ctx);
     ridge(ctx, hy + 6, H * 0.06, 0.2, 11, P.mountain2, 'blue');
     lighthouse(ctx);
@@ -327,7 +388,7 @@
   }
 
   A.World.draw = (ctx, w, h, state) => {
-    S = state; W = w; H = h; gy = H * 0.8; hy = H * 0.62; fx = W * 0.35;
+    S = state; W = w; H = h; gy = H * 0.8; hy = H * 0.62; fx = W * 0.35; ctxRef = ctx;
     scene(ctx);
     if (S.sweep > 0 && S.sweep < 1) {
       const saved = S.sat;

@@ -5,3 +5,4 @@ art/raw/
 .env
 art/spend.json
 __pycache__/
+art/batch.log

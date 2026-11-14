@@ -9,6 +9,7 @@
   const ui = {
     input: ['auto', 'touch', 'camera'].includes(q.get('input')) ? q.get('input') : 'auto',
     clock: q.get('clock') === 'night' ? 'night' : 'morning',
+    stage: q.get('stage') === '1',
     sound: true,
   };
 
@@ -23,10 +24,12 @@
   const chips = () => {
     $('inputChip').textContent = { auto: 'input: autoplay story', touch: 'input: touch', camera: 'input: touch + camera' }[ui.input];
     $('clockChip').textContent = ui.clock === 'night' ? 'clock: night' : 'clock: morning';
+    $('stageChip').textContent = ui.stage ? 'stage mode (60 s)' : 'full session';
     $('soundBtn').classList.toggle('off', !ui.sound);
   };
   $('inputChip').onclick = () => { ui.input = { auto: 'touch', touch: 'camera', camera: 'auto' }[ui.input]; chips(); };
   $('clockChip').onclick = () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); };
+  $('stageChip').onclick = () => { ui.stage = !ui.stage; chips(); };
   $('soundBtn').onclick = () => { ui.sound = !ui.sound; A.Audio.on = ui.sound; chips(); };
   chips();
 
@@ -57,7 +60,8 @@
     show('start', false); show('end', false); show('closeBtn', true);
     $('json').textContent = '';
     timeline = [];
-    A.session = A.startSession({ input: A.Input.mode, clock: ui.clock });
+    A.session = A.startSession({ input: A.Input.mode, clock: ui.clock, stage: ui.stage });
+    document.querySelectorAll('.flame').forEach(f => f.classList.remove('on'));
     A.bus.emit('ws', { type: 'hello', device_id: A.config.deviceId, app_version: 'demo-0.2.0' });
     A.bus.emit('ws', { type: 'session_start', session_id: A.session.rec.session_id, clock: ui.clock });
     log(`session start, ${A.Input.mode}, ${ui.clock}`);
@@ -88,6 +92,8 @@
   A.bus.on('mode', m => log('mode ' + m));
   A.bus.on('game', g => log(`minigame ${g.id} (${g.mode}, intensity ${g.k.toFixed(2)})`));
   A.bus.on('haptic', () => { $('haptic').classList.remove('pulse'); void $('haptic').offsetWidth; $('haptic').classList.add('pulse'); });
+  document.querySelectorAll('.flame').forEach(f => f.onclick = () => A.session?.setMood(Number(f.dataset.v)));
+  A.bus.on('mood', v => { log('lantern check-in ' + v); document.querySelectorAll('.flame').forEach(f => f.classList.toggle('on', Number(f.dataset.v) === v)); });
   A.bus.on('endScreen', () => { $('endText').style.color = ''; show('end', true); show('closeBtn', false); });
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
@@ -134,6 +140,7 @@
         const d = JSON.parse(m.data);
         if (d.type === 'pulse') { A.Sim.live = true; A.Sim.liveBpm = d.bpm; }
         if (d.type === 'knob' && d.level !== undefined) { A.config.dawnLevel = d.level; $('knob').value = d.level; }
+        if (d.type === 'config' && d.baseline_pulse_bpm) { A.config.baselinePulse = d.baseline_pulse_bpm; log('baseline pulse ' + d.baseline_pulse_bpm); }
       };
     };
     connect();
@@ -194,5 +201,7 @@
     if (++frame % 8 === 0) panel(s, now);
     requestAnimationFrame(loop);
   };
+  A.bus.on('artLoaded', names => log(`art layers: ${names.length ? names.join(', ') : 'none, procedural only'}`));
+  A.Art.load();
   loop();
 })();

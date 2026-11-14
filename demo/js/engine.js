@@ -54,10 +54,11 @@
     Sim.reset(); Eyes.reset();
     Sim.rest = A.config.baselinePulse;
     if (opts.input === 'auto') Sim.offset = 20;
+    const playSeconds = opts.stage ? 60 : 85;
     const V = A.makeVisual();
 
     const s = {
-      t0, night, auto: opts.input === 'auto', V, phase: 'fadein', phaseAt: t0, done: false,
+      t0, night, auto: opts.input === 'auto', stage: !!opts.stage, mood: undefined, V, phase: 'fadein', phaseAt: t0, done: false,
       targetX: 0, rest: null, a: 0, fat: 0, reading: 'flow', mode: 'flow', candidate: null, candidateAt: 0, modeAt: null,
       game: null, gameMode: null, lastGame: null, games: [], bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
       core: { trials: [], trial: null, pulse: [], open: [] }, modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 },
@@ -66,7 +67,7 @@
       rec: {
         schema: 'afferent.session/2', session_id: uuid(), device_id: A.config.deviceId, app_version: 'demo-0.2.0',
         started_iso: isoLocal(new Date()), local_hour: r1(new Date().getHours() + new Date().getMinutes() / 60), clock: night ? 'night' : 'morning',
-        status: 'partial', demo_input: opts.input, duration_ms: 0,
+        status: 'partial', demo_input: opts.input, input_backend: opts.input === 'camera' ? A.Camera.backend : 'none', duration_ms: 0,
         sensors: { phone_camera: opts.input === 'camera', pulse_stone: true, bedside_camera: true, bedside_light: true, presence: false }, sharing: 'summary',
       },
 
@@ -103,6 +104,7 @@
       resolveTrial(now, rt) {
         const outcome = rt === null ? 'miss' : rt < 150 ? 'anticipation' : 'hit';
         this.core.trials.push({ foreperiod_ms: Math.round(this.core.trial.fp * 1000), rt_ms: rt === null ? null : Math.round(rt), outcome, modality: 'touch' });
+        A.bus.emit('ws', { type: 'core_trial', session_id: this.rec.session_id, trial: this.core.trials.length, rt_ms: rt === null ? null : Math.round(rt), outcome });
         if (outcome === 'hit') { this.flameKick = 0.5; V.sparkle = 0.6; }
         this.core.trial = null;
       },
@@ -115,7 +117,7 @@
         this.mode = this.classify();
         this.transitions.push({ t_ms: this.tm(now), from: null, to: this.mode, arousal: r3(this.a), fatigue: r3(this.fat) });
         A.bus.emit('mode', this.mode);
-        this.rec.core = {
+        this.rec.core = this.stage ? { source: 'stored', baseline_pulse_bpm: this.rest } : {
           start_pulse_bpm: r1(median(c.pulse) ?? this.rest), baseline_pulse_bpm: this.rest, pulse_source: Sim.live ? 'ky039' : 'simulated', eye_open_baseline: r3(Eyes.baseline),
           rt_trials: c.trials, rt_median_ms: hits.length ? Math.round(median(hits.map(x => x.rt_ms))) : null,
           valid: c.trials.length === 5 && hits.length >= 3,
@@ -157,6 +159,7 @@
         if (MODES[mode].biome === 'sauna') Au.crackle(true);
         this.setPhase('game');
         A.bus.emit('game', { id, mode, k });
+        A.bus.emit('ws', { type: 'game', session_id: this.rec.session_id, id, mode, intensity: r3(k), t_ms: this.tm(now) });
       },
 
       endGame(now, by) {
@@ -171,7 +174,7 @@
         Au.pad(false); Au.crackle(false);
         this.game = null; this.gameMode = null; this.daylightBoost = 0;
         this.outroUntil = now + 0.6;
-        if (now - this.firstPlayAt >= 85) { this.startDawn(now); return; }
+        if (now - this.firstPlayAt >= playSeconds) { this.startDawn(now); return; }
         this.setPhase('walk');
         this.planWalk(now);
       },
@@ -218,6 +221,7 @@
             const [c, l] = MODES[this.mode].light;
             this.light(c, this.night && this.mode === 'fatigue' ? 0 : l, 2000);
             A.bus.emit('mode', this.mode);
+            A.bus.emit('ws', { type: 'mode', session_id: this.rec.session_id, mode: this.mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now) });
           }
         } else this.candidate = null;
         this.modeSeconds[this.mode] += dt;
@@ -272,7 +276,7 @@
         if (this.orb) { V.orb.b = this.orb.b; V.orb.hold = this.orb.hold; V.orb.sync = this.orb.sync; }
         V.stove = this.game?.id === 'breath' ? 0.3 + 0.4 * V.orb.b : ema(V.stove, MODES[this.mode]?.biome === 'sauna' ? 0.4 : 0, dt, 1);
 
-        if (this.phase === 'fadein') { V.black = 1 - clamp(t / 2, 0, 1); if (t >= 2) this.startCore(now); return; }
+        if (this.phase === 'fadein') { V.black = 1 - clamp(t / 2, 0, 1); if (t >= 2) (this.stage ? this.finishCore(now) : this.startCore(now)); return; }
         if (this.phase === 'core') { this.updateCore(now, dt); return; }
         if (this.phase === 'asleep') return;
 
@@ -292,14 +296,20 @@
           if (this.auto && !g.done) g.auto?.(dt, now);
           if (g.done && now - g.finishedAt > 0.7) this.endGame(now, 'touch');
           else if (!g.done && g.t >= g.max) this.endGame(now, 'auto');
-          else if (g.id === 'breath' && g.mode === 'rest' && now - this.firstPlayAt >= 85) this.endGame(now, 'touch');
+          else if (g.id === 'breath' && g.mode === 'rest' && now - this.firstPlayAt >= playSeconds) this.endGame(now, 'touch');
         }
         if (this.phase === 'dawn') {
           V.sweep = clamp(t / 4, 0, 1); V.sunP = V.sweep; V.border = lerp(0.1, 0.22, V.sweep); V.daylight = ema(V.daylight, 0, dt, 1);
           if (t >= 4) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
         }
-        if (this.phase === 'end' && t >= 4) { V.black = ema(V.black, 0.8, dt, 1); if (t >= 6) this.finish('completed'); }
+        if (this.phase === 'end') {
+          if (this.auto && this.mood === undefined && t >= 2) this.setMood(3);
+          if (t >= 4) V.black = ema(V.black, 0.8, dt, 1);
+          if (this.mood !== undefined ? now - this.moodAt >= 1.2 : t >= 10) this.finish('completed');
+        }
       },
+
+      setMood(v) { if (this.phase === 'end' && this.mood === undefined) { this.mood = v; this.moodAt = A.now(); A.bus.emit('mood', v); } },
 
       handle(type, d) {
         if (this.done) return;
@@ -340,6 +350,7 @@
         r.status = status;
         r.duration_ms = this.tm(now);
         r.core = r.core || null;
+        r.mood_vas = this.mood ?? null;
         const calmGames = this.games.filter(g => g.mode === 'calm' || g.mode === 'rest'), wakeGames = this.games.filter(g => g.mode === 'wake');
         r.adaptive = {
           mode_seconds: Object.fromEntries(Object.entries(this.modeSeconds).map(([k, v]) => [k, r1(v)])),

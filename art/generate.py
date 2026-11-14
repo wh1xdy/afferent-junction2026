@@ -12,8 +12,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "art" / "raw"
 LEDGER = ROOT / "art" / "spend.json"
 CAP_USD = 45.0
-WORST_CASE_USD = 0.30
-MODEL = "gpt-image-1"
+WORST_CASE_USD = 0.60
+MODEL = "gpt-image-1.5"
+FLOOR = {"low": 0.03, "medium": 0.10, "high": 0.30}
 PRICE = {"text_in": 5e-6, "image_in": 10e-6, "image_out": 40e-6}
 FALLBACK = {"1024x1024": 0.167, "1536x1024": 0.25, "1024x1536": 0.25}
 
@@ -45,23 +46,24 @@ def save_ledger(led):
     LEDGER.write_text(json.dumps(led, indent=2))
 
 
-def cost(usage, size):
+def cost(usage, size, quality):
+    floor = FLOOR[quality] * (1.5 if size != "1024x1024" else 1)
     if not usage:
-        return FALLBACK[size]
+        return max(FALLBACK[size], floor)
     details = usage.get("input_tokens_details") or {}
     text_in = details.get("text_tokens", usage.get("input_tokens", 0))
     image_in = details.get("image_tokens", 0)
-    return text_in * PRICE["text_in"] + image_in * PRICE["image_in"] + usage.get("output_tokens", 0) * PRICE["image_out"]
+    return max(floor, text_in * PRICE["text_in"] + image_in * PRICE["image_in"] + usage.get("output_tokens", 0) * PRICE["image_out"])
 
 
 class BillingError(Exception):
     pass
 
 
-def generate(key, style, asset, quality):
+def generate(key, style, asset, quality, model):
     body = {
-        "model": MODEL,
-        "prompt": f"{style} {asset['prompt']}",
+        "model": model,
+        "prompt": f"{style} {asset['prompt']} Show only this element and nothing else: no extra buildings, no water, no lighthouse, no island unless named above.",
         "size": asset["size"],
         "quality": quality,
         "n": 1,
@@ -88,7 +90,7 @@ def generate(key, style, asset, quality):
             raise BillingError(f"HTTP {e.code} {code or etype}: {msg}")
         raise RuntimeError(f"HTTP {e.code} {code or etype}: {msg}")
     img = base64.b64decode(data["data"][0]["b64_json"])
-    return img, cost(data.get("usage"), asset["size"])
+    return img, cost(data.get("usage"), asset["size"], quality)
 
 
 def main():
@@ -96,6 +98,7 @@ def main():
     ap.add_argument("--only", nargs="*", help="asset names")
     ap.add_argument("--prio", choices=["A", "B"])
     ap.add_argument("--quality", default="high", choices=["low", "medium", "high"])
+    ap.add_argument("--model", default=MODEL)
     ap.add_argument("--force", action="store_true", help="regenerate existing files")
     args = ap.parse_args()
 
@@ -115,7 +118,7 @@ def main():
             break
         t = time.time()
         try:
-            img, usd = generate(key, style, a, args.quality)
+            img, usd = generate(key, style, a, args.quality, args.model)
         except BillingError as e:
             led["calls"].append({"asset": a["name"], "ok": False, "error": str(e)})
             save_ledger(led)
@@ -129,7 +132,7 @@ def main():
             continue
         path.write_bytes(img)
         led["total_usd"] = round(led["total_usd"] + usd, 4)
-        led["calls"].append({"asset": a["name"], "ok": True, "usd": round(usd, 4), "size": a["size"], "quality": args.quality})
+        led["calls"].append({"asset": a["name"], "ok": True, "usd": round(usd, 4), "size": a["size"], "quality": args.quality, "model": args.model})
         save_ledger(led)
         print(f"ok     {a['name']}  ${usd:.3f}  total ${led['total_usd']:.2f}  {time.time() - t:.0f}s")
 

@@ -67,9 +67,17 @@
   };
 
   A.Camera = {
-    ready: false, video: null, landmarker: null, lastT: -1, last: null,
+    ready: false, video: null, landmarker: null, lastT: -1, last: null, native: null, nativeAt: 0, backend: null,
 
     async start() {
+      const cap = window.Capacitor;
+      if (cap?.isNativePlatform?.()) {
+        this.plugin = cap.registerPlugin('AfferentEyes');
+        await this.plugin.start();
+        this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); });
+        this.backend = 'arkit'; this.ready = true;
+        return;
+      }
       const v = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
       const fileset = await v.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
       this.landmarker = await v.FaceLandmarker.createFromOptions(fileset, {
@@ -80,12 +88,17 @@
       this.video.playsInline = true; this.video.muted = true;
       this.video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
       await this.video.play();
-      this.ready = true;
+      this.backend = 'mediapipe'; this.ready = true;
     },
 
-    stop() { this.video?.srcObject?.getTracks().forEach(t => t.stop()); this.ready = false; },
+    stop() { this.plugin?.stop(); this.video?.srcObject?.getTracks().forEach(t => t.stop()); this.ready = false; },
 
     poll() {
+      if (this.backend === 'arkit') {
+        const d = this.native;
+        if (!d || A.now() - this.nativeAt > 0.5) return { blink: 0, tracked: false };
+        return { blink: clamp((d.blink_l + d.blink_r) / 2, 0, 1), tracked: d.tracked };
+      }
       if (this.video.currentTime === this.lastT) return this.last;
       this.lastT = this.video.currentTime;
       const bs = this.landmarker.detectForVideo(this.video, performance.now()).faceBlendshapes?.[0]?.categories;

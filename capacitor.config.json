@@ -1,0 +1,6 @@
+{
+  "appId": "fi.junction.afferent",
+  "appName": "Afferent",
+  "webDir": "demo",
+  "ios": { "contentInset": "never" }
+}
