@@ -42,6 +42,7 @@ services:
       SITE: ${SITE:-default}
       LOST_AFTER_S: ${LOST_AFTER_S:-3}
       RECORDING_ENABLED: ${RECORDING_ENABLED:-0}
+      RECORD_ANNOTATED: ${RECORD_ANNOTATED:-0}
       EMOTION_ENABLED: ${EMOTION_ENABLED:-1}
       MIN_VALID_FRAMES: ${MIN_VALID_FRAMES:-30}
       # optional: push minute posture aggregates to jetson/data_manager (empty = off)

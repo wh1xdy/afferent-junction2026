@@ -82,7 +82,7 @@ docker compose logs -f posture
 | Upright reference (10 s stand) | Dashboard "Calibrate upright" (or `POST /api/calibration/upright`) |
 | Floor plane (4 clicks) | Dashboard "Calibrate floor" (or `POST /api/calibration/floor`) |
 | Guided session (normal / simulated slow walk) | Dashboard "Start session" (+ `simulated` checkbox) |
-| Dev-only raw recording | `POST /api/record/start` → writes `/recordings/*.mp4` (future fine-tuning data; off by default via `RECORDING_ENABLED=0`) |
+| Dev-only raw recording | `POST /api/record/start` → writes `/recordings/*.mp4` (future fine-tuning data; off by default via `RECORDING_ENABLED=0`); list/download on the dashboard or `GET /api/recordings`, `GET /api/recordings/{name}` |
 | Switch site (room) | Dashboard site input, or `POST /api/site/<id>` |
 
 ## Multi-room (sites)
@@ -153,7 +153,11 @@ works in both cases. With `DEVICE=cuda`, `POSE_MODE` defaults to `balanced` and
 `POST /api/calibration/floor|upright` · `POST /api/session/start|stop` ·
 `POST /api/site/{id}` ·
 `GET /api/minutes?since=` · `GET /api/sessions` · `GET /api/days` ·
-`POST /api/record/start|stop` · `POST /api/days/refresh`
+`POST /api/record/start|stop` · `POST /api/days/refresh` ·
+`GET /api/recordings` · `GET|DELETE /api/recordings/{name}`
+
+Saved recordings are listed on the dashboard; `RECORD_ANNOTATED=1` bakes the
+skeleton+angles overlay into the .mp4 (raw camera frames when 0).
 
 ## Data manager (optional)
 

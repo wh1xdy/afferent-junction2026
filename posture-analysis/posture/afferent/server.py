@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -340,3 +341,52 @@ def record_start():
 @app.post("/api/record/stop")
 def record_stop():
     return JSONResponse(_pipeline().stop_recording())
+
+
+def _recordings_dir() -> str:
+    return _STATE["cfg"].recordings_dir
+
+
+def _recording_path(name: str) -> str:
+    """Resolve a recording file name inside the recordings dir only."""
+    if name != os.path.basename(name) or not name.endswith(".mp4"):
+        raise HTTPException(400, "bad recording name")
+    return os.path.join(_recordings_dir(), name)
+
+
+@app.get("/api/recordings")
+def list_recordings():
+    """List saved dev recordings (name, size, mtime)."""
+    out = []
+    d = _recordings_dir()
+    if os.path.isdir(d):
+        for name in sorted(os.listdir(d), reverse=True):
+            if not name.endswith(".mp4"):
+                continue
+            p = os.path.join(d, name)
+            try:
+                st = os.stat(p)
+            except OSError:
+                continue
+            out.append({"name": name, "size": st.st_size,
+                        "mtime": st.st_mtime,
+                        "url": f"/api/recordings/{name}"})
+    return JSONResponse({"recordings": out})
+
+
+@app.get("/api/recordings/{name}")
+def get_recording(name: str):
+    """Download/play a saved recording. Supports HTTP range for <video>."""
+    path = _recording_path(name)
+    if not os.path.isfile(path):
+        raise HTTPException(404, "recording not found")
+    return FileResponse(path, media_type="video/mp4", filename=name)
+
+
+@app.delete("/api/recordings/{name}")
+def delete_recording(name: str):
+    path = _recording_path(name)
+    if not os.path.isfile(path):
+        raise HTTPException(404, "recording not found")
+    os.remove(path)
+    return JSONResponse({"ok": True, "deleted": name})

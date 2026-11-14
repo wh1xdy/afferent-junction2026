@@ -619,6 +619,7 @@ class Pipeline:
         self._stop = threading.Event()
         self._preview_jpeg: bytes | None = None
         self._preview_lock = threading.Lock()
+        self._latest_vis: np.ndarray | None = None   # last annotated frame
         self._recorder: cv2.VideoWriter | None = None
         self._rec_path: str | None = None
         self._rec_pending = False
@@ -689,7 +690,11 @@ class Pipeline:
             if self._rec_pending or self._recorder is not None:
                 self._ensure_recorder(frame)
                 if self._recorder is not None:
-                    self._recorder.write(frame.image)
+                    out = frame.image
+                    if (self.cfg.record_annotated
+                            and self._latest_vis is not None):
+                        out = self._latest_vis
+                    self._recorder.write(out)
 
             # adaptive pose rate
             burst = (self.proc.last_result.get("activity") in
@@ -718,6 +723,7 @@ class Pipeline:
     # -- preview -------------------------------------------------------------------
     def _publish_preview(self, image: np.ndarray, res: dict) -> None:
         vis = self._annotate(image, res)
+        self._latest_vis = vis
         ok, buf = cv2.imencode(".jpg", vis,
                                [cv2.IMWRITE_JPEG_QUALITY, 70])
         if ok:
@@ -787,6 +793,7 @@ class Pipeline:
             f"dev_{time.strftime('%Y%m%d_%H%M%S')}.mp4")
         # The writer is created lazily on the first captured frame so its
         # size/fps match the real camera stream, not the requested config.
+        self._latest_vis = None     # no stale overlay at the top of the file
         self._rec_pending = True
         return {"ok": True, "path": self._rec_path}
 

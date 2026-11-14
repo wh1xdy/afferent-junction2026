@@ -13,7 +13,8 @@
     "POSE_MODEL_PATH": "/opt/posture_models/rtmpose-m_halpe26_ft.onnx",
     "SITE": "jetson",
     "EMOTION_ENABLED": "1",
-    "RECORDING_ENABLED": "0",
+    "RECORDING_ENABLED": "1",
+    "RECORD_ANNOTATED": "1",
     "DATA_MANAGER_URL": "http://127.0.0.1:8100",
     "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}"
   },
@@ -38,6 +39,11 @@
       "type": "persist",
       "name": "afferent-posture-models",
       "path": "/models"
+    },
+    {
+      "type": "persist",
+      "name": "afferent-posture-recordings",
+      "path": "/recordings"
     }
   ],
   "readiness": {

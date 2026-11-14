@@ -147,3 +147,56 @@ def test_models_not_loaded(tmp_path, monkeypatch):
         _call(_jpeg())
     assert e.value.status_code == 503
     st.close()
+
+
+# -- /api/recordings ----------------------------------------------------------
+
+@pytest.fixture
+def rec_dir(tmp_path, monkeypatch):
+    d = tmp_path / "recs"
+    d.mkdir()
+    monkeypatch.setitem(server._STATE, "cfg",
+                        SimpleNamespace(recordings_dir=str(d)))
+    return d
+
+
+def _mk_rec(d, name="dev_20261114_120000.mp4", data=b"fake-mp4"):
+    (d / name).write_bytes(data)
+    return name
+
+
+def test_recordings_list_empty(rec_dir):
+    r = server.list_recordings()
+    assert r.body and b'"recordings":[]' in r.body
+
+
+def test_recordings_list_and_download(rec_dir):
+    name = _mk_rec(rec_dir)
+    r = server.list_recordings()
+    body = r.body.decode()
+    assert name in body and f"/api/recordings/{name}" in body
+    resp = server.get_recording(name)
+    assert resp.status_code == 200 and resp.path.endswith(name)
+
+
+def test_recording_name_traversal_rejected(rec_dir):
+    for bad in ("../x.mp4", "a/b.mp4", "/etc/passwd.mp4", "notmp4.txt"):
+        with pytest.raises(HTTPException) as e:
+            server._recording_path(bad)
+        assert e.value.status_code == 400
+
+
+def test_recording_404(rec_dir):
+    with pytest.raises(HTTPException) as e:
+        server.get_recording("dev_20990101_000000.mp4")
+    assert e.value.status_code == 404
+    with pytest.raises(HTTPException) as e:
+        server.delete_recording("dev_20990101_000000.mp4")
+    assert e.value.status_code == 404
+
+
+def test_recording_delete(rec_dir):
+    name = _mk_rec(rec_dir)
+    r = server.delete_recording(name)
+    assert b'"ok":true' in r.body
+    assert not (rec_dir / name).exists()

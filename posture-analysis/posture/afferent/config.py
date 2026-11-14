@@ -71,6 +71,7 @@ class Config:
     min_valid_frames: int = 30      # per minute row
     recordings_dir: str = "/recordings"
     recording_enabled: bool = False
+    record_annotated: bool = False  # write skeleton+angles overlay into videos
     # Optional push of minute aggregates to afferent-data-manager ("" = off)
     data_manager_url: str = ""
     data_manager_token: str = ""
@@ -128,6 +129,7 @@ class Config:
             min_valid_frames=_env_int("MIN_VALID_FRAMES", 30),
             recordings_dir=_env("RECORDINGS_DIR", "/recordings"),
             recording_enabled=_env_bool("RECORDING_ENABLED", False),
+            record_annotated=_env_bool("RECORD_ANNOTATED", False),
             data_manager_url=_env("DATA_MANAGER_URL", ""),
             data_manager_token=_env("DATA_MANAGER_TOKEN", ""),
             one_euro_min_cutoff=_env_float("ONE_EURO_MIN_CUTOFF", 1.0),

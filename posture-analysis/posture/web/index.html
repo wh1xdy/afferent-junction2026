@@ -115,6 +115,12 @@
       </table>
       <div class="row"><button id="btn-days">Refresh days</button></div>
     </div>
+    <div class="panel" style="margin-top:14px">
+      <h2>Recordings</h2>
+      <div id="recordings"><div class="hint">none</div></div>
+      <div class="row"><button id="btn-recordings">Refresh list</button></div>
+      <video id="rec-player" controls style="width:100%;margin-top:8px;display:none"></video>
+    </div>
   </aside>
 </main>
 
@@ -294,6 +300,33 @@ $('btn-days').onclick = async () => {
   loadDays(); loadSessions();
 };
 
+/* recordings list */
+async function loadRecordings() {
+  const d = await api('/api/recordings');
+  const box = $('recordings');
+  if (!d.recordings || !d.recordings.length) {
+    box.innerHTML = '<div class="hint">none</div>';
+    return;
+  }
+  box.innerHTML = d.recordings.map(r => {
+    const mb = (r.size / 1048576).toFixed(1);
+    return `<div class="row" style="justify-content:space-between">
+      <a href="${r.url}" data-name="${r.name}" class="rec-link">${r.name}</a>
+      <span class="hint">${mb} MB</span>
+      <a href="${r.url}" download>⬇</a></div>`;
+  }).join('');
+  box.querySelectorAll('.rec-link').forEach(a => {
+    a.onclick = ev => {
+      ev.preventDefault();
+      const v = $('rec-player');
+      v.src = ev.currentTarget.getAttribute('href');
+      v.style.display = 'block';
+      v.play();
+    };
+  });
+}
+$('btn-recordings').onclick = loadRecordings;
+
 /* ---------- charts & tables ---------- */
 async function loadMinutes() {
   const all = await api('/api/minutes?limit=240');
@@ -400,7 +433,7 @@ async function loadDays(){
 setInterval(refresh, 2000);
 setInterval(loadMinutes, 15000);
 setInterval(loadSessions, 15000);
-refresh(); loadMinutes(); loadSessions(); loadDays();
+refresh(); loadMinutes(); loadSessions(); loadDays(); loadRecordings();
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
 </script>
 </body>
