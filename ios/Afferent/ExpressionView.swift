@@ -15,6 +15,7 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     @Published var finished: ExpressionSession.Summary?
     @Published var exportURL: URL?
     @Published var gazeNow: (yaw: Double, pitch: Double) = (0, 0)
+    @Published var topShapes: [(String, Double)] = []
     @Published var showDebug = false
 
     let supported = ARFaceTrackingConfiguration.isSupported
@@ -67,28 +68,42 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     }
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        guard running, let face = frame.anchors.compactMap({ $0 as? ARFaceAnchor }).first else {
+        guard let face = frame.anchors.compactMap({ $0 as? ARFaceAnchor }).first else {
             DispatchQueue.main.async { self.faceTracked = false }
+            return
+        }
+        var b: [String: Double] = [:]
+        for (k, v) in face.blendShapes { b[Self.normalized(k.rawValue)] = v.doubleValue }
+        let g = Self.gaze(face, frame)
+        let vals = ExpressionKind.values(b)
+        let tracked = face.isTracked
+        // debug view works before a session starts too
+        guard running else {
+            DispatchQueue.main.async {
+                self.faceTracked = tracked
+                self.gazeNow = g
+                self.live = vals
+                if self.showDebug { self.topShapes = b.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) } }
+            }
             return
         }
         let t = frame.timestamp
         if t0 == nil { t0 = t }
-        var b: [String: Double] = [:]
-        for (k, v) in face.blendShapes { b[Self.normalized(k.rawValue)] = v.doubleValue }
         let before = expr.events.count
         expr.feed(b, t: t)
-        let g = Self.gaze(face, frame)
-        if face.isTracked { expr.feedGaze(yaw: g.yaw, pitch: g.pitch, t: t) }
+        if tracked { expr.feedGaze(yaw: g.yaw, pitch: g.pitch, t: t) }
         if keys.isEmpty { keys = b.keys.sorted() }
         rec.append([Float(t - (t0 ?? t)), Float(g.yaw), Float(g.pitch)] + keys.map { Float(b[$0] ?? 0) })
         let newMicro = expr.events.dropFirst(before).last { $0.isMicro }
         let el = t - (t0 ?? t)
-        let vals = ExpressionKind.values(b)
         DispatchQueue.main.async {
-            self.faceTracked = face.isTracked
+            self.faceTracked = tracked
             self.elapsed = el
             self.live = vals
             self.gazeNow = g
+            if self.showDebug {
+                self.topShapes = b.sorted { $0.value > $1.value }.prefix(8).map { ($0.key, $0.value) }
+            }
             if let m = newMicro { self.recentMicro = m; self.microCount += 1 }
             if el >= Self.duration && self.running { self.stop() }
         }
@@ -115,18 +130,88 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
 
 struct FaceTrackingView: UIViewRepresentable {
     let tracker: ExpressionTracker
+    var eyeDebug = false
+
+    func makeCoordinator() -> EyeArrows { EyeArrows() }
+
     func makeUIView(context: Context) -> ARSCNView {
         let v = ARSCNView()
         v.session.delegate = tracker
+        v.delegate = context.coordinator          // SceneKit side: eye arrows on the face anchor
         v.automaticallyUpdatesLighting = true
+        v.rendersContinuously = true
         tracker.session = v.session
         if tracker.supported {
             v.session.run(ARFaceTrackingConfiguration())
         }
         return v
     }
-    func updateUIView(_ uiView: ARSCNView, context: Context) {}
-    static func dismantleUIView(_ uiView: ARSCNView, coordinator: ()) { uiView.session.pause() }
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
+        context.coordinator.visible = eyeDebug
+    }
+    static func dismantleUIView(_ uiView: ARSCNView, coordinator: EyeArrows) { uiView.session.pause() }
+}
+
+/// Debug overlay: ARKit's face mesh (wireframe), an arrow out of each eye along its eye
+/// transform (+z = gaze direction) and a dot at lookAtPoint, where the two gaze rays meet.
+final class EyeArrows: NSObject, ARSCNViewDelegate {
+    var visible = false { didSet { root?.isHidden = !visible } }
+    private var root: SCNNode?
+    private let left = EyeArrows.arrow(color: .cyan)
+    private let right = EyeArrows.arrow(color: .magenta)
+    private let focus: SCNNode = {
+        let n = SCNNode(geometry: SCNSphere(radius: 0.006))
+        n.geometry?.firstMaterial?.diffuse.contents = UIColor.yellow
+        n.geometry?.firstMaterial?.lightingModel = .constant
+        return n
+    }()
+
+    static func arrow(color: UIColor, length: CGFloat = 0.15) -> SCNNode {
+        let m = SCNMaterial()
+        m.diffuse.contents = color
+        m.lightingModel = .constant
+        let shaft = SCNNode(geometry: SCNCylinder(radius: 0.0012, height: length))
+        shaft.geometry?.materials = [m]
+        shaft.position = SCNVector3(0, 0, Float(length / 2))
+        shaft.eulerAngles.x = .pi / 2                   // cylinder axis y -> z (gaze)
+        let tip = SCNNode(geometry: SCNCone(topRadius: 0, bottomRadius: 0.004, height: 0.012))
+        tip.geometry?.materials = [m]
+        tip.position = SCNVector3(0, 0, Float(length) + 0.006)
+        tip.eulerAngles.x = .pi / 2
+        let n = SCNNode()
+        n.addChildNode(shaft)
+        n.addChildNode(tip)
+        return n
+    }
+
+    private var mesh: ARSCNFaceGeometry?
+
+    func renderer(_ renderer: SCNSceneRenderer, nodeFor anchor: ARAnchor) -> SCNNode? {
+        guard anchor is ARFaceAnchor else { return nil }
+        let n = SCNNode()
+        let r = SCNNode()
+        r.addChildNode(left); r.addChildNode(right); r.addChildNode(focus)
+        // what ARKit "sees": its fitted 3D face model as a wireframe
+        if let dev = renderer.device, let g = ARSCNFaceGeometry(device: dev) {
+            g.firstMaterial?.fillMode = .lines
+            g.firstMaterial?.diffuse.contents = UIColor.green.withAlphaComponent(0.55)
+            g.firstMaterial?.lightingModel = .constant
+            mesh = g
+            r.addChildNode(SCNNode(geometry: g))
+        }
+        r.isHidden = !visible
+        n.addChildNode(r)
+        root = r
+        return n
+    }
+
+    func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+        guard let face = anchor as? ARFaceAnchor else { return }
+        mesh?.update(from: face.geometry)
+        left.simdTransform = face.leftEyeTransform
+        right.simdTransform = face.rightEyeTransform
+        focus.simdPosition = face.lookAtPoint
+    }
 }
 
 struct ExpressionView: View {
@@ -146,8 +231,8 @@ struct ExpressionView: View {
                 VStack(spacing: 16) {
                     Text("EXPRESSIONS").font(.system(size: 13, weight: .semibold)).tracking(4)
                         .foregroundStyle(.black.opacity(0.45)).padding(.top, 8)
-                    FaceTrackingView(tracker: tracker)
-                        .frame(width: 200, height: 260)
+                    FaceTrackingView(tracker: tracker, eyeDebug: tracker.showDebug)
+                        .frame(width: tracker.showDebug ? 320 : 200, height: tracker.showDebug ? 420 : 260)
                         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 28, style: .continuous)
                             .stroke(tracker.faceTracked ? Color.green.opacity(0.7) : Color.black.opacity(0.1), lineWidth: 3))
@@ -159,24 +244,40 @@ struct ExpressionView: View {
                         Text(tracker.recentMicro.map { "micro-expression: \($0.kind.label) (\(Int($0.duration * 1000)) ms)" } ?? " ")
                             .font(.caption.monospacedDigit()).foregroundStyle(.purple)
                         Text("\(tracker.microCount) micro-expressions").font(.caption2).foregroundStyle(.black.opacity(0.4))
-                        if tracker.showDebug {
-                            Text(String(format: "gaze yaw %+.0f°  pitch %+.0f°", tracker.gazeNow.yaw, tracker.gazeNow.pitch))
-                                .font(.caption2.monospacedDigit()).foregroundStyle(.black.opacity(0.5))
-                        }
+                        if tracker.showDebug { debugPanel }
                     } else {
                         Text("A 60-second session: relax, think of something good, then of your week. We look at facial movement and your eyes — on the phone, nothing is stored or sent.")
                             .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.black.opacity(0.6))
                             .padding(.horizontal, 28)
                         Button("Start session") { tracker.start() }
                             .buttonStyle(.borderedProminent).tint(.black)
-                        Toggle("Show gaze angles", isOn: $tracker.showDebug)
-                            .font(.footnote).frame(width: 220)
+                        Toggle("Debug: face mesh, eye arrows, raw values", isOn: $tracker.showDebug)
+                            .font(.footnote).frame(width: 260)
+                        if tracker.showDebug { debugPanel }
                     }
                     Spacer()
                 }
             }
         }
         .preferredColorScheme(.light)
+    }
+
+    /// what the face tracking sees right now: gaze + the strongest raw blendshapes
+    private var debugPanel: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(String(format: "gaze yaw %+.0f°  pitch %+.0f°", tracker.gazeNow.yaw, tracker.gazeNow.pitch))
+                .font(.caption.monospacedDigit().weight(.semibold))
+            ForEach(tracker.topShapes, id: \.0) { name, v in
+                HStack(spacing: 6) {
+                    Text(name).frame(width: 130, alignment: .leading)
+                    Capsule().fill(Color.green.opacity(0.7)).frame(width: 100 * v, height: 5)
+                    Text(String(format: "%.2f", v))
+                }
+                .font(.caption2.monospacedDigit())
+            }
+        }
+        .foregroundStyle(.black.opacity(0.7))
+        .frame(width: 300, alignment: .leading)
     }
 
     private var prompt: String {
