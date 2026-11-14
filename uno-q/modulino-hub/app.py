@@ -431,8 +431,8 @@ def rsa_debug(c):
 # standard short-term HRV / stress marker (lower = more stressed, relative to one's own baseline).
 # The sensor samples at ~45 Hz, so a beat time is only known to +-11 ms, while RMSSD is typically
 # 20-80 ms. Each beat is therefore re-timed at the steepest point of its upstroke in the raw signal,
-# with parabolic sub-sample interpolation. Artefacts: intervals off the pulse period, or changing
-# by > 20 % from the previous one (Malik criterion), are dropped.
+# with parabolic sub-sample interpolation. Artefacts: intervals off the pulse period, or > 30 % off
+# the local median of their neighbours (missed / double beats), are dropped.
 hrv = {"rmssd_ms": None, "sdnn_ms": None, "mean_bpm": None, "pairs": 0, "channel": None,
        "baseline_rmssd_ms": None, "vs_baseline": None}
 _hrv_history = collections.deque(maxlen=600)          # (t, rmssd), ~10 min, for a personal baseline
@@ -466,11 +466,16 @@ def compute_hrv(c, window_ms=60000):
         return None
     ibis = [b - a for a, b in zip(times, times[1:])]
     per = period_state[c].get("period_ms")
-    ok = [bool(per) and 0.6 * per <= i <= 1.6 * per or (not per and 330 <= i <= 1800) for i in ibis]
-    diffs = []
-    for j in range(1, len(ibis)):
-        if ok[j] and ok[j - 1] and abs(ibis[j] - ibis[j - 1]) <= 0.2 * ibis[j - 1]:
-            diffs.append(ibis[j] - ibis[j - 1])
+    ok = []
+    for j, i in enumerate(ibis):
+        # missed / double beats sit at ~2x / ~0.5x: drop intervals > 30 % off the local median of
+        # their neighbours. (A "> 20 % change from the previous interval" rule also removed real
+        # large variations and under-read high HRV: 86 -> 61 ms on a synthetic test.)
+        nb = sorted(ibis[max(0, j - 3):j] + ibis[j + 1:j + 4])
+        med = nb[len(nb) // 2] if nb else i
+        plausible = (0.6 * per <= i <= 1.6 * per) if per else (330 <= i <= 1800)
+        ok.append(plausible and abs(i - med) <= 0.3 * med)
+    diffs = [ibis[j] - ibis[j - 1] for j in range(1, len(ibis)) if ok[j] and ok[j - 1]]
     good = [i for i, o in zip(ibis, ok) if o]
     if len(diffs) < 20 or len(good) < 20:
         return None

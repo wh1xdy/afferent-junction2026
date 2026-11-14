@@ -55,11 +55,14 @@ open http://localhost:3005
 
 ## Heart-rate variability (HRV)
 
+Full sensor API for the app: [`uno-q/SENSORS.md`](uno-q/SENSORS.md).
+
+
 The UNO Q computes **RMSSD** (and SDNN, mean BPM) over the last 60 s of finger beats — the standard
 short-term HRV / stress marker; lower than your own baseline = more stressed. Beats are re-timed at
 the steepest point of each upstroke with sub-sample interpolation (the ADC runs at ~45 Hz, so a raw
-beat time is only ±11 ms), and artefacts are dropped (off-period intervals, > 20 % jumps). Synthetic
-check: true 18 / 40 / 68 ms → 22 / 44 / 67 ms (raw detection times: 27 / 51 / 70). After 2 min it
+beat time is only ±11 ms), and artefacts are dropped (off-period intervals, > 30 % off the local median = missed/double beats).
+Synthetic check: true 14 / 47 / 86 ms → 20 / 48 / 93 ms. After 2 min it
 also reports `vs_baseline` (relative to the median of your own readings). `GET /state` → `hrv`.
 
 ## Finger pulse over Bluetooth
