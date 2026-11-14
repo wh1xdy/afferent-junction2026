@@ -47,6 +47,7 @@ body:not([data-tab="today"]) #hero { display: none; }
   font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
 }
 body[data-tab="today"] #bar:not(.solid) .sim { margin-right: auto; }
+#qrTop { margin-left: auto; }
 body[data-tab="today"] #bar:not(.solid) .bar-title { flex: 0; padding: 0; width: 0; }
 
 #page { padding: calc(env(safe-area-inset-top) + 76px) var(--pad) calc(env(safe-area-inset-bottom) + 112px); max-width: 560px; margin: 0 auto; }
@@ -146,6 +147,9 @@ button.li:active::after, .li.sensor:active::after { opacity: 0.08; }
 .seg button svg { width: 0; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: width 200ms var(--ll-ease); }
 .seg button[aria-checked="true"] { border-radius: 999px; background: var(--ll-secondary-container); color: var(--ll-on-secondary-container); }
 .seg button[aria-checked="true"] svg { width: 18px; }
+
+.qr-group { margin: 4px 0 16px; }
+.qr-log { display: flex; flex-direction: column; gap: 4px; margin: -8px 4px 16px; font-size: 13px; line-height: 18px; color: var(--ll-on-surface-variant); font-variant-numeric: tabular-nums; }
 
 .sees { display: flex; flex-direction: column; gap: 12px; margin-top: 18px; padding: 0 4px; }
 .sees li { display: grid; grid-template-columns: 20px 1fr; gap: 14px; align-items: start; font-size: 15px; line-height: 22px; color: var(--ll-on-surface); }

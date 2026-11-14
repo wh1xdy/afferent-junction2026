@@ -108,7 +108,7 @@
     }
     render();
     $('page').removeAttribute('aria-busy');
-    if (src === 'hub') connect();
+    if (src === 'hub') { connect(); A.QRShow?.sync(); }
   }
 
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -421,6 +421,7 @@
   $('back').href = 'index.html' + location.search;
   $('talkTop').onclick = openTalk;
   $('talkRow').onclick = openTalk;
+  A.QRShow?.init({ pid, hub: hubBase, talk: openTalk });
 
   const TABS = ['today', 'week', 'settings'], TITLES = { today: 'Your mornings', week: 'This week', settings: 'Settings' };
   const setTab = (tab, focus) => {
