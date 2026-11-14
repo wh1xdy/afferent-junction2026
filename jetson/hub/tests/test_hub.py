@@ -160,5 +160,27 @@ class Grounding(unittest.TestCase):
             self.g._chat = orig
 
 
+    def test_wrong_direction_is_flagged(self):
+        hrv = dict(self.facts)["T:hrv_rmssd"]
+        prev, last = hrv.split("previous 7 days ")[1].split(" ")[0], hrv.split("last 7 days ")[1].split(" ")[0]
+        bad = self.g.check(f"HRV increased from {prev} ms to {last} ms [T:hrv_rmssd].", self.facts)
+        self.assertFalse(bad["grounded"])
+        self.assertTrue(bad["wrong_direction"])
+        good = self.g.check(f"HRV decreased from {prev} ms to {last} ms [T:hrv_rmssd].", self.facts)
+        self.assertTrue(good["grounded"], good)
+        # without 'from..to': judged against the sign of the cited trend
+        self.assertFalse(self.g.check("HRV went up over the period [T:hrv_rmssd].", self.facts)["grounded"])
+        self.assertTrue(self.g.check("HRV went down over the period [T:hrv_rmssd].", self.facts)["grounded"])
+        self.assertTrue(self.g.check("Resting pulse rose [T:finger_bpm].", self.facts)["grounded"])
+
+
+    def test_judgement_words_are_flagged(self):
+        r = self.g.check("Resting pulse showed a significant increase [T:finger_bpm].", self.facts)
+        self.assertFalse(r["grounded"])
+        self.assertEqual(r["judgement_words"], ["significant"])
+        q = dict(self.facts)["Q1"]
+        self.assertTrue(self.g.check(f"{q} [Q1].", self.facts)["grounded"])   # PHQ-9 bands are facts
+
+
 if __name__ == "__main__":
     unittest.main()

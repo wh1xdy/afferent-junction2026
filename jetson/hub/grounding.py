@@ -2,8 +2,8 @@
 
 1. build_facts(summary) turns Store.summary() into short labelled lines ([T:hrv_rmssd] ...).
 2. The LLM gets only those lines + the question, and must cite labels.
-3. check(answer, facts): every number in the answer must appear in the facts, every cited label
-   must exist. Anything else is reported back as unsupported, so the doctor can see it.
+3. check(answer, facts): every number must appear in the facts its sentence cites, every label must
+   exist, and direction words (increased / fell ...) must agree with the numbers. Anything else is reported back as unsupported, so the doctor can see it.
 The model never sees the database and never does arithmetic the hub hasn't already done.
 """
 import json
@@ -21,7 +21,7 @@ SYSTEM = (
     "2. Copy numbers exactly from the fact you cite. Never compute or round new numbers.\n"
     "3. For a specific date, use that day's [D:YYYY-MM-DD] fact.\n"
     "4. State what the data shows. Do NOT interpret physiology or psychology (no 'suggesting', 'indicating', "
-    "no causes, no diagnosis, no treatment advice).\n"
+    "no causes, no diagnosis, no treatment advice) and no judgement words like 'significant', 'slight', 'normal'.\n"
     "5. If the facts do not contain the answer, say exactly: \"The data doesn't show that.\"\n"
     "   If asked for a diagnosis, say the data cannot diagnose and give the latest PHQ-9 fact.\n"
     "6. At most 100 words.\n"
@@ -69,6 +69,34 @@ def facts_text(facts):
 
 
 NUM = re.compile(r"(?<![\w.])[-+]?\d+(?:\.\d+)?")
+UP = re.compile(r"\b(increas\w*|ris(e|es|en|ing)|rose|went up|higher|grew|grow\w*|elevat\w*|up)\b", re.I)
+DOWN = re.compile(r"\b(decreas\w*|fell|fall\w*|dropp?\w*|declin\w*|lower\w*|reduc\w*|went down|down)\b", re.I)
+FROM_TO = re.compile(r"from\s+([-+]?\d+(?:\.\d+)?)\D{0,25}?\s+to\s+([-+]?\d+(?:\.\d+)?)", re.I)
+CHANGE = re.compile(r"\(change ([-+]\d+(?:\.\d+)?)")
+# judgement words the facts don't support ("significant" reads as statistical significance to a
+# clinician). PHQ-9 band names (mild, moderate, severe) are facts and stay allowed.
+EVALUATIVE = re.compile(r"\b(significant\w*|slight\w*|dramatic\w*|substantial\w*|marked\w*|concerning|"
+                        r"alarming|worrying|notabl\w*|considerabl\w*|sharp\w*|minor|major|normal|abnormal)\b", re.I)
+
+
+def direction_problem(text, cited_facts):
+    """A direction word must agree with the numbers: 'from A to B' -> sign(B - A); otherwise the sign
+    of the change in the single trend fact the text cites. Numbers alone can't catch
+    'HRV increased from 55.1 to 37.9'."""
+    up, down = bool(UP.search(text)), bool(DOWN.search(text))
+    if up == down:                      # no direction word, or both (e.g. 'up then down'): nothing to check
+        return None
+    claimed = 1 if up else -1
+    m = FROM_TO.search(text)
+    if m:
+        a, b = float(m.group(1)), float(m.group(2))
+        if a != b and (b - a > 0) != (claimed > 0):
+            return f"says {'increase' if up else 'decrease'} but goes from {m.group(1)} to {m.group(2)}"
+        return None
+    changes = [float(c) for f in cited_facts for c in CHANGE.findall(f)]
+    if len(changes) == 1 and changes[0] != 0 and (changes[0] > 0) != (claimed > 0):
+        return f"says {'increase' if up else 'decrease'} but the cited change is {changes[0]:+g}"
+    return None
 
 
 def _numbers(text):
@@ -81,6 +109,8 @@ def check(answer, facts):
     by_label = dict(facts)
     labels = set(by_label)
     unsupported, unknown, used = set(), set(), set()
+    directions = []
+    evaluative = set()
 
     def judge(text, cites):
         good = [c for c in cites if c in labels]
@@ -93,6 +123,10 @@ def check(answer, facts):
             n = float(x)
             if n not in allowed and abs(n) not in allowed:
                 unsupported.add(n)
+        d = direction_problem(text, [by_label[c] for c in good])
+        if d:
+            directions.append(d)
+        evaluative.update(w.lower() for w in EVALUATIVE.findall(text))
 
     # each stretch of text is judged against the citation group that follows it (decimals stay intact)
     parts = re.split(r"(\[[^\]]+\])", answer)
@@ -107,8 +141,9 @@ def check(answer, facts):
         text += part
     judge(text, cites)                  # trailing text: numbers without a citation are unsupported
     refusal = "doesn't show" in answer
-    return {"unsupported_numbers": sorted(unsupported), "unknown_labels": sorted(unknown), "sources": sorted(used),
-            "grounded": not unsupported and not unknown and bool(used or refusal)}
+    return {"unsupported_numbers": sorted(unsupported), "unknown_labels": sorted(unknown),
+            "wrong_direction": directions, "judgement_words": sorted(evaluative), "sources": sorted(used),
+            "grounded": not unsupported and not unknown and not directions and not evaluative and bool(used or refusal)}
 
 
 def safety_note(summary):
@@ -183,6 +218,10 @@ def ask(question, summary, url=LLM_URL, timeout=180):
             problems.append("these numbers are not in the facts you cited: " + ", ".join(f"{n:g}" for n in chk["unsupported_numbers"]))
         if chk["unknown_labels"]:
             problems.append("these labels don't exist: " + ", ".join(chk["unknown_labels"]))
+        if chk["wrong_direction"]:
+            problems.append("wrong direction: " + "; ".join(chk["wrong_direction"]))
+        if chk["judgement_words"]:
+            problems.append("remove judgement words (" + ", ".join(chk["judgement_words"]) + "); state the numbers only")
         if not problems:
             problems.append("every sentence needs a fact label")
         msgs += [{"role": "assistant", "content": answer},
