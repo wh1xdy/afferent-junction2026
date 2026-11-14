@@ -132,12 +132,12 @@ body[data-tab="today"] #page { padding-top: calc(var(--hero) + 4px); }
 #dayList { margin-top: 12px; }
 .li {
   position: relative; display: flex; align-items: center; gap: 16px; width: 100%; min-height: 56px; padding: 12px 20px;
-  border: 0; border-radius: 4px; background: var(--ll-surface-mid); color: var(--ll-on-surface); text-align: left;
+  border: 0; border-radius: 4px; background: var(--ll-surface-mid); color: var(--ll-on-surface); text-align: left; text-decoration: none;
 }
 .group > :first-child .li, .group > .li:first-child { border-top-left-radius: 28px; border-top-right-radius: 28px; }
 .group > :last-child .li, .group > .li:last-child { border-bottom-left-radius: 28px; border-bottom-right-radius: 28px; }
-button.li::after, .li.sensor::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity 150ms var(--ll-ease); pointer-events: none; }
-button.li:active::after, .li.sensor:active::after { opacity: 0.08; }
+button.li::after, a.li::after, .li.sensor::after { content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; opacity: 0; transition: opacity 150ms var(--ll-ease); pointer-events: none; }
+button.li:active::after, a.li:active::after, .li.sensor:active::after { opacity: 0.08; }
 .li .lt { flex: 1; font-size: 17px; line-height: 24px; font-weight: 500; }
 .li .lv { font-size: 15px; color: var(--ll-on-surface-variant); }
 .day-row.is-today .lt { font-weight: 600; }

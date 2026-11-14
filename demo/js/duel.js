@@ -95,6 +95,9 @@
     const now = A.now() * 1000, linked = !!S.enabled.pulse_stone && S.fingerLink.state === 'connected';
     const views = D.step(m, now, linked);
     render(D.screen({ enabled: !!S.enabled.pulse_stone, link: S.fingerLink.state, views, people: m.people, round: m.round }), views);
+    // The heart only beats in the hand while it beats on the card (reduced motion keeps the cards still).
+    const felt = m.touch.filter(([w]) => w !== 'heart' || !still());
+    if (felt.length) A.Haptics?.seq(felt);
     raf = requestAnimationFrame(frame);
   };
 
@@ -126,7 +129,7 @@
   go.addEventListener('click', () => {
     if (!m) return;
     if (m.round.step === 'settle' || m.round.step === 'race') D.stop(m);
-    else D.start(m);
+    else { D.start(m); A.Haptics?.play('touch'); }
   });
   q('[data-duel-close]').addEventListener('click', close);
   document.querySelectorAll('[data-duel]').forEach(b => b.addEventListener('click', open));

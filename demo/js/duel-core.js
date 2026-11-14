@@ -197,7 +197,7 @@
 
   // ── one duel ─────────────────────────────────────────────────────────────────────────────────────────────────
   // The state of one open screen: created on open, dropped on close. Never written anywhere.
-  const create = () => ({ clips: clipsCreate(), people: peopleCreate(), round: roundCreate(), at: null, phase: [0, 0] });
+  const create = () => ({ clips: clipsCreate(), people: peopleCreate(), round: roundCreate(), at: null, phase: [0, 0], heartAt: -Infinity, touch: [] });
 
   const packet = (m, d, nowMs) => { clipsPacket(m.clips, d, nowMs); return m; };
 
@@ -209,9 +209,33 @@
     const views = [0, 1].map(i => clipView(m.clips, i, nowMs, linked));
     const bpm = views.map(v => v.bpm);
     m.people = peopleStep(m.people, linked ? boxFlag(m.clips, nowMs) : null, bpm, dt);
+    const before = m.round, beats = [0, 0];
     m.round = roundStep(m.round, bpm, dt);
-    m.phase = m.phase.map((ph, i) => G.advanceBeat(ph, bpm[i], dt).phase);
+    m.phase = m.phase.map((ph, i) => { const b = G.advanceBeat(ph, bpm[i], dt); beats[i] = b.beats; return b.phase; });
+    m.touch = touches(m, before, views, beats, nowMs);
     return views;
+  };
+
+  // ── the touch ─────────────────────────────────────────────────────────────────────────────────────────────────
+  // The haptic words one frame earns, as [word, ms, strength?]; duel.js plays them through A.Haptics, which keeps the
+  // Vibration switch. A quiet tick for the last seconds of measuring and of the race; success when someone wins and
+  // complete as the round closes (complete alone when nobody wins); and a soft heart on a player's beat, only with a
+  // live reading and at most one every HEART_GAP_MS, so two hearts stay a pulse and never become a buzz.
+  const TOUCH = { COUNT_S: 3, CLOSE_MS: 800, HEART_GAP_MS: 900, HEART_K: 0.45 };
+  const left = r => r.step === 'settle' ? secs(ROUND.SETTLE_MS - r.settleMs) : r.step === 'race' ? secs(ROUND.RACE_MS - r.race.elapsedMs) : null;
+  const touches = (m, before, views, beats, nowMs) => {
+    const r = m.round;
+    if (before.step !== 'done' && r.step === 'done') {
+      const won = r.result?.outcome === 'first' || r.result?.outcome === 'most';
+      return won ? [['success', 0], ['complete', TOUCH.CLOSE_MS]] : [['complete', 0]];
+    }
+    const s = left(r);
+    if (before.step === r.step && s !== null && s !== left(before) && s > 0 && s <= TOUCH.COUNT_S) return [['tick', 0]];
+    if (beats.some((n, i) => n > 0 && views[i].state === 'live') && nowMs - m.heartAt >= TOUCH.HEART_GAP_MS) {
+      m.heartAt = nowMs;
+      return [['heart', 0, TOUCH.HEART_K]];
+    }
+    return [];
   };
 
   const start = m => {
@@ -230,7 +254,7 @@
   const beatScale = p => 1 + 0.16 * (bump(p, 0.07, 0.055) + bump(p - 1, 0.07, 0.055)) + 0.07 * bump(p, 0.29, 0.07);
 
   A.DuelCore = {
-    V3, TWO, ROUND, apart, peopleCreate, peopleStep, clipsCreate, clipsPacket, clipView, boxFlag,
-    roundCreate, roundBegin, roundStep, screen, create, packet, step, start, stop, allowed, beatScale,
+    V3, TWO, ROUND, TOUCH, apart, peopleCreate, peopleStep, clipsCreate, clipsPacket, clipView, boxFlag,
+    roundCreate, roundBegin, roundStep, screen, create, packet, step, touches, start, stop, allowed, beatScale,
   };
 })();
