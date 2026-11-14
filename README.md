@@ -53,13 +53,25 @@ wendy net forward 3005:3005 --device <jetson>   # keep running
 open http://localhost:3005
 ```
 
+## Heart-rate variability (HRV)
+
+Full sensor API for the app: [`uno-q/SENSORS.md`](uno-q/SENSORS.md).
+
+
+The UNO Q computes **RMSSD** (and SDNN, mean BPM) over the last 60 s of finger beats — the standard
+short-term HRV / stress marker; lower than your own baseline = more stressed. Beats are re-timed at
+the steepest point of each upstroke with sub-sample interpolation (the ADC runs at ~45 Hz, so a raw
+beat time is only ±11 ms), and artefacts are dropped (off-period intervals, > 30 % off the local median = missed/double beats).
+Synthetic check: true 14 / 47 / 86 ms → 20 / 48 / 93 ms. After 2 min it
+also reports `vs_baseline` (relative to the median of your own readings). `GET /state` → `hrv`.
+
 ## Finger pulse over Bluetooth
 
 Two PulseSensors: finger 1 on **A1**, finger 2 on **A2** (each `+` 3.3V, `-` GND), each with its
 own beat detector (beep 880 Hz / 660 Hz, LED red / blue when `led_beat` is on).
 The UNO Q advertises **"Afferent Finger"** with the standard BLE Heart Rate Service (0x180D,
 measurement 0x2A37 = finger 1, body location = finger) plus a custom service `AFF0`/`AFF1`
-carrying `[bpm finger 1, bpm finger 2]`, notified on every locked beat. The iPhone app
+carrying `[bpm finger 1, bpm finger 2, breaths/min, RMSSD ms]`, notified on every locked beat. The iPhone app
 (`ios/`) connects automatically and shows `Finger 83 · Δ 1` under the camera reading.
 Any heart-rate app that talks to chest straps can read it too.
 
@@ -120,6 +132,33 @@ On-device, nothing leaves the phone. Three tabs:
 Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first build read 0 for every
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
 6/min was recovered by both breathing sources.
+
+## Health-data hub (`jetson/hub`) — for the doctor, and the patient
+
+Local SQLite on the Jetson (persistent volume `afferent-data`); nothing leaves the hardware.
+Collects the finger readings from the UNO Q over Wendy Net (pulse, HRV, breathing — only while a
+finger is detected), takes expression sessions and PHQ-9 check-ins from the app, and serves:
+
+- `GET /report/clinician?days=14` — printable report: PHQ-9 with item 9 flagged at the top, data
+  coverage, daily trends (resting pulse, HRV, breathing) with last-7-vs-previous-7 days, facial
+  behaviour averages, and how every number is computed. No diagnosis.
+- `GET /report/patient?days=7` — the same week in plain words, with support lines if item 9 > 0.
+- `GET /fhir?days=14` — FHIR R4 Bundle for a clinic's record system: daily resting heart rate (LOINC
+  40443-4), respiratory rate (9279-1), HRV RMSSD (local code — no LOINC exists), PHQ-9 total (44261-6)
+  with the nine items as components and an item-9 risk note. Pseudonymous Patient, Device = finger clip.
+- `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
+
+From a laptop: `wendy net forward 8090:18090 --device <jetson>` → `http://localhost:8090/report/clinician`.
+Tests: `cd jetson/hub && python3 -m unittest discover tests`.
+
+**Doctor Q&A with a local LLM** — `POST /ask {"question": "..."}` (llama.cpp + Qwen2.5-3B 4-bit, on the
+Jetson's CPU, inside the hub container). The model never sees the database: the hub picks the facts the
+question needs (labelled lines like `[T:hrv_rmssd]`), the model must cite them, and every number in
+the answer is checked against the facts its sentence cites. One corrective retry, then the facts are
+shown verbatim instead — an unsupported number never reaches the doctor unmarked. Deterministic rules:
+PHQ-9 item 9 > 0 is always shown first; "does the patient have depression?" gets "these data cannot
+diagnose" + the latest PHQ-9. `?demo=1` uses a synthetic 14-day patient (never stored).
+Speed: ~8–13 s per answer when the CPU is free, 37–64 s while `afferent-vision` runs both cameras.
 
 ## Team access
 
