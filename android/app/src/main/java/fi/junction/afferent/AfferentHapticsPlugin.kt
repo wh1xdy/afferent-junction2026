@@ -173,8 +173,8 @@ class AfferentHapticsPlugin : Plugin() {
             if (v == null || holding()) { call.resolve(played(false)); return@post }
             if (Build.VERSION.SDK_INT >= 31 && primitives(v, listOf(HapticShapes.Primitive.LOW_TICK))) {
                 compose(v, listOf(
-                    HapticShapes.Step(HapticShapes.Primitive.LOW_TICK, (0.55 * strength).toFloat()),
-                    HapticShapes.Step(HapticShapes.Primitive.LOW_TICK, (0.32 * strength).toFloat(), gap - HapticShapes.Primitive.LOW_TICK.ms),
+                    HapticShapes.Step(HapticShapes.Primitive.LOW_TICK, (0.9 * strength).coerceAtMost(1.0).toFloat()),
+                    HapticShapes.Step(HapticShapes.Primitive.LOW_TICK, (0.6 * strength).coerceAtMost(1.0).toFloat(), gap - HapticShapes.Primitive.LOW_TICK.ms),
                 ), 1.0)
             } else if (amplitudes(v)) wave(v, HapticShapes.beat(strength, gap))
             else pulse(v, longArrayOf(0, 10, gap.toLong(), 6))

@@ -131,6 +131,6 @@ object HapticShapes {
     /** One heartbeat: a soft lub and a quieter dub, gap ms apart (the twin of AfferentHaptics.beat on iOS). */
     fun beat(strength: Double, gapMs: Int): Wave {
         val s = strength.coerceIn(0.1, 1.0)
-        return Wave(longArrayOf(14, (gapMs - 14).coerceAtLeast(40).toLong(), 12), intArrayOf(amplitude(0.55 * s), 0, amplitude(0.32 * s)))
+        return Wave(longArrayOf(14, (gapMs - 14).coerceAtLeast(40).toLong(), 12), intArrayOf(amplitude(0.9 * s), 0, amplitude(0.6 * s)))
     }
 }

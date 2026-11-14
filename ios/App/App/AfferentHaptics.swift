@@ -141,12 +141,12 @@ public class AfferentHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
             guard self.hold == nil, let engine = self.ready() else { call.resolve(["played": false]); return }
             let events = [
                 CHHapticEvent(eventType: .hapticTransient, parameters: [
-                    CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.55 * strength),
-                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.12),
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: min(1, 0.9 * strength)),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.2),
                 ], relativeTime: 0),
                 CHHapticEvent(eventType: .hapticTransient, parameters: [
-                    CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.32 * strength),
-                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.06),
+                    CHHapticEventParameter(parameterID: .hapticIntensity, value: min(1, 0.6 * strength)),
+                    CHHapticEventParameter(parameterID: .hapticSharpness, value: 0.12),
                 ], relativeTime: gap),
             ]
             do {
