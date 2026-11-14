@@ -12,14 +12,18 @@
 // pace nears the guide and as RMSSD rises above this session's own start value, never against a fixed number, and the
 // flame steadies as the pulse falls below the session's start. The finger sensor's breathing value covers its last 40 s,
 // so it is smoothed slowly and treated as a pace. Visual only: no numbers, no words, nothing recorded, nothing sent.
-// A soft heartbeat vibration (Settings, "Heartbeat touch") plays with a real pulse in calm moments, and very softly on the
-// plain start screen while nothing is over it (homeTouch below).
+// A soft heartbeat vibration (Settings, "Heartbeat touch": Off, Soft, Medium, Strong) plays with a real pulse in calm
+// moments, and more softly on the plain start screen while nothing is over it (homeTouch below).
 (() => {
   const { clamp, ema, median } = A;
   const MIN_QUALITY = 0.3, GUIDE = 6, LOST_S = 3, START_N = 5, GREET_S = 5, SWELL_S = 2.6, OTHER_HAP_S = 0.3;
-  // The start screen's touch, a share of the session's (the router plays the heart at 0.6 * this: 0.4, at night 0.3),
-  // and above FAST_BPM only every other beat, so a racing pulse never turns into a buzz.
-  const HOME_TOUCH = 2 / 3, FAST_BPM = 140;
+  // "Heartbeat touch" in Settings (A.config.heartLevel, main.js): the strength of AfferentHaptics.beat on the start screen
+  // and in a session, each level one step of 0.2 above the last, the start screen one step below a session. Strong is the
+  // plugin's full beat (lub 0.55, dub 0.32): clearly felt, still one low soft thud and a quieter one, never a buzz.
+  // The router makes each a quarter softer at night. Above FAST_BPM only every other beat is felt.
+  const LEVELS = { off: null, soft: { home: 0.4, session: 0.6 }, medium: { home: 0.6, session: 0.8 }, strong: { home: 0.8, session: 1 } };
+  const FAST_BPM = 140;
+  const level = () => LEVELS[A.config?.heartLevel] === undefined ? LEVELS.soft : LEVELS[A.config.heartLevel];
   const RATE_TAU = 8, RMSSD_TAU = 8, PULSE_TAU = 6, GLOW_TAU = 2.5, HRV_SPAN = 0.3, SETTLE_SPAN = 6, BREATHE_S = 10;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
@@ -61,8 +65,11 @@
   A.bus.on('haptic', () => { if (!st.own) st.otherHapAt = A.now(); });
   // One heartbeat, the "heart" word of the haptics router (haptics.js): AfferentHaptics.beat, one pattern on iOS and on
   // Android so the two halves never drift apart (a lub and a quieter dub); a short soft lub-dub where the plugin is missing.
-  // k is its strength against the session's.
-  const vibrate = k => { st.own = true; try { A.Haptics?.play('heart', k); } catch {} st.own = false; };
+  // strength is the plugin's (the router's heart is HEART * k). Returns whether it played.
+  const vibrate = strength => {
+    st.own = true;
+    try { return !!A.Haptics?.play('heart', strength / (A.Haptics.HEART || 0.6)); } catch { return false; } finally { st.own = false; }
+  };
 
   // The plain start screen: nothing over it (a sheet, a page, a menu, the check-in, the QR sheets, onboarding, the clip
   // check), the kindle neither held nor lit (its own swell plays then), no text field in use, the app in front. Read from
@@ -84,7 +91,7 @@
   const follow = (cur, x, dt, tau) => x == null ? null : cur == null ? x : ema(cur, x, dt, tau);
 
   const Heartbeat = A.Heartbeat = {
-    st, lubDub, simulation, calmMoment, plainHome, GUIDE, HOME_TOUCH, FAST_BPM,
+    st, lubDub, simulation, calmMoment, plainHome, GUIDE, LEVELS, FAST_BPM,
 
     // Once a frame, in a session (engine.js) or on the home screen (main.js, s = null). Returns whether a beat landed now.
     step(now, dt, s = null) {
@@ -143,12 +150,17 @@
       live.level = target == null ? null : calm ? st.glow : 0;
 
       // The touch: one lub-dub per real beat, never a simulated one; in a session in calm moments (in the breathing task on the
-      // exhale), on the start screen very softly while it is plain. Gated by "Heartbeat touch" here and "Vibration" in the router.
-      if (lub && st.real && A.config?.heartTouch !== false && now - st.otherHapAt > OTHER_HAP_S) {
-        if (s ? calm && !(s.game?.id === 'breath' && s.orb?.inhale !== false) : homeTouch()) vibrate(s ? 1 : HOME_TOUCH);
+      // exhale), on the start screen more softly while it is plain. Gated by "Heartbeat touch" here and "Vibration" in the router.
+      const lv = level();
+      if (lub && st.real && lv && now - st.otherHapAt > OTHER_HAP_S) {
+        if (s ? calm && !(s.game?.id === 'breath' && s.orb?.inhale !== false) : homeTouch()) vibrate(s ? lv.session : lv.home);
       }
       return { lub, beating: st.bpm != null };
     },
+
+    // One beat at the level just picked in Settings, as the start screen will play it (main.js, on a tap). Nothing when it is
+    // Off or Vibration is off. Returns whether it played.
+    sample() { const lv = level(); return !!lv && vibrate(lv.home); },
 
     // Writes the beat, the slow breath and the calm glow onto the visual state; `flame` is the flame without them.
     paint(V, flame = 1) {
