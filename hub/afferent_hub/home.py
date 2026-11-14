@@ -255,6 +255,7 @@ def create_home_app(settings: Settings | None = None, env=None, dm_resolver=None
     async def lifespan(app: FastAPI):
         app.state.hub = HomeHub(settings)
         app.state.team = Team(settings)
+        app.state.hub.sensors = app.state.team.sensors
         await app.state.hub.start()
         task = None
         if dm_auto:

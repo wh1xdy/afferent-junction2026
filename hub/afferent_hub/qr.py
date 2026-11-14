@@ -1,6 +1,6 @@
 import datetime as dt
 
-from . import views
+from . import room, views
 from .analytics import stats
 from .analytics.features import FEATURES, index_sessions
 
@@ -140,7 +140,7 @@ def _talk(patient: dict, flags: list[dict], lo: int, hi: int) -> tuple[list[dict
     return kept, len(out) - len(kept)
 
 def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict,
-          checkins: list[dict], flags: list[dict]) -> dict:
+          checkins: list[dict], flags: list[dict], room_days: dict[int, dict] | None = None) -> dict:
     nd = analytics.get("now_day", views.now_day(patient))
     lo = nd - PERIOD_DAYS + 1
     period_days = [d for d in range(max(lo, 0), nd + 1)]
@@ -181,7 +181,10 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
     talk, talk_omitted = _talk(patient, flags, lo, nd)
 
     vitals = vitals_block(sessions, nd)
+    # the bedroom at night: context next to the signals, not part of the index (afferent_hub/room.py)
+    climate = room.weekly(room.from_daily(daily) if room_days is None else room_days, nd, WEEKS, PERIOD_DAYS)
     sim = bool(patient.get("simulated", True) or analytics.get("simulated") or any(vitals["simulated"].values())
+               or climate["simulated"]
                or any(s.get("simulated") for s in sessions if (s.get("day_index") or 0) >= lo))
     played = {s["day_index"] for s in sessions if s.get("day_index") in period_days and s.get("status") in views.PLAYED}
     played |= {d["day_index"] for d in daily if d.get("day_index") in period_days and d.get("played")}
@@ -220,6 +223,7 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
                    for p in pauses if p["until_day"] >= lo and p["from_day"] <= nd],
         "sensors": {k: bool(sensors.get(k, False)) for k in views.DEFAULT_PRIVACY["sensors"]},
         "vitals": vitals,
+        "room": climate,
     }
     omitted = {"safety_entries": safety_omitted, "talk_requests": talk_omitted, "phq_totals": phq_omitted}
     if any(omitted.values()):

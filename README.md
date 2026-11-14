@@ -298,6 +298,15 @@ The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numb
 - Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
 - The printed page lists the same weekly numbers under the code.
 
+### Room climate
+
+The bedside unit's Modulino Thermo measures the bedroom's temperature and humidity. It reaches the phone through the home hub, not over Bluetooth: the finger clips' packet carries no room climate, so this needs no firmware redeploy and no change to the native plugins.
+
+- **Live, to the phone.** The hub turns every `thermo` event from the bedside source (UNO Q `/state` `climate`, about once a minute; or the simulator) into a `room` message for the app of the patient the unit belongs to: `{ temp_c, humidity_pct, source: "modulino_thermo" | "simulated", simulated, age_s }`, and sends the last one right after `hello`. Nothing goes to the clinic socket. On the phone `A.Sensors.room(now)` gives `{ celsius, humidity, source, at }` only for a measured reading at most 150 s old, never a simulated one (`A.Sensors.roomFrame(now)` includes simulated ones, which "Your signals" shows labelled). The line for the live vitals overlay is `A.Room.line(A.Sensors.room(now))`: "Room 21.5 °C · 40 %".
+- **One gentle response.** At night, on the start screen before the wind-down games, a measured room warmer than 19.5 °C gets one quiet line: "Your room is 22.5 °C tonight. Sleep often comes more easily a little cooler, around 16 to 19 °C." Nothing else changes and nothing is asked of the patient (`demo/js/room.js`). The session records the measured room in `context.room_temp_c`.
+- **Over the weeks.** The UNO Q hands the data manager one mean per minute (`env.temperature_c`, `env.humidity_pct`, source `modulino-hub`). The hub reads them as hourly buckets and takes the night of each date, 23:00 to 07:00, when at least 4 of its 8 hours have a reading (`hub/afferent_hub/room.py`). Without the data manager, and for the demo roster, the daily records' own `room` fields are used and marked simulated where the record says so.
+- **Patient view** (`patient-view` `room`, Week tab): each night of the week, the typical night and the 16 to 19 °C band. **QR code**: weekly medians of the night temperature (tenths of a degree) and humidity, the number of nights and the simulated mark, as map key 19; older readers ignore it. At their largest the two rows add about 55 characters; the worst case stays one code at version 22. The clinic's imported view shows them under "Bedroom at night", context next to the signals, not part of the index. "What your clinic sees" lists it.
+
 ### Talk transcripts on the hub
 
 When a Talk conversation ends, the phone sends the transcript to the hub over the app link

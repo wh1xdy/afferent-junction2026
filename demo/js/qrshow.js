@@ -17,8 +17,11 @@
     next: '<path d="M9.5 6l6 6-6 6"/>',
     chev: '<path d="M9.5 6l6 6-6 6"/>',
     pulse: '<path d="M3 12.5h4l2.2-6 4 12 2.3-6H21"/>',
+    thermo: '<path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a4 4 0 1 1-4 0z"/><path d="M12 11v5"/>',
   };
   const VITALS = [['pulse_bpm', 'pulse', 'Pulse, finger sensor', 'bpm'], ['breathing_per_min', 'breathing rate', 'Breathing rate', 'per minute'], ['rmssd_ms', 'HRV (RMSSD)', 'HRV (RMSSD)', 'ms']];
+  // The bedroom at night (map key 19, hub/afferent_hub/room.py): [key, label, unit, decimals].
+  const ROOM = [['temp_c_night', 'Temperature at night', '°C', 1], ['humidity_pct', 'Humidity at night', '%', 0]];
   const DASH = '–';
   const svg = (p, cls = '') => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true">${p}</svg>`;
   const h = (tag, attrs = {}, kids = []) => {
@@ -105,6 +108,19 @@
     return `Weekly ${list} from the finger sensor${rows.some(r => r.sim) ? ' (simulated)' : ''}`;
   }
 
+  function roomRows(body) {
+    const Q = codec();
+    let r = null;
+    try { r = Q.unpack(Q.pack(body)).room || null; } catch {}
+    return ROOM.map(([k, label, unit, dp]) => ({ label, unit, dp, weeks: r?.weekly?.[k] || [], sim: !!r?.simulated })).filter(x => x.weeks.some(v => v !== null));
+  }
+
+  function roomLine(body) {
+    const rows = roomRows(body);
+    if (!rows.length) return 'No bedside temperature: no reading in these weeks';
+    return `Weekly ${rows.length > 1 ? 'temperature and humidity' : 'temperature'} at your bedside at night${rows[0].sim ? ' (simulated)' : ''}`;
+  }
+
   async function key(Q) {
     try { return await Q.deviceKey(); } catch { return Q.newKey(); }
   }
@@ -112,7 +128,7 @@
   async function build(rec, paper, initial) {
     const Q = codec();
     const r = Q.encode(rec.body, { key: await key(Q), paper, initial: initial || undefined, ttl: paper ? PAPER_TTL : SCREEN_TTL });
-    return { parts: r.parts, ecl: r.ecl, iat: r.iat, exp: r.exp, fp: fpGroups(r.fingerprint), sim: !!rec.body.sim, period: period(rec.body), vitals: vitalRows(rec.body) };
+    return { parts: r.parts, ecl: r.ecl, iat: r.iat, exp: r.exp, fp: fpGroups(r.fingerprint), sim: !!rec.body.sim, period: period(rec.body), vitals: vitalRows(rec.body), room: roomRows(rec.body) };
   }
 
   function matrix(text, ecl) {
@@ -236,12 +252,13 @@
     const print = h('button', { type: 'button', class: 'qx-btn text', id: 'qsPrint', html: 'Print or save as PDF' });
     const cancel = h('button', { type: 'button', class: 'qx-btn text', id: 'qsCancel', text: 'Cancel' });
     const item = (icon, text) => h('li', {}, [h('span', { class: 'qs-li', html: svg(icon) }), h('span', { text })]);
-    const vitalsItem = item(ICON.pulse, '');
+    const vitalsItem = item(ICON.pulse, ''), roomItem = item(ICON.thermo, '');
     const content = h('div', { class: 'qs-content' }, [
       h('p', { class: 'qs-sub', text: 'This code holds' }),
       h('ul', { class: 'qs-list' }, [
         item(ICON.twilight, '8 weeks of mornings: lanterns, play and the measures from play'),
         vitalsItem,
+        roomItem,
         item(ICON.checklist, 'Check-in totals, and safety answers as levels'),
         item(ICON.taskAlt, 'How complete the data is'),
         item(ICON.visOff, 'No name. No camera images. No pulse traces, only weekly numbers.'),
@@ -271,6 +288,7 @@
       const p = period(r.body);
       periodLine.textContent = `Data from ${longDay(p.from)} to ${longDay(p.to)}`;
       vitalsItem.lastChild.textContent = vitalsLine(r.body);
+      roomItem.lastChild.textContent = roomLine(r.body);
       const t = Date.parse(r.saved_iso || r.body.generated_iso || '');
       const old = Number.isFinite(t) && Date.now() - t > 864e5;
       stale.hidden = !old;
@@ -452,6 +470,11 @@
       h('tr', {}, cells('th', ['Week from', ...Array.from({ length: 8 }, (_, k) => weekFrom(k))])),
       ...enc.vitals.map(r => h('tr', {}, [h('th', { text: `${r.label}, ${r.unit}${r.sim ? ', simulated' : ''}` }), ...cells('td', r.weeks.map(x => (x === null ? DASH : x.toFixed(1))))])),
     ]) : null;
+    const room = enc.room?.length ? h('table', { class: 'qp-room' }, [
+      h('caption', { text: `At your bedside at night, 23:00 to 07:00, weekly medians${enc.room[0].sim ? ', simulated' : ''}. A dash is a week without a reading.` }),
+      h('tr', {}, cells('th', ['Week from', ...Array.from({ length: 8 }, (_, k) => weekFrom(k))])),
+      ...enc.room.map(r => h('tr', {}, [h('th', { text: `${r.label}, ${r.unit}` }), ...cells('td', r.weeks.map(x => (x === null ? DASH : x.toFixed(r.dp))))])),
+    ]) : null;
     sec.replaceChildren(
       h('p', { class: 'qp-mark', text: 'afferent' }),
       enc.sim ? h('p', { class: 'qp-sim', text: 'SIMULATED DATA' }) : null,
@@ -460,6 +483,7 @@
       enc.fp ? h('p', { class: 'qp-fp', text: enc.fp }) : null,
       h('p', { text: `Data from ${fullDay(p.from)} to ${fullDay(p.to)}` }),
       vitals,
+      room,
       h('p', { text: `Made ${fullDay(made)} · valid until ${fullDay(until)}` }),
       h('p', { text: 'Scan it in the Afferent clinic dashboard with Scan patient code.' }),
       h('p', { class: 'qp-foot', text: 'Research prototype. Not a CE-marked medical device. Not for clinical use.' }),

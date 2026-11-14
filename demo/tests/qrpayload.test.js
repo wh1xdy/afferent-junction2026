@@ -39,8 +39,13 @@ function worstCase() {
   j.cusum.history = Array.from({ length: 10 }, (_, i) => ({ day: i * 5 + 1, state: QR.STATES[i % 4] }));
   j.omitted = { safety_entries: 3, talk_requests: 7, phq_totals: 4 };
   j.vitals = largest();
+  j.room = roomLargest();
   return j;
 }
+// The bedroom at night (map key 19) at its largest: three-digit tenths and full humidity every week.
+const roomLargest = () => ({ weekly: { temp_c_night: [-9.9, 49.9, -9.8, 49.8, 23.4, -7.7, 45.6, 31.1], humidity_pct: [100, 99, 100, 98, 100, 97, 100, 96] }, nights: 56, simulated: true });
+const roomMeasured = () => ({ weekly: { temp_c_night: [null, 19.4, 21.6, 22.1, null, 18.7, 20.3, 23.5], humidity_pct: [null, 41, 38, 35, null, 44, 40, 29] }, nights: 31, simulated: false });
+const NO_ROOM = { weekly: { temp_c_night: Array(8).fill(null), humidity_pct: Array(8).fill(null) }, nights: 0, simulated: false };
 
 function near(actual, expected, q, where) {
   if (expected === null || expected === undefined) return assert.strictEqual(actual, null, where);
@@ -159,6 +164,63 @@ test('finger sensor numbers: missing stays missing, never 0', () => {
   assert.ok(VKEYS.every(k => o.weekly[k].every(x => x === null || x > 0)));
 });
 
+test('bedroom at night: round trip with gaps, nights and the simulated mark', () => {
+  const j = { ...fixture(), room: roomMeasured() };
+  const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
+  assert.strictEqual(d.status, 'ok');
+  assert.deepStrictEqual(d.body.room, j.room);
+  assert.deepStrictEqual(QR.ROOM.map(r => r[0]), ['temp_c_night', 'humidity_pct']);
+  assert.deepStrictEqual(QR.decode(QR.encode(fixture(), { key, now: NOW }).text, { now: NOW }).body.room, fixture().room, 'the anna fixture');
+  const big = QR.decode(QR.encode({ ...fixture(), room: roomLargest() }, { key, now: NOW }).text, { now: NOW }).body.room;
+  assert.deepStrictEqual(big, roomLargest());
+  const sim = { ...roomMeasured(), simulated: true };
+  assert.strictEqual(QR.decode(QR.encode({ ...fixture(), room: sim }, { key, now: NOW }).text, { now: NOW }).body.room.simulated, true);
+});
+
+test('bedroom at night: missing stays missing, a fault is no reading, never 0', () => {
+  const none = fixture();
+  delete none.room;
+  const a = QR.decode(QR.encode(none, { key, now: NOW }).text, { now: NOW });
+  assert.strictEqual(a.packed.has(19), false);
+  assert.strictEqual('room' in a.body, false);
+  for (const r of [NO_ROOM, {}, { weekly: {} }, { weekly: { temp_c_night: [] }, nights: 9, simulated: true }]) {
+    const e = QR.decode(QR.encode({ ...fixture(), room: r }, { key, now: NOW }).text, { now: NOW });
+    assert.deepStrictEqual(e.packed.get(19), []);
+    assert.deepStrictEqual(e.body.room, NO_ROOM);
+  }
+  const odd = { weekly: { temp_c_night: [-10.01, 50.01, NaN, '20', undefined, 0, -3.25, 19.96], humidity_pct: [-1, 101, 0, 55.5, null, 30, 100, 'x'] }, nights: 99, simulated: false };
+  const o = QR.decode(QR.encode({ ...fixture(), room: odd }, { key, now: NOW }).text, { now: NOW }).body.room;
+  assert.deepStrictEqual(o.weekly.temp_c_night, [null, null, null, null, null, 0, -3.2, 20]);
+  assert.deepStrictEqual(o.weekly.humidity_pct, [null, null, 0, 56, null, 30, 100, null]);
+  assert.strictEqual(o.nights, 56);
+});
+
+test('bedroom at night: a code from another encoder cannot carry a value out of range', () => {
+  const body = QR.pack(fixture());
+  body.set(19, [1, 300, [-101, 501, 196, 'x', null, true, 1.5, -100], [101, -1, 31, 0, 100, null, null, null]]);
+  const r = QR.unpack(body).room;
+  assert.deepStrictEqual(r.weekly.temp_c_night, [null, null, 19.6, null, null, null, null, -10]);
+  assert.deepStrictEqual(r.weekly.humidity_pct, [null, null, 31, 0, 100, null, null, null]);
+  assert.deepStrictEqual([r.nights, r.simulated], [56, true]);
+  for (const bad of [[2, 3, Array(8).fill(null), Array(8).fill(null)], [1, 3, Array(8).fill(null)], [0, 1, [1], Array(8).fill(null)]]) {
+    body.set(19, bad);
+    assert.throws(() => QR.unpack(body), /body_shape/, JSON.stringify(bad));
+  }
+});
+
+test('a code with the bedroom at night decodes in a reader from before it', () => {
+  const j = { ...fixture(), room: roomMeasured() };
+  const p = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW }).packed;
+  assert.ok(p.has(19));
+  const old = new Map([...p].filter(([k]) => k !== 19));
+  const plain = fixture();
+  delete plain.room;
+  assert.deepStrictEqual(QR.cbor.encode(old), QR.cbor.encode(QR.pack(plain)), 'key 19 is the only addition');
+  const { room, ...rest } = QR.unpack(p);
+  assert.deepStrictEqual(QR.unpack(old), rest);
+  assert.deepStrictEqual(room, j.room);
+});
+
 test('codes made before the finger sensor numbers still decode', () => {
   const f = frozen();
   assert.ok(!f.packed_keys.includes(18));
@@ -204,9 +266,13 @@ test('byte budget: anna at version 20 or lower, worst case at 22 or lower, both 
   const bare = worstCase();
   delete bare.vitals;
   const b = QR.encode(bare, { key, now: NOW, initial: 'ABC' });
-  console.log(`  anna: ${a.chars} chars, version ${a.versions[0]} ${a.ecl}; with finger sensor numbers: ${m.chars} chars, version ${m.versions[0]}; worst case: ${w.chars} chars, version ${w.versions[0]} ${w.ecl}, shrink ${w.shrink}; of these ${w.chars - b.chars} chars are the finger sensor numbers at their largest`);
+  const noRoom = worstCase();
+  delete noRoom.room;
+  const n = QR.encode(noRoom, { key, now: NOW, initial: 'ABC' });
+  console.log(`  anna: ${a.chars} chars, version ${a.versions[0]} ${a.ecl}; with finger sensor numbers: ${m.chars} chars, version ${m.versions[0]}; worst case: ${w.chars} chars, version ${w.versions[0]} ${w.ecl}, shrink ${w.shrink}; of these ${w.chars - b.chars} chars are the finger sensor numbers and ${w.chars - n.chars} the bedroom at night, both at their largest`);
   assert.ok(m.versions[0] <= 20 && m.chars <= 970, `anna with finger sensor numbers: version ${m.versions[0]}`);
   assert.ok(w.chars - b.chars <= 150, `finger sensor numbers take ${w.chars - b.chars} chars`);
+  assert.ok(w.chars - n.chars <= 75, `the bedroom at night takes ${w.chars - n.chars} chars`);
   assert.strictEqual(a.ecl, 'M');
   assert.ok(a.versions[0] <= 20, `anna version ${a.versions[0]}`);
   assert.ok(a.chars <= 970);
@@ -220,6 +286,7 @@ test('byte budget: anna at version 20 or lower, worst case at 22 or lower, both 
   assert.deepStrictEqual(d.body.phq.history.map(h => h.day), worstCase().phq.history.slice(-8).map(h => h.day));
   assert.deepStrictEqual(d.body.omitted, { safety_entries: 3, talk_requests: 7, phq_totals: 8 });
   assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].every(x => x !== null)));
+  assert.deepStrictEqual(d.body.room, roomLargest());
 });
 
 test('over the cap: talk then PHQ shrink, safety never dropped, then chunks', () => {
@@ -385,7 +452,7 @@ test('nothing raw travels: forbidden keys and names never reach the code', () =>
   assert.ok(!text.includes('Anna') && !text.includes('anna') && !text.includes('yes'));
   const bin = Buffer.from(QR.cbor.encode(d.packed)).toString('latin1');
   assert.ok(!bin.includes('Anna') && !bin.includes('anna') && !bin.includes('phq9'));
-  assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 18));
+  assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 19));
 });
 
 test('scan: jsQR reads the drawn matrix at 3 px per module', () => {

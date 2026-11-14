@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import datetime as dt
 import hashlib
 import json
 import logging
@@ -9,7 +10,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from . import export, modules, qr, views, wellbeing
+from . import export, modules, qr, room, views, wellbeing
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
@@ -25,6 +26,7 @@ VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
+ROOM_TTL_S = 300.0           # the night means change once a day; the data manager is asked at most every 5 min
 
 class HubError(Exception):
     def __init__(self, status: int, code: str, detail: str):
@@ -86,6 +88,7 @@ class Hub:
                                          total_max=int(settings.transcript_total_mb * 1024 * 1024))
         # Set by main.py to the team's SensorSource; stays None in tests and without the data manager.
         self.sensors = None
+        self._room: dict[str, tuple[float, dict[str, dict]]] = {}
 
     def _pulse_allowed(self) -> bool:
         return bool(self.privacy(self.settings.bound_patient).get("sensors", {}).get("pulse_stone", True))
@@ -270,15 +273,42 @@ class Hub:
                 "pauses": [{"source": q["source"], "from": views.day_date(p, q["from_day"]).isoformat(),
                             "until": views.day_date(p, q["until_day"]).isoformat()} for q in pauses]}
 
+    async def refresh_room(self, pid: str) -> None:
+        """The bedroom at night from the data manager's minute means, for the patient the bedside unit is bound
+        to. Kept for ROOM_TTL_S; when the data manager does not answer, the last answer (or the daily records) stays."""
+        if pid != self.settings.bound_patient or not (self.sensors is not None and self.sensors.enabled):
+            return
+        got = self._room.get(pid)
+        if got and time.monotonic() - got[0] < ROOM_TTL_S:
+            return
+        tz = dt.datetime.now().astimezone().tzinfo
+        try:
+            nights = await asyncio.to_thread(self.sensors.room_nights, qr.PERIOD_DAYS + 1, tz)
+        except Exception as e:
+            log.warning("room climate from the data manager: %s", e)
+            return
+        self._room[pid] = (time.monotonic(), nights)
+
+    def room_days(self, pid: str) -> dict[int, dict]:
+        """day_index -> the night's room climate: the data manager's nights over the daily records' own values."""
+        p = self.patient(pid)
+        measured = {}
+        for date, night in (self._room.get(pid) or (0, {}))[1].items():
+            try:
+                measured[views.day_index(p, date)] = night
+            except ValueError:
+                continue
+        return room.merge(room.from_daily(self.store.daily(pid)), measured)
+
     def patient_view(self, pid: str) -> dict:
         p = self.patient(pid)
         return views.patient_view(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid),
-                                  self.analytics(pid))
+                                  self.analytics(pid), self.room_days(pid))
 
     def qr_body(self, pid: str) -> dict:
         p = self.patient(pid)
         return qr.build(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid), self.analytics(pid),
-                        self.store.checkins(pid), self.store.flags(pid))
+                        self.store.checkins(pid), self.store.flags(pid), self.room_days(pid))
 
     def export_publish(self, body: dict) -> dict:
         html, pid = body.get("html"), body.get("patient_id")
@@ -562,6 +592,11 @@ class Hub:
         if t == "hello":
             client.patient_id = msg.get("patient_id") or client.patient_id or self.settings.bound_patient
             await self.rooms.send(client, self.config(client.patient_id))
+            if client.patient_id == self.settings.bound_patient:
+                # the last room reading at once, so the app does not wait up to a minute for the next one
+                last = self.bedside.room_message()
+                if last["temp_c"] is not None:
+                    await self.rooms.send(client, last)
         elif t == "ping":
             await self.rooms.send(client, {"type": "pong"})
         elif t == "session_start":

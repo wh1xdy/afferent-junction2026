@@ -17,7 +17,7 @@ FINGER_SESSION = ROOT / "contracts" / "fixtures" / "session_finger_example.json"
 FORBIDDEN = {"phq9", "phq9_9", "cssrs", "items", "item9", "display_name", "patient_id", "checkins", "name",
              "what_helped", "session_id", "checkin_id"}
 TOP = {"v", "sim", "generated_iso", "period", "mornings", "state", "composite", "contrib", "cusum", "weekly",
-       "baseline", "phq", "safety", "talk", "complete", "pauses", "sensors", "vitals"}
+       "baseline", "phq", "safety", "talk", "complete", "pauses", "sensors", "vitals", "room"}
 SAFETY_FIELDS = {"day", "minute", "tier", "source", "screen", "c6_repeat"}
 VITAL_KEYS = ["pulse_bpm", "breathing_per_min", "rmssd_ms"]
 NO_VITALS = {"weekly": {k: [None] * 8 for k in VITAL_KEYS}, "days": {k: 0 for k in VITAL_KEYS},
@@ -132,6 +132,10 @@ def test_roster_bodies_have_the_shape(client):
         assert len(b["phq"]["history"]) <= qr.CAPS["phq"] and len(b["safety"]) <= qr.CAPS["safety"]
         assert len(b["talk"]) <= qr.CAPS["talk"]
         assert b["vitals"] == NO_VITALS
+        # the demo roster's nights come from its generated daily records, so they are marked simulated
+        assert set(b["room"]) == {"weekly", "nights", "simulated"} and b["room"]["simulated"] is True
+        assert set(b["room"]["weekly"]) == {"temp_c_night", "humidity_pct"}
+        assert all(len(row) == 8 for row in b["room"]["weekly"].values()) and 0 < b["room"]["nights"] <= 56
         assert_clean(b)
     assert client.get("/api/patients/nobody/qr-body").status_code == 404
 
@@ -200,6 +204,8 @@ def test_fixture_matches_the_live_shape(client):
         assert set(fx[k]) == set(live[k]), k
     assert fx["sim"] is True and fx["safety"] and fx["talk"] and fx["phq"]["history"]
     assert fx["vitals"] == live["vitals"] == NO_VITALS
+    assert set(fx["room"]) == set(live["room"]) and set(fx["room"]["weekly"]) == set(live["room"]["weekly"])
+    assert fx["room"]["simulated"] is live["room"]["simulated"] is True
     assert_clean(fx)
     fallback = ROOT / "demo" / "js" / "qr_body_fallback.json"
     assert json.loads(fallback.read_text()) == fx

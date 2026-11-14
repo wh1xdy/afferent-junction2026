@@ -41,3 +41,16 @@
 @media (prefers-reduced-motion: reduce) {
   #signals .sheet { animation: fadeIn 150ms linear; }
 }
+
+/* Room climate: the night hint on the start screen (js/room.js) */
+.room-hint {
+  display: flex; align-items: flex-start; gap: 10px; max-width: 340px; margin: 0 0 20px; padding: 12px 16px 12px 14px;
+  border-radius: 20px; background: var(--af-glass-strong); color: var(--md-sys-color-on-surface);
+  box-shadow: var(--af-glass-edge), var(--af-lift-1);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  font: 400 14px/20px var(--af-font-ui); letter-spacing: 0.1px; text-wrap: pretty;
+}
+.room-hint[hidden] { display: none; }
+.room-hint .ms { flex: none; font-size: 20px; line-height: 20px; color: var(--md-sys-color-secondary); }
+.room-hint .rh-title { font-weight: 600; }
+.room-hint .rh-text { color: var(--md-sys-color-on-surface-variant); }

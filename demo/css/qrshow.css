@@ -136,9 +136,9 @@
   #qrPrint .qp-codes.three .qp-code svg { height: 62mm; }
   #qrPrint figcaption { margin-top: 2mm; font-weight: 600; }
   #qrPrint .qp-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14pt; letter-spacing: 0.1em; }
-  #qrPrint .qp-vit { border-collapse: collapse; margin: 4mm 0 5mm; font-size: 9pt; font-variant-numeric: tabular-nums; break-inside: avoid; }
-  #qrPrint .qp-vit caption { margin-bottom: 1.5mm; text-align: left; font-weight: 600; }
-  #qrPrint .qp-vit th, #qrPrint .qp-vit td { padding: 1mm 0 1mm 3mm; border-bottom: 0.2mm solid #000000; text-align: right; font-weight: 400; white-space: nowrap; }
-  #qrPrint .qp-vit th:first-child { padding-left: 0; text-align: left; }
+  #qrPrint .qp-vit, #qrPrint .qp-room { border-collapse: collapse; margin: 4mm 0 5mm; font-size: 9pt; font-variant-numeric: tabular-nums; break-inside: avoid; }
+  #qrPrint .qp-vit caption, #qrPrint .qp-room caption { margin-bottom: 1.5mm; text-align: left; font-weight: 600; }
+  #qrPrint .qp-vit th, #qrPrint .qp-vit td, #qrPrint .qp-room th, #qrPrint .qp-room td { padding: 1mm 0 1mm 3mm; border-bottom: 0.2mm solid #000000; text-align: right; font-weight: 400; white-space: nowrap; }
+  #qrPrint .qp-vit th:first-child, #qrPrint .qp-room th:first-child { padding-left: 0; text-align: left; }
   #qrPrint .qp-foot { margin-top: 10mm; font-size: 9pt; }
 }

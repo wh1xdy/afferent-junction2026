@@ -110,8 +110,8 @@
     const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now);
     const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
-    const face = faceRows(S.faceLive(now));
-    return { rows, note, face: face.length ? { title: 'Face', rows: face } : null, earlier: earlier() };
+    const face = faceRows(S.faceLive(now)), room = A.Room ? A.Room.rows(now).map(r => row(r.icon, r.label, r.value, r.lines)) : [];
+    return { rows, note, room: room.length ? { title: 'Your room', rows: room } : null, face: face.length ? { title: 'Face', rows: face } : null, earlier: earlier() };
   };
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -140,6 +140,7 @@
     drawn = key;
     const nodes = [groupEl(m.rows)];
     if (m.note) nodes.push(el('p', 't-body-s muted sig-note', m.note));
+    if (m.room) nodes.push(groupEl(m.room.rows, m.room.title));
     if (m.face) nodes.push(groupEl(m.face.rows, m.face.title));
     if (m.earlier) nodes.push(groupEl(m.earlier.rows, m.earlier.title));
     body.replaceChildren(...nodes);

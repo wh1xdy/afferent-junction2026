@@ -75,6 +75,8 @@ async function printed(body) {
   env.table = byClass(env.printSec, 'qp-vit')[0] || null;
   env.rows = env.table ? env.table.children.filter(c => c.tag === 'tr').map(tr => tr.children.map(c => c.textContent)) : [];
   env.texts = env.printSec.children.map(text);
+  env.room = byClass(env.printSec, 'qp-room')[0] || null;
+  env.roomRows = env.room ? env.room.children.filter(c => c.tag === 'tr').map(tr => tr.children.map(c => c.textContent)) : [];
   return env;
 }
 
@@ -88,9 +90,10 @@ const WORDS = /\b(stress\w*|strain\w*|normal|abnormal|elevated|worse|better|risk
 (async () => {
   await test('sheet: lists the finger sensor numbers the code holds', async () => {
     const s = await sheet({ ...fixture(), vitals: measured() });
-    assert.strictEqual(s.items.length, 5);
+    assert.strictEqual(s.items.length, 6);
     assert.strictEqual(s.items[1], 'Weekly pulse, breathing rate and HRV (RMSSD) from the finger sensor');
-    assert.strictEqual(s.items[4], 'No name. No camera images. No pulse traces, only weekly numbers.');
+    assert.strictEqual(s.items[2], 'Weekly temperature and humidity at your bedside at night (simulated)');
+    assert.strictEqual(s.items[5], 'No name. No camera images. No pulse traces, only weekly numbers.');
     assert.strictEqual(s.note, 'Anyone who scans this code can read it. It is not sent anywhere: you show it or hand it over yourself.');
     for (const t of [...s.items, s.note]) assert.ok(!WORDS.test(t), t);
   });
@@ -125,7 +128,8 @@ const WORDS = /\b(stress\w*|strain\w*|normal|abnormal|elevated|worse|better|risk
     for (const t of p.texts) assert.ok(!WORDS.test(t), t);
     assert.ok(p.texts.includes('SIMULATED DATA'), 'the demo patient stays marked');
     const iData = p.texts.findIndex(t => t.startsWith('Data from')), iTable = p.printSec.children.indexOf(p.table), iMade = p.texts.findIndex(t => t.startsWith('Made'));
-    assert.ok(iData >= 0 && iTable === iData + 1 && iMade === iTable + 1, 'the table sits under the dates');
+    const iRoom = p.printSec.children.indexOf(p.room);
+    assert.ok(iData >= 0 && iTable === iData + 1 && iRoom === iTable + 1 && iMade === iRoom + 1, 'the tables sit under the dates');
   });
 
   await test('printed page: what is printed is what the code holds', async () => {
@@ -146,6 +150,34 @@ const WORDS = /\b(stress\w*|strain\w*|normal|abnormal|elevated|worse|better|risk
     part.weekly.rmssd_ms = Array(8).fill(null);
     const q = await printed({ ...fixture(), vitals: part });
     assert.deepStrictEqual(q.rows.map(r => r[0]), ['Week from', 'Pulse, finger sensor, bpm', 'Breathing rate, per minute']);
+  });
+
+  const nights = () => ({ weekly: { temp_c_night: [null, 19.4, 21.6, 22.1, null, 18.7, 20.3, 23.5], humidity_pct: [null, 41, 38, 35, null, 44, 40, 29] }, nights: 31, simulated: false });
+
+  await test('bedroom at night: the sheet says the code holds it, or that there is no reading', async () => {
+    assert.strictEqual((await sheet({ ...fixture(), room: nights() })).items[2], 'Weekly temperature and humidity at your bedside at night');
+    const old = fixture();
+    delete old.room;
+    assert.strictEqual((await sheet(old)).items[2], 'No bedside temperature: no reading in these weeks');
+    const dry = nights();
+    dry.weekly.humidity_pct = Array(8).fill(null);
+    assert.strictEqual((await sheet({ ...fixture(), room: dry })).items[2], 'Weekly temperature at your bedside at night');
+    for (const t of (await sheet({ ...fixture(), room: nights() })).items) assert.ok(!WORDS.test(t), t);
+  });
+
+  await test('bedroom at night: printed under the finger numbers, what the code holds', async () => {
+    const p = await printed({ ...fixture(), room: nights() });
+    assert.ok(p.room, 'room table on the page');
+    assert.strictEqual(text(p.room.children[0]), 'At your bedside at night, 23:00 to 07:00, weekly medians. A dash is a week without a reading.');
+    assert.deepStrictEqual(p.roomRows[1], ['Temperature at night, °C', DASH, '19.4', '21.6', '22.1', DASH, '18.7', '20.3', '23.5']);
+    assert.deepStrictEqual(p.roomRows[2], ['Humidity at night, %', DASH, '41', '38', '35', DASH, '44', '40', '29']);
+    assert.strictEqual(p.table, null, 'no finger table without finger numbers');
+    for (const t of p.texts) assert.ok(!WORDS.test(t), t);
+    const sim = await printed(fixture());
+    assert.ok(text(sim.room.children[0]).includes('weekly medians, simulated.'));
+    const old = fixture();
+    delete old.room;
+    assert.strictEqual((await printed(old)).room, null);
   });
 
   for (const [s, name, e] of results) console.log(`${s} ${name}${e ? '\n  ' + (e.stack || e) : ''}`);

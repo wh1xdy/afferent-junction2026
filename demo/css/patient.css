@@ -220,3 +220,19 @@ button.li:active::after, .li.sensor:active::after { opacity: 0.08; }
   .pz, .card { animation: none; }
   #bar, .bar-title, .seg button, .seg button svg, .switch, .switch .thumb, #nav .pill { transition: none; }
 }
+
+/* At your bedside at night (js/patient.js renderRoom): one column a night, the sleep range as a band */
+#roomCard[hidden] { display: none; }
+#roomCard .card-head .sim { flex: none; }
+.rn { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-top: 16px; }
+.rn-col { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; }
+.rn-v { font-size: 13px; line-height: 16px; color: var(--ll-on-surface); font-variant-numeric: tabular-nums; }
+.rn-col.none .rn-v { color: var(--ll-outline); }
+.rn-track {
+  position: relative; align-self: stretch; height: 72px;
+  background: linear-gradient(to top, transparent var(--lo), color-mix(in srgb, #CFE2EE 75%, transparent) var(--lo), color-mix(in srgb, #CFE2EE 75%, transparent) var(--hi), transparent var(--hi));
+}
+.rn-track::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px dashed var(--ll-outline-variant); }
+.rn-dot { position: absolute; left: 50%; bottom: var(--y); width: 12px; height: 12px; margin: 0 0 -6px -6px; border-radius: 50%; background: #4F6B85; box-shadow: 0 0 0 2px var(--ll-surface-mid); }
+.rn-wd { font-size: 15px; line-height: 20px; font-weight: 500; color: var(--ll-on-surface-variant); }
+.rn-note { margin-top: 12px; }

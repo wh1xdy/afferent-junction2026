@@ -32,6 +32,10 @@
   const FKEYS = FEATURES.map(f => f[0]);
   const VITALS = [['pulse_bpm', 10], ['breathing_per_min', 10], ['rmssd_ms', 10]];
   const VITAL_MAX = 65535;
+  // Map key 19, the bedroom at night (hub/afferent_hub/room.py): weekly medians of the night temperature (tenths of
+  // a degree) and humidity (whole percent), how many nights had a reading, and whether they were simulated.
+  const ROOM = [['temp_c_night', 10, -10, 50], ['humidity_pct', 1, 0, 100]];
+  const NIGHTS_MAX = 56;
   const STATES = ['stable', 'watch', 'check_in', 'booster'];
   const CONFIDENCE = ['low', 'medium', 'high'];
   const BANDS = ['minimal', 'mild', 'moderate', 'moderately_severe', 'severe'];
@@ -190,6 +194,9 @@
   const dq = (x, q) => (x === null || x === undefined ? null : x / q);
   const qv = (x, q) => { const n = qz(x, q); return n === null || n <= 0 || n > VITAL_MAX ? null : n; };
   const dv = (x, q) => (Number.isInteger(x) && x > 0 && x <= VITAL_MAX ? x / q : null);
+  const qr = (x, q, lo, hi) => (isNum(x) && x >= lo && x <= hi ? Math.round(x * q) : null);
+  const dr = (x, q, lo, hi) => (Number.isInteger(x) && x >= lo * q && x <= hi * q ? x / q : null);
+  const nights = n => Math.min(NIGHTS_MAX, Math.max(0, intOrNull(n) ?? 0));
   const intOrNull = x => (isNum(x) ? Math.round(x) : null);
   const ix = (list, v) => { const i = list.indexOf(v); return i < 0 ? null : i; };
   const at = (list, i) => (i === null || i === undefined ? null : list[i] === undefined ? fail('body_enum') : list[i]);
@@ -267,6 +274,11 @@
         ...rows,
       ]);
     }
+    const room = j.room;
+    if (room && typeof room === 'object') {
+      const rows = ROOM.map(([k, q, lo, hi]) => Array.from({ length: 8 }, (_, i) => qr(((room.weekly || {})[k] || [])[i], q, lo, hi)));
+      body.set(19, !rows.some(r => r.some(x => x !== null)) ? [] : [room.simulated ? 1 : 0, nights(room.nights), ...rows]);
+    }
     return body;
   }
 
@@ -313,6 +325,13 @@
         days: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && Number.isInteger(days[i]) ? Math.min(56, Math.max(0, days[i])) : 0])),
         simulated: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && !!(v[0] & (1 << i))])),
       };
+    }
+    if (b.has(19)) {
+      const v = arr(b.get(19)), none = v.length === 0;
+      if (!none && (v.length !== 2 + ROOM.length || (v[0] !== 0 && v[0] !== 1))) fail('body_shape');
+      const rows = ROOM.map(([, q, lo, hi], i) => (none ? Array(8).fill(null) : arr(v[2 + i], 8).map(x => dr(x, q, lo, hi))));
+      const has = rows.some(r => r.some(x => x !== null));
+      out.room = { weekly: Object.fromEntries(ROOM.map(([k], i) => [k, rows[i]])), nights: has ? nights(v[1]) : 0, simulated: has && v[0] === 1 };
     }
     if (out.safety.some(e => !e.tier)) fail('body_enum');
     return out;
@@ -493,7 +512,7 @@
   const cachedBody = () => idbDo('afferent-qr', 'body', 'readonly', s => s.get('body')).then(x => x || null);
 
   const QR = {
-    PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, VITALS, STATES, TIERS, SENSORS, FORBIDDEN,
+    PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, VITALS, ROOM, STATES, TIERS, SENSORS, FORBIDDEN,
     encode, decode, pack, unpack, parse, chunk, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
     cbor: { encode: cborEncode, decode: cborDecode, Tag }, base45: { encode: b45encode, decode: b45decode },
     sign, isoDay, epochDay, cleanInitial,

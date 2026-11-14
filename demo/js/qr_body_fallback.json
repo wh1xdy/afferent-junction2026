@@ -366,5 +366,31 @@
    "breathing_per_min": false,
    "rmssd_ms": false
   }
+ },
+ "room": {
+  "weekly": {
+   "temp_c_night": [
+    19.6,
+    19.6,
+    19.6,
+    19.4,
+    19.4,
+    19.4,
+    19.8,
+    19.8
+   ],
+   "humidity_pct": [
+    32,
+    33,
+    32,
+    31,
+    33,
+    30,
+    32,
+    32
+   ]
+  },
+  "nights": 55,
+  "simulated": true
  }
 }
