@@ -36,6 +36,12 @@ test('first cue wins, a second hit on the same cue is ignored, by_kind splits', 
   assert.strictEqual(s.iqr_ms, 250);
 });
 
+test('the fishing hole, bite glow and splash scale with the scene, not with the window width', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'js', 'tasks', 'reaction.js'), 'utf8');
+  const sized = src.split('\n').filter(l => /\b(img|bloom|sprite)\(|fw = /.test(l) && /g\.W \*/.test(l));
+  assert.deepStrictEqual(sized, []);
+});
+
 for (const [s, name, e] of results) console.log(`${s} ${name}${e ? '\n  ' + (e.stack || e) : ''}`);
 const failed = results.filter(r => r[0] === 'FAIL').length;
 console.log(`${results.length - failed} passed, ${failed} failed`);

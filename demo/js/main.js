@@ -241,7 +241,8 @@
     A.bus.emit('ws', { type: 'session_start', session_id: s.rec.session_id, patient_id: A.config.patientId, clock: ui.clock, profile: ui.profile, simulated: s.liveMetrics(A.now()).simulated, sensors: s.rec.sensors, t_iso: s.rec.started_iso });
     log(`session start, ${A.Input.mode}, ${ui.clock}, ${ui.profile}`);
   };
-  $('begin').addEventListener('kindle', begin);
+  // the clip check (clipcheck.js) runs first when the clips give no pulse yet; it calls begin, or puts the lantern out
+  $('begin').addEventListener('kindle', () => A.ClipCheck ? A.ClipCheck.beforeSession(begin) : begin());
 
   $('decline').onclick = () => {
     const r = A.declinedRecord(ui.profile);

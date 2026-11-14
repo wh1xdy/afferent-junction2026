@@ -321,10 +321,12 @@ def fuse():
 
 
 def ble_status(tick):
-    """Fused quality + presence mode -> AFF1 bytes 4..5. keepalive every other tick: a notify at
-    least every 2 s lets the phone see that the link is alive, also while idle."""
-    ble.update_status(fused.get('quality') if sensing() else None, presence['mode'],
-                      keepalive=(tick % 2 == 0))
+    """Fused quality + presence mode + two people on the clips -> AFF1 bytes 4..6. keepalive every
+    other tick: a notify at least every 2 s lets the phone see that the link is alive, also while
+    idle. The two-people flag lets the phone keep Heart Duel readings out of the patient's data."""
+    on = sensing()
+    ble.update_status(fused.get('quality') if on else None, presence['mode'],
+                      keepalive=(tick % 2 == 0), two_hearts=on and fused.get('two_hearts') is True)
 
 
 def period_loop(stopped):
