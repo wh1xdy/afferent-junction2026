@@ -178,11 +178,11 @@ const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, r
   // Every half second until feed(null): f(now). finger(bpm, o) is one notification pair of the finger sensor over
   // Bluetooth (sensors.js feedFingerBle): the pulse (hrm) and the frame with its quality and presence (aff1).
   const feed = f => { feeder = f; fedAt = -99; };
-  const finger = (bpm, { quality = 0.9, presence = 'active' } = {}) => {
+  const finger = (bpm, { quality = 0.9, presence = 'active', twoHearts = false } = {}) => {
     const S = A.Sensors;
     if (S.fingerLink.state !== 'connected') S.setFingerLink('connected', 'test');
     S.feedFingerBle({ kind: 'hrm', bpm });
-    S.feedFingerBle({ kind: 'aff1', quality, presence, payload_len: 5, finger_bpm: [bpm, bpm], breathing_per_min: 14, rmssd_ms: 32 });
+    S.feedFingerBle({ kind: 'aff1', quality, presence, payload_len: 5, finger_bpm: [bpm, bpm], breathing_per_min: 14, rmssd_ms: 32, ...(twoHearts ? { two_hearts: true } : {}) });
   };
   return { A, M, Au, wa, ctx, calls, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, isLive, feed, finger, now: () => now };
 };
@@ -602,7 +602,7 @@ test('a real pulse starts the generated music at the heart rate, and it leads do
   assert.strictEqual(B.following, true);
 });
 
-test('without a real pulse the music is today\'s, source for source: no reading, simulated, weak, stale, no finger, locked to the simulator', async () => {
+test('without a real pulse the music is today\'s, source for source: no reading, simulated, weak, stale, no finger, simulator lock, Heart Duel', async () => {
   const session = async (setup, label) => {
     const a = app({ sensors: true, seed: 42 }), B = a.A.MusicBio, seen = [];
     setup?.(a);
@@ -626,6 +626,7 @@ test('without a real pulse the music is today\'s, source for source: no reading,
     'no finger in the clip': a => a.feed(() => a.finger(95, { presence: 'idle' })),
     'stale': a => a.feed(t => { if (t < 2) a.finger(95); }),
     'locked to the simulator': a => { S(a).pulseMode = 'simulated'; a.feed(() => a.finger(95)); },
+    'two people on the clips (Heart Duel)': a => a.feed(() => a.finger(95, { twoHearts: true })),
   };
   for (const [label, setup] of Object.entries(cases)) assert.deepStrictEqual(await session(setup, label), today, label + ': the music changed');
 });
