@@ -297,6 +297,7 @@ TASK_BREATHING = {
     "source": "finger_ppg", "method": "pulse_rhythm", "guide_per_min": 6, "seconds": 20,
     "rate_per_min": {"mean": 8.4, "min": 7, "max": 11, "first": 11, "last": 7, "samples": 16},
     "pulse_bpm": {"mean": 71.2, "min": 69, "max": 74, "first": 74, "last": 70, "samples": 20},
+    "pulse_start_bpm": 74, "pulse_end_bpm": 70,
 }
 
 
@@ -312,6 +313,9 @@ def with_task_breathing(change=None):
 def test_task_breathing_valid_and_optional(session_schema):
     assert errors(session_schema, with_task_breathing()) == []
     assert errors(session_schema, with_task_breathing(lambda b: b.update(pulse_bpm=dict(EMPTY_STAT)))) == []
+    # no reading at one end of the task, or at neither: the key stays, the value is null
+    assert errors(session_schema, with_task_breathing(lambda b: b.update(pulse_end_bpm=None))) == []
+    assert errors(session_schema, with_task_breathing(lambda b: b.update(pulse_start_bpm=None, pulse_end_bpm=None))) == []
     doc = load(FIX / "session_example.json")
     assert all("breathing" not in (t.get("extra") or {}) for t in doc["tasks"])
     assert errors(session_schema, doc) == []
@@ -326,6 +330,7 @@ def test_task_breathing_rejects_missing_required_key(session_schema, key):
     ("source", "simulated"), ("source", "ky039"), ("source", "rppg"), ("source", None),
     ("method", "chest_band"), ("guide_per_min", 0), ("guide_per_min", None), ("seconds", -1), ("seconds", 20.5),
     ("rate_per_min", 8.4), ("rate_per_min", None), ("pulse_bpm", None),
+    ("pulse_start_bpm", "74"), ("pulse_end_bpm", {"mean": 70}),
 ])
 def test_task_breathing_rejects_wrong_value(session_schema, key, value):
     assert errors(session_schema, with_task_breathing(lambda b: b.update({key: value})))

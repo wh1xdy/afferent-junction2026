@@ -3,16 +3,18 @@
 // it can describe a pace, never a single breath. A simulated frame never counts here.
 (() => {
   const { clamp } = A;
-  const MIN_QUALITY = 0.3, NEAR_BAND = 1, FAR_SPAN = 6, MIN_S = 5, MIN_SHARE = 1 / 3;
+  const MIN_QUALITY = 0.3, FRESH_S = 3, NEAR_BAND = 1, FAR_SPAN = 6, MIN_S = 5, MIN_SHARE = 1 / 3, EDGE_S = 3;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
 
   // What the finger clips give right now, read from a frame of A.Sensors.fingerFrame, which already drops every
   // value whose notification is older than 3 s. null means no real reading: no sensor, stale, simulated, no finger
-  // in the clip, a signal the sensor itself calls unreliable, or zeros only.
+  // in the clip, zeros only, or a signal quality that is below 0.3 or not reported (the rule of the game pulse, I53).
+  // Over the hub the frame also says how old the heartbeats behind it are; older than 3 s is not a current reading.
   const reading = f => {
     if (!f || f.source !== 'finger_ppg' || f.simulated) return null;
     if (f.presence != null && f.presence !== 'active') return null;
-    if (f.quality_reported && f.quality != null && f.quality < MIN_QUALITY) return null;
+    if (!f.quality_reported || f.quality == null || f.quality < MIN_QUALITY) return null;
+    if (f.transport === 'hub_http' && f.age_s >= FRESH_S) return null;
     const rate = pos(f.breathing_per_min), pulse = pos(f.pulse_bpm);
     return rate == null && pulse == null ? null : { rate, pulse };
   };
@@ -23,6 +25,14 @@
 
   // A result is only stated when readings covered a meaningful part of the task.
   const enough = (samples, seconds) => samples >= MIN_S && samples >= seconds * MIN_SHARE;
+
+  // The pulse at the start and at the end of a task, from its 1 Hz samples: the first reading within the first 3 s
+  // and the last one within the last 3 s. null where there was none, so a late first sample or an early last one is
+  // never taken for the start or the end.
+  const ends = pulses => {
+    const n = pulses.length, r1 = A.Record.r1, has = x => x != null;
+    return { start: r1(pulses.slice(0, EDGE_S).find(has)), end: r1(pulses.slice(Math.max(EDGE_S, n - EDGE_S)).reverse().find(has)) };
+  };
 
   // One per breathing task. frame() runs every game frame: the live state follows the frame at once, the samples
   // for the average are taken once a second.
@@ -41,10 +51,13 @@
     },
     result() {
       if (!enough(this.rates.filter(x => x != null).length, this.seconds)) return null;
-      const stat = A.Record.stat;
-      return { source: 'finger_ppg', method: 'pulse_rhythm', guide_per_min: this.guide, seconds: this.seconds, rate_per_min: stat(this.rates), pulse_bpm: stat(this.pulses) };
+      const stat = A.Record.stat, pulse = ends(this.pulses);
+      return {
+        source: 'finger_ppg', method: 'pulse_rhythm', guide_per_min: this.guide, seconds: this.seconds, rate_per_min: stat(this.rates),
+        pulse_bpm: stat(this.pulses), pulse_start_bpm: pulse.start, pulse_end_bpm: pulse.end,
+      };
     },
   });
 
-  A.Breathing = { reading, closeness, enough, track };
+  A.Breathing = { reading, closeness, enough, ends, track };
 })();

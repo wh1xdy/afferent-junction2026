@@ -1357,7 +1357,9 @@
         "guide_per_min",
         "seconds",
         "rate_per_min",
-        "pulse_bpm"
+        "pulse_bpm",
+        "pulse_start_bpm",
+        "pulse_end_bpm"
       ],
       "additionalProperties": false,
       "properties": {
@@ -1379,11 +1381,19 @@
         },
         "rate_per_min": {
           "$ref": "#/$defs/stat",
-          "description": "Measured breaths per minute over the ticks of the task that had a current reading"
+          "description": "Measured breaths per minute over the ticks of the task that had a current reading. The sensor derives each value from its last 40 s of heartbeats, so in a task shorter than that the mean mostly describes the breathing before the task"
         },
         "pulse_bpm": {
           "$ref": "#/$defs/stat",
-          "description": "Fused finger pulse over the task, beats per minute; first and last are the pulse at its start and at its end"
+          "description": "Fused finger pulse over the task, beats per minute. first and last are the first and the last sample, wherever in the task they fell; for the pulse at the start and at the end use pulse_start_bpm and pulse_end_bpm"
+        },
+        "pulse_start_bpm": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Fused finger pulse at the start of the task: the first current reading within its first 3 s. null when there was none"
+        },
+        "pulse_end_bpm": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Fused finger pulse at the end of the task: the last current reading within its last 3 s. null when there was none"
         }
       }
     },

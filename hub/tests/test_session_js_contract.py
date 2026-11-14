@@ -75,3 +75,5 @@ def test_js_breath_task_matches_schema():
     assert b["guide_per_min"] == 6
     assert 5 <= b["rate_per_min"]["samples"] <= b["seconds"]
     assert b["rate_per_min"]["mean"] == 9
+    # readings ran through the whole task, so both ends of it have a pulse
+    assert (b["pulse_start_bpm"], b["pulse_end_bpm"]) == (72, 72)
