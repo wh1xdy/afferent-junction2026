@@ -3,6 +3,8 @@ App/Pods
 App/output
 App/App/public
 DerivedData
+App/TeamTests/.build
+App/TeamTests/.swiftpm
 xcuserdata
 
 # Cordova plugins for Capacitor

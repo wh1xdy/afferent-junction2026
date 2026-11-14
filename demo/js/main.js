@@ -203,7 +203,7 @@
     if (ui.input === 'camera' && !S.camera()) {
       $('begin').disabled = true;
       log('starting camera');
-      try { log(`camera on (${await S.startCamera()}), only eye openness and head tilt are read`); }
+      try { const src = await S.startCamera(); log(`camera on (${src}), only eye openness, head tilt${src === 'vision' ? ' and pulse' : ''} are read`); }
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();

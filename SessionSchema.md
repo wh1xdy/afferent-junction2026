@@ -49,7 +49,7 @@ Fork and Two lanterns are skipped (never replaced) when the director is in rest 
 | `status` | enum | `completed`, `partial`, `declined`, `fell_asleep` |
 | `profile` | enum | `live`, `good_day`, `bad_day` |
 | `simulated`, `simulated_fields` | bool, string[] | See rules |
-| `input_backend` | enum | `arkit`, `mediapipe`, `simulated`, `none` |
+| `input_backend` | enum | `arkit`, `vision`, `mediapipe`, `simulated`, `none` |
 | `duration_ms` | int | |
 | `sharing` | enum | `summary`, `nothing_tonight`, `paused` |
 | `sensors` | object | Switch state at start: `phone_camera`, `pulse_stone`, `bedside_camera`, `bedside_light`, `presence`, `phone_motion` |

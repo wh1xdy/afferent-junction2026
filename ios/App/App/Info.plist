@@ -29,8 +29,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Afferent reads the finger pulse sensor over Bluetooth to compare it with the camera.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Afferent reads only whether your eyes are closed. Camera frames never leave the phone.</string>
+	<string>Afferent reads whether your eyes are closed and your pulse from tiny colour changes in your face. Camera frames never leave the phone.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Afferent talks to your bedside unit on your home network.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -60,14 +60,17 @@
   const Sensors = A.Sensors = {
     source: 'simulated', ready: true, last: null,
     enabled: { phone_camera: true, pulse_stone: true, simulator: true },
-    stone: null, rppg: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
+    stone: null, rppg: null, light: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
+    plugin: null, listeners: [], stopping: null,
 
     async start(source) {
       this.stop();
-      if (source === 'arkit') {
-        this.plugin = window.Capacitor.registerPlugin('AfferentEyes');
+      await this.stopping;
+      if (source === 'arkit' || source === 'vision') {
+        this.plugin = window.Capacitor.registerPlugin(source === 'vision' ? 'AfferentPulse' : 'AfferentEyes');
         await this.plugin.start();
-        this.listener = await this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); });
+        this.listeners.push(await this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); }));
+        if (source === 'vision') this.listeners.push(await this.plugin.addListener('pulse', d => this.feedNativePulse(d)));
       } else if (source === 'mediapipe') {
         const base = new URL('vendor/mediapipe', document.baseURI).href;
         const v = await import(`${base}/vision_bundle.mjs`);
@@ -86,28 +89,35 @@
 
     async startCamera() {
       const native = window.Capacitor?.isNativePlatform?.();
-      return this.start(native && window.Capacitor.getPlatform() === 'ios' ? 'arkit' : 'mediapipe');
+      if (!native || window.Capacitor.getPlatform() !== 'ios') return this.start('mediapipe');
+      try { return await this.start('vision'); } catch { this.stop(); }
+      return this.start('arkit');
     },
 
+    relockCamera() { return this.source === 'vision' ? this.plugin.relock() : Promise.resolve(); },
+
     stop() {
-      this.plugin?.stop(); this.listener?.remove?.(); this.plugin = null; this.listener = null;
+      if (this.plugin) this.stopping = Promise.resolve(this.plugin.stop()).catch(() => {});
+      this.listeners.forEach(l => l?.remove?.()); this.listeners = []; this.plugin = null;
+      if (this.source === 'vision') { this.rppg = null; this.light = null; }
+      this.native = null;
       this.video?.srcObject?.getTracks().forEach(t => t.stop()); this.video = null; this.landmarker = null;
       this.source = 'simulated'; this.ready = true;
     },
 
-    camera() { return this.source === 'arkit' || this.source === 'mediapipe'; },
+    camera() { return this.source === 'arkit' || this.source === 'vision' || this.source === 'mediapipe'; },
 
     eyesSource() { return this.camera() ? this.source : this.enabled.simulator ? 'simulated' : null; },
 
     read(now, dt) {
       let f = null;
-      if (this.source === 'arkit') f = this.readArkit(now);
+      if (this.source === 'arkit' || this.source === 'vision') f = this.readNative(now);
       else if (this.source === 'mediapipe') f = this.readMediapipe(now);
       else if (this.enabled.simulator) f = Sim.face(now, dt);
       return (this.last = f);
     },
 
-    readArkit(now) {
+    readNative(now) {
       const d = this.native;
       if (!d || now - this.nativeAt > 0.5) return { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: null, quality: 0 };
       const open = d.openness ?? 1 - (d.blink_l + d.blink_r) / 2;
@@ -141,6 +151,11 @@
     feedPulse(d) {
       if (d.bpm && d.contact !== false) this.stone = { bpm: d.bpm, quality: d.quality ?? 0.5, source: d.source === 'simulated' ? 'simulated' : 'ky039', at: A.now() };
       else this.stone = null;
+    },
+
+    feedNativePulse(d) {
+      this.setPulse(d.bpm, d.quality ?? 0, 'rppg');
+      this.light = d.light ? { ...d.light, locked: !!d.locked, face: !!d.face, at: A.now() } : null;
     },
 
     setPulse(bpm, quality, source = 'rppg') { this.rppg = bpm ? { bpm, quality, source, at: A.now() } : null; },

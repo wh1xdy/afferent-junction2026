@@ -42,10 +42,13 @@ Without the native app, open `http://<hub-ip>:8000/app/` in Safari on the phone 
 
 In the native app the input, clock, session length and profile chips are in the Settings card (under the sensor switches).
 
+Camera on iOS: with input "touch + camera" the app starts the `AfferentPulse` plugin (`ios/App/App/AfferentPulse.swift`), which runs the team's rPPG pipeline (`ios/App/App/Team/`, copied unchanged from the junction repo `ios/Afferent/`) and reads the eyes from the same frames (`VisionEyes.swift`). If it cannot start, ARKit (`AfferentEyes`) takes over. Only one of them holds the front camera. The camera pulse wants a lit face; the event carries a `light` hint (Decisions X37, X38). iOS 17 or later.
+
 ## Tests
 
 ```
 cd hub && .venv/bin/python -m pytest -q
+cd ios/App/TeamTests && swift test                                                  # team rPPG and expression tests
 NODE_PATH=<dir with node_modules/playwright-core> node hub/tests/e2e_live_demo.js   # with the hub running
 cd hub && .venv/bin/python -m afferent_hub.analytics.validate                       # regenerates Validation.md
 ```
