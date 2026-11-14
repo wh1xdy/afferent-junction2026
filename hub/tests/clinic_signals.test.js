@@ -54,7 +54,7 @@ const NO_VITALS = { weekly: { pulse_bpm: Array(8).fill(null), breathing_per_min:
 {
   const rows = Sg.weeklyRows(measured());
   const r = byKey(rows);
-  same(rows.map((x) => [x.key, x.label, x.unit]), [['pulse_bpm', 'Pulse, finger sensor', 'bpm'], ['breathing_per_min', 'Breathing rate', 'per min'], ['rmssd_ms', 'HRV (RMSSD)', 'ms']]);
+  same(rows.map((x) => [x.key, x.label, x.unit]), [['pulse_bpm', 'Pulse', 'bpm'], ['breathing_per_min', 'Breathing', 'per min'], ['rmssd_ms', 'HRV (RMSSD)', 'ms']]);
   same([r.pulse_bpm.value, r.pulse_bpm.week, r.pulse_bpm.days], ['68.9', 7, 21]);
   same([r.breathing_per_min.value, r.breathing_per_min.week], ['11.6', 7]);
   // the newest week that has a value, when the last weeks have none
@@ -68,7 +68,7 @@ const NO_VITALS = { weekly: { pulse_bpm: Array(8).fill(null), breathing_per_min:
   for (const empty of [NO_VITALS, {}, { weekly: {} }, { weekly: { pulse_bpm: [0, 0, 0, 0, 0, 0, 0, 0], breathing_per_min: ['12', NaN, -4], rmssd_ms: 'x' }, days: { pulse_bpm: 9 }, simulated: { pulse_bpm: true } }]) {
     const e = Sg.weeklyRows(empty);
     assert.strictEqual(e.length, 3);
-    assert.ok(e.every((x) => x.missing && x.value === 'no reading' && x.week === null && x.days === null && x.simulated === false && x.weeks.every((w) => w === null)));
+    assert.ok(e.every((x) => x.missing && x.value === '-' && x.week === null && x.days === null && x.simulated === false && x.weeks.every((w) => w === null)));
   }
 
   // the badge follows the row, not the code
@@ -79,12 +79,12 @@ const NO_VITALS = { weekly: { pulse_bpm: Array(8).fill(null), breathing_per_min:
 
   const labels = [];
   const html = Sg.weeklyHtml(measured(), (i) => { labels.push(i); return `W${i}`; });
-  for (const s of ['Pulse, finger sensor', '68.9<small> bpm</small>', 'Breathing rate', '11.6<small> per min</small>', 'HRV (RMSSD)', '44.9<small> ms</small>',
-    'finger sensor (PPG)', 'week from W7', 'week from W5', '21 days with a reading', '1 day with a reading', 'session mean, clips on during play',
+  for (const s of ['Pulse', '68.9<small> bpm</small>', 'Breathing', '11.6<small> per min</small>', 'HRV (RMSSD)', '44.9<small> ms</small>',
+    'finger sensor (PPG)', 'W7 · 21 d', 'W5 · 1 d', '21 days with a reading', '1 day with a reading', 'session mean',
     'id="sig-pulse_bpm"', 'id="sig-breathing_per_min"', 'id="sig-rmssd_ms"']) assert.ok(html.includes(s), s);
   assert.ok(!html.includes('sig-foot') && !html.includes('<p'), 'no footnote under the numbers');
   same(labels, [7, 7, 5]);
-  assert.ok(!html.includes('sim-badge') && !html.includes('no reading'));
+  assert.ok(!html.includes('sim-badge') && !html.includes('none"'));
   // neither posture nor place is recorded with the clips, so neither is stated
   for (const w of ['sitting', 'lying', 'home', 'resting']) assert.ok(!html.toLowerCase().includes(w), w);
   checkWording(html, 'weekly, measured');
@@ -98,13 +98,13 @@ const NO_VITALS = { weekly: { pulse_bpm: Array(8).fill(null), breathing_per_min:
   const part = measured();
   part.weekly.rmssd_ms = Array(8).fill(null);
   const partHtml = Sg.weeklyHtml(part, (i) => `W${i}`);
-  assert.ok(partHtml.includes('no reading') && !partHtml.includes('id="sig-rmssd_ms"') && partHtml.includes('id="sig-pulse_bpm"'));
+  assert.ok(partHtml.includes('<span class="mm-v num">-</span>') && !partHtml.includes('id="sig-rmssd_ms"') && partHtml.includes('id="sig-pulse_bpm"'));
   assert.strictEqual(count(partHtml, 'class="mm sig-mm none"'), 1);
 
   const notCarried = Sg.weeklyHtml(undefined);
-  assert.ok(notCarried.includes('Not in this export'));
+  assert.ok(notCarried.includes('Not in export'));
   const noWeeks = Sg.weeklyHtml(NO_VITALS);
-  assert.ok(noWeeks.includes('No reading in these 8 weeks'));
+  assert.ok(noWeeks.includes('No readings'));
   for (const h of [notCarried, noWeeks]) { assert.ok(!h.includes('chart-wrap') && !h.includes('<small>')); checkWording(h, 'weekly, none'); }
 }
 
@@ -145,16 +145,16 @@ function loadPage(extra = []) {
   const imp = scan(measured());
   const page = show(imp);
   const sig = section(page);
-  for (const s of ['<h2>Signals, 8 weeks</h2>', 'finger sensor, weekly medians', 'Pulse, finger sensor', '68.9<small> bpm</small>', 'Breathing rate', '11.6<small> per min</small>',
+  for (const s of ['<h2>Signals</h2>', 'Finger sensor, during play', 'Pulse', '68.9<small> bpm</small>', 'Breathing', '11.6<small> per min</small>',
     'HRV (RMSSD)', '44.9<small> ms</small>', 'finger sensor (PPG)', '21 days with a reading', 'id="sig-pulse_bpm"']) assert.ok(sig.includes(s), s);
   assert.ok(!sig.includes('sim-badge'), 'measured rows carry no badge, though the demo code as a whole is simulated');
   assert.ok(page.includes('Simulated'), 'the code of a simulated patient stays marked');
   checkWording(visible(sig), 'imported, measured');
-  assert.ok(sig.includes('During play sessions'));
+  assert.ok(sig.includes('Not in index'));
   for (const w of ['sitting', 'lying', 'at the patient', 'resting pulse from']) assert.ok(!sig.toLowerCase().includes(w), w);
-  const iMeasures = page.indexOf('Measures, 8 weeks'), iSig = page.indexOf('<section class="signals"'), iFacts = page.indexOf('Mornings lit');
+  const iMeasures = page.indexOf('<h2>Measures</h2>'), iSig = page.indexOf('<section class="signals"'), iFacts = page.indexOf('Mornings lit');
   assert.ok(iMeasures > 0 && iSig > iMeasures && iFacts > iSig, 'Signals sits between the measures and the facts');
-  assert.ok(page.includes('Received 15 Nov 10:12 via QR'));
+  assert.ok(page.includes('Received via QR') && page.includes('15 Nov 10:12'));
   for (const gone of ['Not live data', 'Research prototype', 'The clinician decides', 'Ask the patient about the answers', 'Follow your clinic protocol', 'dp-foot']) assert.ok(!page.includes(gone), gone);
   // the numbers are not a tenth feature: no tile among the measures and no usual range
   assert.strictEqual(count(page, 'id="mm-'), 9);
@@ -182,7 +182,7 @@ function loadPage(extra = []) {
     real.seriesChart(without, { values: [null, 70.5, null, 72, null, null, null, null], connect: false, h: 104 });
     assert.strictEqual(count(without.innerHTML, 'r="2.5"'), 0, 'the measures keep their look');
   }
-  assert.ok(drawn['sig-pulse_bpm'].tip(7).includes('68.9 bpm') && drawn['sig-pulse_bpm'].tip(0).includes('no value'));
+  assert.ok(drawn['sig-pulse_bpm'].tip(7).includes('68.9 bpm') && drawn['sig-pulse_bpm'].tip(0).includes('<b>-</b>'));
   assert.ok(drawn['sig-rmssd_ms'].tip(5).includes('44.9 ms') && drawn['sig-breathing_per_min'].tip(7).includes('11.6 per min'));
 
   const sim = measured();
@@ -190,23 +190,32 @@ function loadPage(extra = []) {
   assert.strictEqual(count(section(show(scan(sim))), '<span class="sim-badge small">Simulated</span>'), 3);
 
   const empty = section(show(scan(NO_VITALS)));
-  assert.ok(empty.includes('No reading in these 8 weeks') && !empty.includes('chart-wrap'));
+  assert.ok(empty.includes('No readings') && !empty.includes('chart-wrap'));
 
   const before = section(show(scan(null, true)));
-  assert.ok(before.includes('Not in this export'));
+  assert.ok(before.includes('Not in export'));
 
   // a code from the encoder before this change (frozen fixture) is shown the same way
   const frozen = json('qr_code_before_vitals.json');
   const old = QR.decode(frozen.text, { now: frozen.now_ms });
   assert.strictEqual(old.status, 'ok');
   const oldPage = show({ cti: old.cti, fp: old.fingerprint, iat: old.iat, exp: old.exp, scanned_iso: new Date(NOW).toISOString(), body: old.body });
-  assert.ok(section(oldPage).includes('Not in this export') && oldPage.includes('Measures, 8 weeks'));
+  assert.ok(section(oldPage).includes('Not in export') && oldPage.includes('<h2>Measures</h2>'));
 }
 
 {
   const EXPLAINING = ['Each person is compared only with their own first two weeks after TMS', 'Afferent suggests', 'the clinician decides', 'All patients on this hub are simulated',
     'Not live data', 'Research prototype', 'Not for clinical use', 'Sorted by need', 'Light suits office daylight', 'Back to the seeded patients', 'run day by day through the same engine',
-    'Kept in this browser only', 'One export a day', 'This code carries no', 'Support for monitoring and follow-up', 'Ask the patient about the answers', 'Follow your clinic protocol'];
+    'Kept in this browser only', 'One export a day', 'This code carries no', 'Support for monitoring and follow-up', 'Ask the patient about the answers', 'Follow your clinic protocol',
+    'Consider discussing a booster session', 'Steady across all signals', 'Small drift across several signals', 'No session was recorded in these weeks', 'than usual',
+    'from discharge', 'residual symptoms at discharge', 'entered by the clinic', 'Discharge baseline', 'severity bands', 'weekly medians</span>', '8 weeks, weekly',
+    'C-SSRS not asked', 'check-in stopped before the safety item', 'known lifetime behaviour', 'Crisis screen shown', 'older not in this export', '<b>Safety answer',
+    'Weighted mean of personal z-scores', 'Amber up, teal down', 'Totals only', 'in these weeks', 'kept by a pause', 'this week', 'with a reading</', 'week from',
+    'Received ${', 'via QR</', 'Scan patient QR</', 'Use a scanner', 'Open image', 'Ready for the scanner', 'Camera needs localhost', 'of ${c.n} scanned',
+    'Not an Afferent code', 'The code reader did not load', 'Made by a newer Afferent version', 'Ask for a new one', 'phone clock looks wrong', 'could not be checked',
+    'No code found in this image', 'Export received', 'Export deleted', 'Forgot the phone', 'Demo data reset', 'Delete this export', 'Forget this phone', 'Download as JSON',
+    'from relapse onset to a check-in suggestion', 'of simulated relapses reached', 'false check-in suggestions per', 'for the mood lantern alone', 'is reliably found as most helpful',
+    'one example', 'Days from onset to each suggestion', 'Probability that', 'Check-in suggested', 'Stable control', 'Not in this browser', 'Not in this export', 'No reading in these 8 weeks'];
   for (const f of fs.readdirSync(WEB).filter((x) => /\.(js|html)$/.test(x))) {
     const text = read(WEB, f).toLowerCase();
     for (const e of EXPLAINING) assert.ok(!text.includes(e.toLowerCase()), `${f}: ${e}`);

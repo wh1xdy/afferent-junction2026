@@ -1,15 +1,15 @@
 (() => {
   const C = (window.C = window.C || {});
-  const NO_READING = 'no reading';
+  const NO_READING = '-';
   const WEEKS = 8;
   const SOURCE = { finger: 'finger sensor (PPG)', simulated: 'simulator' };
   const WEEKLY = [
-    ['pulse_bpm', 'Pulse, finger sensor', 'bpm', 'session mean, clips on during play'],
-    ['breathing_per_min', 'Breathing rate', 'per min', 'from the pulse rhythm'],
+    ['pulse_bpm', 'Pulse', 'bpm', 'session mean'],
+    ['breathing_per_min', 'Breathing', 'per min', 'from pulse rhythm'],
     ['rmssd_ms', 'HRV (RMSSD)', 'ms', '60 s windows'],
   ];
-  const NOT_CARRIED = 'Not in this export';
-  const NO_WEEKS = 'No reading in these 8 weeks';
+  const NOT_CARRIED = 'Not in export';
+  const NO_WEEKS = 'No readings';
 
   const esc = (s) => C.esc(s);
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -35,10 +35,11 @@
     if (!rows.length) return `<p class="sig-empty muted">${esc(NOT_CARRIED)}</p>`;
     if (rows.every((r) => r.missing)) return `<p class="sig-empty muted">${esc(NO_WEEKS)}</p>`;
     const cells = rows.map((r) => {
-      const meta = r.missing ? [] : [r.source, `week from ${weekLabel(r.week)}`, r.days ? `${r.days} ${r.days === 1 ? 'day' : 'days'} with a reading` : '', r.note];
+      const tip = r.missing ? '' : [r.source, r.days ? `${r.days} ${r.days === 1 ? 'day' : 'days'} with a reading` : '', r.note].filter(Boolean).join(' · ');
+      const meta = r.missing ? [] : [weekLabel(r.week), r.days ? `${r.days} d` : ''];
       return `<div class="mm sig-mm${r.missing ? ' none' : ''}" data-key="${esc(r.key)}">
         <div class="mm-h"><span>${esc(r.label)}</span><span class="mm-v num">${esc(r.value)}${r.missing ? '' : `<small> ${esc(r.unit)}</small>`}</span></div>
-        <div class="sig-s">${meta.filter(Boolean).map(esc).join(' · ')}${badge(r.simulated)}</div>
+        <div class="sig-s"${tip ? ` data-tip="${esc(tip)}"` : ''}>${meta.filter(Boolean).map(esc).join(' · ')}${badge(r.simulated)}</div>
         ${r.missing ? '' : `<div class="chart-wrap" id="sig-${esc(r.key)}"></div>`}</div>`;
     }).join('');
     return `<div class="mms">${cells}</div>`;

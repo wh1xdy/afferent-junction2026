@@ -91,9 +91,9 @@ const test = async (name, fn) => {
     const { C } = loadClinic();
     const S = { ui: { q: '' } };
     const page = C.views.exportPanes(S, null);
-    assert.ok(page.includes('data-codes="scan"') && page.includes('Scan patient QR'), page);
+    assert.ok(page.includes('data-codes="scan"') && page.includes('Scan QR'), page);
     assert.ok(!page.includes('class="erow"') && !page.includes('detail-pane'));
-    assert.strictEqual(page.replace(/<[^>]*>/g, ' ').replace(/qr_code_scanner/g, '').trim(), 'Scan patient QR');
+    assert.strictEqual(page.replace(/<[^>]*>/g, ' ').replace(/qr_code_scanner/g, '').trim(), 'Scan QR');
   });
 
   await test('a scanned export appears with its received time via QR', async () => {
@@ -108,10 +108,10 @@ const test = async (name, fn) => {
     const S = { ui: { q: '' } };
     const list = C.views.exportList(S, imp.cti);
     const when = C.scanFmt.when(imp.scanned_iso);
-    assert.ok(list.includes(`Received ${when} via QR`), list);
-    assert.ok(list.includes('<b>Katja</b>') && list.includes('20 Sep to 14 Nov'), list);
+    assert.ok(!list.includes(when), list);
+    assert.ok(list.includes('<b>Katja</b>') && list.includes('20 Sep–14 Nov'), list);
     const detail = C.views.exportDetail(S, imp.cti);
-    assert.ok(detail.includes(`Received ${when} via QR`) && detail.includes('Early-warning index'));
+    assert.ok(detail.includes('Received via QR') && detail.includes(when) && detail.includes('Early-warning index'));
     for (const w of ['Playing now', 'live', 'Live', 'Last session', 'this morning']) assert.ok(!list.includes(w) && !detail.includes(w), w);
   });
 
@@ -170,7 +170,7 @@ const test = async (name, fn) => {
     assert.strictEqual(anna[0].record_id, anna[1].record_id);
     assert.strictEqual(anna[0].body.period.tms_end_date, anna[1].body.period.tms_end_date);
     const list = C.views.exportList({ ui: { q: '' } }, all[0].cti);
-    for (const imp of all) assert.ok(list.includes(`Received ${C.scanFmt.when(imp.scanned_iso)} via QR`));
+    for (const imp of all) assert.ok(list.includes(`data-cti="${imp.cti}"`) && C.views.exportDetail({ ui: { q: '' } }, imp.cti).includes(C.scanFmt.when(imp.scanned_iso)));
   });
 
   await test('reset demo data goes back to the seeded exports', async () => {
