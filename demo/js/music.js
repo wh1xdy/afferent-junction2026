@@ -101,9 +101,8 @@
       t.p ||= (async () => {
         const file = t.files?.m4a;
         if (file) try {
-          const r = await fetch('audio/music/' + file);
-          if (r.ok) {
-            const data = await r.arrayBuffer();
+          const data = await A.fetchBytes('audio/music/' + file);
+          if (data) {
             const buf = await new Promise((ok, no) => this.ctx.decodeAudioData(data, ok, no));
             this.buf[key] = buf;
             this.missing = this.missing.filter(x => x !== key);

@@ -100,9 +100,8 @@
       if (this.buf[key]) return this.buf[key];
       m.p ||= (async () => {
         try {
-          const r = await fetch(`audio/${m.path}.m4a`);
-          if (!r.ok) return null;
-          const data = await r.arrayBuffer();
+          const data = await A.fetchBytes(`audio/${m.path}.m4a`);
+          if (!data) return null;
           return this.buf[key] = await new Promise((ok, no) => this.ctx.decodeAudioData(data, ok, no));
         } catch { return null; }
       })();

@@ -31,6 +31,14 @@ A.uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yx
   const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16);
 }));
 
+A.fetchBytes = async url => {
+  const r = await fetch(url);
+  if (r.ok) return r.arrayBuffer();
+  if (r.status !== 0) return null;
+  const data = await r.arrayBuffer();
+  return data.byteLength ? data : null;
+};
+
 A.bus = (() => {
   const ls = {};
   return {
