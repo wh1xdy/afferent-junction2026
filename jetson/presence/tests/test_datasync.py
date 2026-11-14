@@ -1,4 +1,5 @@
 """PresenceSync: tracker state -> data-manager intervals. Run: python -m unittest discover -s tests -v"""
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -103,12 +104,80 @@ class Sync(unittest.TestCase):
         while p.state == "home":
             t += STEP
             tick(p, g, s, t, False)
-        saved = s.to_dict()                       # what app.save() stores next to the trackers
+        saved = json.loads(json.dumps(s.to_dict()))   # what app.save() stores next to the trackers
         c2 = FakeClient()                         # restart: the first client's queue is gone
         s2 = PresenceSync(c2)
         s2.restore(p, saved)
         s2.update(p, g, t + STEP)
         self.assertEqual(c2.last("presence.home", f"home-{int(T0)}")["end"], last_seen)
+
+    def test_restart_after_unknown_then_away_keeps_the_end_the_close_had(self):
+        # HOME, then the probes go dark (UNKNOWN closes home), then they come back and the phone is
+        # not there (AWAY, since = when they came back). presence.since is now past the UNKNOWN
+        # window: closing home there on restart would count that window as home.
+        p, g, c, s = setup()
+        t = T0
+        tick(p, g, s, t, True)
+        while p.state == "home":
+            t += STEP
+            tick(p, g, s, t, None)
+        unknown_at = p.since
+        self.assertEqual(c.last("presence.home", f"home-{int(T0)}")["end"], unknown_at)
+        for _ in range(20):                       # still dark a while longer
+            t += STEP
+            tick(p, g, s, t, None)
+        while p.state != "away":
+            t += STEP
+            tick(p, g, s, t, False)
+        self.assertGreater(p.since, unknown_at + 60)
+        saved = json.loads(json.dumps(s.to_dict()))
+        c2 = FakeClient()
+        s2 = PresenceSync(c2)
+        s2.restore(p, saved)
+        s2.update(p, g, t + STEP)
+        home = [x for x in c2.sent if x["id"] == f"home-{int(T0)}"]
+        self.assertTrue(home, "the close is sent again")
+        self.assertTrue(all(x["end"] == unknown_at for x in home), home)
+
+    def test_restart_back_home_still_closes_the_earlier_home_period(self):
+        # home, out, home again; the first period's close is still queued when the app restarts.
+        # The new home period must not take its place: both are sent after the restart.
+        p, g, c, s = setup()
+        t = T0
+        tick(p, g, s, t, True)
+        last_seen = t
+        while p.state == "home":
+            t += STEP
+            tick(p, g, s, t, False)
+        for _ in range(10):
+            t += STEP
+            tick(p, g, s, t, False)
+        t += STEP
+        tick(p, g, s, t, True)                    # back: a new home period
+        back = t
+        saved = json.loads(json.dumps(s.to_dict()))
+        c2 = FakeClient()
+        s2 = PresenceSync(c2)
+        s2.restore(p, saved)
+        s2.update(p, g, t + STEP)
+        self.assertEqual(c2.last("presence.home", f"home-{int(T0)}")["end"], last_seen)
+        self.assertIsNone(c2.last("presence.home", f"home-{int(back)}")["end"])
+        # and once more: the restored sync keeps the close for a second restart
+        c3 = FakeClient()
+        s3 = PresenceSync(c3)
+        s3.restore(p, json.loads(json.dumps(s2.to_dict())))
+        self.assertEqual(c3.last("presence.home", f"home-{int(T0)}")["end"], last_seen)
+
+    def test_only_the_last_few_closes_are_kept(self):
+        p, g, c, s = setup()
+        for k in range(8):
+            s._close_home(T0 + k * 1000, T0 + k * 1000 + 500, "away")
+        closes = s.to_dict()["home_closes"]
+        self.assertEqual([x[0] for x in closes], [T0 + k * 1000 for k in range(3, 8)])
+        s2 = PresenceSync(FakeClient())
+        s2.restore(p, {"home_closes": [[1, 0, None], ["x", 2, None], [5, 9, 3], "junk"], "home_start": "x"})
+        self.assertEqual(s2._closes, [(5.0, 9.0, None)])
+        self.assertIsNone(s2._home_start)
 
 
 if __name__ == "__main__":

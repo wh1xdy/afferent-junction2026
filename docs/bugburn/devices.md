@@ -62,8 +62,10 @@ Windows shim for the Linux-only suites (not in the repo): a `sitecustomize.py` o
 - **Root cause:** the close of `home-<start>` lives only in the client's memory queue until delivered; after a restart in
   AWAY/UNKNOWN, `PresenceSync.restore` only resumed a HOME period, so the close was never sent again and the data manager
   counts the open interval (ongoing = until now) as time at home on every later day.
-- **Fix:** `PresenceSync.to_dict()` (start of the last home period) is saved with the trackers; `restore(presence, saved)`
-  re-sends the close at `presence.since` (the moment HOME ended) when not home. Upsert on the same id: harmless when it was delivered.
+- **Fix:** `PresenceSync.to_dict()` (the open home period's start and the last five closes, each with the end it had) is
+  saved with the trackers; `restore(presence, saved)` sends those closes again. Upsert on the same id: harmless when it
+  was delivered. (Review follow-up: an earlier version closed at the current `presence.since`, which after UNKNOWN then
+  AWAY lies past the UNKNOWN window, and a restart back in HOME dropped the previous period's close.)
 - **Verification:** `cd jetson/presence && python -m pytest -q` → 42 passed.
 
 ## Reviewed, no Critical/High/Medium found
