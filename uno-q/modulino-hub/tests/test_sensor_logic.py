@@ -65,8 +65,13 @@ def reset():
         app.ppgs[c].clear()
         app.beats[c].clear()
         app.state["fingers"][c] = None
-        app.period_state[c].update(period_ms=None, quality=None)
-    app.fused.update(bpm=None, period_ms=None, quality=None, sources=[])
+        app.period_state[c].update(period_ms=None, quality=None, signal=None)
+    app.fused.update(bpm=None, period_ms=None, quality=None, sources=[], two_hearts=False)
+    app.reset_two_hearts()
+    for c in range(app.CHANNELS):
+        app.last_locked[c] = 0.0
+        app.sent_bpm[c] = 0
+    app.last_ppg = 0.0
 
 
 def beats_with_breathing(rate_per_min, base_bpm=72, swing_bpm=8, n=70):
@@ -205,6 +210,119 @@ class Fusion(unittest.TestCase):
         self._finger(0, 90, 0.1)
         self._finger(1, 72, 0.6)
         self.assertEqual(app.fuse(), 72)
+
+
+class RhythmPeak(unittest.TestCase):
+    """Seen on the board: for the first seconds after the clips go on the signal drifts, the
+    autocorrelation is highest at the shortest lag (317 ms) and that went out as 188 BPM."""
+
+    def setUp(self):
+        reset()
+
+    @staticmethod
+    def _drift(n=540, dt=22.2, seed=3):
+        rnd = random.Random(seed)
+        return [(1000 + i * dt, 8000 + 2500 * math.exp(-i / 200) + rnd.gauss(0, 6)) for i in range(n)]
+
+    def test_a_settling_drift_is_not_a_heartbeat(self):
+        app.ppgs[0].extend(self._drift())
+        lags, r = app.autocorr(0)
+        k = max(range(len(r)), key=r.__getitem__)
+        self.assertEqual(k, 0)                                   # the artefact: best lag = edge of the range
+        self.assertGreater(r[k], 0.3)                            # ...and strong enough to have counted before
+        ms, q, signal = app.rhythm_peak(lags, r)
+        self.assertIsNone(ms)
+        self.assertEqual(q, 0.0)
+        self.assertGreater(signal, 0.3)                          # still "something is on the sensor"
+        self.assertEqual(app.pulse_period(0), (None, 0.0))
+        self.assertEqual(app.fused_period([(lags, r)], [signal]), (None, 0.0))
+
+    def test_a_real_pulse_is_unchanged(self):
+        beats = [1000 + 800 * k for k in range(16)]              # 75 BPM
+        app.ppgs[0].extend(ppg_for_beats(beats))
+        ms, q = app.pulse_period(0)
+        self.assertAlmostEqual(ms, 800, delta=25)
+        self.assertGreater(q, 0.5)
+        lags, r = app.autocorr(0)
+        fp, fq = app.fused_period([(lags, r)], [q])
+        self.assertAlmostEqual(fp, 800, delta=25)
+
+    def test_no_pulse_from_the_fused_rhythm_alone_while_settling(self):
+        for c in range(2):
+            app.ppgs[c].extend(self._drift(seed=c + 1))
+            app.period_state[c].update(period_ms=None, quality=0.0, signal=0.6)
+        curves = [app.autocorr(c) for c in range(2)]
+        fp, fq = app.fused_period(curves, [0.6, 0.6])
+        app.fused.update(period_ms=fp, quality=fq)
+        self.assertIsNone(app.fuse())
+
+
+class TwoHearts(unittest.TestCase):
+    """Heart Duel: each clip on a different person. The fusion must not tie them together."""
+
+    def setUp(self):
+        reset()
+
+    @staticmethod
+    def _per(bpm0, q0, bpm1, q1):
+        return [{"period_ms": round(60000 / b) if b else None, "quality": q} for b, q in ((bpm0, q0), (bpm1, q1))]
+
+    def test_same_heart_is_not_two(self):
+        self.assertIs(app.periods_apart(self._per(72, 0.8, 75, 0.6)), False)
+
+    def test_different_rhythms_are_two(self):
+        self.assertIs(app.periods_apart(self._per(62, 0.7, 88, 0.6)), True)
+
+    def test_double_counting_sensor_is_one_heart(self):
+        self.assertIs(app.periods_apart(self._per(70, 0.7, 140, 0.5)), False)
+
+    def test_unclear_rhythm_is_unknown(self):
+        self.assertIsNone(app.periods_apart(self._per(62, 0.7, 88, 0.2)))
+        self.assertIsNone(app.periods_apart(self._per(62, 0.7, None, 0.9)))
+
+    def test_switches_on_after_three_seconds_and_off_again(self):
+        self.assertEqual([app.update_two_hearts(True) for _ in range(3)], [False, False, True])
+        self.assertTrue(app.update_two_hearts(None))            # one second without a clear rhythm: stay
+        self.assertEqual([app.update_two_hearts(False) for _ in range(3)], [True, True, False])
+
+    def test_a_blip_does_not_switch_on(self):
+        seq = [True, True, False, True, True, False]
+        self.assertFalse(any(app.update_two_hearts(a) for a in seq))
+
+    def test_switches_off_when_the_second_person_is_gone(self):
+        for _ in range(3):
+            app.update_two_hearts(True)
+        res = [app.update_two_hearts(None) for _ in range(app.TWO_HEARTS_UNKNOWN_S)]
+        self.assertEqual(res[-2:], [True, False])
+
+    def test_detector_gets_the_combined_rhythm_for_one_person(self):
+        own = {"period_ms": 400, "quality": 0.4}                 # this finger counts double
+        self.assertEqual(app.detector_period(own, 800, 0.7, False), (800, 0.7))
+        self.assertEqual(app.detector_period(own, 800, 0.3, False), (400, 0.4))
+
+    def test_detector_keeps_its_own_rhythm_for_two_people(self):
+        own = {"period_ms": 680, "quality": 0.4}
+        self.assertEqual(app.detector_period(own, 970, 0.7, True), (680, 0.4))
+
+    def test_a_removed_clip_leaves_the_packet_while_the_other_stays(self):
+        now = time.time()
+        app.sent_bpm[:] = [64, 88]
+        app.last_locked[:] = [now - 0.5, now - 6.0]              # finger 2 came off 6 s ago
+        self.assertEqual(app.stale_fingers(now), [1])
+        app.sent_bpm[1] = 0
+        self.assertEqual(app.stale_fingers(now), [])             # cleared once, not every second
+
+    def test_a_beat_refreshes_only_its_own_finger(self):
+        now = time.time()
+        app.period_state[0].update(period_ms=940, quality=0.8)
+        for k in range(4):
+            app.on_beat(0, 1000 + 940 * k, 940, 900, True)
+        self.assertEqual(app.sent_bpm, [64, 0])
+        self.assertGreaterEqual(app.last_locked[0], now)
+        self.assertEqual(app.last_locked[1], 0.0)
+
+    def test_state_says_two_hearts(self):
+        self.assertIn("two_hearts", app.fused)
 
 
 class Presence(unittest.TestCase):
