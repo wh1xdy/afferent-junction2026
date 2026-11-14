@@ -119,6 +119,10 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
     if locked:
         beats[c].append((int(t_ms), int(ibi_ms)))
     ibis = [b for _, b in beats[c]][-8:]
+    # drop intervals that disagree with the autocorrelation period (double/missed beats)
+    per, q = period_state[c].get("period_ms"), period_state[c].get("quality") or 0
+    if per and q >= 0.3:
+        ibis = [b for b in ibis if 0.75 * per <= b <= 1.35 * per]
     bpm = round(60000 / sorted(ibis)[len(ibis) // 2]) if len(ibis) >= 3 else None
     info = {"bpm_live": bpm, "locked": bool(locked), "ibi_ms": int(ibi_ms),
             "peak_slope": int(peak), "locked_count": len(beats[c]), "t": time.time()}

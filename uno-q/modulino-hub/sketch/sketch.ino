@@ -35,14 +35,16 @@ unsigned long lastClimate = 0, lastStatus = 0;
 //   d       = rise over the last 2 samples (~45 ms); 0 while the ADC is railed
 //   peak    = tracked upstroke slope, decays slowly (~3 s half-life)
 //   beat    = d > SLOPE_FRAC * peak, re-armed once d falls back below 10 %,
-//             at least max(300 ms, period / 2) after the last one; period comes from
+//             at least max(300 ms, 0.65 x period) after the last one; period comes from
 //             Linux (autocorrelation), so the dicrotic second bump ~0.3 s after each
 //             beat is skipped without the detector locking onto its own mistakes
 //   locked  = Linux reports a period with autocorrelation quality >= 0.20; only then
 //             does it beep/flash, so noise without a finger stays silent
 // Tuned offline on recorded data (taped fingertip, 85 BPM on a watch -> 88 BPM).
 const float SLOPE_FRAC = 0.3f;
-const float MIN_PEAK = 400.0f;       // 14-bit counts per 2 samples; no-finger noise peaks ~300
+const float MIN_PEAK = 120.0f;       // 14-bit counts per 2 samples. Middle finger / pinky in the
+                                     // printed holder rise only ~150-370; noise without a finger is
+                                     // kept silent by the lock gate (Linux period quality), not by this
 const unsigned long REFRACTORY_MS = 300;
 const int RAIL_LO = 200, RAIL_HI = 13500;   // sensor amplifier saturated: ignore
 bool heartbeatSound = true;
@@ -130,7 +132,8 @@ void detectBeat(int idx, int raw, unsigned long now) {
   c.peak *= 0.995f;
   if (d < 0.1f * c.peak) c.armed = true;
   bool periodOk = c.periodMs >= 333 && c.periodMs <= 1800 && c.periodQ >= 20 && now - c.periodAt < 3000;
-  unsigned long refractory = periodOk ? max(REFRACTORY_MS, c.periodMs / 2) : REFRACTORY_MS;
+  // 0.65 x period: the dicrotic bump sits ~0.3-0.45 s after the beat; at 90 BPM half a period wasn't enough
+  unsigned long refractory = periodOk ? max(REFRACTORY_MS, c.periodMs * 65 / 100) : REFRACTORY_MS;
   if (c.armed && c.peak > MIN_PEAK && d > SLOPE_FRAC * c.peak && now - c.lastBeat > refractory) {
     unsigned long ibi = c.lastBeat ? now - c.lastBeat : 0;
     c.lastBeat = now;
