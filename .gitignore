@@ -2,3 +2,5 @@
 node_modules/
 graphify-out/
 art/raw/
+.env
+art/spend.json
