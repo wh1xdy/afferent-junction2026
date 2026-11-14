@@ -149,6 +149,24 @@ make verda-pull      # rsync work_dirs/ back (checkpoints, ONNX, eval reports)
 make verda-down      # pulls again (unless SKIP_PULL=1), confirms, deletes VM + volumes
 ```
 
+Validated end-to-end on CLI v1.10.0 (Nov 2026) with a spot V100 — the
+cheapest working combo, overridden on the command line:
+
+```bash
+INSTANCE_TYPE=1V100.4V LOCATION=FIN-01 OS_IMAGE=24.04.cuda12.9-v100.docker \
+  SPOT=1 bash verda/up.sh          # ~$0.11/h spot
+bash verda/sync.sh                 # or DATA_DIR=/path/to/data for a custom dataset
+MAKE_TARGETS="check-env train" AMP=1 \
+  EXTRA="--cfg-options train_cfg.max_epochs=1" bash verda/train.sh
+bash verda/pull.sh && bash verda/down.sh
+```
+
+Notes from the live run: `verda ssh` needs the host key in `known_hosts`
+(`up.sh` seeds it via `ssh-keyscan`); `verda vm delete` needs `--agent` for
+non-tty use and its `--with-volumes` alone left the OS volume behind, so
+`down.sh` sweeps volumes explicitly. Stock shifts fast — check
+`verda availability` before `up.sh`.
+
 `sync.sh` needs direct ssh for rsync: it resolves the instance ID then the IP
 from `verda vm list`/`describe -o json` and connects as `root@<ip>` with the
 key registered at creation (`SSH_USER`/`SSH_KEY`/`SSH_DEST` overrides, see
@@ -158,10 +176,12 @@ exists) and `AMP`.
 
 **Cost:** PAYG instances are billed per started 10 min while they exist.
 Deleting the instance alone is *not* enough — a detached OS volume keeps
-billing, so `down.sh` always deletes with `--with-volumes`. Spot instances
-are cheaper but evictable (lost work_dirs if evicted mid-run); they stay
-opt-in via `SPOT=1` (`--is-spot`), default is on-demand. Check current rates
-with `verda instance-types --gpu` / `verda cost estimate`.
+billing, and `--with-volumes` was observed to leave it behind on CLI
+v1.10.0, so `down.sh` also sweeps leftover volumes explicitly (verified:
+`verda volume list` empty after teardown). Spot instances are cheaper but
+evictable (lost work_dirs if evicted mid-run); they stay opt-in via `SPOT=1`
+(`--is-spot`), default is on-demand. Check current rates with
+`verda instance-types --gpu` / `verda cost estimate`.
 
 **Privacy:** the instance receives the same payload `make train` uses —
 annotated frames of **consenting** participants only (`data/frames`,

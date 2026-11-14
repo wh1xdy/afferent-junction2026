@@ -72,6 +72,14 @@ log "verda vm create ${args[*]} $EXTRA_CREATE_ARGS"
 # shellcheck disable=SC2086
 verda vm create "${args[@]}" $EXTRA_CREATE_ARGS
 
+# `verda ssh` execs the system ssh, which prompts for host-key acceptance on
+# a fresh IP -- fatal without a TTY (observed: ssh_askpass + exit 255).
+# Seed known_hosts now so `verda ssh` and remote_run connect cleanly.
+if ip="$(_verda_ip)" && [ -n "$ip" ]; then
+    ssh-keyscan -t ed25519,ecdsa,rsa "$ip" >> ~/.ssh/known_hosts 2>/dev/null || \
+        log "warning: ssh-keyscan of $ip failed -- first 'verda ssh' may ask for the host key"
+fi
+
 cat <<EOF
 
 Instance '$VM_HOSTNAME' is up.
