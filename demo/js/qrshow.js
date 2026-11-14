@@ -341,6 +341,8 @@
       const initial = ini.value;
       try {
         const out = await handOver(rec, initial);
+        // the link (or the file) is ready: a success; it could not be made: a soft miss
+        A.Haptics?.play('success');
         if (out.kind === 'file') { offerFile(out.html); return; }
         log(out);
         if (paper) { printCode(out); renderLog(); return; }
@@ -349,6 +351,7 @@
       } catch (e) {
         console.error('handover failed', e);
         err.hidden = false;
+        A.Haptics?.play('miss', 0.6);
       } finally {
         busy = false;
         show.textContent = label;
@@ -432,6 +435,7 @@
       takeBack.disabled = true;
       const ok = await revoke(share);
       if (!view) return;
+      A.Haptics?.play(ok ? 'success' : 'miss', ok ? 0.7 : 0.6);
       if (ok) {
         root.classList.add('expired');
         where.textContent = 'Taken back. The link no longer opens.';
@@ -452,6 +456,7 @@
         if (out.kind === 'file') { close(); openSheet(); return; }
         log(out);
         load(out);
+        A.Haptics?.play('success');
         closeBtn.focus();
       } finally { again.disabled = false; }
     };

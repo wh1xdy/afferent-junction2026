@@ -229,7 +229,13 @@
   $('voiceSetupBtn').onclick = () => { setup(true, true); $('voiceUrl').focus({ preventScroll: true }); };
 
   A.bus.on('voiceText', render);
+  // Talk, felt: the tap on Start is a touch (gui/feel.js); then a success once the voice is there and listening, or a
+  // soft miss when it cannot start. A conversation the service ended is not an error to feel.
+  let was = 'idle';
   A.bus.on('voice', ({ state, detail }) => {
+    if (was === 'connecting' && state === 'listening') A.Haptics?.play('success', 0.7);
+    else if (state === 'error' && was !== 'error' && detail?.code !== 'closed') A.Haptics?.play('miss', 0.6);
+    was = state;
     el.dataset.state = state;
     const live = state !== 'idle' && state !== 'error';
     $('voiceStart').classList.toggle('hidden', live);
