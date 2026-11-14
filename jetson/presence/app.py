@@ -11,7 +11,11 @@
 
 Config (env): PROFILE (home|demo|classic), PHONE_MACS, PATIENT_BLE_ADDRS, SCAN_INTERVAL_S,
 AWAY_AFTER_MIN, NIGHT_AWAY_AFTER_MIN, ISOLATION_DAYS, GUEST_RSSI_MIN, GUEST_DWELL_MIN,
-GUEST_PHONES_ONLY, HUB_URL, DATA_DIR, SIM, PORT. Explicit env values override the profile.
+GUEST_PHONES_ONLY, HUB_URL, DATA_DIR, SIM, PORT, DATA_MANAGER_URL (default http://127.0.0.1:8100,
+"off" to disable), DATA_MANAGER_TOKEN. Explicit env values override the profile.
+
+Every home period, outing and guest visit is mirrored into afferent-data-manager
+(jetson/data_manager) as presence.home / presence.outing / presence.guest_visit intervals.
 """
 from __future__ import annotations
 
@@ -26,6 +30,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from core import AWAY, HOME, GuestConfig, GuestTracker, PresenceConfig, PresenceTracker
+from data_manager_client import DataManagerClient
+from datasync import PresenceSync
 from probes import BleProbe, SimWorld, WifiProbe
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -48,6 +54,8 @@ INTERVAL = env_f("SCAN_INTERVAL_S", 30)
 SIM = os.environ.get("SIM", "") in ("1", "true", "yes")
 DATA = Path(os.environ.get("DATA_DIR", "/data"))
 HUB_URL = os.environ.get("HUB_URL", "").rstrip("/")
+# Same Jetson, host networking: the data manager's mesh port is published on the host.
+DATA_MANAGER_URL = os.environ.get("DATA_MANAGER_URL", "").strip() or "http://127.0.0.1:8100"
 
 # Profiles bundle the tuning. Switch at runtime with POST /profile?name=demo (no redeploy).
 #   home     real flat: 10 min away limit, room-sized BLE range (-65 dBm), phones only
@@ -99,6 +107,8 @@ guests = GuestTracker(gcfg, ignore=patient_ble)
 sim = SimWorld()
 wifi = None if SIM else WifiProbe(env_list("PHONE_MACS"))
 ble = None if SIM else BleProbe(patient_ble)
+dm = DataManagerClient(source="afferent-presence", url=DATA_MANAGER_URL)
+dsync = PresenceSync(dm)
 lock = threading.Lock()
 health: dict = {}
 truth: dict = {"state": None, "since": None}
@@ -203,6 +213,10 @@ def tick():
         guests.observe(ads)
         events += guests.update(now, patient_home=presence.state == HOME)
         m = presence.metrics(now)
+        try:
+            dsync.update(presence, guests, now)     # non-blocking: the client queues
+        except Exception as e:
+            log.warning("data manager sync failed: %s", e)
     for ev in events:
         log.info("event: %s (%s)", ev, presence.reason)
         if ev in ("left_home", "returned_home"):
@@ -233,7 +247,7 @@ def summary():
         g = guests.status(now)
         g["nearby_devices"] = guests.nearby_devices(now)
         return {"presence": presence.status(now), "guests": g, "profile": dict(profile),
-                "health": dict(health), "sim": SIM, "truth": truth}
+                "health": {**health, "data_manager": dm.status()}, "sim": SIM, "truth": truth}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -305,6 +319,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     load()
+    dsync.restore(presence)
     if ble:
         ble.start()
     threading.Thread(target=loop, daemon=True).start()

@@ -9,6 +9,12 @@ som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
   POST /heartbeat?on=0|1           -> mute / unmute the beep on every heartbeat
   POST /led?r=0&g=255&b=0&ms=500   -> KY-016 colour for ms (ms=0 holds; r=g=b=0 back to auto)
   POST /led/beat?on=0|1            -> red flash on every heartbeat (default off: it fakes camera rPPG)
+
+Also pushes to afferent-data-manager (Jetson, found over mDNS role=data-manager, or
+DATA_MANAGER_URL; "off" disables):
+  env.temperature_c / env.humidity_pct   mean over 60 s
+  vitals.heart_rate_bpm                  median of locked beats over 10 s, per finger
+                                         (source modulino-hub/finger1|finger2, quality = period quality)
 """
 import collections
 import json
@@ -27,12 +33,30 @@ from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
 from network import interface_ipv4
 from ble import HeartRateBroadcaster
+from data_manager_client import DataManagerClient, Downsampler
 
 PORT = 8080
 lock = threading.Lock()
 state = {"knob": None, "climate": None, "beat": None, "fingers": [None, None],
          "modulinos": None, "bridge": "connecting"}
 CHANNELS = 2   # finger 1 = A1, finger 2 = A2
+
+CLIMATE_WINDOW_S = 60     # Thermo notifies every 2 s; one stored value per minute is plenty
+BEAT_WINDOW_S = 10        # one stored heart rate per finger every 10 s
+
+
+def _mdns_interfaces():
+    try:
+        return [interface_ipv4()]
+    except Exception:
+        return None
+
+
+dm = DataManagerClient(source="modulino-hub", mdns_interfaces=_mdns_interfaces())
+_ds_temp = Downsampler(CLIMATE_WINDOW_S, "mean")
+_ds_hum = Downsampler(CLIMATE_WINDOW_S, "mean")
+_ds_bpm = [Downsampler(BEAT_WINDOW_S, "median", min_n=3) for _ in range(CHANNELS)]
+_ds_q = [Downsampler(BEAT_WINDOW_S, "mean") for _ in range(CHANNELS)]
 
 
 def _set(key, value):
@@ -47,6 +71,15 @@ def on_knob(position, pressed):
 
 def on_climate(celsius, humidity):
     _set("climate", {"celsius": round(float(celsius), 2), "humidity": round(float(humidity), 1)})
+    try:
+        w = _ds_temp.add(float(celsius))
+        if w:
+            dm.sample("env.temperature_c", round(w.value, 2), ts=w.ts, meta={"n": w.n})
+        w = _ds_hum.add(float(humidity))
+        if w:
+            dm.sample("env.humidity_pct", round(w.value, 1), ts=w.ts, meta={"n": w.n})
+    except Exception as e:
+        print(f"data manager (climate): {e}", flush=True)
 
 
 ppgs = [collections.deque(maxlen=1500) for _ in range(CHANNELS)]  # ~30 s at 45 Hz each
@@ -132,6 +165,21 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
             state["beat"] = info          # backwards compatible (Jetson reads beat.bpm_live)
     if locked and bpm:
         ble.update(c, bpm)
+        _store_bpm(c, bpm)
+
+
+def _store_bpm(c, bpm):
+    """Median BPM per finger over BEAT_WINDOW_S -> data manager (only locked beats)."""
+    try:
+        q = period_state[c].get("quality")
+        wq = _ds_q[c].add(float(q or 0.0))
+        w = _ds_bpm[c].add(float(bpm))
+        if w:
+            dm.sample("vitals.heart_rate_bpm", round(w.value), ts=w.ts,
+                      quality=round(wq.value, 2) if wq else None,
+                      source=f"modulino-hub/finger{c + 1}", meta={"n": w.n})
+    except Exception as e:
+        print(f"data manager (beat): {e}", flush=True)
 
 
 period_state = [{"period_ms": None, "quality": None} for _ in range(CHANNELS)]
@@ -217,6 +265,7 @@ class Handler(BaseHTTPRequestHandler):
                 ps["period"] = dict(period_state[c])
                 out["pulses"].append(ps)
             out["ble"] = ble.status
+            out["data_manager"] = dm.status()
             self._json(200, out)
         elif path == "/ppg":
             c = int(parse_qs(urlparse(self.path).query).get("ch", ["0"])[0])
@@ -296,6 +345,7 @@ def main():
             zc.close()
         server.shutdown()
         bridge.disconnect()
+        dm.close()
 
 
 if __name__ == "__main__":

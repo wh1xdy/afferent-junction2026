@@ -153,6 +153,17 @@ works in both cases. With `DEVICE=cuda`, `POSE_MODE` defaults to `balanced` and
 `GET /api/minutes?since=` · `GET /api/sessions` · `GET /api/days` ·
 `POST /api/record/start|stop` · `POST /api/days/refresh`
 
+## Data manager (optional)
+
+Set `DATA_MANAGER_URL` in `.env` (an address reachable from inside the container) to also
+push, for every minute row, the runtime's own medians of **trunk vs vertical**
+(`trunk_inclination`) and **head vs trunk** (`head_trunk_angle`) to `jetson/data_manager`
+— the same `geometry.py` values the minute table stores, with the same per-orientation
+validity. Only **standing / walking** minutes are sent (sitting = knee < 120°, hip–ankle
+span only as a fallback when the knees are not visible). One source per context:
+`posture/<site>/<activity>-<orientation>`. Off by default: nothing leaves the machine.
+See `afferent/datasink.py`.
+
 ## Privacy / storage defaults
 
 - Raw frames, keypoints and embeddings-in-flight live only in memory.

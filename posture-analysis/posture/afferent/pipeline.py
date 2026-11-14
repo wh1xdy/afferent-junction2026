@@ -23,6 +23,7 @@ from . import keypoints as kp
 from .aggregator import MinuteAggregator, VisageAggregator
 from .capture import Capture, Frame
 from .config import Config
+from .datasink import DataSink
 from .face import FaceModule, smile_score
 from .filters import KeypointSmoother
 from .floor import FloorMap
@@ -117,9 +118,11 @@ class FrameProcessor:
             cfg.kpt_conf_threshold)
         self.situation = SituationTracker()
         self.episodes = EpisodeTracker(on_episode=self._on_episode)
+        self.datasink = DataSink.from_config(cfg, lambda: self.storage.site)
         self.minute_agg = MinuteAggregator(
             storage, cfg.min_valid_frames,
-            cfg.extractor_version, cfg.model_version)
+            cfg.extractor_version, cfg.model_version,
+            on_flush=self.datasink.on_minute if self.datasink else None)
         self.visage_agg = VisageAggregator(
             storage, cfg.min_valid_frames,
             cfg.extractor_version, cfg.model_version)
@@ -639,6 +642,8 @@ class Pipeline:
         if self._thread:
             self._thread.join(timeout=3.0)
         self.proc.flush(time.time())
+        if self.proc.datasink:
+            self.proc.datasink.close()
         self.storage.close()
 
     def _ensure_models(self) -> None:

@@ -186,6 +186,8 @@ some Android phones advertise nothing identifying and are then not counted.
 | `SCAN_INTERVAL_S` | 30 | |
 | `HUB_URL` | – | UNO Q modulino-hub, for activity + buzzer |
 | `SIM` | – | `1` = simulated phone/guests |
+| `DATA_MANAGER_URL` | http://127.0.0.1:8100 | afferent-data-manager (`jetson/data_manager`): home periods, outings and visits are stored there as intervals; `off` disables |
+| `DATA_MANAGER_TOKEN` | – | its `API_TOKEN`, if set |
 
 `wendy.json` grants **host networking** (to read the LAN's ARP table),
 **bluetooth** (BlueZ via filtered D-Bus) and a **persistent volume** at `/data`
