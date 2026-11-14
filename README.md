@@ -148,24 +148,65 @@ cd uno-q/modulino-hub && wendy run --device "$UNOQ" --detach --yes
 
 When plugged in over USB-C, `wendy discover` finds the boards directly (faster deploys).
 
-## Afferent app, hub and design (afferent-app)
-
-Home maintenance companion after TMS for depression: a two-minute wordless game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and a local hub with a clinician dashboard. All patient data in the demo is simulated. Developed on the `afferent-app` branch and merged here.
-
-- `hub/` Python hub: API, analytics, bedside simulator, serves the game and dashboard
-- `demo/` the game (web, wrapped by Capacitor), `design/` tokens, fonts and the final concept art, `art/` art pipeline
-- `ios/App/` and `android/` Capacitor shells for the game (separate from the native `ios/Afferent` app)
-- `contracts/` JSON schemas and fixtures shared by game and hub
-- `hub/afferent_hub/team/` teammates' hub code (`jetson/hub`, `jetson/data_manager`), copied byte-identical with source branch and commit in `manifest.json`, attached through `hub/afferent_hub/team_adapters/`
-
-Run it:
-
-```sh
-./start.sh --reset   # needs Python 3, creates hub/.venv on first run
-```
-
-Then open `http://localhost:8000/clinic/` (clinician dashboard) or `http://localhost:8000/app/?input=auto&clock=morning` (game, autoplay). Full instructions, options, the iPhone build and tests are in [`APP_README.md`](APP_README.md).
-
 ## Contributing
 
 All repo content — code, comments, docs, commit messages — is in English.
+
+## Afferent app, hub and design (afferent-app)
+
+Home maintenance companion after TMS for depression (Junction 2026, Aalto "Beyond the Clinic").
+A two-minute wordless morning game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and local analytics with a clinician dashboard.
+Supportive, not a treatment. All patient data in the demo is SIMULATED.
+
+Live demo: https://afferent-demo.david-noel-vinu.workers.dev
+
+### Run
+
+```
+./start.sh --reset
+```
+
+Needs Python 3. Creates `hub/.venv` on first run and prints the LAN addresses for the phone.
+
+- Clinic dashboard: http://localhost:8000/clinic/
+- Game: http://localhost:8000/app/?input=auto&clock=morning
+- Patient view: http://localhost:8000/app/patient.html?patient=anna
+
+`./start.sh --help` lists the options. Reset the demo data with `curl -X POST localhost:8000/api/demo/reset`.
+
+Tests:
+
+```
+cd hub && .venv/bin/python -m pytest -q
+cd hub && .venv/bin/python -m afferent_hub.analytics.validate
+```
+
+### iPhone app (Capacitor)
+
+```
+npm install
+npm run sync
+npm run open
+```
+
+In Xcode select the iPhone, set the signing team, Run. In the app, Settings > Hub address: the LAN address from `./start.sh`, same Wi-Fi as the hub.
+
+### Android app
+
+```
+npm install
+npm run build:android
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`npm run open:android` opens the project in Android Studio instead.
+
+### Layout
+
+- `demo/` the game and patient view (Capacitor web root)
+- `hub/` FastAPI hub: API, analytics, clinic dashboard, bedside link
+- `hub/afferent_hub/team/` teammates' hub code, copied byte-identical (never edit; source branch, commit and blob per file in `manifest.json`); glue in `hub/afferent_hub/team_adapters/`, features switched by `AFFERENT_TEAM_*` and `AFFERENT_DATA_MANAGER_URL`. Re-sync: `git fetch junction && (cd hub && .venv/bin/python -m afferent_hub.team_adapters.resync alex_hub)` (or `data_manager`)
+- `contracts/` JSON schemas and fixtures shared by game and hub
+- `design/` tokens, fonts and the final concept art
+- `art/` image and music generation plans and `generate.py`
+- `ios/App/`, `android/` Capacitor native projects (separate from the native `ios/Afferent` app)
