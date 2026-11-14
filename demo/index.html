@@ -78,6 +78,7 @@
         </header>
         <button id="talkBubble" class="talk-bubble" data-open="voice" type="button"><span class="talk-bubble-text">Hey, how are you feeling?</span></button>
         <div class="dock">
+          <p id="roomHint" class="room-hint" aria-live="polite" hidden><span class="ms" aria-hidden="true">bedtime</span><span class="rh-txt"><span class="rh-title"></span> <span class="rh-text"></span></span></p>
           <button id="checkinBtn" class="checkin-chip state hidden" type="button"><span class="dot" aria-hidden="true"></span>Check-in</button>
           <button id="begin" class="kindle state" type="button" aria-label="Hold to kindle" aria-describedby="beginLabel"></button>
           <span id="beginLabel" class="kindle-label t-label" aria-hidden="true">Hold to kindle</span>
@@ -250,6 +251,7 @@
   </main>
 
   <script src="js/util.js"></script>
+  <script src="js/haptics.js"></script>
   <script src="js/gui/lantern.js"></script>
   <script src="js/gui/theme.js"></script>
   <script src="js/gui/shell.js"></script>
@@ -317,6 +319,7 @@
   <script src="js/checkin.js"></script>
   <script src="js/voice-config.js"></script>
   <script src="js/voice.js"></script>
+  <script src="js/room.js"></script>
   <script src="js/vitals.js"></script>
   <script src="js/livevitals.js"></script>
   <script src="js/clipcheck.js"></script>

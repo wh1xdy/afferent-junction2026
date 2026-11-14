@@ -284,7 +284,7 @@
             if (next.length < before) {
               if (removed) this.ghosts.push({ pts: removed, c: q.c, at: this.at, w: q.joined ? 1 : 0.8 });
               q.dimAt = this.at;
-              if (!sys) { hap.seq([['tick', 0], ['tick', 40]]); sfx('threads_cut', { pair: q.i }); }
+              if (!sys) { hap('miss', 0.8); sfx('threads_cut', { pair: q.i }); }
               if (this.drag && this.drag.p === q) this.drag = null;
             }
             const was = q.joined;
@@ -358,7 +358,7 @@
           if (grade === 'perfect') fx.add({ x, y: y - L.cs * 0.1, kind: 'spark', c: C.silver050, life: 0.45, size: [L.cs * 0.55, L.cs * 0.1], alpha: [1, 0] });
           if (grade === 'barely') p.wobAt = this.at;
           if (!all) {
-            if (!sys) hap.seq(grade === 'perfect' ? [['medium', 0], ['tick', 40]] : [['medium', 0]]);
+            if (!sys) hap('success', grade === 'barely' ? 0.7 : 1);
             sfx('threads_join', { pair: p.i, harmony: this.perfRun, piano: [5 + 2 * Math.min(6, pairs.filter(q => q.joined).length), 0.15] });
           }
           this.sync();
@@ -377,7 +377,7 @@
           this.drag = null; this.hint = null;
           finish(this, now);
           J.hitstop(this, 100);
-          hap.seq([['light', 250], ['medium', 340], ['heavy', 430]]);
+          hap.seq([['complete', 250]]);
           sfx('threads_chord', { piano: [7, 0.18] });
           J.border(1);
           this.sync();
@@ -408,7 +408,7 @@
             if (p.anim) return;
             this.rt?.hit(this.rtId, now);
             this.startDrag(p, [c], now);
-            hap('light');
+            hap('touch');
             sfx('threads_pluck', { step: 0, pair: p.i });
           } else {
             const oi = this.owner(c);
@@ -416,7 +416,7 @@
             const p = pairs[oi];
             this.rt?.hit(this.rtId, now);
             this.startDrag(p, p.pipe.slice(0, p.pipe.indexOf(c) + 1), now);
-            hap('tick');
+            hap('touch', 0.8);
           }
           this.sync();
         },
@@ -447,7 +447,7 @@
           if (!this.complete(p) && !this.done) {
             if (D.over >= 0 && knot[D.over] !== p.i) {
               this.wrongEnd++; this.errors++; p.wrong = true; p.wobAt = this.at;
-              hap('tick'); sfx('threads_muted', { pair: p.i });
+              hap('miss'); sfx('threads_muted', { pair: p.i });
             } else if (p.pipe.length > 1) this.loose++;
           }
           this.sync();

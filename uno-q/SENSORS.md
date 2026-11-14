@@ -89,7 +89,7 @@ repository sends 7 bytes (v3); the first four are unchanged, so a client that re
 | `hrv.sdnn_ms`, `hrv.mean_bpm` | float, int | SDNN and mean pulse over the same window |
 | `hrv.vs_baseline` | float | RMSSD relative to the sensor's running median of its last 10 min of readings (after ≥ 2 min), e.g. `-0.3` = 30 % below. Not per person: the sensor does not know who wears the clip |
 | `presence.mode` | str | `idle` (LEDs off) · `probing` (checking for a finger) · `active` (measuring) |
-| `climate.celsius`, `climate.humidity` | float | Modulino Thermo |
+| `climate.celsius`, `climate.humidity` | float | Modulino Thermo. The phone gets it through the home hub (a `room` message, README "Room climate"), not over Bluetooth |
 | `knob.position`, `knob.pressed` | int, bool | Modulino Knob |
 
 Other endpoints: `GET /ppg?ch=0|1` (raw 30–70 s signal, debugging) · `POST /buzz?freq=&ms=` ·

@@ -17,7 +17,7 @@ import org.junit.Test
 class PluginSetupTest {
 
     // jsName of every in-app plugin in the Swift sources under ios/App/App.
-    private val iosJsNames = setOf("AfferentFinger", "AfferentPresence", "AfferentEyes")
+    private val iosJsNames = setOf("AfferentFinger", "AfferentPresence", "AfferentEyes", "AfferentHaptics")
 
     @Test
     fun registeredPluginsUseTheIosJsNames() {
@@ -59,6 +59,23 @@ class PluginSetupTest {
             ),
             permissions
         )
+    }
+
+    /** demo/js/haptics.js calls these, the methods of ios/App/App/AfferentHaptics.swift, plus beat (the heartbeat). */
+    @Test
+    fun hapticsPluginHasTheIosNameAndMethods() {
+        val cls = AfferentHapticsPlugin::class.java
+        assertTrue(cls in AfferentPlugins.all)
+        assertEquals("AfferentHaptics", cls.getAnnotation(CapacitorPlugin::class.java)!!.name)
+        val methods = cls.declaredMethods.filter { it.isAnnotationPresent(PluginMethod::class.java) }
+        assertEquals(
+            setOf("available", "play", "holdStart", "holdStop", "success", "dragStart", "dragMove", "dragStop", "breath", "beat", "stopAll", "warm"),
+            methods.map { it.name }.toSet()
+        )
+        for (m in methods) {
+            assertEquals("${m.name} must return a promise", PluginMethod.RETURN_PROMISE, m.getAnnotation(PluginMethod::class.java)!!.returnType)
+            assertEquals(listOf(PluginCall::class.java), m.parameterTypes.toList())
+        }
     }
 
     /**

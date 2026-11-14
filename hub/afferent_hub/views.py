@@ -1,5 +1,6 @@
 import datetime as dt
 
+from . import room
 from .analytics.features import PLAYED
 
 STATE_ORDER = {"booster": 0, "check_in": 1, "watch": 2, "stable": 3}
@@ -55,6 +56,7 @@ CLINIC_SEES = [
     "Numbers from your sessions compared with your own baseline",
     "Sleep and rest pattern, simulated in this demo (there is no bed sensor)",
     "A weekly summary written from those numbers",
+    "Temperature and humidity at your bedside at night, as weekly medians",
     "Never camera images, sound or messages",
 ]
 
@@ -363,7 +365,8 @@ def current_pause(patient: dict, nd: int) -> dict | None:
     p = pause_on(patient.get("pauses") or [], nd)
     return {"source": p["source"], "until": day_date(patient, p["until_day"]).isoformat()} if p else None
 
-def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict) -> dict:
+def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict,
+                 room_days: dict[int, dict] | None = None) -> dict:
     nd = now_day(patient)
     daily_by = {d["day_index"]: d for d in daily}
     st = streak(sessions, daily, nd, patient.get("pauses") or [])
@@ -407,5 +410,7 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         "today": today, "week": week, "mornings_lit": st["mornings_lit"], "streak": st["streak"],
         "freezes": st["freezes"], "pause": current_pause(patient, nd),
         "what_helped": what_helped(analytics),
+        "room": room.week_view(room.from_daily(daily) if room_days is None else room_days,
+                               [(d["day"], d["date"]) for d in week]),
         "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": crisis_card(patient),
     }

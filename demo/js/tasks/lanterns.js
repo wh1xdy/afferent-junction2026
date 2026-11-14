@@ -129,7 +129,7 @@
     if (live.length > 6) live[0].fadeAt = at;
     L.recoilAt = at;
     if (!rm()) fx.rise(x0, y0 - G.HG * sc0, 6, C.glow, { life: 0.8 });
-    hap('light');
+    hap('touch');
     J.sfx('lantern_release', { piano: [2, 0.06] });
   };
 
@@ -148,7 +148,7 @@
       L.ripple = { t0: at + 0.35, ok: null };
     }
     L.stars.push({ x: clamp(cx + s.dir * (18 + 16 * R()), 0.06 * W, 0.94 * W), y: clamp(cy - 22 - 18 * R(), 0.03 * H, b.y + 0.15 * b.h), born: at });
-    hap.seq([['tick', 0], ['tick', 90], ['tick', 190], ['medium', 320]]);
+    hap.seq([['tick', 0], ['tick', 100], ['success', 220]]);
     J.sfx('lantern_reward', { piano: [8, 0.16] });
     A.session?.kick?.(0.6);
   };
@@ -159,7 +159,7 @@
     objs.sort((p, q) => p.x - q.x).forEach((o, i, all) => { (o.s || o.st).node = Math.round(i * (NODES.length - 1) / Math.max(1, all.length - 1)); });
     L.payoff = at;
     J.spill(0.4);
-    hap.seq([['tick', 250], ['tick', 380], ['tick', 510], ['tick', 640], ['medium', 800]]);
+    hap.seq([['tick', 250], ['tick', 380], ['tick', 510], ['complete', 640]]);
     J.sfx('lanterns_constellation');
   };
 
@@ -185,7 +185,7 @@
   const practiceTap = (g, side, at) => {
     const L = g.L, P = L.prac;
     if (P.resp || L.rt - INTRO < 0.2) return;
-    if (side !== P.big) { P.wrong = { side, at }; hap('tick'); return; }
+    if (side !== P.big) { P.wrong = { side, at }; hap('miss', 0.8); return; }
     P.resp = side; P.respRt = L.rt;
     release(g, side, false, at);
   };

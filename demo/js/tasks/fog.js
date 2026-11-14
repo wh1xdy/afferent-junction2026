@@ -77,7 +77,7 @@
           const b = this.b;
           // Same soft glow for either answer: there is no right one.
           if (b) { const U = unit(b), cx = b.x + b.w / 2, cy = b.y + b.h * 0.47; fx.burst(cx, cy, 8, C.silver050, 90 * U, { kind: 'spark', size: [3.5 * U, 1] }); J.bloom(cx, cy, 90 * U, C.silver100, 0.22, 0.12, 0.45); }
-          hap('light'); sfx('fog_drift', { piano: [3 + (this.items % 5), 0.1] });
+          hap('touch'); sfx('fog_drift', { piano: [3 + (this.items % 5), 0.1] });
           this.state = 'gap'; this.stateAt = this.t;
           J.border((this.i + 1) / this.trials.length);
           this.sync();
@@ -87,7 +87,7 @@
           this.tilt *= Math.exp(-dt * 6);
           if (this.done) return;
           if (this.state === 'gap' && this.t - this.stateAt >= ITI) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('fog_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('fog_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'show'; this.stateAt = this.t;
             const c = this.trials[this.i]; c.on = now; c.onAt = J.at;
           }

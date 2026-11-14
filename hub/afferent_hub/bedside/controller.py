@@ -30,6 +30,9 @@ PHYSIO_KEYS = ("source", "transport", "simulated", "pulse_bpm", "quality", "qual
                "finger_bpm", "finger_sources", "breathing_per_min", "breathing_snr_db", "rmssd_ms", "sdnn_ms",
                "rmssd_baseline_ms", "rmssd_vs_baseline", "presence", "age_s")
 EMPTY_PULSE = {"bpm": None, "quality": 0, "contact": False, "source": None}
+# The thermometer on the bedside unit (Modulino Thermo, uno-q/SENSORS.md). The phone has none of its own and
+# the Bluetooth packet carries no room climate, so the app gets it from here as a `room` message.
+ROOM_SOURCE = "modulino_thermo"
 
 
 def load_tokens() -> dict:
@@ -74,6 +77,8 @@ class Bedside:
         self._overlay: asyncio.Task | None = None
         self._loop_task: asyncio.Task | None = None
         self._app_hold = 0.0
+        self._thermo_at: float | None = None      # monotonic time of the last room reading
+        self._thermo_sim = False
 
     def snapshot(self) -> dict:
         s = json.loads(json.dumps(self.state))
@@ -158,6 +163,22 @@ class Bedside:
             s["thermo"] = {"temp_c": msg.get("temp_c"), "humidity_pct": msg.get("humidity_pct")}
             if msg.get("temp_c") is not None:
                 self.counters["temps"] = (self.counters["temps"] + [msg["temp_c"]])[-1440:]
+            self._thermo_at = time.monotonic() if msg.get("temp_c") is not None else None
+            self._thermo_sim = bool(s["simulated"] or msg.get("simulated"))
+            await self.to_app(self.room_message())
+
+    def room_message(self) -> dict:
+        """The room climate for the app: the last reading and how old it is, or nulls when there is none.
+        A reading from the simulator says so; the app never treats it as the real room."""
+        th, at = self.state["thermo"], self._thermo_at
+        temp = th.get("temp_c") if at is not None else None
+        if temp is None:
+            return {"type": "room", "temp_c": None, "humidity_pct": None, "source": None, "simulated": False,
+                    "age_s": None}
+        sim = self._thermo_sim
+        return {"type": "room", "temp_c": temp, "humidity_pct": th.get("humidity_pct"),
+                "source": "simulated" if sim else ROOM_SOURCE, "simulated": sim,
+                "age_s": round(time.monotonic() - at, 1)}
 
     async def clear_pulse(self):
         s = self.state

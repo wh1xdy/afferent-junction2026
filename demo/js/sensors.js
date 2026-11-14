@@ -67,6 +67,9 @@
   const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
   const FACE_REGIONS = ['brow', 'eye', 'cheek', 'nose', 'mouth', 'jaw'];
   const FACE = { MIN_TRACKED_S: 30, SMILE_RISE: 0.04, WINDOW_S: 60, MICRO_MS: [40, 500], BREATHS: [4, 36], REGIONS: FACE_REGIONS };
+  // Room climate: the bedside unit's thermometer through the home hub, about one reading a minute. Older than
+  // 150 s (two readings missed) it is not shown. Outside these ranges a number is a fault, not a room.
+  const ROOM = { SOURCES: ['modulino_thermo', 'simulated'], FRESH_S: 150, CELSIUS: [-10, 50], HUMIDITY: [0, 100] };
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const unit = x => Number.isFinite(x) ? clamp(x, 0, 1) : null;
   const num = x => Number.isFinite(x) ? x : null;
@@ -88,6 +91,7 @@
     fingerLink: { state: 'unavailable', name: null }, fingerBle: null, fingerHub: null,
     camLink: { state: 'unavailable' }, camPulse: null, droppedCam: 0, plugin: null, listeners: [], stopping: null,
     FACE, faceState: 'unavailable', faceLog: [], faceMicros: [], faceTrack: null, droppedFace: 0,
+    ROOM, roomHub: null, droppedRoom: 0,
 
     async start(source) {
       this.stop();
@@ -324,6 +328,30 @@
       const f = this.fingerFrame(now), link = this.fingerLink.state;
       if (f) return f;
       return link === 'unavailable' && !this.fingerHub ? null : { ...NO_PHYSIO, finger_bpm: [null, null], link };
+    },
+
+    // A `room` message from the home hub (hub/afferent_hub/bedside/controller.py): { temp_c, humidity_pct, source,
+    // simulated, age_s }. The Bluetooth packet from the finger clips carries no room climate.
+    feedRoom(d) {
+      if (!d) return;
+      const source = d.simulated === true ? 'simulated' : d.source, c = num(d.temp_c), h = num(d.humidity_pct);
+      if (c == null) { this.roomHub = null; return; }
+      if (!ROOM.SOURCES.includes(source) || c < ROOM.CELSIUS[0] || c > ROOM.CELSIUS[1]) { this.roomHub = null; this.droppedRoom++; return; }
+      const humidity = h != null && h >= ROOM.HUMIDITY[0] && h <= ROOM.HUMIDITY[1] ? h : null;
+      this.roomHub = { celsius: c, humidity, source, at: A.now() - Math.max(0, num(d.age_s) ?? 0) };
+    },
+
+    // The last room reading while it is fresh, simulated ones included (they are shown labelled), or null.
+    roomFrame(now) {
+      const r = this.roomHub;
+      return r && now - r.at < ROOM.FRESH_S ? { ...r } : null;
+    },
+
+    // The room as measured: { celsius, humidity, source, at } from the bedside unit, fresh, never simulated; else null.
+    // `at` is on the A.now() clock. What the app does with the room (A.Room) and the live vitals overlay read this.
+    room(now) {
+      const r = this.roomFrame(now);
+      return r && r.source !== 'simulated' ? r : null;
     },
 
     setFaceState(state) {

@@ -38,10 +38,11 @@
     "morning_pulse_quality": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
     "room": {
       "type": "object",
+      "description": "The bedside unit's Modulino Thermo. Context, not part of the index. The patient view and the QR code show the night (afferent_hub/room.py)",
       "properties": {
-        "temp_c_mean": { "type": ["number", "null"], "description": "Modulino thermo" },
-        "temp_c_night": { "type": ["number", "null"] },
-        "humidity_pct": { "type": ["number", "null"] }
+        "temp_c_mean": { "type": ["number", "null"], "description": "Modulino thermo, mean of the readings the hub received that day" },
+        "temp_c_night": { "type": ["number", "null"], "description": "Mean over the night that ends on the morning of D, 23:00 to 07:00 local, from the data manager's minute means (env.temperature_c). null when fewer than 4 of the 8 hours have a reading" },
+        "humidity_pct": { "type": ["number", "null"], "description": "Relative humidity, %. Over the same night when it comes from the data manager (env.humidity_pct), else the reading at the day's first session" }
       }
     },
     "bedside_light": {

@@ -55,7 +55,7 @@
           const T = this.t;
           if (this.cur && now - this.cur.on >= ON) this.close(now);
           if (!this.cur && T >= this.nextAt) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('windows_done'); J.border(1); J.spill(0.4); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('windows_done'); J.border(1); J.spill(0.4); return; }
             const t = this.trials[++this.i];
             t.on = now; this.cur = t; this.nextAt = T + this.soa * (0.9 + 0.2 * R());
             sfx('windows_on', { kind: t.kind });
@@ -73,13 +73,13 @@
             c.rt = Math.max(0, t - c.on);
             this.warmAt[c.w] = J.at;
             if (W) { fx.burst(W.x + W.w / 2, W.y + W.h / 2, 10, C.glow, 150 * W.U, { kind: 'spark', size: [4 * W.U, 1] }); J.bloom(W.x + W.w / 2, W.y + W.h / 2, W.w * 1.4, C.warm, 0.35, 0.12, 0.4); }
-            hap('light'); sfx('windows_hit', { piano: [3 + (this.items % 5), 0.12] });
+            hap('hit'); sfx('windows_hit', { piano: [3 + (this.items % 5), 0.12] });
             J.border(this.i / this.trials.length);
             this.close(t);
           } else {
             this.frostAt[c.w] = J.at;
             if (W) fx.snow(W.x + W.w / 2, W.y + W.h * 0.3, 8);
-            hap('tick'); sfx('windows_frost');
+            hap('miss'); sfx('windows_frost');
           }
           this.taps.push(c.kind);
           this.sync();

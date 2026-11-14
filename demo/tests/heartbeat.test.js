@@ -130,7 +130,7 @@ const tests = {
 
   'e: in a simulation the simulated pulse may move the fire, but it is never a reading and never felt'() {
     const t = load(), { A } = t, H = A.Heartbeat, calls = [];
-    t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { beat: async o => calls.push(o) } } };
+    t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(o) } } };
     for (const s of [calm({ profile: 'good_day' }), calm({ profile: 'bad_day' }), calm({ auto: true })]) {
       const n = lubs(t, 10, { s });
       assert.ok(n >= 9, `${s.profile}${s.auto ? ', autoplay' : ''}: the flame may follow the simulator (${n})`);
@@ -167,7 +167,7 @@ const tests = {
 
     // The vibration follows the same rules there: a real pulse in a calm moment.
     const v = load(), calls = [];
-    v.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { beat: async o => calls.push(o) } } };
+    v.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(o) } } };
     v.A.Sensors.pulseMode = 'simulated';
     connect(v.A);
     steps(v, 6, { s: calm(), second: () => clips(v.A) });
@@ -325,7 +325,7 @@ const tests = {
       const t = load(), calls = [], vib = [];
       Object.assign(t.A.config, config);
       t.ctx.navigator.vibrate = ms => vib.push(ms);
-      if (native) t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { beat: async o => calls.push(o) } } };
+      if (native) t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(o) } } };
       connect(t.A);
       if (other) t.A.bus.emit('haptic', 'tick');
       steps(t, 10, { s, second: () => clips(t.A), each: () => { if (other) t.A.bus.emit('haptic', 'tick'); } });
@@ -341,11 +341,12 @@ const tests = {
     assert.ok(felt(calm({ game: { id: 'breath' }, orb: { inhale: false } })).calls.length >= 11, 'on the exhale');
     assert.strictEqual(felt(calm(), { other: true }).calls.length, 0, 'never on top of another vibration');
     const web = felt(calm(), { native: false });
-    assert.ok(web.vib.length >= 11 && web.vib.every(ms => ms <= 6), 'without the native plugin: the lightest tick, as shell.js falls back');
+    assert.ok(web.vib.length >= 11 && web.vib.every(p => p.length === 3 && p[0] <= 8 && p[2] <= p[0]), 'without the native plugin: a short soft lub-dub through the haptics router');
     const swift = fs.readFileSync(path.join(JS, '..', '..', 'ios', 'App', 'App', 'AfferentHaptics.swift'), 'utf8');
     assert.ok(swift.includes('CAPPluginMethod(name: "beat"') && /@objc func beat\(/.test(swift), 'the iOS plugin has beat()');
     assert.ok(/hapticSharpness, value: 0\.12/.test(swift) && /hapticSharpness, value: 0\.06/.test(swift), 'low sharpness: a soft thud, never a buzz');
-    assert.ok(!fs.readdirSync(path.join(JS, '..', '..', 'android', 'app', 'src', 'main', 'java', 'fi', 'junction', 'afferent')).some(f => /Haptic/.test(f)), 'Android has no haptics plugin, so it uses the fallback');
+    const kt = fs.readFileSync(path.join(JS, '..', '..', 'android', 'app', 'src', 'main', 'java', 'fi', 'junction', 'afferent', 'AfferentHapticsPlugin.kt'), 'utf8');
+    assert.ok(/@PluginMethod\s+fun beat\(/.test(kt) && /if \(v == null \|\| holding\(\)\)/.test(kt), 'Android has the same beat(), and it waits for a hold too');
   },
 
   'k: Settings has a "Heartbeat touch" switch, on by default and saved'() {

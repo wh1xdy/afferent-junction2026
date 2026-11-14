@@ -29,7 +29,7 @@
           if (this.done) return;
           if (this.t0 !== null && now - this.t0 >= RUN) {
             this.sync(); finish(this, now);
-            hap('success'); sfx('vihta_done'); J.border(1); J.spill(0.3 + 0.4 * clamp(this.taps.length / 60, 0, 1));
+            hap('complete'); sfx('vihta_done'); J.border(1); J.spill(0.3 + 0.4 * clamp(this.taps.length / 60, 0, 1));
             const b = this.b;
             if (b) { const U = unit(b); for (let i = 0; i < 4; i++) fx.puff(b.x + b.w * (0.3 + 0.13 * i), b.y + b.h * 0.55, C.silver100, U); }
           }
@@ -48,7 +48,7 @@
             fx.rise(b.x + b.w * (0.4 + 0.2 * R()), b.y + b.h * 0.72, 2, C.silver100, { size: [3 * U, 7 * U], kind: 'soft', life: 1.1, add: false, alpha: [0.35, 0] });
             if (this.taps.length % 8 === 0) fx.puff(b.x + b.w * (0.35 + 0.3 * R()), b.y + b.h * 0.7, C.silver100, U);
           }
-          hap(this.taps.length % 4 === 0 ? 'light' : 'tick');
+          hap(this.taps.length % 4 === 0 ? 'hit' : 'touch', this.taps.length % 4 === 0 ? 0.7 : 1);
           sfx('vihta_tap', { i: this.taps.length });
           J.border(clamp((t - this.t0) / RUN, 0, 1));
           this.sync();

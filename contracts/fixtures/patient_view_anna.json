@@ -155,6 +155,53 @@
    "confidence": "low"
   }
  ],
+ "room": {
+  "nights": 6,
+  "temp_c_night": 19.8,
+  "humidity_pct": 32,
+  "sleep_c": [
+   16,
+   19
+  ],
+  "simulated": true,
+  "days": [
+   {
+    "date": "2026-11-09",
+    "temp_c_night": 19.7,
+    "humidity_pct": 33
+   },
+   {
+    "date": "2026-11-10",
+    "temp_c_night": 20.0,
+    "humidity_pct": 32
+   },
+   {
+    "date": "2026-11-11",
+    "temp_c_night": 19.8,
+    "humidity_pct": 30
+   },
+   {
+    "date": "2026-11-12",
+    "temp_c_night": 19.7,
+    "humidity_pct": 33
+   },
+   {
+    "date": "2026-11-13",
+    "temp_c_night": 19.3,
+    "humidity_pct": 30
+   },
+   {
+    "date": "2026-11-14",
+    "temp_c_night": 19.8,
+    "humidity_pct": 34
+   },
+   {
+    "date": "2026-11-15",
+    "temp_c_night": null,
+    "humidity_pct": null
+   }
+  ]
+ },
  "privacy": {
   "sharing": "summary",
   "sensors": [
@@ -200,6 +247,7 @@
   "Numbers from your sessions compared with your own baseline",
   "Sleep and rest pattern, simulated in this demo (there is no bed sensor)",
   "A weekly summary written from those numbers",
+  "Temperature and humidity at your bedside at night, as weekly medians",
   "Never camera images, sound or messages"
  ],
  "crisis": {

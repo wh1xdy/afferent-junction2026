@@ -2,7 +2,8 @@
   const { clamp, lerp, ema } = A;
   const R = Math.random;
   const rm = () => !!A.config?.reducedMotion;
-  const hap = n => A.J?.hap(n);
+  const hap = (n, k) => A.J?.hap(n, k);
+  const hum = level => A.Haptics?.drag(level);
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
   const DT = 1 / 240;
@@ -359,7 +360,7 @@
       st.takeoffAt = now; st.buffer = null; st.rec.jumps++;
       squash(now, 0.92, 1.1, 0.14);
       fx(b.x - 4, b.y, 6, COL.snow, 55, 0.6, 2, { dir: PI * 0.75, spread: 1 });
-      hap('light');
+      hap('touch', 0.8);
       sfx('ride_jump');
     }
 
@@ -372,6 +373,7 @@
       const k = clamp(impact / 300, 0, 1);
       squash(now, 1 + 0.1 * k, 1 - 0.14 * k, 0.16);
       fx(b.x, b.y, Math.round(4 + 8 * k), COL.snow, 40 + 50 * k, 0.7, 2.2, { dir: PI / 2, spread: 2.6 });
+      if (k > 0.1) hap('land', lerp(0.4, 0.8, k));
       sfx('ride_land', { grade: k > 0.5 ? 'perfect' : 'good' });
       if (st.buffer != null && now - st.buffer <= BUF) jump(now);
       st.buffer = null;
@@ -417,6 +419,7 @@
       const lead = o.jumpT != null && st.takeoffAt != null ? Math.round((now - st.takeoffAt) * 1000) : null;
       if (rt?.pending(o.id)) hit ? rt.lapse(o.id) : rt.drop(o.id);
       log(now, hit ? 'hit' : 'clear', { kind: o.kind, lead_ms: lead });
+      if (!hit && o.jumpT != null) hap('hit', 0.6);
       const step = lv.n < 10 ? 0.08 : lv.n < 60 ? 0.04 : 0.025, out = hit ? 0 : 1;
       lv.ds.push(level());
       lv.Ls = clamp(lv.Ls + step * (out - 0.8), 0, 1);
@@ -434,11 +437,11 @@
       if (o.kind === 'drift') {
         b.v = Math.max(vmin, b.v * 0.72);
         fx(o.x, b.y + 4, 14, COL.snow, 70, 0.9, 2.6, { dir: PI * 0.6, spread: 1.6 });
-        hap('light'); sfx('ride_bump', { kind: o.kind });
+        hap('miss', 0.5); sfx('ride_bump', { kind: o.kind });
       } else if (o.kind === 'gap') {
         b.v = Math.max(vmin, b.v * 0.65); st.dipAt = now;
         fx(o.x, b.y, 8, COL.snow, 40, 0.7, 2.2, { spread: 2.2 });
-        hap('medium'); sfx('ride_bump', { kind: o.kind });
+        hap('miss', 0.7); sfx('ride_bump', { kind: o.kind });
       } else {
         b.v = Math.max(vmin, b.v * 0.6);
         if (!b.air) {
@@ -446,7 +449,7 @@
           b.air = true; b.vx = b.v * Math.cos(th); b.vy = b.v * Math.sin(th) + 120; b.airT = HOLD_T; b.apex = 0;
         } else { b.vx = Math.min(b.vx, b.v); b.vy = Math.max(b.vy, 60); }
         fx(o.x, b.y + 6, 10, COL.snow, 60, 0.8, 2.4, { spread: 2.2 });
-        hap('medium'); sfx('ride_bump', { kind: o.kind });
+        hap('miss', 0.8); sfx('ride_bump', { kind: o.kind });
       }
       st.wobbleAt = now;
       squash(now, 1.1, 0.86, 0.22);
@@ -496,7 +499,7 @@
       const v = Math.max(30, b.v), dist = x1 == null ? 0 : Math.max(0, x1 - b.x);
       st.state = 'arrive'; st.at = now; st.arr = { x0: b.x, dist, v, dur: x1 == null ? 0.6 : clamp(2 * dist / v, 0.5, 2) };
       fx(b.x, b.y, 10, COL.snow, 60, 0.6, 2.2, { dir: PI * 0.8, spread: 0.8 });
-      hap('light');
+      hap('land', st.summit ? 0.7 : 0.6);
     }
 
     function camera(now, dt) {
@@ -538,9 +541,11 @@
 
       coreKindle(now, dt) {
         const held = s.auto ? true : A.Input.holding();
+        if (held && !st.kindleHeldNow) hap('touch');
         st.kindleHeldNow = held;
         st.rec.restN++; if (held) st.rec.restHeld++;
         st.kindle = Math.min(1, st.kindle + dt / 6 * (held ? 1 : 0.5));
+        if (st.kindle >= 1 && !st.kindleFull) { st.kindleFull = true; if (held) hap('success', 0.7); }
       },
 
       launch(now) {
@@ -552,7 +557,7 @@
       go(now) {
         if (st.state !== 'ready') return;
         st.state = 'run'; st.at = now;
-        hap('light');
+        hap('touch');
         sfx('ride_go');
       },
 
@@ -615,8 +620,10 @@
           b.v = ema(b.v || 30, st.held ? 20 : 34, dt, 0.8); b.air = false;
           b.x += b.v * dt; b.y = T.h(b.x); b.ang = Math.atan(T.d(b.x));
           if (st.held) s.kick(0.04);
+          if (s.phase === 'dawn') hum(st.held ? (s.V?.sweep ?? 0) : null);
         } else if (st.state === 'give') {
-          if (st.held) { st.rec.dawn_hold_s += dt; if (now - st.giveTick >= 1) { st.giveTick = now; hap('tick'); } }
+          if (st.held) st.rec.dawn_hold_s += dt;
+          hum(st.held && s.phase === 'dawn' ? (s.V?.sweep ?? 0) : null);
         }
         if (['ride', 'arrive', 'stage', 'drift'].includes(st.state)) T.trim(b.x - 1.2 * W0() - 200);
         if (s.firstPlayAt != null) st.daylight = 0.2 * clamp((now - s.firstPlayAt) / Math.max(30, s.playS || 60), 0, 1);
@@ -658,7 +665,7 @@
         if (ph === 'walk') {
           if (type === 'pdown' || type === 'key') {
             if (st.state === 'ready') T_.go(now);
-            else if (st.state === 'exit') st.exitTap = true;
+            else if (st.state === 'exit') { if (!st.exitTap) hap('touch'); st.exitTap = true; }
             else if (st.state === 'ride') st.jumpReq = Math.min(st.pressTs, now);
           }
           return true;

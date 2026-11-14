@@ -75,7 +75,7 @@
     btn.classList.add('chosen');
     btn.setAttribute('aria-pressed', 'true');
     card.querySelector('.ba-ask').textContent = 'Saved for today.';
-    navigator.vibrate?.(12);
+    A.Haptics?.play('hit');
   };
 
   const pending = () => {
@@ -93,7 +93,7 @@
     clearTimeout(askTimer);
     ask.classList.add('thanked');
     ask.querySelector('.ba-q').textContent = 'Thank you.';
-    navigator.vibrate?.(12);
+    A.Haptics?.play(v === 'yes' || v === 'partly' ? 'success' : 'touch', 0.8);
     askTimer = setTimeout(closeAsk, ACK_MS);
   };
   const showAsk = () => {

@@ -55,17 +55,9 @@
 
   // Every other vibration of the app; the heartbeat keeps out of their way.
   A.bus.on('haptic', () => { if (!st.own) st.otherHapAt = A.now(); });
-  const tap = name => { st.own = true; try { A.J ? A.J.hap(name) : navigator.vibrate?.(6); } catch {} st.own = false; };
-  const vibrate = () => {
-    st.own = true;
-    try {
-      const Cap = window.Capacitor, H = Cap?.isNativePlatform?.() ? Cap.Plugins?.AfferentHaptics : null;
-      // iOS: one Core Haptics pattern, so the two halves never drift apart. Elsewhere: the lightest ticks, as shell.js falls back.
-      if (typeof H?.beat === 'function') { A.bus.emit('haptic', 'beat'); Promise.resolve(H.beat({ strength: 0.6 })).catch(() => {}); }
-      else { tap('tick'); setTimeout(() => tap('tick'), 150); }
-    } catch {}
-    st.own = false;
-  };
+  // One heartbeat, the "heart" word of the haptics router (haptics.js): AfferentHaptics.beat, one pattern on iOS and on
+  // Android so the two halves never drift apart; a short soft lub-dub where the plugin is missing.
+  const vibrate = () => { st.own = true; try { A.Haptics?.play('heart'); } catch {} st.own = false; };
 
   const sample = (list, x) => { if (x != null && list.length < START_N) list.push(x); return list.length >= START_N ? median(list) : null; };
   const follow = (cur, x, dt, tau) => x == null ? null : cur == null ? x : ema(cur, x, dt, tau);

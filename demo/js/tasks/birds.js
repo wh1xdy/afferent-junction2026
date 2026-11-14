@@ -57,7 +57,7 @@
           const c = this.cur;
           if (c && now - c.on >= SHOW) { c.off = now; this.cur = null; this.nextAt = this.t + GAP; this.sync(); }
           if (!this.cur && this.t >= this.nextAt) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('birds_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('birds_done'); J.border(1); J.spill(0.35); return; }
             const t = this.trials[++this.i];
             t.on = now; t.onAt = J.at; this.cur = t;
             sfx('birds_land', { kind: KINDS[t.kind].id });
@@ -74,11 +74,11 @@
           if (c.match) {
             c.rt = Math.max(0, t - c.on); this.okAt = J.at;
             if (b) { fx.burst(bx, by - 20 * U, 12, C.glow, 150 * U, { kind: 'spark', size: [4 * U, 1] }); J.bloom(bx, by - 20 * U, 90 * U, C.warm, 0.35, 0.12, 0.4); }
-            hap('light'); sfx('birds_match', { piano: [4 + (this.items % 4), 0.12] });
+            hap('hit'); sfx('birds_match', { piano: [4 + (this.items % 4), 0.12] });
           } else {
             this.noAt = J.at;
             if (b) fx.snow(bx, by - 30 * U, 6);
-            hap('tick'); sfx('birds_flutter');
+            hap('miss'); sfx('birds_flutter');
           }
           J.border((this.i + 1) / this.trials.length);
           this.sync();
