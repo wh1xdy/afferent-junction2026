@@ -46,7 +46,7 @@
 .week-lights .rest .light { width: 11px; height: 11px; margin: 5px 0 0; box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline-variant); }
 .week-lights .rest .d { margin-top: -5px; }
 .week-lights .today .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-sun); }
-.week-lights .today .light::after { content: ""; position: absolute; left: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: #FFB54A; }
+.week-lights .today .light::after { content: ""; position: absolute; left: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--af-ember); }
 .week-lights .future .light, .week-lights .none .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline-variant); }
 .week-lights .future .d, .week-lights .none .d { opacity: 0.6; }
 
@@ -64,7 +64,7 @@
 .quote-line blockquote { margin: 0; max-width: 32ch; }
 .quote-line p {
   margin: 0; font: 300 21px/31px var(--af-font-voice); font-variation-settings: "opsz" 48;
-  color: #3A3226; white-space: pre-line; overflow-wrap: break-word; text-wrap: pretty;
+  color: var(--af-quote-ink); white-space: pre-line; overflow-wrap: break-word; text-wrap: pretty;
 }
 .quote-line.mid p { font-size: 19px; line-height: 28px; }
 .quote-line.long p { font-size: 17px; line-height: 25px; }

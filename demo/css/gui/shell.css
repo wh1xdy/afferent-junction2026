@@ -80,7 +80,7 @@
 .cue.on { opacity: 1; transform: none; }
 .wake-btn {
   position: absolute; z-index: 3; top: calc(var(--safe-top) + 8px); right: 8px; width: 48px; height: 48px; border: 0; border-radius: 50%;
-  display: grid; place-items: center; background: #121212; color: rgba(255, 255, 255, 0.5);
+  display: grid; place-items: center; background: var(--af-hush); color: rgba(255, 255, 255, 0.5);
   animation: wakeIn 1200ms var(--af-ease-in) both;
 }
 @keyframes wakeIn { from { opacity: 0; } to { opacity: 1; } }
