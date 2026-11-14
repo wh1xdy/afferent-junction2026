@@ -1266,7 +1266,9 @@
       if (st.state === 'ride' && st.tut && (st.rec.holds > 1 || now - st.at > 14)) st.tut = false;
       if (s.phase === 'dawn' && !A.Input.holding() && now - st.lastTouch > 1.2) { fa = 0.6; press = 1; }
       if (fa > 0) {
-        const fx0 = s.phase === 'fadein' || s.phase === 'rest' ? lx + 6 * U : z.W * 0.6, fy0 = s.phase === 'fadein' || s.phase === 'rest' ? ly + 4 * U : z.H * 0.7;
+        // Every hold or tap here works anywhere on the screen; the dot sits on the lantern the figure carries, the
+        // thing "hold the lantern" points at, instead of on an empty patch of snow.
+        const [fx0, fy0] = A.World.lanternBody?.() || [lx, ly];
         if (press > 0.5) J.sprite(ctx, 'glow', J.C.flame, fx0, fy0, 22 * U, 0.35 * fa * press, true);
         J.touch(ctx, fx0, fy0, U, fa, press);
       }

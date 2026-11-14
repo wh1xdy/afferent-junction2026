@@ -98,7 +98,11 @@
             const a = -Math.PI / 2 + (i / 30) * 6.283, x = cx + Math.cos(a) * 26 * U - 70 * U, y = b.y + b.h * 0.32 + Math.sin(a) * 26 * U;
             i < lit ? (glow(ctx, x, y, 7 * U, C.amber, 0.6), disc(ctx, x, y, 2 * U, C.glow)) : disc(ctx, x, y, 1.6 * U, C.silver400, 0.4);
           }
-          if (this.t0 === null && !this.done) tapCue(ctx, cx + 20 * U, b.y + b.h * 0.55, U, at, clamp((this.t - 0.4) / 0.4, 0, 1));
+          if (this.t0 === null && !this.done) {
+            // on the leaves (local (-8, 100) of the whisk, turned like the whisk)
+            const r = -0.35 + sw, wx = hx + (-8 * Math.cos(r) - 100 * Math.sin(r)) * U, wy = hy + (-8 * Math.sin(r) + 100 * Math.cos(r)) * U;
+            tapCue(ctx, wx, wy, U, at, clamp((this.t - 0.4) / 0.4, 0, 1));
+          }
           ctx.restore();
         },
       });

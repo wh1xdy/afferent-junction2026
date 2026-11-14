@@ -545,8 +545,9 @@
             const idle = this.boats.filter(q => q.state !== 'wait' && q.state !== 'in').length >= 2;
             const nx2 = idle && lane.find(([q]) => now >= q.tR);
             if (nx2) {
-              const [bt, ps] = nx2, d = (now - bt.tl) / P, press = clamp(1 - Math.abs(d) / 0.3, 0, 1);
-              touch(ctx, X(ps.s) + 6 * U, yl - 58 * U, U, 0.85 * ps.a, press);
+              // On the boat's lantern, inside the ring that closes on the beat (bt.burst, set in the lane loop above).
+              const [bt, ps] = nx2, d = (now - bt.tl) / P, press = clamp(1 - Math.abs(d) / 0.3, 0, 1), [tx0, ty0] = bt.burst || [X(ps.s), yl];
+              touch(ctx, tx0, ty0, U, 0.85 * ps.a, press);
             }
           }
         },

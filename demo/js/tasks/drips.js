@@ -160,7 +160,7 @@
           }
           K.progress(ctx, b, NSYNC + NCONT, this.beat + this.contTaps.length, U);
           if (!frozen && this.asyn.length === 0 && this.beat >= 1 && !this.done)
-            tapCue(ctx, p.x + p.rx * 0.7, p.y - 18 * U, U, at, clamp((this.beat - 0.5) / 1.5, 0, 1));
+            tapCue(ctx, p.x, p.y, U, at, clamp((this.beat - 0.5) / 1.5, 0, 1));
           ctx.restore();
         },
       });

@@ -480,7 +480,8 @@
 
         drawGhost(ctx, at, ct, W, H, u) {
           if (this.done) return;
-          const gx = W * 0.62, gy = H * 0.8;
+          // On the light that grows while you hold (the hold works anywhere).
+          const { x: gx, y: gy } = this.geo();
           let a = 0, press = 0;
           if (!this.touched && this.cyc === 0) {
             if (ct < 1.6) { a = Math.min(1, ct / 0.25) * (1 - clamp((ct - 1.45) / 0.15, 0, 1)); press = E.outSoft(clamp((ct - 0.25) / 0.15, 0, 1)) * (1 - clamp((ct - 1.45) / 0.15, 0, 1)); }
