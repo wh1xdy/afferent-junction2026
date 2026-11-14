@@ -7,7 +7,9 @@
 // games (the real task engine with the breathing task as its only task, instead of the stub tasks),
 // breathing (false leaves breathing.js out: the app without the measured breathing),
 // heartbeat (false leaves heartbeat.js out: the app without the live heartbeat and the calm response),
-// audio (an A.Audio to use instead of the silent stub), music (an A.Music to load the engine next to).
+// audio (an A.Audio to use instead of the silent stub), music (an A.Music to load the engine next to),
+// watch (a fake Capacitor.Plugins.AfferentWatch: a watch or chest strap over the Bluetooth Heart Rate Service),
+// health (a fake Capacitor.Plugins.AfferentHealth, Apple Health; its read() answers with `health.data`).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -93,6 +95,29 @@ const fakeFace = () => {
   };
 };
 
+// Same surface as ios/App/App/AfferentWatch.swift and android AfferentWatchPlugin.kt. `nearby` is what scan() finds.
+const fakeWatch = () => {
+  const ls = { state: [], device: [], reading: [] };
+  return {
+    calls: [], nearby: [], target: null,
+    async addListener(ev, fn) { ls[ev].push(fn); return { remove: () => { ls[ev] = ls[ev].filter(f => f !== fn); } }; },
+    async scan() { this.calls.push('scan'); for (const d of this.nearby) this.emit('device', d); return { state: 'idle' }; },
+    async stopScan() { this.calls.push('stopScan'); },
+    async connect(o) { this.calls.push(`connect ${o?.id}`); this.target = o; return { state: 'connecting', name: o?.name ?? null, id: o?.id ?? null }; },
+    async disconnect() { this.calls.push('disconnect'); this.target = null; },
+    async status() { return { state: this.target ? 'connecting' : 'off', name: this.target?.name ?? null, id: this.target?.id ?? null, scanning: false }; },
+    emit(ev, d) { ls[ev].forEach(f => f(d)); },
+    count(ev) { return ls[ev].length; },
+  };
+};
+
+const fakeHealth = () => ({
+  calls: [], data: null, available: true, reason: null,
+  async status() { this.calls.push('status'); return { available: this.available, reason: this.reason }; },
+  async request() { this.calls.push('request'); return { ok: this.available, reason: this.reason }; },
+  async read() { this.calls.push('read'); return this.data; },
+});
+
 // What @capacitor/core's registerPlugin gives for a name the native side has not registered: every call rejects.
 const unimplemented = () => {
   const fail = async () => { throw Object.assign(new Error('"AfferentPulse" plugin is not implemented on ios'), { code: 'UNIMPLEMENTED' }); };
@@ -124,7 +149,7 @@ const recorder = log => {
   });
 };
 
-const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false, storage = null, games = false, breathing = true, heartbeat = true, audio = null, music = null } = {}) => {
+const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false, storage = null, games = false, breathing = true, heartbeat = true, audio = null, music = null, watch = false, health = false } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
   if (storage) ctx.localStorage = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, String(v)); }, removeItem: k => { storage.delete(k); } };
@@ -140,7 +165,11 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   const plugin = finger ? fakeFinger() : null, cam = camera ? fakeCamera() : null;
   const facePlugin = face === 'core' ? unimplemented() : face ? fakeFace() : null, docListeners = {};
   const pulse = cam || (facePlugin && face !== 'core') ? fakePulse(cam, face === 'core' ? null : facePlugin) : null;
-  if (plugin || pulse) ctx.Capacitor = { Plugins: { ...(plugin ? { AfferentFinger: plugin } : {}), ...(pulse ? { AfferentPulse: pulse } : {}) } };
+  const watchPlugin = watch ? fakeWatch() : null, healthPlugin = health ? fakeHealth() : null;
+  if (plugin || pulse || watchPlugin || healthPlugin) {
+    ctx.Capacitor = { Plugins: { ...(plugin ? { AfferentFinger: plugin } : {}), ...(pulse ? { AfferentPulse: pulse } : {}),
+      ...(watchPlugin ? { AfferentWatch: watchPlugin } : {}), ...(healthPlugin ? { AfferentHealth: healthPlugin } : {}) } };
+  }
   if (face === 'core') ctx.Capacitor = { ...ctx.Capacitor, registerPlugin: () => facePlugin };
   if (face) ctx.document = { getElementById: () => null, ...ctx.document, hidden: false, addEventListener: (t, f) => (docListeners[t] = docListeners[t] || []).push(f) };
   vm.createContext(ctx);
@@ -149,7 +178,7 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   run('haptics.js');
   let clock = 0;
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
-  for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'face.js', 'input.js', ...(breathing ? ['breathing.js'] : []), ...(heartbeat ? ['heartbeat.js'] : []), 'record.js']) run(f);
+  for (const f of ['sensors.js', 'hrv.js', 'finger.js', 'watch.js', 'health.js', 'campulse.js', 'face.js', 'input.js', ...(breathing ? ['breathing.js'] : []), ...(heartbeat ? ['heartbeat.js'] : []), 'record.js']) run(f);
   const noop = () => {};
   ctx.A.Audio = audio || new Proxy({}, { get: () => noop });
   if (music) ctx.A.Music = music;
@@ -172,7 +201,7 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   if (vitals) run('vitals.js');
   if (cam && !ctx.document) ctx.document = { hidden: false };
   const fire = t => Promise.all((docListeners[t] || []).map(f => f()));
-  return { A: ctx.A, ctx, tick: dt => { clock += dt; }, plugin, cam, facePlugin, fire, doc: ctx.document };
+  return { A: ctx.A, ctx, tick: dt => { clock += dt; }, plugin, cam, facePlugin, watchPlugin, healthPlugin, fire, doc: ctx.document };
 };
 
 // Advance a session in 50 ms steps; `each` runs before every step, `second` once per whole simulated second.
@@ -187,4 +216,4 @@ const run = (A, tick, s, seconds, each, second) => {
 // Objects made inside the vm context have their own prototypes; compare plain copies.
 const plain = x => JSON.parse(JSON.stringify(x));
 
-module.exports = { load, run, plain, fakeFinger, fakeCamera, fakeFace, recorder, JS };
+module.exports = { load, run, plain, fakeFinger, fakeCamera, fakeFace, fakeWatch, fakeHealth, recorder, JS };

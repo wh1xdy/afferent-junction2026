@@ -1,4 +1,4 @@
-// Run: node demo/tests/emit_session.js [face]
+// Run: node demo/tests/emit_session.js [face|watch]
 // Prints {signal, vitals, simulated, simulated_fields} of a session document made by the real recorder (record.js through engine.js),
 // so the contract tests can validate what the phone really writes. Nothing else goes to stdout.
 // The numbers fed here (pulse 72, fingers 71 and 73, breathing 6, RMSSD 46, quality 0.6) are test inputs, not measurements.
@@ -6,10 +6,16 @@
 // (smile 0.08 or 0.01, movement 0.03, a blink every fifth second, camera breathing 12): test inputs as well.
 const { load, run } = require('./harness');
 
-const face = process.argv[2] === 'face';
-const { A, tick, facePlugin } = load({ uuid: true, face });
+// With the argument `watch` there is no finger sensor: a chest strap over the Bluetooth Heart Rate Service sends pulse 66
+// with beat-to-beat intervals of 1000 and 1040 ms in turn, and Apple Health has a heart rate from 4 minutes ago (test
+// inputs). The output then also carries context and adaptive, for vitals.watch, context.health and hrv_source.
+const face = process.argv[2] === 'face', watch = process.argv[2] === 'watch';
+const { A, tick, facePlugin, healthPlugin } = load({ uuid: true, face, health: watch, storage: watch ? new Map() : null });
 const S = A.Sensors;
+let beat = 0;
+const strap = () => S.feedWatch({ kind: 'hr', bpm: 66, contact: true, energy_kj: null, rr_ms: [beat++ % 2 ? 1040 : 1000], t_ms: Date.now() });
 const feed = i => {
+  if (watch) { strap(); return; }
   A.Finger.onReading({ kind: 'hrm', bpm: 72, t_ms: Date.now() });
   A.Finger.onReading({ kind: 'aff1', finger_bpm: [71, 73], breathing_per_min: 6, rmssd_ms: 46, quality: 0.6, presence: 'active', payload_len: 6, t_ms: Date.now() });
   if (!face || i == null) return;
@@ -23,7 +29,11 @@ const feed = i => {
 
 (async () => {
   if (face) { await A.Face.sync(); facePlugin.emit('faceState', { state: 'tracking' }); }
-  S.setFingerLink('connected', 'Afferent Finger');
+  if (watch) {
+    healthPlugin.data = { heart_rate: { bpm: 63, end_ms: Date.now() - 4 * 60e3, device: 'Watch' }, resting_hr: { bpm: 54, end_ms: Date.now() - 6 * 3600e3, device: 'Watch' } };
+    await A.Health.enable();
+    S.enabled.watch = true; S.setWatchLink('connected', 'Polar H10');
+  } else S.setFingerLink('connected', 'Afferent Finger');
   feed(); tick(1); feed();
   const s = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
   let doc = null;
@@ -31,6 +41,6 @@ const feed = i => {
   run(A, tick, s, 60, null, feed);
   s.finish('partial');
 
-  const { signal, vitals, simulated, simulated_fields } = doc;
-  process.stdout.write(JSON.stringify({ signal, vitals, simulated, simulated_fields }) + '\n');
+  const { signal, vitals, simulated, simulated_fields, context, adaptive } = doc;
+  process.stdout.write(JSON.stringify({ signal, vitals, simulated, simulated_fields, ...(watch ? { context, adaptive } : {}) }) + '\n');
 })();
