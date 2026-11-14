@@ -30,7 +30,8 @@ function scan(body) {
   assert.strictEqual(d.status, 'ok');
   const imp = { cti: d.cti, fp: d.fingerprint, iat: Math.floor(NOW / 1000), scanned_iso: new Date(NOW).toISOString(), body: d.body };
   C.codes = { get: () => imp, all: () => [imp], key: () => null, label: () => 'A.' };
-  return { body: d.body, page: V.imported({}, imp.cti), list: V.scanned() };
+  const S = { ui: { q: '' } };
+  return { body: d.body, page: V.exportDetail(S, imp.cti), list: V.exportList(S, imp.cti) };
 }
 
 const empty = process.argv[2] ? JSON.parse(fs.readFileSync(process.argv[2], 'utf8')) : (() => {
