@@ -23,10 +23,10 @@ Advertises as **`Afferent Finger`** with the Heart Rate Service, so it is found 
 - Values older than ~5 s should be treated as stale (finger removed, sensor off).
 - iOS reference implementation: `ios/Afferent/FingerSensor.swift`.
 
-### AFF1 v2 (in the repository, not yet deployed to the board)
+### AFF1 v2 and v3 (in the repository, not yet deployed to the board)
 
 The board runs the 4-byte payload above until someone redeploys `modulino-hub`. The code in this
-repository sends 6 bytes; the first four are unchanged, so a client that reads only those
+repository sends 7 bytes (v3); the first four are unchanged, so a client that reads only those
 (`ios/Afferent/FingerSensor.swift`) keeps working.
 
 | Byte | Field | Values |
@@ -37,9 +37,11 @@ repository sends 6 bytes; the first four are unchanged, so a client that reads o
 | 3 | HRV RMSSD, ms (rounded) | 1–254, **0 = no reading**, **255 = above 254 ms** |
 | 4 | `quality_pct` = fused rhythm quality × 100 (the same number as `finger.quality` in `/state`) | 0–100, **255 = not available** (no finger, or sensors still warming up) |
 | 5 | `presence_code` (`presence.mode` in `/state`) | 1 idle · 2 probing · 3 active · 0 unknown |
+| 6 | flags (v3, see below) | bit 0 = two people on the clips (`finger.two_hearts`); the other bits are 0 |
 
 - A client tells the versions apart by the length: 4 bytes = v1 (no quality, no presence),
-  6 bytes = v2. Below 30 % (`quality_pct < 30`) the pulse is unreliable even if a BPM is present;
+  6 bytes = v2, 7 bytes = v3 (v2 plus the flags byte; bytes 0–5 are unchanged, so a v2 client
+  keeps working). Below 30 % (`quality_pct < 30`) the pulse is unreliable even if a BPM is present;
   with a v1 payload the quality is unknown, not good.
 - **RMSSD above 254 ms** does not fit in the byte. `255` is a marker for that, not a reading of
   255 ms: a client shows no value (`hrv.rmssd_ms` in `/state` has the number). The phone app, its
@@ -130,6 +132,13 @@ as one heart with a double-counting sensor), `GET /state` reports `finger.two_he
 - each beat detector keeps its own rhythm (never the combined one),
 - the Jetson hub stops storing pulse, HRV and breathing as the patient's data,
 - the fused pulse, HRV and breathing are still sent, but they belong to one of the two people.
+
+- AFF1 byte 6 bit 0 (v3) is set, so the phone knows too: the app keeps the fused pulse and the
+  finger frame out of a session while the flag is set, and Heart Duel (Settings, Together) shows
+  "Two hearts". The flag is set only while the hub is sensing, and it goes with the next status
+  notification (at most 2 s). In the repository, not yet deployed: the board needs a redeploy of
+  `modulino-hub` before a phone sees the 7-byte packet. Without it the phone app tells two people
+  apart itself from two clearly different per-clip rhythms (the same 12 % / 3 s rule).
 
 Independent of that, a finger's BPM leaves the Bluetooth packet (byte becomes 0) when its own
 detector has had no locked beat for 4 s, so a clip that came off no longer shows its last number

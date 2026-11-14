@@ -4,3 +4,4 @@
 - `./heart-duel --demo` needs no Bluetooth: two simulated players, and the page shows a SIMULATED badge.
 - It is a party game, not a medical measurement: a number is only shown while heartbeats confirm it, otherwise the page says "put the clip on" or greys the last value out.
 - Two people on one sensor box: player 1 puts the clip on first (finger 1 switches the sensors on). With the newer UNO Q firmware a clip that comes off drops out within 4 s and nothing from a duel is stored as patient data; with the older firmware the page falls back to its own "is this number still confirmed" check.
+- Also in the phone app: Settings, Together, Heart Duel. Both hearts beat live from the two clips and the pair plays "who calms down first" (each from their own starting pulse). It reuses `game.js` (copied to `demo/js/heartduel-game.js` by `./build.sh`), runs only outside a session and saves nothing.
