@@ -6,7 +6,7 @@
 //                    notify("ppg", millis, a1, a2)               every loop (~45 Hz, 14-bit)
 //                    notify("beat", ch, millis, ibiMs, peakSlope, locked) on every detected beat (ch 0 = A1, 1 = A2)
 //  Linux -> sketch:  call("buzz", freqHz, ms)
-//                    call("heartbeat_sound", on)                 beep on every heartbeat (default on)
+//                    call("heartbeat_sound", on)                 beep on every heartbeat (default off)
 //                    call("pulse_period", ch, ms, quality100)    Linux autocorrelation of the last 6 s, every 1 s
 //                    call("led", r, g, b, ms)                    show a colour on the KY-016 for ms
 //                                                                (ms <= 0: hold until the next call; 0,0,0 = back to auto)
@@ -48,7 +48,13 @@ const float MIN_PEAK = 120.0f;       // 14-bit counts per 2 samples. Middle fing
                                      // kept silent by the lock gate (Linux period quality), not by this
 const unsigned long REFRACTORY_MS = 300;
 const int RAIL_LO = 200, RAIL_HI = 13500;   // sensor amplifier saturated: ignore
-bool heartbeatSound = true;
+// Quiet by default: this is a silent bedside unit for the morning session, so it must not beep
+// on every heartbeat unless someone asks for it. POST /heartbeat?on=1 (call "heartbeat_sound")
+// still switches the beep on, e.g. when checking the sensors at the bench.
+bool heartbeatSound = false;
+// Same reason for the sounds nobody asked for: the startup beep and the knob click stay off.
+// call("buzz", ...) is not gated, a caller that asks for a tone still gets it.
+const bool UI_SOUNDS = false;
 unsigned long lastBeep = 0;               // one beep per heartbeat, whichever finger sees it first
 
 struct Channel {
@@ -182,7 +188,7 @@ void setup() {
   writeLed(0, 40, 0);                     // green blink at startup
   delay(150);
   writeLed(0, 0, 0);
-  if (buzzerOk) buzzer.tone(1760, 80);  // startup beep
+  if (UI_SOUNDS && buzzerOk) buzzer.tone(1760, 80);  // startup beep (off: silent bedside unit)
 }
 
 void loop() {
@@ -192,7 +198,7 @@ void loop() {
     int16_t pos = knob.get();
     bool pressed = knob.isPressed();
     if (pos != lastPos || pressed != lastPressed) {
-      if (pressed && !lastPressed && buzzerOk) buzzer.tone(1200, 30);  // click
+      if (UI_SOUNDS && pressed && !lastPressed && buzzerOk) buzzer.tone(1200, 30);  // click (off: silent bedside unit)
       lastPos = pos;
       lastPressed = pressed;
       Bridge.notify("knob", (int)pos, pressed);

@@ -31,6 +31,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Afferent reads only whether your eyes are closed. Camera frames never leave the phone.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Afferent reads your pulse from the Afferent finger sensor over Bluetooth.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Afferent talks to your bedside unit on your home network.</string>
 	<key>UIApplicationSceneManifest</key>
