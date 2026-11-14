@@ -2,6 +2,9 @@ package fi.junction.afferent
 
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
+import com.getcapacitor.PluginCall
+import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.PermissionCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -29,6 +32,33 @@ class PluginSetupTest {
             name
         }
         assertEquals("a plugin name is registered twice: $names", names.size, names.toSet().size)
+    }
+
+    /** The web layer (demo/js/finger.js) calls exactly these, as on iOS. */
+    @Test
+    fun fingerPluginHasTheIosNameAndMethods() {
+        val cls = AfferentFingerPlugin::class.java
+        assertTrue(cls in AfferentPlugins.all)
+        val annotation = cls.getAnnotation(CapacitorPlugin::class.java)!!
+        assertEquals("AfferentFinger", annotation.name)
+        val methods = cls.declaredMethods.filter { it.isAnnotationPresent(PluginMethod::class.java) }
+        assertEquals(setOf("start", "stop", "status"), methods.map { it.name }.toSet())
+        for (m in methods) {
+            assertEquals("${m.name} must return a promise", PluginMethod.RETURN_PROMISE, m.getAnnotation(PluginMethod::class.java)!!.returnType)
+            assertEquals(listOf(PluginCall::class.java), m.parameterTypes.toList())
+        }
+        // start() names this method when it asks for the permission; Capacitor finds it by name
+        val callback = cls.declaredMethods.single { it.isAnnotationPresent(PermissionCallback::class.java) }
+        assertEquals("permissionResult", callback.name)
+        // one alias per Android generation, see AfferentFingerPlugin.permissionAlias
+        val permissions = annotation.permissions.associate { it.alias to it.strings.toSet() }
+        assertEquals(
+            mapOf(
+                "bluetooth" to setOf("android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT"),
+                "location" to setOf("android.permission.ACCESS_FINE_LOCATION"),
+            ),
+            permissions
+        )
     }
 
     /**

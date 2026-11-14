@@ -42,4 +42,19 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+
+    <!-- AfferentFinger (AfferentFingerPlugin.kt): the finger sensor over Bluetooth LE. -->
+    <!-- Android 12+ (API 31+). The scan only looks for our own sensor, never for where the phone is. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 7 to 11 (API 24 to 30): a Bluetooth scan needs these three. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!-- The app also runs on a device without Bluetooth LE (the plugin then reports "unsupported")
+         or without location hardware; the permissions above would otherwise make both required. -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <!-- end AfferentFinger -->
 </manifest>
