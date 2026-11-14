@@ -79,7 +79,7 @@
     else if (mode === 'wake' || mode === 'fatigue') { gain *= 1.12; sharp += 0.08; }
     if (night) { gain *= cfg.quietNight === false ? 0.85 : 0.72; sharp -= 0.08; }
     if (rm()) { gain *= 0.85; sharp -= 0.06; }
-    return { gain: clamp(gain, 0.3, 1), sharp: clamp(sharp, -0.3, 0.15) };
+    return { gain: clamp(gain, 0.3, 1), sharp: clamp(sharp, -0.3, 0.15), night };
   };
 
   const later = (fn, ms) => {
@@ -112,8 +112,9 @@
     if (b === 'afferent') {
       const P = own();
       if (name === 'heart') {
-        // The heartbeat's own pattern when the plugin has it; it may refuse during a hold, and then nothing plays.
-        if (typeof P.beat === 'function') quiet(P.beat({ strength: clamp(0.6 * gain / 0.9, 0.1, 1) }));
+        // The heartbeat's own pattern, as heartbeat.js tuned it (0.6; it only plays in calm moments), softer at night.
+        // It refuses during a hold or a breath, and then nothing plays.
+        if (typeof P.beat === 'function') quiet(P.beat({ strength: Math.round(clamp(0.6 * k * (c.night ? 0.75 : 1), 0.1, 0.8) * 100) / 100 }));
         else capPlay(name, gain);
         return;
       }
@@ -231,7 +232,8 @@
 
   A.Haptics = Object.assign(H, {
     VOCAB, ALIAS, GAP, hap, play, seq, ladder, drag, breath, hold, release, lit, stop, warm, backend, smooth, context, setEnabled,
-    clock: () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000,
+    // The app clock once main.js has set it (the tests drive it by hand), the page clock before.
+    clock: () => (A.now ? A.now() : (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000),
     // For the tests: forget lanes, hush and the plugin's answer.
     reset() { st.last = {}; st.burst = []; st.hushPrio = -1; st.hushUntil = -9; st.drag = null; st.warm = false; st.caps = { asked: false, ok: null, continuous: null }; },
   });

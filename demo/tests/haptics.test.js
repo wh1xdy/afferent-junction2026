@@ -201,7 +201,9 @@ const tests = {
     r.H.play('heart');
     assert.strictEqual(own.count('beat'), 1);
     assert.strictEqual(own.count('play'), 0);
-    assert.ok(own.last('beat').strength > 0.5 && own.last('beat').strength <= 0.6);
+    assert.strictEqual(own.last('beat').strength, 0.6, 'as heartbeat.js tuned it');
+    r.A.session = { mode: 'calm', night: true }; r.at(1000); r.H.play('heart');
+    assert.ok(own.last('beat').strength < 0.6, 'softer at night');
     const cap = fakeCapHaptics();
     r = load({ cap: native({ AfferentHaptics: fakeOwn({ beat: false }), Haptics: cap }) });
     r.H.play('heart'); r.at(200);
