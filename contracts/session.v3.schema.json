@@ -212,6 +212,63 @@
         "null"
       ]
     },
+    "count_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "ms_or_null": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "task_rt": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Optional stimulus-response latencies inside a task (shared app module A.RT). Same conventions as core.rt: median and IQR over responses >= 150 ms, lapses and anticipations as counts. Exploratory, confounded by task difficulty, adaptive difficulty and motivation; core.rt stays the primary psychomotor measure.",
+      "properties": {
+        "n": {
+          "$ref": "#/$defs/count_or_null",
+          "description": "Responses that entered the median"
+        },
+        "median_ms": {
+          "$ref": "#/$defs/ms_or_null"
+        },
+        "iqr_ms": {
+          "$ref": "#/$defs/ms_or_null"
+        },
+        "lapses": {
+          "$ref": "#/$defs/count_or_null"
+        },
+        "anticipations": {
+          "$ref": "#/$defs/count_or_null"
+        },
+        "by_kind": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Per stimulus kind of this task, for example tap_target, catch, beat, choice",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "n": {
+                "$ref": "#/$defs/count_or_null"
+              },
+              "median_ms": {
+                "$ref": "#/$defs/ms_or_null"
+              }
+            }
+          }
+        }
+      }
+    },
     "quality": {
       "type": [
         "number",
@@ -674,7 +731,12 @@
         },
         "extra": {
           "type": "object",
-          "description": "Task-specific numbers, free form"
+          "description": "Task-specific numbers, free form except for the documented keys",
+          "properties": {
+            "rt": {
+              "$ref": "#/$defs/task_rt"
+            }
+          }
         },
         "skip_reason": {
           "enum": [

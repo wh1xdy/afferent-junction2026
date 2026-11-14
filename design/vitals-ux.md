@@ -269,7 +269,7 @@ Triggers:
 
 ## 10. Build list (file level, owners, priorities)
 
-Lands in `/Users/david/code/afferent-game-mg` (branch `minigames`), where `engine.js` already routes `haptic(name)` to `A.J.hap` and `juice.js` has `hap.seq`. Owners follow coreloop 12 and lookdev 13.1.
+Lands in `../afferent-game-mg` (branch `minigames`), where `engine.js` already routes `haptic(name)` to `A.J.hap` and `juice.js` has `hap.seq`. Owners follow coreloop 12 and lookdev 13.1.
 
 ### 10.1 Tonight, must
 

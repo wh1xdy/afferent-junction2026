@@ -4,7 +4,7 @@ Status: build spec for tonight (Sun 15 Nov 2026). Creative director synthesis of
 
 Where this file and `ArtBible.md` or `GameDesign.md` differ on look and feel, this file wins tonight; the decisions are logged in section 15 so `Decisions.md` can be updated after the build.
 
-Evidence (headless Chrome, 390x844): contact sheets in `/private/tmp/claude-501/-Users-david-code/76c66b7a-7abb-4958-8152-43221d9806b5/scratchpad/light/` (`s-good.png`, `s-bad.png`, `s-cwn.png`, `s-gdawn.png`, `s-ndawn.png`), `.../scratchpad/mcd/` (`sheet-live.png`, `sheet-walk.png`, `sheet-dawn.png`) and `.../scratchpad/hook/` (`sheet-live.png`, `sheet-good.png`, `sheet-bad.png`, `sheet-night.png`).
+Evidence (headless Chrome, 390x844): contact sheets in `scratchpad/light/` (`s-good.png`, `s-bad.png`, `s-cwn.png`, `s-gdawn.png`, `s-ndawn.png`), `.../scratchpad/mcd/` (`sheet-live.png`, `sheet-walk.png`, `sheet-dawn.png`) and `.../scratchpad/hook/` (`sheet-live.png`, `sheet-good.png`, `sheet-bad.png`, `sheet-night.png`).
 
 Priorities: **MUST** ships tonight, **SHOULD** ships tonight if the MUSTs are green by the halfway mark, **NICE** is after the demo. Every item names its role model and the exact technique taken.
 
@@ -568,7 +568,7 @@ Role models: Sky: Children of the Light (persistent candles), Animal Crossing (t
 | Metric | Budget | How |
 |---|---|---|
 | `A.World.draw` JS p50 / p95, desktop, no throttle | at most 2.5 / 4 ms | `perf.js` overlay or the Playwright perf script |
-| `A.World.draw` JS p95 at 4x CPU throttle, DSF 3 | at most 10 ms (walk, game), 11 ms (dawn) | `/private/tmp/claude-501/-Users-david-code/76c66b7a-7abb-4958-8152-43221d9806b5/scratchpad/light/perf2.js` with args `all 4 3` (base, bloom, grade, all) |
+| `A.World.draw` JS p95 at 4x CPU throttle, DSF 3 | at most 10 ms (walk, game), 11 ms (dawn) | `scratchpad/light/perf2.js` with args `all 4 3` (base, bloom, grade, all) |
 | New FX CPU on iPhone 12 | at most 1.5 ms | `?perf=1`, compare `?fx=0` and `?fx=2` |
 | iPhone frame time p95 over a full session | at most 18 ms, no auto step to scale 1.5 on iPhone 12 or newer | `?perf=1` overlay, three runs: live morning, bad_day, night |
 | Fill | at most 7 FSE (8 at dawn) at dpr 2 | count composites in `A.FX.debug().fse` |
@@ -705,7 +705,7 @@ engine.js is also edited by the minigames workflow (`g.outro`, `g.bare`, `g.draw
 
 ## 14. Test checklist
 
-Harness: Playwright at `/private/tmp/claude-501/-Users-david-code/76c66b7a-7abb-4958-8152-43221d9806b5/scratchpad/pw` (`chromium.launch({channel: 'chrome', headless: true})`, viewport 390x844, DSF 2), hub at `http://localhost:8000/app/?dev=1`. Reuse the director scripts: `.../scratchpad/light/play.js` (args: tag profile clock force times), `.../scratchpad/light/dawn.js`, `.../scratchpad/light/perf2.js`, `.../scratchpad/mcd/seq.js`, `.../scratchpad/hook/hook_log.js`. Numeric checks read `A.World.debug()` instead of pixels where possible. Store shots under `screenshots/lookdev/`.
+Harness: Playwright at `scratchpad/pw` (`chromium.launch({channel: 'chrome', headless: true})`, viewport 390x844, DSF 2), hub at `http://localhost:8000/app/?dev=1`. Reuse the director scripts: `.../scratchpad/light/play.js` (args: tag profile clock force times), `.../scratchpad/light/dawn.js`, `.../scratchpad/light/perf2.js`, `.../scratchpad/mcd/seq.js`, `.../scratchpad/hook/hook_log.js`. Numeric checks read `A.World.debug()` instead of pixels where possible. Store shots under `screenshots/lookdev/`.
 
 ### 14.1 Screenshots to take (each before and after, same seed and time)
 

@@ -1,6 +1,6 @@
 import datetime as dt
 
-from . import bandit, stats
+from . import bandit, game_rt, stats
 from .features import FEATURES, PLAYED, context_series, extract, get
 
 PARAMS = {
@@ -256,6 +256,7 @@ def analyze_patient(sessions: list[dict], daily: list[dict], now_day: int, *, pa
         "director": director(sessions, now_day),
         "suggestion": {"state": state, "text": SUGGESTIONS[state], "reasons": reasons},
         "features": feature_blocks(sc, now_day),
+        "secondary_features": game_rt.blocks(sc["extract"]["main"], now_day, params),
         "composite": comp,
         "cusum": cus,
         "bandit": bandit.build(sessions, sc["extract"]["main"], sc["extract"]["daily"], sc["composite"], now_day),

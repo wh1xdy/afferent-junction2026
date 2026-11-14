@@ -8,7 +8,7 @@ Status: mapping only. Nothing here is a build plan. Every row cites code. Where 
 |---|---|
 | `T:` | Team repo `junction/main` at `c5b4e04` (wh1xdy, 2026-11-14 11:24, "Merge Alex"). Alex is merged into main: `git merge-base --is-ancestor junction/Alex junction/main` is true and both trees are `12e1bb4`. So RSA breathing, 3-byte AFF1 and the primary AFF0 are on main. Line numbers were checked against `git archive c5b4e04`. A team clone still at `eea9238` (10:01) does not contain `c5b4e04` and gives different lines for the files changed after it. |
 | `ours:` | This repo, local `main` at `b0a19c8`. That is `junction/afferent-app` (`03d003c`) plus 5 commits (`32361bd`, `4197661`, `fa154e8`, `9097364`, `b0a19c8`). `git diff 03d003c b0a19c8` on every file cited here is empty except `hub/afferent_hub/web/clinic/`, which is not cited. |
-| `im:` | Our `junction/ios-merge` at `9c84517` (worktree `/Users/david/code/afferent-game-ios`). |
+| `im:` | Our `junction/ios-merge` at `9c84517` (worktree `../afferent-game-ios`). |
 
 Owner names follow `ours:STATUS.md:26-31` (David, Romain, Alex, Vlad). Git authors differ from those names. `git log c5b4e04 -- <path>` gives wh1xdy as the only author of `jetson/vision`, `uno-q/modulino-hub`, `ios/` and `hardware/`, and lusca-vlad-30322 as the only author of `jetson/presence`. The first commit of `poc/laptop-markers` not on team main is `ec15a98` by Romain Chaumontet. No file says wh1xdy is Alex. The link is only the branch name "Alex" and `ours:STATUS.md:30`, so the first Alex question below asks him to confirm it.
 

@@ -43,7 +43,7 @@ def keys_cover(got, want, path="$"):
 
 def test_shape_matches_fixture(anna, fixture):
     keys_cover(anna, fixture)
-    assert set(anna) == set(fixture)
+    assert set(anna) == set(fixture) | {"secondary_features"}
     assert anna["schema"] == "afferent.analytics/1"
     assert [f["key"] for f in anna["features"]] == [f["key"] for f in fixture["features"]]
 

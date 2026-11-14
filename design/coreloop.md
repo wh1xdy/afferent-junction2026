@@ -21,7 +21,7 @@ Today the player is a passenger. The figure walks by itself, tasks pop up in a c
 
 ## 1. What I measured in today's game
 
-Method: headless Chrome, 390x844, `http://localhost:8000/app/?dev=1`, sampled every frame, every input logged (`/private/tmp/claude-501/-Users-david-code/76c66b7a-7abb-4958-8152-43221d9806b5/scratchpad/pw/coreloop_probe.js`, outputs `cl_good.txt`, `cl_bad.txt`, `cl_night.txt` and `coreloop_*.json` in the same folder). Autoplay is a best case: it taps the instant a target is ready, so a human has more dead time, not less.
+Method: headless Chrome, 390x844, `http://localhost:8000/app/?dev=1`, sampled every frame, every input logged (`scratchpad/pw/coreloop_probe.js`, outputs `cl_good.txt`, `cl_bad.txt`, `cl_night.txt` and `coreloop_*.json` in the same folder). Autoplay is a best case: it taps the instant a target is ready, so a human has more dead time, not less.
 
 | Run | Length | Taps | Gaps over 2 s without any input | Time inside those gaps | Longest gaps |
 |---|---|---|---|---|---|
@@ -103,7 +103,7 @@ The launch test uses the light glide gravity `GLIDE` instead of `g`: once you le
 
 ### 4.3 Starting constants and targets
 
-Starting values come from a 60 s simulation per mode with three bots (`/private/tmp/claude-501/-Users-david-code/76c66b7a-7abb-4958-8152-43221d9806b5/scratchpad/ride_sim.js`, run with `M` set to the constants as JSON, see `tune.sh` beside it): a good player (hold on down slopes, release on up slopes, dive when descending over a down slope), nobody touching, and a finger that never lifts. Tune the constants until the **targets** hold; the targets are the spec, the constants are a start.
+Starting values come from a 60 s simulation per mode with three bots (`scratchpad/ride_sim.js`, run with `M` set to the constants as JSON, see `tune.sh` beside it): a good player (hold on down slopes, release on up slopes, dive when descending over a down slope), nobody touching, and a finger that never lifts. Tune the constants until the **targets** hold; the targets are the spec, the constants are a start.
 
 | Constant (u, s) | calm | flow | wake (k 0 to 1) | fatigue (k 0 to 1) | rest drift |
 |---|---|---|---|---|---|
@@ -490,7 +490,7 @@ Physics, timing, stations and everything measured are identical.
 
 - `A.Traverse.auto(dt)` (used when `input === 'auto'`): on the ground, hold when `h'(x) < -0.03`; in the air, hold when descending and the ground 0.25 s ahead slopes down; fatigue releases at the predicted crest pass with 60 ms jitter. Profile `bad_day` reacts 300 ms late and misses every third beat. Launch press after 0.5 s.
 - Dev hooks: `?ride=calm|flow|wake|fatigue|rest` forces the ride mode (director still logs); `?task=<id>` forces the next station (reuse the kit's dev hook if it exists); `A.Traverse.debug()` returns `{state, v, alt, hill, mode, light, gaps}`.
-- Pass criteria (headless, 390x844, `?dev=1`, using a probe like `/private/tmp/claude-501/-Users-david-code/76c66b7a-7abb-4958-8152-43221d9806b5/scratchpad/pw/coreloop_probe.js`):
+- Pass criteria (headless, 390x844, `?dev=1`, using a probe like `scratchpad/pw/coreloop_probe.js`):
   1. Autoplay good morning, groggy bad morning and night fallback: no stretch over 2.0 s without an input opportunity, except kindle and give holds, Bite foreperiods, calm releases (at most 6.5 s), rest drift and decisions waiting for the player. Report the gap list.
   2. Nobody touching (touch mode): the session reaches dawn and the end screen in under 2:00 of play, `status: partial`.
   3. Bot medians per mode inside the 4.3 targets.
@@ -501,7 +501,7 @@ Physics, timing, stations and everything measured are identical.
 
 ## 12. File plan (one traversal builder; the 11 task builders never touch these)
 
-The traversal builder works in the worktree `/Users/david/code/afferent-game-mg` (branch `minigames`) and owns: `demo/js/traverse.js` (new), `demo/js/engine.js`, `demo/js/world.js`, `demo/js/main.js`, `demo/index.html`. Task builders own `demo/js/tasks/<id>.js` only; the kit builder owns `demo/js/juice.js` and `demo/js/input.js`. Any engine.js need of a task builder goes to the traversal builder.
+The traversal builder works in the worktree `../afferent-game-mg` (branch `minigames`) and owns: `demo/js/traverse.js` (new), `demo/js/engine.js`, `demo/js/world.js`, `demo/js/main.js`, `demo/index.html`. Task builders own `demo/js/tasks/<id>.js` only; the kit builder owns `demo/js/juice.js` and `demo/js/input.js`. Any engine.js need of a task builder goes to the traversal builder.
 
 ### 12.1 traverse.js (new, `A.Traverse`)
 
