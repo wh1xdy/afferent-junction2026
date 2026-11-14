@@ -180,6 +180,46 @@ final class AfferentFingerParserTests: XCTestCase {
         XCTAssertFalse(AfferentFingerParser.isAfferentFinger(advertisedName: "", peripheralName: ""))
     }
 
+    // MARK: Found through Wendy Net's advertisement
+
+    private func may(_ adv: String?, _ gap: String?, wendy: Bool) -> Bool {
+        AfferentFingerParser.mayBeAfferentBoard(advertisedName: adv, peripheralName: gap, wendyNet: wendy)
+    }
+
+    func testOurAdvertisementStillMatches() {
+        XCTAssertTrue(may("Afferent Finger", nil, wendy: false))           // scan for 180D, as before
+        XCTAssertTrue(may(nil, "Afferent Finger", wendy: false))           // connected through another app
+    }
+
+    func testTheBoardSeenOnlyThroughWendyNet() {
+        // what a Mac saw on 2026-11-14 while a Wendy Net peer held the link through our
+        // advertisement: local name "wendyos-uno-q", service 7565E9EB, GAP name "Afferent Finger"
+        XCTAssertTrue(may("wendyos-uno-q", "Afferent Finger", wendy: true))
+        XCTAssertTrue(may("wendyos-uno-q", nil, wendy: true))              // a phone that never connected
+        XCTAssertTrue(may(nil, "wendyos-uno-q", wendy: true))              // found among connected peripherals
+        XCTAssertTrue(may(nil, "Afferent Finger", wendy: true))
+    }
+
+    func testNeverAnUnrelatedDevice() {
+        XCTAssertFalse(may("wendyos-uno-q", nil, wendy: false), "the name alone, without Wendy Net's service")
+        XCTAssertFalse(may("wendyos-hackathon-device-12", nil, wendy: true), "another Wendy device")
+        XCTAssertFalse(may("wendyos-jetson", "wendyos-jetson", wendy: true))
+        XCTAssertFalse(may(nil, nil, wendy: true), "Wendy Net's service without a name")
+        XCTAssertFalse(may("WendyOS-UNO-Q", nil, wendy: true))
+        XCTAssertFalse(may("wendyos-uno-q-2", nil, wendy: true))
+        XCTAssertFalse(may("Polar H10 8A3B2C1D", "Polar H10", wendy: false))
+        XCTAssertFalse(may("Polar H10 8A3B2C1D", "Polar H10", wendy: true))
+    }
+
+    func testWendyNetServiceInAnAdvertisement() {
+        XCTAssertEqual(AfferentFingerParser.wendyNetService, "7565E9EB-4C20-4B67-9272-D708B397B631")
+        XCTAssertTrue(AfferentFingerParser.advertisesWendyNet(["7565E9EB-4C20-4B67-9272-D708B397B631"]))
+        XCTAssertTrue(AfferentFingerParser.advertisesWendyNet(["180D", "7565e9eb-4c20-4b67-9272-d708b397b631"]))
+        XCTAssertFalse(AfferentFingerParser.advertisesWendyNet(["180D"]))
+        XCTAssertFalse(AfferentFingerParser.advertisesWendyNet([]))
+        XCTAssertEqual(AfferentFingerParser.scanServices, ["180D", "7565E9EB-4C20-4B67-9272-D708B397B631"])
+    }
+
     // MARK: Events sent to the web layer
 
     private func json(_ event: [String: Any]) throws -> String {

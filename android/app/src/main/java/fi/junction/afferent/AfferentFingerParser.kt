@@ -99,5 +99,29 @@ object AfferentFingerParser {
     fun isAfferentFinger(advertisedName: String?, peripheralName: String?): Boolean =
         advertisedName == DEVICE_NAME || peripheralName == DEVICE_NAME
 
+    // The board also advertises Wendy Net, from the same Bluetooth address: service
+    // WENDY_NET_SERVICE, name "wendyos-uno-q". A Wendy Net peer that connects by address can land
+    // on our "Afferent Finger" advertisement, and while that link lasts it is off the air: only
+    // Wendy Net's is left. Connected through Wendy Net's advertisement, the phone still finds
+    // our services (one GATT server for the whole board).
+
+    /** Wendy Net's Bluetooth service (seen in the board's advertisement, 2026-11-14). */
+    val WENDY_NET_SERVICE: UUID = UUID.fromString("7565e9eb-4c20-4b67-9272-d708b397b631")
+    /** The name the board advertises with Wendy Net's service (WendyOS on an Arduino UNO Q). */
+    const val WENDY_BOARD_NAME = "wendyos-uno-q"
+    /** What the plugin scans for: Heart Rate and Wendy Net. */
+    val SCAN_SERVICES: List<UUID> = listOf(HEART_RATE_SERVICE, WENDY_NET_SERVICE)
+
+    /**
+     * True for a device worth connecting to and checking for the AFF0 service (which is still
+     * required before anything is trusted):
+     *  - named exactly "Afferent Finger" (advertised or device name), or
+     *  - advertising Wendy Net's service and named exactly "wendyos-uno-q".
+     * Anything else, also another Wendy device or a heart-rate strap, is never connected.
+     */
+    fun mayBeAfferentBoard(advertisedName: String?, deviceName: String?, wendyNet: Boolean): Boolean =
+        isAfferentFinger(advertisedName, deviceName) ||
+            (wendyNet && (advertisedName == WENDY_BOARD_NAME || deviceName == WENDY_BOARD_NAME))
+
     private fun u8(b: Byte): Int = b.toInt() and 0xFF
 }
