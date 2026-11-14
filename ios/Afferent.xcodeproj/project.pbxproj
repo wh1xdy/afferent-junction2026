@@ -16,6 +16,7 @@
 		7C465A305CDC9CA596AC634E /* ExpressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE4EE9C151C6F6745B682234 /* ExpressionTests.swift */; };
 		D4449BF0B807A553E23CF3E7 /* AfferentApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF9E382FB315FEB2565461A4 /* AfferentApp.swift */; };
 		F9F25577CFCFCAD4D54526C2 /* CheckInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ADDE0863F4EF079EAD01754 /* CheckInView.swift */; };
+		FC9E591FAC58D939758C65F3 /* Gaze.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43D9FE7B6B08D13986CDCA50 /* Gaze.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,6 +32,7 @@
 /* Begin PBXFileReference section */
 		018029A8E2EB68A3630D101F /* FingerSensor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FingerSensor.swift; sourceTree = "<group>"; };
 		41DBD0F4C5B96D50F01301E4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		43D9FE7B6B08D13986CDCA50 /* Gaze.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gaze.swift; sourceTree = "<group>"; };
 		6ADDE0863F4EF079EAD01754 /* CheckInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInView.swift; sourceTree = "<group>"; };
 		7289C707C437112C7FE2BA94 /* PulseEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseEstimatorTests.swift; sourceTree = "<group>"; };
 		7805E098592E5DB41BD6B930 /* PulseEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PulseEstimator.swift; sourceTree = "<group>"; };
@@ -79,6 +81,7 @@
 				E1E3491352B9AF5504BB2700 /* Expressions.swift */,
 				7C2E35A93B477B39898A1A33 /* ExpressionView.swift */,
 				018029A8E2EB68A3630D101F /* FingerSensor.swift */,
+				43D9FE7B6B08D13986CDCA50 /* Gaze.swift */,
 				41DBD0F4C5B96D50F01301E4 /* Info.plist */,
 				D9E2E77FC28E5D8F5F3477FF /* PulseCamera.swift */,
 				7805E098592E5DB41BD6B930 /* PulseEstimator.swift */,
@@ -182,6 +185,7 @@
 				071F386C225E4757F52AFFFC /* ExpressionView.swift in Sources */,
 				7013151EBD24B89FD3BEA153 /* Expressions.swift in Sources */,
 				6A1A82778FE7AF0AE728D53D /* FingerSensor.swift in Sources */,
+				FC9E591FAC58D939758C65F3 /* Gaze.swift in Sources */,
 				11CE29F00EFE939C15F64FB1 /* PulseCamera.swift in Sources */,
 				2AD5B0A63C4CAFC48D74A4BD /* PulseEstimator.swift in Sources */,
 			);
