@@ -1,4 +1,3 @@
-// Run: NODE_PATH=<dir with node_modules/playwright-core> node demo/tests/qrpayload.browser.js
 const http = require('http');
 const fs = require('fs');
 const path = require('path');

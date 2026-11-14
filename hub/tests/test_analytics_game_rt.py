@@ -15,7 +15,6 @@ CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
 FIX = CONTRACTS / "fixtures"
 PARAMS = engine.PARAMS
 
-
 def task(tid, kinds=None, median=None, n=None, d=None, **rt):
     extra = {"rt": {"n": n, "median_ms": median, "iqr_ms": None, "lapses": 0, "anticipations": 0,
                     "by_kind": kinds, **rt}}
@@ -23,19 +22,15 @@ def task(tid, kinds=None, median=None, n=None, d=None, **rt):
         extra["dda"] = {"v": 1, "d_mean": d}
     return {"id": tid, "extra": extra}
 
-
 def session(day, *tasks):
     return {"day_index": day, "status": "completed", "started_iso": f"2026-11-{1 + day:02d}T08:00", "tasks": list(tasks)}
-
 
 def main_series(sessions, now_day):
     by_day = {s["day_index"]: s for s in sessions}
     return [by_day.get(d) for d in range(now_day + 1)]
 
-
 def block(blocks, key):
     return next(b for b in blocks if b["key"] == key)
-
 
 def test_secondary_specs_stay_out_of_composite():
     assert [f["key"] for f in game_rt.SECONDARY] == ["game_rt_norm", "game_rt_median"]
@@ -43,7 +38,6 @@ def test_secondary_specs_stay_out_of_composite():
                for f in game_rt.SECONDARY)
     assert not {f["key"] for f in game_rt.SECONDARY} & {f["key"] for f in FEATURES}
     assert sum(f["weight"] for f in FEATURES) == pytest.approx(8.5)
-
 
 def test_cells_prefer_kinds_and_fall_back_to_task():
     t = task("fireflies", {"catch": {"n": 5, "median_ms": 420}, "tap_target": {"n": 2, "median_ms": 300}},
@@ -54,7 +48,6 @@ def test_cells_prefer_kinds_and_fall_back_to_task():
     assert game_rt.task_cells(task("stars", None, median=None, n=None)) == []
     assert game_rt.task_cells({"id": "breath", "extra": {}}) == []
     assert game_rt.task_cells(task("beacon", None, median=500, n=True)) == []
-
 
 def test_normalisation_removes_task_difficulty_offsets():
     now = 27
@@ -77,7 +70,6 @@ def test_normalisation_removes_task_difficulty_offsets():
     assert {c["cell"] for c in norm["cells"]} == {"fireflies:catch", "threads:choice"}
     assert norm["series"]["n_cells"][1] == 2 and norm["series"]["n_cells"][2] == 1
 
-
 def test_difficulty_covariate_adjusts_harder_days():
     now = 20
     sessions = []
@@ -92,14 +84,12 @@ def test_difficulty_covariate_adjusts_harder_days():
     raw = block(game_rt.blocks(main_series(sessions, now), now, PARAMS), "game_rt_median")
     assert raw["series"]["dda_d_mean"][0] == pytest.approx(0.2)
 
-
 def test_no_covariate_without_spread():
     now = 14
     sessions = [session(d, task("beacon", None, median=400 + (d % 2) * 30, n=5, d=0.5)) for d in range(now + 1)]
     norm = block(game_rt.blocks(main_series(sessions, now), now, PARAMS), "game_rt_norm")
     assert norm["cells"][0]["difficulty_slope_ms"] is None
     assert norm["cells"][0]["cell"] == "beacon:all"
-
 
 def test_nulls_and_missing_rt_give_empty_series():
     now = 9
@@ -111,7 +101,6 @@ def test_nulls_and_missing_rt_give_empty_series():
         assert all(v is None for v in b["series"]["value"])
         assert b["latest"]["value"] is None and b["baseline"]["n"] == 0
     assert game_rt.blocks([None] * 3, 2, PARAMS)[0]["cells"] == []
-
 
 def test_engine_composite_ignores_game_rt():
     s = json.loads((FIX / "session_example.json").read_text())
@@ -131,7 +120,6 @@ def test_engine_composite_ignores_game_rt():
     assert norm["latest"]["value"] > 2 and norm["in_composite"] is False
     assert all(len(v) == 20 for b in with_rt["secondary_features"] for k, v in b["series"].items())
 
-
 def test_export_rows_and_codebook():
     now = 3
     sessions = [session(d, task("fireflies", None, median=400, n=5, d=0.4)) for d in range(now + 1)]
@@ -147,19 +135,16 @@ def test_export_rows_and_codebook():
     assert "Exploratory, not in the composite" in book["game_rt_norm.value"]["description"]
     assert book["game_rt_median.value"]["unit"] == "ms"
 
-
 @pytest.fixture(scope="module")
 def validator():
     schema = json.loads((CONTRACTS / "session.v3.schema.json").read_text())
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
-
 def with_rt(rt):
     doc = json.loads((FIX / "session_example.json").read_text())
     doc["tasks"][0].setdefault("extra", {})["rt"] = rt
     return doc
-
 
 def test_schema_accepts_extra_rt(validator):
     full = {"n": 6, "median_ms": 412.5, "iqr_ms": 80, "lapses": 1, "anticipations": 0,
@@ -170,7 +155,6 @@ def test_schema_accepts_extra_rt(validator):
     assert list(validator.iter_errors(with_rt(None))) == []
     assert list(validator.iter_errors(with_rt({"n": 3, "future_key": "x"}))) == []
     assert list(validator.iter_errors(json.loads((FIX / "session_example.json").read_text()))) == []
-
 
 @pytest.mark.parametrize("bad", [{"n": -1}, {"n": 2.5}, {"median_ms": "400"}, {"lapses": -2},
                                  {"by_kind": {"catch": {"median_ms": -5}}}, {"by_kind": {"beat": 3}}, {"by_kind": []}])

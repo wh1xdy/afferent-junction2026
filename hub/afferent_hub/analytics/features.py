@@ -28,7 +28,6 @@ MIN_WINDOW_DAYS = 4
 MIN_POOLED_SESSIONS = 3
 MIN_PULSE_QUALITY = 0.5
 
-
 def get(doc, *path):
     for p in path:
         if not isinstance(doc, dict):
@@ -36,10 +35,8 @@ def get(doc, *path):
         doc = doc.get(p)
     return doc
 
-
 def played(s: dict) -> bool:
     return s.get("status") in PLAYED
-
 
 def index_sessions(sessions: list[dict], now_day: int) -> dict[int, list[dict]]:
     by_day: dict[int, list[dict]] = {}
@@ -50,10 +47,8 @@ def index_sessions(sessions: list[dict], now_day: int) -> dict[int, list[dict]]:
         by_day.setdefault(d, []).append(s)
     return by_day
 
-
 def index_daily(daily: list[dict], now_day: int) -> dict[int, dict]:
     return {r["day_index"]: r for r in daily if r.get("day_index") is not None and 0 <= r["day_index"] <= now_day}
-
 
 def day_session(day_sessions: list[dict], require=None) -> dict | None:
     for s in reversed(day_sessions):
@@ -61,10 +56,8 @@ def day_session(day_sessions: list[dict], require=None) -> dict | None:
             return s
     return None
 
-
 def rt_valid(s: dict) -> bool:
     return bool(get(s, "core", "rt", "valid")) and get(s, "core", "rt", "median_ms") is not None
-
 
 def upright_frac(s: dict) -> float | None:
     up = dur = 0.0
@@ -75,7 +68,6 @@ def upright_frac(s: dict) -> float | None:
         dur += t["duration_ms"] / 1000.0
     return min(up / dur, 1.0) if dur > 0 else None
 
-
 def lantern_cells(s: dict):
     tl = s.get("two_lanterns")
     if not isinstance(tl, dict) or tl.get("valid") is False:
@@ -85,7 +77,6 @@ def lantern_cells(s: dict):
     except (KeyError, TypeError):
         return None
 
-
 def morning_pulse_value(rec: dict | None) -> float | None:
     if rec and rec.get("morning_pulse_bpm") is not None:
         q = rec.get("morning_pulse_quality")
@@ -93,13 +84,11 @@ def morning_pulse_value(rec: dict | None) -> float | None:
             return float(rec["morning_pulse_bpm"])
     return None
 
-
 def window_count(flags: list, d: int) -> float | None:
     vals = [f for f in flags[max(0, d - WINDOW + 1): d + 1] if f is not None]
     if len(vals) < MIN_WINDOW_DAYS:
         return None
     return sum(1 for f in vals if f) * WINDOW / len(vals)
-
 
 def missed_flag(rec: dict | None):
     if not rec:
@@ -110,15 +99,12 @@ def missed_flag(rec: dict | None):
         return None
     return bool(rec.get("missed"))
 
-
 def home_only_flag(rec: dict | None):
     return get(rec, "presence", "home_only") if rec else None
-
 
 def hourly(rec: dict | None):
     h = get(rec, "sleep", "presence_hourly") if rec else None
     return h if isinstance(h, list) and len(h) == 24 else None
-
 
 def extract(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
     n = now_day + 1
@@ -167,7 +153,6 @@ def extract(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
     return {"values": values, "main": main, "rt_sessions": rt_s, "by_day": by_day, "daily": recs,
             "missed": missed, "home_only": home, "hourly": hours, "fresh": fresh}
 
-
 def reward_slope(sessions_in_order: list[dict]) -> float | None:
     hard = {"2": [], "3": []}
     for s in sessions_in_order:
@@ -178,7 +163,6 @@ def reward_slope(sessions_in_order: list[dict]) -> float | None:
     if len(hard["2"]) < 2 or len(hard["3"]) < 2:
         return None
     return sum(hard["3"]) / len(hard["3"]) - sum(hard["2"]) / len(hard["2"])
-
 
 def context_series(ex: dict, now_day: int) -> dict:
     n = now_day + 1

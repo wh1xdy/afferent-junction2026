@@ -9,10 +9,8 @@ from .data_manager import SensorError
 
 router = APIRouter(prefix="/api")
 
-
 def _ctx(request: Request):
     return request.app.state.hub, request.app.state.team
-
 
 def _days(days) -> int:
     try:
@@ -20,10 +18,8 @@ def _days(days) -> int:
     except (TypeError, ValueError):
         raise HubError(400, "bad_request", "days must be a whole number") from None
 
-
 def _off(setting: str):
     raise HubError(404, "module_disabled", f"Team module is off; set {setting} to enable it")
-
 
 async def _sensor(call, *args, **kw):
     try:
@@ -32,18 +28,15 @@ async def _sensor(call, *args, **kw):
         status = e.status if e.status in (400, 404) else 502
         raise HubError(status, "data_manager_error", str(e))
 
-
 def _bound(hub, pid: str) -> dict:
     p = hub.patient(pid)
     if pid != hub.settings.bound_patient:
         raise HubError(404, "not_bound", f"Room sensors belong to {hub.settings.bound_patient!r}, not {pid!r}")
     return p
 
-
 @router.get("/team/modules")
 async def team_modules(request: Request):
     return request.app.state.team.status()
-
 
 @router.get("/patients/{pid}/fhir")
 async def fhir(pid: str, request: Request, days: int = 14):
@@ -58,7 +51,6 @@ async def fhir(pid: str, request: Request, days: int = 14):
     bundle = modules.fn["team_fhir_bundle"](p, hub.store.checkins(pid), days, readings)
     return JSONResponse(bundle, media_type="application/fhir+json")
 
-
 @router.get("/patients/{pid}/report")
 async def report(pid: str, request: Request, days: int = 14, narrative: int = 0):
     hub, team = _ctx(request)
@@ -67,7 +59,6 @@ async def report(pid: str, request: Request, days: int = 14, narrative: int = 0)
     p = hub.patient(pid)
     text = (await hub.summary(pid)).get("text") if narrative else None
     return HTMLResponse(modules.fn["team_clinician_report"](p, hub.store.checkins(pid), _days(days), text))
-
 
 @router.post("/patients/{pid}/ask")
 async def ask(pid: str, request: Request, body=Body(...)):
@@ -87,14 +78,12 @@ async def ask(pid: str, request: Request, body=Body(...)):
     except (KeyError, IndexError, ValueError) as e:
         raise HubError(502, "llm_bad_response", f"{type(e).__name__}: {e}")
 
-
 @router.get("/sensors/{name}")
 async def sensors(name: str, request: Request):
     _, team = _ctx(request)
     if not team.sensors.enabled:
         _off("AFFERENT_DATA_MANAGER_URL")
     return await _sensor(team.sensors.get, name, dict(request.query_params))
-
 
 @router.get("/patients/{pid}/sensors/room")
 async def room(pid: str, request: Request, days: int = 14):

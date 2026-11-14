@@ -10,7 +10,6 @@ ROOT = Path(__file__).resolve().parents[3]
 RESULTS = Path(__file__).with_name("validation_results.json")
 CHARTS = Path(__file__).with_name("validation_charts")
 
-
 def fmt(s: dict, unit: str = "days") -> str:
     if not s or s.get("median") is None:
         return "not reached"
@@ -19,10 +18,8 @@ def fmt(s: dict, unit: str = "days") -> str:
         unit = "day"
     return f"{s['median']:g} {unit} (IQR {lo:g} to {hi:g}, n = {s['n']})"
 
-
 def pct(x) -> str:
     return "n/a" if x is None else f"{round(100 * x)}%"
-
 
 def write_charts(r: dict) -> list[str]:
     CHARTS.mkdir(parents=True, exist_ok=True)
@@ -41,7 +38,6 @@ def write_charts(r: dict) -> list[str]:
         (CHARTS / name).write_text(svg)
     return list(files)
 
-
 def main():
     ap = argparse.ArgumentParser(description="Synthetic validation of the Afferent analytics (simulated data only)")
     ap.add_argument("--seeds", type=int, default=50)
@@ -57,7 +53,6 @@ def main():
     print(f"false check-ins: {st['false_check_in_episodes']} ({st['false_alarms_per_patient_month']:.3f} per patient-month)")
     print(f"bandit calm sessions to P(best) 0.8: {fmt(r['bandit']['sessions_to_p_best_0_8'], 'sessions')}")
     print(f"wrote {RESULTS.relative_to(ROOT)}, {CHARTS.relative_to(ROOT)}/ ({len(names)} SVG)")
-
 
 if __name__ == "__main__":
     main()

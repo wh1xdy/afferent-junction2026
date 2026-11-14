@@ -9,10 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACTS = ROOT / "contracts"
 FIX = CONTRACTS / "fixtures"
 
-
 def load(path):
     return json.loads(Path(path).read_text())
-
 
 @pytest.fixture(scope="module")
 def session_schema():
@@ -20,25 +18,20 @@ def session_schema():
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
-
 @pytest.fixture(scope="module")
 def daily_schema():
     schema = load(CONTRACTS / "daily.v1.schema.json")
     Draft202012Validator.check_schema(schema)
     return Draft202012Validator(schema)
 
-
 def errors(validator, doc):
     return [f"{e.json_path}: {e.message}" for e in validator.iter_errors(doc)]
-
 
 def test_session_example_valid(session_schema):
     assert errors(session_schema, load(FIX / "session_example.json")) == []
 
-
 def test_daily_example_valid(daily_schema):
     assert errors(daily_schema, load(FIX / "daily_example.json")) == []
-
 
 def test_declined_minimal_valid(session_schema):
     doc = {"schema": "afferent.session/3", "session_id": "0b3c9c52-1111-4c3e-9a1e-2f1e8b0c9d22", "patient_id": "anna",
@@ -47,12 +40,10 @@ def test_declined_minimal_valid(session_schema):
     assert errors(session_schema, doc) == []
     assert errors(session_schema, {**doc, "status": "completed"})
 
-
 def test_wrong_schema_version_rejected(session_schema):
     doc = load(FIX / "session_example.json")
     doc["schema"] = "afferent.session/2"
     assert errors(session_schema, doc)
-
 
 def test_stored_core_needs_no_rest(session_schema):
     doc = load(FIX / "session_example.json")
@@ -60,7 +51,6 @@ def test_stored_core_needs_no_rest(session_schema):
     assert errors(session_schema, doc) == []
     doc["core"] = {"source": "measured", "baseline_pulse_bpm": 66.0}
     assert errors(session_schema, doc)
-
 
 def test_example_derived_numbers_consistent():
     s = load(FIX / "session_example.json")
@@ -84,7 +74,6 @@ def test_example_derived_numbers_consistent():
     assert {t["slot"] for t in s["tasks"] if t["id"] == "fork"} == {1}
     assert {t["slot"] for t in s["tasks"] if t["id"] == "lanterns"} == {3}
 
-
 def test_analytics_fixture_shape():
     a = load(FIX / "analytics_anna.json")
     for key in ["schema", "patient_id", "now_day", "simulated", "params", "state", "state_label", "suggestion", "director",
@@ -100,14 +89,12 @@ def test_analytics_fixture_shape():
     for mode, w in a["bandit"]["weights"].items():
         assert abs(sum(w.values()) - 1) < 0.01, mode
 
-
 def test_patients_list_sorted_by_need():
     rank = {"booster": 3, "check_in": 2, "watch": 1, "stable": 0}
     rows = load(FIX / "patients_list.json")["patients"]
     keys = [(-rank[r["state"]], -(r["composite"] or 0)) for r in rows]
     assert keys == sorted(keys)
     assert all(r["simulated"] for r in rows)
-
 
 def test_no_em_dash_in_contracts():
     for path in CONTRACTS.rglob("*.json"):

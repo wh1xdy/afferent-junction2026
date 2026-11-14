@@ -1,6 +1,6 @@
 (() => {
   const q = new URLSearchParams(location.search);
-  const FX = A.FXGL = { on: false, bloom: true, k: 0, stats: { present: 0, interval: 0 }, present() {} };
+  const FX = A.FXGL = { on: false, bloom: true, k: 0, present() {} };
   if (q.get('fx') === '0') return;
 
   const GRADES = {
@@ -130,11 +130,9 @@
     const dt = last ? now - last : 16; last = now;
     if (dt > 100) { win = []; return; }
     win.push([dt, cost]);
-    FX.stats.present = FX.stats.present * 0.95 + cost * 0.05;
     if ((warm += dt) < 2000 || win.length < 60) return;
     const med = i => win.map(x => x[i]).sort((a, b) => a - b)[win.length >> 1];
     const iv = med(0), pc = med(1); win = [];
-    FX.stats.interval = iv;
     if (iv < 19) { slow = 0; return; }
     if (++slow < 2) return;
     slow = 0;

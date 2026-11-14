@@ -3,7 +3,6 @@ from ..settings import Settings
 from .alex import guard_check
 from .data_manager import SensorSource
 
-
 class Team:
     def __init__(self, settings: Settings):
         self.settings = settings

@@ -7,7 +7,6 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import httpx
 from jsonschema import Draft202012Validator
 
 from . import export, modules, qr, views
@@ -16,33 +15,33 @@ from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
 from .db import Store
 from .settings import ROOT, Settings
+from .summary import ollama
 from .ws.manager import Client, Rooms
 
 log = logging.getLogger("afferent.hub")
 
 VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
-RELAYED = ("mode", "game", "task_end", "core_trial", "mood")
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
-DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
-
 
 class HubError(Exception):
     def __init__(self, status: int, code: str, detail: str):
         super().__init__(detail)
         self.status, self.code, self.detail = status, code, detail
 
-
 def _validator(name):
     schema = json.loads((CONTRACTS / name).read_text())
     return Draft202012Validator(schema)
 
-
-def schema_errors(validator, doc, limit=5) -> list[str]:
+def schema_errors(validator, doc) -> list[str]:
     errs = sorted(validator.iter_errors(doc), key=lambda e: list(e.absolute_path))
-    return [f"{e.json_path}: {e.message}"[:300] for e in errs[:limit]]
+    return [f"{e.json_path}: {e.message}"[:300] for e in errs[:5]]
 
+def require_valid(validator, doc):
+    errs = schema_errors(validator, doc)
+    if errs:
+        raise HubError(422, "schema_invalid", "; ".join(errs))
 
 def make_source(settings: Settings):
     mode = settings.bedside
@@ -59,7 +58,6 @@ def make_source(settings: Settings):
         return UnoQHttp(mode.split(":", 1)[1])
     return NullSource("ws" if mode == "ws" else "off")
 
-
 class Hub:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -70,13 +68,11 @@ class Hub:
         self.checkin_v = _validator("checkin.v1.schema.json")
         self.live: dict[str, str] = {}
         self.locks: dict[str, asyncio.Lock] = {}
-        self.summaries: dict[tuple, dict] = {}
         self.validation: dict | None = None
         self.validation_status = "idle"
-        self._gemma: tuple[float, dict] | None = None
         self._tasks: list[asyncio.Task] = []
         self._jobs: set[asyncio.Task] = set()
-        self.bedside = Bedside(make_source(settings), self._to_bound_app, self.to_clinic, self._to_devices,
+        self.bedside = Bedside(make_source(settings), self._to_bound_app, self._to_devices,
                                pulse_allowed=self._pulse_allowed)
         self.bedside.patient_id = settings.bound_patient
 
@@ -140,7 +136,6 @@ class Hub:
             privacy = p.pop("privacy", None) or copy.deepcopy(views.DEFAULT_PRIVACY)
             self.store.bulk(p, item.get("sessions") or [], item.get("daily") or [], privacy)
             ids.append(p["id"])
-        self.summaries.clear()
         self.live.clear()
         self.recompute_all()
         return ids
@@ -255,7 +250,6 @@ class Hub:
             self.store.put_patient({**p, "pauses": sorted(pauses, key=lambda q: q["from_day"])})
             analytics = await asyncio.to_thread(self.recompute, pid)
         pause = views.current_pause(self.patient(pid), nd)
-        await self.to_clinic({"type": "pause", "patient_id": pid, "pause": pause})
         await self.rooms.broadcast("app", {"type": "pause", "pause": pause}, patient_id=pid)
         await self.broadcast_analytics(pid, analytics)
         return {"ok": True, "pause": pause,
@@ -314,12 +308,8 @@ class Hub:
         return rec
 
     async def ingest_session(self, doc: dict) -> dict:
-        if not isinstance(doc, dict):
-            raise HubError(400, "bad_request", "Body must be a JSON object")
         doc = {k: v for k, v in doc.items() if k != "type"}
-        errs = schema_errors(self.session_v, doc)
-        if errs:
-            raise HubError(422, "schema_invalid", "; ".join(errs))
+        require_valid(self.session_v, doc)
         pid = doc["patient_id"]
         self.patient(pid)
         async with self.lock(pid):
@@ -351,11 +341,7 @@ class Hub:
                 "composite": (analytics.get("composite") or {}).get("value"), "composite_before": before}
 
     async def ingest_daily(self, rec: dict) -> dict:
-        if not isinstance(rec, dict):
-            raise HubError(400, "bad_request", "Body must be a JSON object")
-        errs = schema_errors(self.daily_v, rec)
-        if errs:
-            raise HubError(422, "schema_invalid", "; ".join(errs))
+        require_valid(self.daily_v, rec)
         pid = rec["patient_id"]
         self.patient(pid)
         async with self.lock(pid):
@@ -384,15 +370,10 @@ class Hub:
         self.store.add_flag(pid, stored)
         await self.to_clinic({"type": "crisis_flag", "patient_id": pid, "flag_type": ftype,
                               **{k: v for k, v in flag.items() if k != "type"}})
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid),
-                              "analytics": self.analytics(pid)})
+        await self.broadcast_analytics(pid, self.analytics(pid))
 
     async def ingest_checkin(self, doc: dict) -> dict:
-        if not isinstance(doc, dict):
-            raise HubError(400, "bad_request", "checkin must be a JSON object")
-        errs = schema_errors(self.checkin_v, doc)
-        if errs:
-            raise HubError(422, "schema_invalid", "; ".join(errs))
+        require_valid(self.checkin_v, doc)
         pid = doc["patient_id"]
         p = self.patient(pid)
         async with self.lock(pid):
@@ -420,8 +401,7 @@ class Hub:
     async def clear_flags(self, pid: str):
         self.patient(pid)
         self.store.clear_flags(pid)
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid),
-                              "analytics": self.analytics(pid)})
+        await self.broadcast_analytics(pid, self.analytics(pid))
 
     async def set_privacy(self, pid: str, change: dict) -> dict:
         self.patient(pid)
@@ -476,55 +456,20 @@ class Hub:
 
     async def summary(self, pid: str, refresh: bool = False) -> dict:
         p = self.patient(pid)
-        analytics = self.analytics(pid)
-        patient = {**p, "now_day": views.now_day(p)}
-        analytics, patient = views.strip_safety(analytics), views.strip_safety(patient)
+        analytics = views.strip_safety(self.analytics(pid))
+        patient = views.strip_safety({"patient": {**p, "now_day": views.now_day(p)}, "daily": self.daily(pid)})
         try:
-            numbers = modules.fn["summary_numbers"](analytics, patient)
-        except Exception:
-            log.exception("summary_numbers failed")
-            numbers = {}
-        key = (pid, hashlib.sha1(json.dumps(numbers, sort_keys=True, default=str).encode()).hexdigest())
-        if not refresh and key in self.summaries:
-            return self.summaries[key]
-        try:
-            out = await asyncio.to_thread(modules.fn["weekly_summary"], analytics, patient)
+            return await asyncio.to_thread(modules.fn["weekly_summary"], analytics, patient, refresh)
         except Exception as e:
             log.exception("weekly_summary failed")
             raise HubError(400, "summary_failed", str(e))
-        nd = analytics.get("now_day", patient["now_day"])
-        result = {
-            "patient_id": pid, "week_start_day": max(0, nd - 6), "week_end_day": nd, "generated_iso": views.now_iso(),
-            "text": out.get("text"), "source": out.get("source", "template"), "model": out.get("model"),
-            "numbers": numbers, "simulated": bool(p.get("simulated", True)), "disclaimer": DISCLAIMER,
-        }
-        self.summaries[key] = result
-        return result
-
-    async def gemma(self) -> dict:
-        if self._gemma and time.monotonic() - self._gemma[0] < 30:
-            return self._gemma[1]
-        status = {"available": False, "model": None}
-        try:
-            async with httpx.AsyncClient(timeout=0.8) as c:
-                r = await c.get(f"{self.settings.ollama_url}/api/tags")
-                names = [m.get("name", "") for m in r.json().get("models", [])]
-            pick = self.settings.gemma_model
-            if not pick:
-                for prefix in ("gemma3n", "gemma3", "gemma"):
-                    pick = next((n for n in names if n.startswith(prefix)), None)
-                    if pick:
-                        break
-            status = {"available": bool(pick and (pick in names or self.settings.gemma_model)), "model": pick}
-        except Exception:
-            pass
-        self._gemma = (time.monotonic(), status)
-        return status
 
     async def health(self) -> dict:
         snap = self.bedside.snapshot()
+        model = await asyncio.to_thread(ollama.discover)
         return {"ok": True, "version": VERSION, "now_iso": views.now_iso(), "patients": len(self.store.patients()),
-                "bedside": {"source": snap["source"], "connected": snap["connected"]}, "gemma": await self.gemma()}
+                "bedside": {"source": snap["source"], "connected": snap["connected"]},
+                "gemma": {"available": bool(model), "model": model}}
 
     def _validation_key(self) -> str:
         h = hashlib.sha1(str(self.settings.validation_seeds).encode())
@@ -562,7 +507,6 @@ class Hub:
         pid = client.patient_id or msg.get("patient_id") or self.settings.bound_patient
         if t == "hello":
             client.patient_id = msg.get("patient_id") or client.patient_id or self.settings.bound_patient
-            client.role, client.device_id = msg.get("role"), msg.get("device_id")
             await self.rooms.send(client, self.config(client.patient_id))
         elif t == "ping":
             await self.rooms.send(client, {"type": "pong"})
@@ -577,10 +521,6 @@ class Hub:
                                   "profile": msg.get("profile"), "simulated": msg.get("simulated"),
                                   "t_iso": msg.get("t_iso") or views.now_iso()})
             await self.rooms.send(client, self.config(pid))
-        elif t == "live_metrics":
-            await self.to_clinic({**msg, "type": "live", "patient_id": msg.get("patient_id") or pid})
-        elif t in RELAYED:
-            await self.to_clinic({**msg, "patient_id": msg.get("patient_id") or pid})
         elif t == "light":
             if self.privacy(pid).get("sensors", {}).get("bedside_light", True) and pid == self.settings.bound_patient:
                 level = msg.get("level") or 0
@@ -643,14 +583,10 @@ class Hub:
     async def handle_bedside(self, client: Client, msg: dict):
         t = msg.get("type")
         if t == "hello":
-            client.role = msg.get("device")
             if msg.get("device") in ("unoq", "simulator"):
                 await self.bedside.on_event(msg)
             await self.rooms.send(client, {"type": "light", **self.bedside.state["light"]})
             await self.rooms.send(client, {"type": "camera", "on": self.bedside.state["camera_on"]})
-        elif t == "pose":
-            if self.bedside.state["camera_on"]:
-                await self.to_clinic({**msg, "patient_id": msg.get("patient_id") or self.settings.bound_patient})
         elif t == "ping":
             await self.rooms.send(client, {"type": "pong"})
         else:

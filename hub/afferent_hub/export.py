@@ -22,7 +22,6 @@ DERIVED = {
     "repair_active": "true while up to 3 unprotected missed days wait for the silent repair",
 }
 
-
 def _flat(d: dict, prefix: str = "") -> dict:
     out = {}
     for k, v in d.items():
@@ -35,7 +34,6 @@ def _flat(d: dict, prefix: str = "") -> dict:
             out[key] = v
     return out
 
-
 def _csv(rows: list[dict]) -> str:
     cols = list(dict.fromkeys(c for r in rows for c in r))
     buf = io.StringIO()
@@ -45,7 +43,6 @@ def _csv(rows: list[dict]) -> str:
         w.writerow({c: "" if r.get(c) is None else r[c] for c in cols})
     return buf.getvalue()
 
-
 def _schema_docs(props: dict, prefix: str = "") -> dict:
     out = {}
     for k, v in props.items():
@@ -53,7 +50,6 @@ def _schema_docs(props: dict, prefix: str = "") -> dict:
             out.update(_schema_docs(v["properties"], f"{prefix}{k}."))
         out[f"{prefix}{k}"] = v.get("description", "")
     return out
-
 
 SECONDARY_PARTS = {
     "value": ("raw value", None),
@@ -63,7 +59,6 @@ SECONDARY_PARTS = {
     "n_trials": ("responses behind the day median", "count"),
     "dda_d_mean": ("mean presented difficulty extra.dda.d_mean of those tasks (covariate)", "0-1"),
 }
-
 
 def feature_rows(analytics: dict, daily: list[dict], sessions: list[dict]) -> list[dict]:
     tl = analytics.get("timeline") or {}
@@ -88,7 +83,6 @@ def feature_rows(analytics: dict, daily: list[dict], sessions: list[dict]) -> li
         rows.append(row)
     return rows
 
-
 CHECKIN_DERIVED = {
     "day_index": "Days since TMS end on the day the check-in started",
     "received_iso": "When the hub stored the check-in",
@@ -96,7 +90,6 @@ CHECKIN_DERIVED = {
     "cssrs.items": "C-SSRS screener answers: true, false, not_asked (skip logic) or null (stopped)",
     "safety.tier": "none, low, moderate, high, incomplete, or not_answered (check-in stopped before the safety item)",
 }
-
 
 def codebook(daily_cols: list[str], feature_cols: list[str], checkin_cols: list[str]) -> str:
     docs = {**_schema_docs(json.loads(DAILY_SCHEMA.read_text())["properties"]), **DERIVED}
@@ -132,7 +125,6 @@ def codebook(daily_cols: list[str], feature_cols: list[str], checkin_cols: list[
             desc, unit = f"{feats[key]['label']}, {parts[part]}", feats[key]["unit"] if part == "value" else "z"
         rows.append({"file": "features.csv", "column": c, "description": desc, "unit": unit})
     return _csv(rows)
-
 
 def build(patient: dict, sessions: list[dict], daily: list[dict], analytics: dict, checkins: list[dict]):
     simulated = bool(patient.get("simulated", True)) or any(s.get("simulated") for s in sessions) or any(

@@ -10,13 +10,11 @@ DM_CLIENT = TEAM / "data_manager" / "client" / "data_manager_client.py"
 _lock = threading.Lock()
 _cache: dict = {}
 
-
 def _exec(name: str, path: Path):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
-
 
 def alex() -> dict:
     with _lock:
@@ -33,7 +31,6 @@ def alex() -> dict:
                     sys.modules["store"] = saved
             _cache["alex"] = {"store": store, **mods}
         return _cache["alex"]
-
 
 def dm_client():
     with _lock:

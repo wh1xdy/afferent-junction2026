@@ -44,6 +44,7 @@ const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
     const pool = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode) && id !== last && (!w || (w[id] ?? 0) > 0));
     return { id: pool[0], weight: null };
   };
+  run('traverse.js');
   run('engine.js');
   if (vitals) run('vitals.js');
   return { A: ctx.A, tick: dt => { clock += dt; }, plugin };
