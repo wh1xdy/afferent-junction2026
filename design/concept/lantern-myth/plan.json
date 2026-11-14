@@ -1,0 +1,126 @@
+{
+  "version": "lantern-myth-3",
+  "style": "Luminous painterly 2D illustration for a wordless mythic mobile game set on a small Finnish archipelago during the polar night, where light slowly returns. Painted like matte gouache layered with soft oil pastel on toned paper: big simple shapes, soft lost edges, visible dry-brush strokes in the land and a subtle fine paper grain; skies are smooth, softly blended gradients, never speckled or noisy; no outlines, no 3D render look, no glossy or plastic highlights, no photorealism. Two kinds of light share every picture: whatever is unlit is painted in a cool near-monochrome of Prussian and cyanotype blues (deep #0B1A33, #14294D, #2B4C7E, dusk blue #6F8FB8, frost #D6E2F0); wherever the lantern or the sun touches, warm light glazes the surfaces back into their true local colour (ember gold #F4B740, honey #FFD58A, apricot #F6A77A, birch cream #EFE6D2, lichen green #8FB08A, aurora teal #4FD1C5, ice #9FD3EA). Light is the hero: soft halos, slow light shafts and gilded rim light, never neon, never pure white; warm light is honey and apricot, never orange-red, crimson or red. Monumental, quiet scale: a tiny figure in a vast landscape, a clear horizon, generous empty sky. Sacred but gentle, calm and hopeful, never bleak. No text, letters, numbers, runes or symbols, no logos, no signature, no watermark, no faces.",
+  "isolated": "Isolated figures on a fully transparent background. Nothing else in the image beyond what is named: no sky, no ground, no backdrop, no frame, no vignette, no border.",
+  "backdrop": "Full-bleed painting that fills the entire frame edge to edge, lighting painted in, no frame, no border, no vignette.",
+  "keeper": "the Keeper, the only character: a small, slender hooded figure, a deep, close-fitting hood like a monk's cowl that rises to a short, soft rounded point at the crown (no long or floppy tip, never a witch, wizard or gnome hat) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame",
+  "assets": [
+    {
+      "name": "concept/concept_lm_hero",
+      "size": "1536x1024",
+      "transparent": false,
+      "prompt": "Key art, wide landscape. Early morning in the polar night on a bare, rounded granite fell above a frozen archipelago. In the left third, the Keeper, the only character: a small, slender hooded figure, a tall softly pointed hood that hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands on the smooth rock beside a low ancient cairn of rounded granite stones and holds the lantern up and forward toward the horizon; the figure is small, about one sixth of the image height. From the lantern a soft warm glaze of light spreads over the rock and snow around the figure, and inside that pool the two slim birches, the lichen and the stones have their true warm colours, while everything beyond the pool stays Prussian blue. Far away on the right a slender pale stone lighthouse tower stands on the last skerry, its lamp dark. Above, a sheer teal-green aurora curtain hangs in a deep blue sky with sparse stars, and along the far horizon a thin apricot and honey-gold line of first light is beginning. A frozen sea with faint ice cracks catching the light. The upper half is mostly open sky.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_start",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Start screen style frame, portrait. Polar night just before the morning ritual begins, very still. In the lower middle, the Keeper, the only character: a small, slender hooded figure, a tall softly pointed hood that hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, sits on a low flat granite stone beside a small ancient cairn; the lantern stands on the rock next to the figure and its flame is only a small sleeping ember with a soft warm glow. Behind, across a dark frozen bay, the far shore of low islands carries a loose row of about twelve tiny warm lantern lights along the waterline, like lanterns placed on earlier mornings, each with a little reflection on the ice. A faint aurora veil sits low over the islands, a few stars. Composition for interface: the upper 35 percent is calm, uncluttered deep blue sky with only a few faint stars, and the bottom 22 percent is a calm, even, dark snowy rock surface without detail; both stay empty for interface. Everything is Prussian blue except the ember and the far lantern lights.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_game_stars",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Minigame scene, portrait: the star thread rite. A night sky over a frozen lake. In the upper two thirds, five soft round stars of clearly different sizes, from tiny to large, are joined one after another by a single luminous gold thread of light, and together they suggest the outline of a swan in flight, drawn as a faint pale gold line drawing glowing behind them with wide wings, as if the constellation is waking. The thread glows softly and ends in a bright leading tip, as if traced by a fingertip a moment ago. Around the thread the night sky warms into a luminous teal and soft violet. Below, on the snowy shore of the frozen lake, the Keeper, the only character: a small, slender hooded figure, a tall softly pointed hood that hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, is tiny and raises the lantern toward the stars; the gold light reflects softly on the ice. Clean readable shapes, large calm dark sky around the stars.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_dawn",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Night-to-dawn transition frame, portrait: the moment the lantern hands its light to the sun. Seen from slightly behind and to the side, the Keeper, the only character: a small, slender hooded figure, a tall softly pointed hood that hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands on a granite rise in the lower middle with the lantern lowered at the hip, facing a wide frozen sea. On the horizon the sun is just cresting behind a low fell, only its upper edge visible, sending long soft honey and apricot rays up across the sky. A soft diagonal front of returning colour crosses the picture: the lower right and the horizon are already glazed in warm dawn colour (honey-gold sky, apricot cloud streaks, birch cream snow, teal ice, warm long shadows, two slim birches lit gold), while the upper left is still deep Prussian blue night with the last stars and a fading teal aurora. The figure casts a long soft shadow toward the viewer. The brightest value is soft honey gold, never pure white.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_icon",
+      "size": "1024x1024",
+      "transparent": false,
+      "prompt": "App icon artwork, square, full bleed, no rounded corners, no border. Very simple bold shapes readable at 60 pixels. A deep Prussian blue field. Across the lower third, the gently curved dark silhouette of a hilltop. Rising behind the hill, a large soft half-disc of dawn light in honey gold fading to apricot at its edge, with a gentle glow into the blue. Standing on the hilltop in the exact centre, the small dark indigo silhouette of a tall-hooded figure (no face), holding out a slim staff with one tiny round lantern whose ember-gold flame is the single brightest point. Flat painted shapes with only a hint of paper grain, at most four colours, no stars, no small details.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_keeper_sheet",
+      "size": "1536x1024",
+      "transparent": true,
+      "suffix": "isolated",
+      "prompt": "Character sheet of the Keeper, four poses in one row, all facing right, same scale, evenly spaced, nothing else: walking with the lantern staff held forward; standing and lifting the lantern high overhead; kneeling with the lantern set on the ground beside it; standing seen from behind with the lantern lowered. Tall softly pointed hood that hides the head completely (no face, only deep shadow inside the hood), a long deep indigo cloak reaching the ground with a thin gold stitched geometric band along the hem, slim wooden staff with a small round iron lantern, flame ember gold. Painted in matte gouache and oil pastel with soft edges, middle values, no outlines, no ground line, no cast shadows.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_game_breath",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Minigame scene, portrait: the lantern song rite for slow breathing. Seen from the side, the Keeper, the only character: a small, slender hooded figure, a tall softly pointed hood that hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands small on a flat frozen lake in the lower third and holds the lantern up. From the lantern a wide, thin, perfectly round ring of soft gold light expands outward across the ice and up into the air like a slow ripple, and a second fainter ring follows behind it. Where the ring has already passed, the ice wakes into glowing pale teal and ice blue with fine frost patterns, and three small round ice-bound lights frozen in the lake glow warm gold; beyond the ring the lake and the far forest shore remain deep Prussian blue. Above, a calm dark sky with a faint aurora. Very calm, slow, minimal, large empty areas.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_hero_hi",
+      "size": "1536x1024",
+      "transparent": false,
+      "prompt": "Key art, wide landscape. Early morning in the polar night on a bare, rounded granite fell above a frozen archipelago. In the left third, the Keeper, the only character: a small, slender hooded figure, a tall hood with a soft tip that droops slightly backward (never a stiff witch or wizard cone) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands on the smooth rock beside a low ancient cairn of rounded granite stones and holds the lantern up and forward toward the horizon; the figure is small, about one sixth of the image height. From the lantern a soft warm glaze of light spreads over the rock and snow around the figure, and inside that pool the two slim birches, the lichen and the stones have their true warm colours, while everything beyond the pool stays Prussian blue. Far away on the right a slender pale stone lighthouse tower stands on the last skerry, its lamp dark. Above, a sheer teal-green aurora curtain hangs in a deep blue sky with sparse stars, and along the far horizon a thin apricot and honey-gold line of first light is beginning. A frozen sea with faint ice cracks catching the light. The upper half is mostly open sky. The hood is seen in profile and its opening is pure soft shadow, with no face, nose or chin visible. The horizon light is apricot and honey gold, not orange-red.",
+      "prio": "A",
+      "quality": "high"
+    },
+    {
+      "name": "concept/concept_lm_dawn_hi",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Night-to-dawn transition frame, portrait: the moment the lantern hands its light to the sun. Seen from slightly behind and to the side, the Keeper, the only character: a small, slender hooded figure, a tall hood with a soft tip that droops slightly backward (never a stiff witch or wizard cone) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands on a granite rise in the lower middle with the lantern lowered at the hip, facing a wide frozen sea. On the horizon the sun is just cresting behind a low fell, only its upper edge visible as a soft honey-gold #FFE3A6 arc, not a white disc, sending long soft honey and apricot rays up across the sky. A soft diagonal front of returning colour crosses the picture: the lower right and the horizon are already glazed in warm dawn colour (honey-gold sky, apricot cloud streaks, birch cream snow, teal ice, warm long shadows, two slim birches lit gold), while the upper left is still deep Prussian blue night with the last stars and a fading teal aurora. The figure casts a long soft shadow toward the viewer. The brightest value is soft honey gold, never pure white. Cloud streaks are apricot and honey, never orange-red.",
+      "prio": "A",
+      "quality": "high"
+    },
+    {
+      "name": "concept/concept_lm_start_b",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Start screen style frame, portrait. Polar night just before the morning ritual begins, very still. Everything is painted in cool Prussian and cyanotype blue leaning toward teal-blue and slate, never violet or royal ultramarine. In the lower middle, small (about one eighth of the image height), the Keeper, the only character: a small, slender hooded figure, a tall hood with a soft tip that droops slightly backward (never a stiff witch or wizard cone) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, sits on a low flat granite stone beside a small ancient cairn of rounded stones; the staff leans on the cairn and the lantern stands on the rock next to the figure, its flame only a small sleeping ember with a soft warm glow. Behind, across a dark frozen bay, the far shore of low islands carries a loose row of about twelve tiny warm lantern lights along the waterline, like lanterns placed on earlier mornings, each with a short reflection on the ice. A faint teal aurora veil sits low over the islands, a few stars. Composition for interface: the upper 35 percent is calm, uncluttered deep blue sky with only a few faint stars, and the bottom 22 percent is a calm, even, dark snowy rock surface without detail; both stay empty for interface. Everything is blue except the ember and the far lantern lights.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_icon_b",
+      "size": "1024x1024",
+      "transparent": false,
+      "prompt": "App icon artwork, square, full bleed, no rounded corners, no border. Very simple bold shapes readable at 60 pixels, at most four colours. A deep Prussian blue field #14294D. Across the lower third, the gently curved silhouette of a dark hilltop #0B1A33. Rising behind the hill, a large, soft half-disc of dawn light, honey gold #FFD58A at its centre fading to apricot #F6A77A at its rim, with a gentle glow into the blue; it is pale and luminous, not orange. Standing on the hilltop in the exact centre, the small dark indigo silhouette of a slender figure with a tall hood whose soft tip droops slightly backward (no face), holding forward a short staff from whose tip hangs one tiny round lantern; the lantern glass glows ember gold and is the single brightest point. No torch, no open fire, no stars, no small details. Flat painted shapes with only a hint of paper grain.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_keeper_sheet_b",
+      "size": "1536x1024",
+      "transparent": false,
+      "suffix": "backdrop",
+      "prompt": "Character turnaround sheet of the Keeper painted on a plain warm toned paper background (birch cream #EFE6D2), like a page in an illustrator's sketchbook. Four poses in one row, all facing right, same scale, evenly spaced, each standing on nothing: walking with the lantern staff held forward; standing and lifting the lantern high overhead; kneeling with the lantern set on the ground beside it; standing seen from behind with the lantern lowered. Slender proportions, the figure about seven heads tall, a tall hood with a soft tip that droops slightly backward and hides the head completely (no face, only deep shadow inside the hood), a long deep indigo #1E2A55 wool cloak reaching the ground with a thin gold stitched geometric band along the hem, small dark boot tips, a slim wooden staff with a small round iron lantern whose flame is ember gold. Painted in flat matte gouache with visible brush strokes like a picture book illustration: no 3D render, no felt, plush or fur texture, no glow halos, no cast shadows, no background scenery.",
+      "prio": "A",
+      "quality": "medium"
+    },
+    {
+      "name": "concept/concept_lm_hero_hi2",
+      "size": "1536x1024",
+      "transparent": false,
+      "prompt": "Key art, wide landscape. Early morning in the polar night on a bare, rounded granite fell above a frozen archipelago. In the left third, the Keeper, the only character: a small, slender hooded figure, a deep, close-fitting hood like a monk's cowl that rises to a short, soft rounded point at the crown (no long or floppy tip, never a witch, wizard or gnome hat) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands on the smooth rock beside a low ancient cairn of rounded granite stones and holds the lantern up and forward toward the horizon; the figure is small, about one sixth of the image height. From the lantern a soft warm glaze of light spreads over the rock and snow around the figure, and inside that pool the two slim birches, the lichen and the stones have their true warm colours, while everything beyond the pool stays Prussian blue. Far away on the right a slender pale stone lighthouse tower stands on the last skerry, its lamp dark. Above, a sheer teal-green aurora curtain hangs in a deep blue sky with sparse stars, and along the far horizon a thin apricot and honey-gold line of first light is beginning. A frozen sea with faint ice cracks catching the light. The upper half is mostly open sky. The hood is seen in profile and its opening is pure soft shadow, with no face, nose or chin visible. The horizon light is apricot and honey gold, not orange-red.",
+      "prio": "A",
+      "quality": "high"
+    },
+    {
+      "name": "concept/concept_lm_dawn_hi2",
+      "size": "1024x1536",
+      "transparent": false,
+      "prompt": "Night-to-dawn transition frame, portrait: the moment the lantern hands its light to the sun. Seen from slightly behind and to the side, the Keeper, the only character: a small, slender hooded figure, a deep, close-fitting hood like a monk's cowl that rises to a short, soft rounded point at the crown (no long or floppy tip, never a witch, wizard or gnome hat) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame, stands on a granite rise in the lower middle with the lantern lowered at the hip, facing a wide frozen sea. On the horizon the sun is just cresting behind a low fell, only its upper edge visible as a soft honey-gold #FFE3A6 arc, not a white disc, sending long soft honey and apricot rays up across the sky. A soft diagonal front of returning colour crosses the picture: the lower right and the horizon are already glazed in warm dawn colour (honey-gold sky, apricot cloud streaks, birch cream snow, teal ice, warm long shadows, two slim birches lit gold), while the upper left is still deep Prussian blue night with the last stars and a fading teal aurora. The figure casts a long soft shadow toward the viewer. The brightest value is soft honey gold, never pure white. Cloud streaks are apricot and honey, never orange-red.",
+      "prio": "A",
+      "quality": "high"
+    }
+  ],
+  "style_v1": "Luminous painterly 2D illustration for a wordless mythic mobile game set on a small Finnish archipelago during the polar night, where light slowly returns. Painted like matte gouache layered with soft oil pastel on toned paper: big simple shapes, soft lost edges, visible dry-brush strokes and a fine paper grain, no outlines, no 3D render look, no glossy or plastic highlights, no photorealism. Two kinds of light share every picture: whatever is unlit is painted in a cool near-monochrome of Prussian and cyanotype blues (deep #0B1A33, #14294D, #2B4C7E, dusk blue #6F8FB8, frost #D6E2F0); wherever the lantern or the sun touches, warm light glazes the surfaces back into their true local colour (ember gold #F4B740, honey #FFD58A, apricot #F6A77A, birch cream #EFE6D2, lichen green #8FB08A, aurora teal #4FD1C5, ice #9FD3EA). Light is the hero: soft halos, slow light shafts and gilded rim light, never neon, never pure white, no red anywhere. Monumental, quiet scale: a tiny figure in a vast landscape, a clear horizon, generous empty sky. Sacred but gentle, calm and hopeful, never bleak. No text, letters, numbers, runes or symbols, no logos, no signature, no watermark, no faces.",
+  "keeper_v1": "the Keeper, the only character: a small, slender hooded figure, a tall softly pointed hood that hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame",
+  "keeper_v2": "the Keeper, the only character: a small, slender hooded figure, a tall hood with a soft tip that droops slightly backward (never a stiff witch or wizard cone) and hides the head completely (no face, only shadow inside the hood), a long deep indigo cloak that reaches the ground with a thin band of gold stitched ornament along the hem, holding a slim wooden staff from which a small round lantern hangs; the lantern holds a warm ember-gold flame"
+}

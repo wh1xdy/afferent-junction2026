@@ -474,7 +474,7 @@
         if (this.outro) this.outro.g.outroUpdate?.(dt, now);
         for (const tw of this.tweens) tw.obj[tw.key] = lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
         this.tweens = this.tweens.filter(tw => now - tw.start < tw.dur);
-        if (this.phase === 'end') this.dimEnd(now);
+        if (this.phase === 'end' && this.night) this.dimEnd(now);
         if (this.done) return;
         const t = now - this.phaseAt;
         Sim.step(dt, this, now);
@@ -530,7 +530,9 @@
         }
         if (this.phase === 'dawn') {
           V.dawnT = this.T.dawn(now, dt);
-          V.sweep = clamp(V.dawnT / DAWN_S, 0, 1); V.sunP = V.sweep; V.border = lerp(0.1, 0.22, V.sweep); V.daylight = ema(V.daylight, 0, dt, 1);
+          const k = clamp(V.dawnT / DAWN_S, 0, 1);
+          if (this.night) { for (const g of ['yellow', 'blue', 'green']) V.sat[g] = Math.max(V.sat[g], k); V.aurora = Math.max(V.aurora, k); }
+          V.sweep = k; V.sunP = k; V.border = lerp(0.1, 0.22, k); V.daylight = ema(V.daylight, 0, dt, 1);
           if (V.dawnT >= DAWN_S) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
         }
         if (this.phase === 'end') {

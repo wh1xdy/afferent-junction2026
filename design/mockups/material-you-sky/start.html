@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f131c">
+<title>Afferent start</title>
+<link rel="stylesheet" href="m3.css">
+<link rel="stylesheet" href="scheme.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="sky-night">
+<svg width="0" height="0" style="position:absolute"><symbol id="lantern" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="2.9" r="1.2"/><path d="M9.2 7.4 10.6 4.6h2.8l1.4 2.8z"/><rect x="7.4" y="7.4" width="9.2" height="11.2" rx="2.2"/><path d="M6.2 20.8h11.6"/><path d="M12 10.4c1.25 1.35 1.9 2.45 1.9 3.4a1.9 1.9 0 0 1-3.8 0c0-.95.65-2.05 1.9-3.4z" fill="currentColor" stroke="none"/></symbol></svg>
+
+<div class="world" style="--img:url(img/world-start-night.jpg)"></div>
+
+<header class="top-bar over">
+  <a class="icon-btn glass state" href="patient.html" aria-label="Your lanterns"><svg class="lantern-ico"><use href="#lantern"/></svg></a>
+  <span class="spacer"></span>
+  <a class="icon-btn glass state" href="crisis.html" aria-label="Talk to someone"><span class="ms">chat_bubble</span></a>
+  <a class="icon-btn glass state" href="settings.html" aria-label="Settings"><span class="ms">settings</span></a>
+</header>
+
+<main class="dock">
+  <a class="chip tonal glass-chip state" href="question.html"><span class="ms">edit_note</span>Check-in<i class="chip-dot"></i></a>
+
+  <div class="btn-group">
+    <a class="btn m lantern lantern-glow state" href="#"><svg class="lantern-ico"><use href="#lantern"/></svg>Begin</a>
+    <a class="btn m tonal state" href="end-night.html">Not tonight</a>
+  </div>
+
+  <div class="quick">
+    <button class="icon-btn on state" aria-pressed="true" aria-label="Sound"><span class="ms">volume_up</span></button>
+    <button class="icon-btn on state" aria-pressed="true" aria-label="Camera"><span class="ms">videocam</span><i class="badge-dot"></i></button>
+    <a class="icon-btn state" href="info.html" aria-label="How it works"><span class="ms">info</span></a>
+  </div>
+</main>
+</body>
+</html>

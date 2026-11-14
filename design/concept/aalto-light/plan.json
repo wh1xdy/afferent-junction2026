@@ -1,0 +1,85 @@
+{
+ "version": "aalto-light-1",
+ "style": "Calm 2D illustration for a wordless Finnish mobile game, in the spirit of Finnish functionalist design of the 1930s: free-form wave curves, bent laminated birch plywood and the sunlit healing rooms of a sanatorium designed for people resting in bed (inspiration only, no real buildings, furniture or products). Every landform, shoreline, cloud, path and snowdrift is one long, smooth, asymmetric free-form curve, like a lake shoreline drawn in a single unhurried gesture: no zigzags, no jagged edges, no hard corners. Shapes are large, flat and matte like smooth painted plaster and linoleum, each with one very soft airbrushed light gradient; wooden and light-catching bands show fine parallel lamination lines that follow their curve like the edge of bent birch plywood. Light is low northern daylight falling through tall windows: long, pale, soft, never glossy or neon. Strong clear silhouettes, very few elements, generous calm negative space. Palette: kaamos blue #1E3150, deep fjord #0E1A2E, frost #9DB9CC, birch white #F2EEE6, birch ply #E2C79C, Paimio yellow #F2C230, spring green #9DBE8C, ceiling green #C8D6BE, dawn apricot #F3A57A, lilac haze #B4A6CE. Quiet, hopeful, healing. No outlines, no text, no letters, no numbers, no logos, no signature, no watermark, no faces, no red.",
+ "isolated": "Isolated elements on a fully transparent background, orthographic side view, painted in natural local colours at middle value under soft even daylight: no cast shadows, no glow, no light sources. Nothing else in the image beyond what is named: no sky, no backdrop, no frame, no ground plane, no border.",
+ "backdrop": "Full-bleed painting that fills the entire frame edge to edge, lighting painted in, no frame, no border, no vignette, no interface elements.",
+ "assets": [
+  {
+   "name": "concept/concept_aalto_hero",
+   "size": "1024x1536",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "Key art of a morning session at the moment dawn arrives. Portrait, side view. A small slender hooded figure in an ankle-length deep kaamos-blue cloak with a short Paimio-yellow scarf, no face (only soft shadow inside the hood), walks to the right along a gently rising snow path that follows one long free-form wave curve, holding a short birch pole with a small bell-shaped brass lantern glowing warm yellow. The figure is small, about one third from the left, about 10 percent of the image height. Behind it a loose irregular row of slender birches with white bark. The lower 40 percent is layered snowy shore curves in birch white and frost, and a frozen lake whose edge is a free-form wave. The upper 60 percent is open sky: kaamos blue at the top through lilac haze to a band of dawn apricot and pale Paimio yellow at the horizon, where a low pale-yellow sun is just rising behind a soft rounded fell, sending long pale rays drawn as fine parallel lamination lines fanning gently across the sky. On the far left the world is still blue-grey night; toward the sun on the right, colour has returned."
+  },
+  {
+   "name": "concept/concept_aalto_loyly",
+   "size": "1024x1536",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "Minigame scene, the sauna pour. Portrait, calm interior side view of a small Finnish sauna in the dark early morning. The walls are warm birch ply made of wide curving bent-wood laminated bands, a low bench bent from one ribbon of laminated birch on the left. In the lower middle a dark iron stove topped with a mound of rounded stones that glow softly amber from within. A long-handled wooden ladle comes in from the upper right edge, tilted above the stones, pouring one thin silky ribbon of water. Steam rises from the stones as three slow, smooth free-form wave curves in ceiling green and birch white. A small round window high on the left shows deep kaamos-blue night with three stars. The upper middle of the image is calm and fairly empty. No figure, no hands, no people."
+  },
+  {
+   "name": "concept/concept_aalto_start",
+   "size": "1024x1536",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "Start screen background in the dark of kaamos, the polar night, just before a morning session. Portrait. The top 30 percent is calm plain sky from deep fjord blue to kaamos blue with a faint, very sheer aurora made of fine vertical lamination lines in spring green, leaving clear quiet space. In the middle third, a far shore drawn as one long free-form wave curve, with slim birches and a row of five or six tiny warm windows far away. In the lower middle, on a smooth curved snowy knoll, a small hooded figure in a kaamos-blue cloak with a Paimio-yellow scarf, no face, sits on a low bench bent from a single ribbon of laminated birch plywood, a small bell-shaped lantern beside it with only a faint ember glow. The bottom 22 percent is quiet, smooth dark blue snow with no detail. Mostly blue and dark; the ember and the far windows are the only warm pixels. Hopeful, not bleak."
+  },
+  {
+   "name": "concept/concept_aalto_transition",
+   "size": "1536x1024",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "One continuous wide landscape showing the passage from polar night to spring morning, from left to right. A single long free-form wave curve forms the shoreline and low hills across the whole width; slender birches stand along it at uneven intervals. Left third: kaamos night, deep fjord blue sky with a few stars, every shape a desaturated blue-grey. Middle third: blue hour, a sheer aurora of fine spring-green vertical lines, frost-blue lake ice. Right third: spring dawn, a low pale-yellow sun rising behind a soft rounded fell, apricot and Paimio-yellow sky, birches with the first small spring-green leaves, snow giving way to soft green ground. The change is smooth and gradual, no seams or panels. A tiny hooded figure with a warm lantern walks to the right at the centre."
+  },
+  {
+   "name": "concept/concept_aalto_icon",
+   "size": "1024x1024",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "App icon. Full-bleed square with no rounded corners and no border. On a calm deep kaamos-blue field, one bold band of bent birch plywood sweeps from the lower left upward to the right in a single asymmetric free-form wave curve, like a horizon, its thick edge showing five fine parallel lamination lines in birch ply and birch white. Nested in the hollow of the curve sits a small round pale Paimio-yellow sun with a soft warm halo, just rising. Nothing else. Very simple, bold, flat shapes readable at 60 pixels, centred with a generous margin."
+  },
+  {
+   "name": "concept/concept_aalto_props",
+   "size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "prompt": "Character and prop sheet: five separate items in one row, evenly spaced with clear gaps, all standing on the same invisible base line, side view. 1: a small slender hooded figure walking to the right, ankle-length kaamos-blue cloak, short Paimio-yellow scarf, no face (only soft shadow inside the hood), holding forward a short birch pole with a small bell-shaped brass lantern hanging from its tip, lantern unlit. 2: the same figure sitting on a low bench bent from a single ribbon of laminated birch plywood. 3: the small bell-shaped brass lantern alone with a birch handle, unlit. 4: a slender young birch with white bark and dark marks, bare twigs with a few spring-green buds. 5: a smooth rounded snow-capped stone."
+  },
+  {
+   "name": "concept/concept_aalto_transition_b",
+   "size": "1536x1024",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "Outdoor landscape only: no interior, no room, no window frame, no furniture, no beds, no chairs. One continuous wide landscape showing the passage from polar night to spring morning, from left to right. A single long free-form wave curve forms the shoreline and low hills across the whole width; slender birches stand along it at uneven intervals. Left third: kaamos night, deep fjord blue sky with a few stars, every shape a desaturated blue-grey. Middle third: blue hour, a sheer aurora of fine spring-green vertical lines, frost-blue lake ice. Right third: spring dawn, a low pale-yellow sun rising behind a soft rounded fell, apricot and Paimio-yellow sky, birches with the first small spring-green leaves, snow giving way to soft green ground. The change is smooth and gradual, no seams or panels. A tiny hooded figure with a warm lantern walks to the right at the centre."
+  },
+  {
+   "name": "concept/concept_aalto_icon_b",
+   "size": "1024x1024",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "App icon. Full-bleed square with no rounded corners and no border. A calm deep kaamos-blue field. One bold band of bent birch plywood crosses the square from the left edge to the right edge through its middle, dipping into a soft hollow just left of centre and rising gently to the right in a single asymmetric free-form wave curve; the thick band shows five fine parallel lamination lines in birch ply and birch white. In the hollow, a round pale Paimio-yellow sun is half risen behind the band, with a soft warm halo. Nothing else. The composition is balanced in the square with equal space above the sun and below the band. Very simple, bold, flat shapes readable at 60 pixels."
+  },
+  {
+   "name": "concept/concept_aalto_props_b",
+   "size": "1536x1024",
+   "transparent": true,
+   "prio": "A",
+   "prompt": "Flat 2D picture-book cut-shape illustration, not a 3D render: matte flat colour fields with at most one soft gradient each, no volume shading, no gloss, no glow, no halo, no coloured haze; the background stays fully transparent around every item. Character and prop sheet: five separate items in one row, evenly spaced with clear gaps, all standing on the same invisible base line, side view. 1: a small slender hooded figure walking to the right, ankle-length kaamos-blue cloak, short Paimio-yellow scarf, no face (only soft shadow inside the hood), holding forward a short birch pole with a small bell-shaped brass lantern hanging from its tip, lantern unlit. 2: the same figure sitting on a low bench bent from a single ribbon of laminated birch plywood. 3: the small bell-shaped brass lantern alone with a birch handle, unlit. 4: a slender young birch with white bark and dark marks, bare twigs with a few spring-green buds. 5: a smooth rounded snow-capped stone."
+  },
+  {
+   "name": "concept/concept_aalto_hero_hi",
+   "size": "1024x1536",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "Key art of a morning session at the moment dawn arrives. Portrait, side view. A small slender hooded figure in an ankle-length deep kaamos-blue cloak with a short Paimio-yellow scarf, no face (only soft shadow inside the hood), walks to the right along a gently rising snow path that follows one long free-form wave curve, holding a short birch pole with a small bell-shaped lantern (a rounded brass bell, open at the bottom, warm yellow light glowing from beneath it). The figure is small, about one third from the left, about 10 percent of the image height. Behind it a loose irregular row of slender birches with white bark. The lower 40 percent is layered snowy shore curves in birch white and frost, and a frozen lake whose edge is a free-form wave. The upper 60 percent is open sky: kaamos blue at the top through lilac haze to a band of dawn apricot and pale Paimio yellow at the horizon, where a low pale-yellow sun is just rising behind a soft rounded fell, sending long pale rays drawn as fine parallel lamination lines fanning gently across the sky. On the far left the world is still blue-grey night; toward the sun on the right, colour has returned."
+  },
+  {
+   "name": "concept/concept_aalto_loyly_hi",
+   "size": "1024x1536",
+   "transparent": false,
+   "prio": "A",
+   "prompt": "Minigame scene, the sauna pour. Portrait, calm interior side view of a small Finnish sauna in the dark early morning. The walls are warm birch ply made of wide curving bent-wood laminated bands, a low bench bent from one ribbon of laminated birch on the left. In the lower middle a dark iron stove topped with a mound of rounded stones that glow softly amber from within. A long-handled wooden ladle comes in from the upper right edge, tilted above the stones, pouring one thin silky ribbon of water. Steam rises from the stones as three long, smooth, translucent ribbons that curve like bent plywood bands in ceiling green and birch white, never smoke puffs or billows. A small round window high on the left shows deep kaamos-blue night with three stars. The upper middle of the image is calm and fairly empty. No figure, no hands, no people."
+  }
+ ]
+}

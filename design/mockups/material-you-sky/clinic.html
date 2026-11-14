@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afferent Clinic</title>
+<link rel="stylesheet" href="m3.css">
+<link rel="stylesheet" href="scheme.css">
+<link rel="stylesheet" href="clinic.css">
+</head>
+<body class="clinic">
+<svg width="0" height="0" style="position:absolute"><symbol id="lantern" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="2.9" r="1.2"/><path d="M9.2 7.4 10.6 4.6h2.8l1.4 2.8z"/><rect x="7.4" y="7.4" width="9.2" height="11.2" rx="2.2"/><path d="M6.2 20.8h11.6"/><path d="M12 10.4c1.25 1.35 1.9 2.45 1.9 3.4a1.9 1.9 0 0 1-3.8 0c0-.95.65-2.05 1.9-3.4z" fill="currentColor" stroke="none"/></symbol></svg>
+
+<nav class="rail" aria-label="Sections">
+  <span class="brand" title="Afferent Clinic"><svg class="lantern-ico"><use href="#lantern"/></svg></span>
+  <a class="dest on" href="#" aria-current="page"><span class="ind state"><span class="ms fill">group</span></span><span class="label-medium">Patients</span></a>
+  <a class="dest" href="#"><span class="ind state"><span class="ms">insights</span></span><span class="label-medium">Validation</span></a>
+  <a class="dest" href="#"><span class="ind state"><span class="ms">history</span></span><span class="label-medium">Exports</span></a>
+  <span class="grow"></span>
+  <a class="dest" href="#"><span class="ind state"><span class="ms">settings</span></span></a>
+</nav>
+
+<main class="main">
+  <header class="head">
+    <div class="titles">
+      <h1 class="headline-medium">Who might need a call</h1>
+      <p class="body-large muted"><b>2 of 6</b> drifted from their own usual pattern. <b>1</b> note to the clinic.</p>
+    </div>
+    <div class="tools">
+      <label class="search state"><span class="ms">search</span><input placeholder="Search patients" aria-label="Search patients"></label>
+      <span class="chip export"><span class="ms">history</span>Export 07:00 today</span>
+      <span class="sim">SIMULATED DATA</span>
+      <button class="icon-btn state" aria-label="More"><span class="ms">more_vert</span></button>
+    </div>
+  </header>
+
+  <section class="counts" aria-label="Patients by suggestion">
+    <button class="count state k-booster"><span class="ci"><span class="ms">bolt</span></span><span class="n display-small tnum">1</span><span class="l label-large">Booster discussion</span></button>
+    <button class="count state k-checkin"><span class="ci"><span class="ms">call</span></span><span class="n display-small tnum">1</span><span class="l label-large">Consider a call</span></button>
+    <button class="count state k-watch"><span class="ci"><span class="ms">visibility</span></span><span class="n display-small tnum">0</span><span class="l label-large">Watch</span></button>
+    <button class="count state k-stable"><span class="ci"><span class="ms">check_circle</span></span><span class="n display-small tnum">4</span><span class="l label-large">Stable</span></button>
+  </section>
+
+  <section class="note" aria-label="Note to the clinic">
+    <span class="ni"><span class="ms fill">chat_bubble</span></span>
+    <div class="nt"><p class="title-medium">Anna tapped Talk to someone</p><p class="body-medium muted">Sat 14 Nov, 09:53. The app showed the fixed card with 112, MIELI and the clinic number.</p></div>
+    <button class="btn text state">Open</button>
+    <button class="btn tonal state">Mark as seen</button>
+  </section>
+
+  <section class="table" aria-label="Patients">
+    <div class="tr th label-medium">
+      <span>Patient</span><span>Suggestion</span><span>Early-warning index, 14 d <span class="ms s18 info">info</span></span><span>Main drivers</span><span>Last session</span><span>Days played</span><span></span>
+    </div>
+    <div class="grp label-large">Might need a call <span class="muted">2</span></div>
+    <div id="need"></div>
+    <div class="grp label-large">Stable <span class="muted">4</span></div>
+    <div id="stable"></div>
+  </section>
+</main>
+
+<script>
+const P = [
+  ['Anna', 'booster', 'Booster discussion', 'bolt', 'Asked to talk 09:53', [0.2,0.3,0.25,0.5,0.6,0.7,0.9,1.1,1.3,1.6,1.9,1.85,1.82,1.8], '1.80', '-0.50', 'down', ['Sleep regularity', '+0.35'], ['Effort choice', '+0.29'], 'Today 09:41', 6, 'need'],
+  ['Juha', 'checkin', 'Consider a call', 'call', 'Since day 56', [0.1,0.15,0.2,0.3,0.32,0.4,0.45,0.5,0.6,0.62,0.7,0.8,0.9,0.96], '0.96', '+0.37', 'up', ['Mood check-in', '+0.24'], ['Reaction time', '+0.21'], 'Yesterday 07:52', 7, 'need'],
+  ['Sofia', 'stable', 'Stable', 'check_circle', 'Within usual range', [0.2,0.22,0.18,0.15,0.2,0.25,0.21,0.18,0.3,0.32,0.31,0.3,0.33,0.34], '0.34', '+0.16', 'up', ['Effort choice', '+0.14'], ['Missed sessions', '+0.12'], 'Yesterday 08:18', 6, 'stable'],
+  ['Leena', 'stable', 'Stable', 'check_circle', 'Within usual range', [0.05,0.08,0.1,0.12,0.1,0.05,0.0,-0.05,-0.1,-0.12,-0.1,-0.11,-0.12,-0.12], '-0.12', '-0.30', 'down', ['Missed sessions', '+0.20'], null, 'Yesterday 21:42', 6, 'stable'],
+  ['Eero', 'stable', 'Stable', 'check_circle', 'Within usual range', [0.1,0.12,0.0,-0.1,-0.15,-0.2,-0.22,-0.25,-0.2,-0.24,-0.25,-0.26,-0.25,-0.25], '-0.25', '-0.17', 'down', ['Reward bias', '+0.06'], null, 'Yesterday 06:57', 6, 'stable'],
+  ['Mikko', 'stable', 'Stable', 'check_circle', 'Within usual range', [-0.4,-0.38,-0.35,-0.3,-0.28,-0.32,-0.3,-0.27,-0.29,-0.3,-0.28,-0.27,-0.28,-0.28], '-0.28', '-0.35', 'down', ['Home-only days', '+0.07'], null, 'Yesterday 07:58', 7, 'stable']
+];
+const spark = (v, k) => {
+  const w = 120, h = 36, lo = -0.6, hi = 2.0, x = i => 2 + i * (w - 4) / (v.length - 1), y = n => h - 2 - (n - lo) / (hi - lo) * (h - 4);
+  const d = v.map((n, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(n).toFixed(1)}`).join(' ');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}"><rect class="band" x="0" y="${y(0.5)}" width="${w}" height="${y(-0.5) - y(0.5)}" rx="3"/><path d="${d}"/><circle cx="${x(v.length - 1)}" cy="${y(v[v.length - 1])}" r="3"/></svg>`;
+};
+for (const [name, k, label, icon, sub, v, val, delta, dir, d1, d2, last, days, where] of P) {
+  const row = document.createElement('a');
+  row.href = '#'; row.className = `tr row state ${where} k-${k}`;
+  row.innerHTML = `
+    <span class="who"><span class="av title-medium">${name[0]}</span><span><span class="title-medium">${name}</span> <span class="sim">SIM</span><br><span class="body-small muted">Week 9 after TMS</span></span></span>
+    <span class="sug"><span class="st label-large"><span class="ms s18 fill">${icon}</span>${label}</span><span class="body-small muted">${sub}</span></span>
+    <span class="idx">${spark(v, k)}<span><span class="title-medium tnum">${val}</span><br><span class="body-small muted tnum"><span class="ms s18 dir">arrow_${dir === 'up' ? 'upward' : 'downward'}</span>${delta} / 7 d</span></span></span>
+    <span class="drv body-medium">${[d1, d2].filter(Boolean).map(([a, b]) => `${a} <span class="muted tnum">${b}</span>`).join('<br>')}</span>
+    <span class="body-medium">${last}</span>
+    <span class="days" aria-label="${days} of 7 days">${Array.from({ length: 7 }, (_, i) => `<i class="${i < days ? 'on' : ''}"></i>`).join('')}<span class="body-small muted tnum">${days} of 7</span></span>
+    <span class="ms trail">chevron_right</span>`;
+  document.getElementById(where).append(row);
+}
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from ..service import Hub, HubError
 
@@ -51,6 +51,17 @@ async def privacy(pid: str, request: Request, body=Body(...)):
     return await hub(request).set_privacy(pid, _obj(body))
 
 
+@router.post("/patients/{pid}/pause")
+async def pause(pid: str, request: Request, body=Body(...)):
+    return await hub(request).set_pause(pid, _obj(body))
+
+
+@router.get("/patients/{pid}/export")
+async def export(pid: str, request: Request):
+    name, data = hub(request).export(pid)
+    return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
 @router.post("/patients/{pid}/flags/clear")
 async def flags_clear(pid: str, request: Request):
     await hub(request).clear_flags(pid)
@@ -68,6 +79,11 @@ async def session(sid: str, request: Request):
 @router.post("/sessions")
 async def post_session(request: Request, body=Body(...)):
     return await hub(request).ingest_session(_obj(body))
+
+
+@router.post("/checkins")
+async def post_checkin(request: Request, body=Body(...)):
+    return await hub(request).ingest_checkin(_obj(body))
 
 
 @router.post("/daily")

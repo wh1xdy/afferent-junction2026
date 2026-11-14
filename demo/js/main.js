@@ -22,7 +22,7 @@
     sharing: saved.sharing || 'summary',
     simulator: saved.simulator ?? true,
     quietNight: saved.quietNight ?? true,
-    weeklyCheckin: saved.weeklyCheckin ?? true,
+    checkin: saved.checkin ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -59,21 +59,28 @@
     while ($('events').children.length > 16) $('events').lastChild.remove();
   };
 
-  const LABEL = { live: 'day: live', good_day: 'day: good day', bad_day: 'day: bad day' };
+  const LABEL = { live: 'Today', good_day: 'Good day', bad_day: 'Bad day' };
+  const DEV = {
+    input: ['Input', () => ({ auto: 'Autoplay story', touch: 'Touch', camera: 'Touch and camera' }[ui.input])],
+    clock: ['Clock', () => ui.clock === 'night' ? 'Night' : 'Morning'],
+    stage: ['Session', () => ui.stage ? 'Short' : 'Full'],
+    profile: ['Day profile', () => LABEL[ui.profile]],
+  };
+  const devChips = $('devChips');
+  Object.keys(DEV).forEach(k => { const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.dataset.dev = k; devChips.append(b); });
   const chips = () => {
-    $('inputChip').textContent = { auto: 'input: autoplay story', touch: 'input: touch', camera: 'input: touch + camera' }[ui.input];
-    $('clockChip').textContent = ui.clock === 'night' ? 'clock: night' : 'clock: morning';
-    $('stageChip').textContent = ui.stage ? 'stage mode (60 s)' : 'full session';
-    $('profileChip').textContent = LABEL[ui.profile];
-    $('profileChip').classList.toggle('sim', ui.profile !== 'live');
-    $('profileTag').textContent = ui.profile;
-    $('soundBtn').classList.toggle('off', !ui.sound);
+    document.querySelectorAll('[data-dev]').forEach(el => {
+      const [label, val] = DEV[el.dataset.dev];
+      const v = el.querySelector('.val');
+      if (v) v.textContent = val(); else el.textContent = `${label.toLowerCase()}: ${val().toLowerCase()}`;
+      el.classList.toggle('sim', el.dataset.dev === 'profile' && ui.profile !== 'live');
+    });
+    $('profileTag').textContent = LABEL[ui.profile].toLowerCase();
     camGlyph();
   };
   const camGlyph = () => {
-    const st = !A.config.sensors.phone_camera ? 'off' : ui.input === 'camera' || S.camera() ? 'on' : A.config.simulator ? 'simulated' : 'off';
-    $('camBtn').dataset.state = st;
-    $('camBtn').setAttribute('aria-label', 'Camera: ' + st);
+    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera());
+    $('camBtn').hidden = !on;
   };
   const setProfile = (p, from) => {
     if (!PROFILES.includes(p)) return;
@@ -82,21 +89,20 @@
     else { A.applyProfileVisual(idle, p, idleTween); A.bus.emit('profile', p); }
     log(`profile ${p}${from ? ' from ' + from : ''}`);
   };
-  $('inputChip').onclick = () => {
-    const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'auto' } : { auto: 'touch', touch: 'auto', camera: 'auto' };
-    ui.input = order[ui.input]; chips();
+  const DEV_ACT = {
+    input: () => {
+      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'auto' } : { auto: 'touch', touch: 'auto', camera: 'auto' };
+      ui.input = order[ui.input]; chips();
+    },
+    clock: () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); },
+    stage: () => { ui.stage = !ui.stage; chips(); },
+    profile: () => setProfile(PROFILES[(PROFILES.indexOf(ui.profile) + 1) % PROFILES.length]),
   };
-  $('clockChip').onclick = () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); };
-  $('stageChip').onclick = () => { ui.stage = !ui.stage; chips(); };
-  $('profileChip').onclick = () => setProfile(PROFILES[(PROFILES.indexOf(ui.profile) + 1) % PROFILES.length]);
-  const setSound = on => { ui.sound = on; A.Audio.on = on; $('soundSw').checked = on; chips(); saveSettings(); };
-  $('soundBtn').onclick = () => setSound(!ui.sound);
+  document.querySelectorAll('[data-dev]').forEach(el => el.onclick = () => DEV_ACT[el.dataset.dev]());
+  const setSound = on => { ui.sound = on; A.Audio.on = on; $('soundSw').checked = on; saveSettings(); };
   chips();
 
   $('weekBtn').href = 'patient.html' + location.search;
-
-  const phone = window.matchMedia?.('(max-width: 760px)').matches;
-  if (phone && !q.has('dev')) $('demoBox').querySelector('summary').after(document.querySelector('#start .chips'));
 
   const hubKey = 'afferent.hub';
   const normHub = v => {
@@ -109,79 +115,46 @@
   try { $('hubAddr').value = localStorage.getItem(hubKey) || ''; } catch {}
   $('hubForm').onsubmit = e => {
     e.preventDefault();
+    show('hubDialog', false);
     const v = normHub($('hubAddr').value);
     try { v ? localStorage.setItem(hubKey, v) : localStorage.removeItem(hubKey); } catch {}
     location.reload();
   };
 
   const night = () => ui.clock === 'night';
+  A.night = night;
   const morningText = () => {
     $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
     $('decline').textContent = night() ? 'Not tonight' : 'Not today';
-    $('crisisLead').textContent = `If ${night() ? 'tonight' : 'today'} is heavy, you do not have to carry it alone.`;
     $('end').classList.toggle('night', night());
-    weeklyPill();
+    A.Theme.sync();
+    A.Checkin.refresh();
+    A.bus.emit('home');
   };
 
-  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings', 'weekly'];
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings', 'hubDialog'];
   const show = (id, on) => {
     $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
     if (CARDS.includes(id)) {
-      if (on) CARDS.forEach(c => c !== id && $(c).classList.add('hidden'));
       $('phone').classList.toggle('card-open', CARDS.some(c => !$(c).classList.contains('hidden')));
     }
   };
   const crisis = source => {
-    $('selfHarmNote').classList.toggle('hidden', source !== 'weekly_checkin');
-    show('crisis', true);
+    if (window.AfferentSupport?.open) window.AfferentSupport.open('talk');
+    else show('crisis', true);
     A.bus.emit('ws', { type: 'crisis', patient_id: A.config.patientId, ...(A.session?.rec?.session_id ? { session_id: A.session.rec.session_id } : {}), source, t_iso: A.Record.isoLocal(new Date()) });
     log('crisis card opened (' + source + ')');
   };
-  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : b.dataset.open === 'weekly' ? openWeekly() : show(b.dataset.open, true));
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => show(b.dataset.close, false));
   A.bus.on('crisisOffer', () => { show('offer', true); log('talk offer shown (lowest lantern twice)'); });
   $('offerYes').onclick = () => { show('offer', false); crisis('mood'); };
   $('offerNo').onclick = () => { show('offer', false); log('talk offer declined'); };
 
-  const weeklyKey = 'afferent.weekly.' + A.config.patientId;
-  const WEEKLY_ITEMS = [['interest', 'Little interest or pleasure in doing things'], ['down', 'Feeling down, depressed or hopeless'], ['self_harm', 'Thoughts that you would be better off dead, or of hurting yourself']];
-  const WEEKLY_OPTS = ['Not at all', 'Several days', 'More than half the days', 'Nearly every day'];
-  let weeklyAnswers = {};
-  const weeklyDue = () => {
-    if (!A.config.weeklyCheckin || night()) return false;
-    if (q.get('weekly') === '1') return true;
-    const w = store.get(weeklyKey);
-    return !w || Date.now() - (w.done || 0) > 7 * 864e5 && Date.now() > (w.snooze || 0);
-  };
-  const weeklyPill = () => show('weeklyBtn', weeklyDue() && !A.session);
-  WEEKLY_ITEMS.forEach(([key, text]) => {
-    const f = document.createElement('fieldset');
-    f.className = 'item';
-    f.innerHTML = `<legend>${text}</legend><div class="opts" role="radiogroup">${WEEKLY_OPTS.map((o, i) => `<button type="button" role="radio" aria-checked="false" data-v="${i}">${o}</button>`).join('')}</div>`;
-    f.querySelectorAll('button').forEach(b => b.onclick = () => {
-      weeklyAnswers[key] = Number(b.dataset.v);
-      f.querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', String(x === b)));
-      $('weeklyDone').disabled = Object.keys(weeklyAnswers).length < WEEKLY_ITEMS.length;
-    });
-    $('weeklyItems').append(f);
-  });
-  const openWeekly = () => {
-    weeklyAnswers = {};
-    document.querySelectorAll('#weeklyItems button').forEach(b => b.setAttribute('aria-checked', 'false'));
-    $('weeklyDone').disabled = true;
-    show('weekly', true);
-  };
-  $('weeklyLater').onclick = () => { store.set(weeklyKey, { ...store.get(weeklyKey), snooze: Date.now() + 864e5 }); show('weekly', false); weeklyPill(); };
-  $('weeklyDone').onclick = () => {
-    const a = { ...weeklyAnswers };
-    store.set(weeklyKey, { done: Date.now() });
-    A.bus.emit('ws', { type: 'weekly_checkin', patient_id: A.config.patientId, answers: a, phq2: a.interest + a.down, self_harm: a.self_harm, t_iso: A.Record.isoLocal(new Date()) });
-    log(`weekly check-in sent (two items ${a.interest + a.down} of 6, third item ${a.self_harm})`);
-    show('weekly', false); weeklyPill();
-    if (a.self_harm > 0) crisis('weekly_checkin');
-  };
+  A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
+  A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, weeklyCheckin: A.config.weeklyCheckin, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, sound: ui.sound });
   const sharingSeg = () => {
     const bs = [...document.querySelectorAll('#sharingSeg button')];
     bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
@@ -194,7 +167,7 @@
     $('motionSw').checked = A.config.reducedMotion;
     $('soundSw').checked = ui.sound;
     $('quietSw').checked = A.config.quietNight;
-    $('weeklySw').checked = A.config.weeklyCheckin;
+    $('checkinSw').checked = A.config.checkin;
     camGlyph();
   };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
@@ -210,10 +183,10 @@
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sharing: A.config.sharing });
   });
   $('simSw').onchange = e => { A.config.simulator = e.target.checked; syncSensors(); saveSettings(); camGlyph(); };
-  $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; saveSettings(); };
+  $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; A.Theme.motion(); saveSettings(); };
   $('soundSw').onchange = e => setSound(e.target.checked);
-  $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; setDawn(A.config.dawnLevel); saveSettings(); };
-  $('weeklySw').onchange = e => { A.config.weeklyCheckin = e.target.checked; saveSettings(); weeklyPill(); };
+  $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
+  $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
@@ -225,18 +198,9 @@
 
   let timeline = [];
 
-  const MOOD_HEX = ['#34476E', '#5A7CA6', '#A9A79A', '#E8B867', '#FFCB5C'], MOOD_GLOW = [0.35, 0.5, 0.65, 0.82, 1];
-  const lanternSvg = '<svg viewBox="0 0 40 60" aria-hidden="true"><path class="lf" d="M16.5 11a3.5 3.5 0 0 1 7 0" fill="none"/><path class="lb" d="M15 13.5h10l5.5 5h-21z"/><rect class="lg" x="11" y="18.5" width="18" height="24" rx="4"/><ellipse class="ll" cx="20" cy="32" rx="2.3" ry="5.2"/><rect class="lb" x="9.8" y="42" width="20.4" height="3.2" rx="1.2"/></svg>';
-  MOOD_HEX.forEach((c, i) => {
-    const b = document.createElement('button');
-    b.className = 'flame mood'; b.dataset.v = i + 1; b.setAttribute('aria-label', String(i + 1));
-    b.style.setProperty('--c', c); b.style.setProperty('--g', MOOD_GLOW[i]);
-    b.innerHTML = lanternSvg;
-    b.onclick = () => A.session?.setMood(i + 1);
-    $('moodEnd').append(b);
-  });
+  document.querySelectorAll('#moodEnd .mood-lantern').forEach(b => b.onclick = () => A.session?.setMood(Number(b.dataset.v)));
 
-  $('begin').onclick = async () => {
+  const begin = async () => {
     A.Audio.on = ui.sound;
     A.Audio.start(0.25);
     A.Input.mode = ui.input;
@@ -247,7 +211,8 @@
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();
-    show('start', false); show('end', false); show('closeBtn', true); show('weeklyBtn', false);
+    show('start', false); show('end', false); show('closeBtn', true); show('checkinBtn', false);
+    CARDS.forEach(c => show(c, false));
     resetEnd();
     $('json').textContent = '';
     timeline = [];
@@ -257,6 +222,7 @@
     A.bus.emit('ws', { type: 'session_start', session_id: s.rec.session_id, patient_id: A.config.patientId, clock: ui.clock, profile: ui.profile, simulated: s.liveMetrics(A.now()).simulated, sensors: s.rec.sensors, t_iso: s.rec.started_iso });
     log(`session start, ${A.Input.mode}, ${ui.clock}, ${ui.profile}`);
   };
+  $('begin').addEventListener('kindle', begin);
 
   $('decline').onclick = () => {
     const r = A.declinedRecord(ui.profile);
@@ -265,6 +231,8 @@
     A.bus.emit('sessionEnd', r);
     log('not tonight, logged as declined');
     resetEnd(); $('end').classList.add('declined');
+    $('endText').textContent = night() ? 'Rest well.' : 'See you tomorrow.';
+    A.Shell.phase('declined');
     show('start', false); show('end', true);
   };
 
@@ -273,8 +241,8 @@
   const resetEnd = () => {
     endShown = false;
     $('end').classList.remove('declined', 'dim', 'closed');
+    $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
     show('offer', false);
-    document.querySelectorAll('#moodEnd .flame').forEach(f => f.classList.remove('on'));
   };
   const goHome = () => {
     if (leaving) return;
@@ -285,8 +253,8 @@
     fadeCurtain(1, 1.2, () => {
       A.session = null;
       idle = A.makeVisual(ui.profile); idle.black = 0;
-      resetEnd(); camGlyph(); weeklyPill();
-      show('start', true);
+      resetEnd(); camGlyph(); A.Checkin.refresh();
+      show('start', true); A.bus.emit('home');
       fadeCurtain(0, 1.8, () => { leaving = false; });
     });
   };
@@ -317,7 +285,6 @@
   A.bus.on('mood', m => {
     log(`lantern check-in ${m.which} ${m.value ?? 'skipped'}`);
     if (m.which === 'start') cue('');
-    if (m.which === 'end') document.querySelectorAll('#moodEnd .flame').forEach(f => f.classList.toggle('on', Number(f.dataset.v) === m.value));
   });
   A.bus.on('endScreen', () => { endShown = true; show('end', true); show('closeBtn', false); });
   A.bus.on('endDim', () => $('end').classList.add('dim'));
@@ -330,7 +297,7 @@
     if (leaving || r.status === 'declined') return;
     if (r.status === 'fell_asleep') { $('phone').addEventListener('pointerdown', () => show('wakeBtn', true), { once: true }); return; }
     if (endShown) { $('end').classList.add('closed'); return; }
-    $('end').classList.add('declined'); show('end', true);
+    $('end').classList.add('declined'); A.Shell.phase('declined'); show('end', true);
   });
 
   const led = $('led');
@@ -366,7 +333,7 @@
   for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + $(id).textContent); };
 
   const Hub = A.Hub;
-  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = 'Hub: ' + (on ? 'connected' : 'offline') + (Hub.url ? ' (' + Hub.httpBase() + ')' : ''); log(on ? 'hub connected' : 'hub disconnected'); });
+  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = (on ? 'Connected' : 'Offline') + (Hub.url ? ' · ' + Hub.httpBase().replace(/^https?:\/\//, '') : ''); log(on ? 'hub connected' : 'hub disconnected'); });
   Hub.on('config', c => {
     if (c.baseline_pulse_bpm) A.config.baselinePulse = c.baseline_pulse_bpm;
     if (Number.isFinite(c.dawn_level)) setDawn(c.dawn_level);
@@ -379,10 +346,10 @@
   Hub.on('profile', d => setProfile(d.profile, 'hub'));
   Hub.on('privacy', d => applyPrivacy(d.privacy));
   Hub.on('demo_reset', () => log('hub demo reset'));
-  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) { log('no hub, offline mode'); $('hubState').textContent = 'Hub: not set. Enter the address shown by ./start.sh.'; }
-  else { log('hub ' + Hub.url); $('hubState').textContent = 'Hub: connecting to ' + Hub.httpBase(); }
+  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) { log('no hub, offline mode'); $('hubState').textContent = 'Not set'; }
+  else { log('hub ' + Hub.url); $('hubState').textContent = 'Connecting to ' + Hub.httpBase().replace(/^https?:\/\//, ''); }
 
-  const MODE_COL = { ...Object.fromEntries(Object.entries(A.MODES).map(([k, v]) => [k, v.colour])), measure: '#B79CFF' };
+  const MODE_COL = { ...Object.fromEntries(Object.entries(A.MODES).map(([k, v]) => [k, v.colour])), measure: '#B4A6CE' };
   const tl = $('timeline'), tctx = tl.getContext('2d');
 
   function drawTimeline() {
@@ -440,6 +407,7 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     A.World.draw(ctx, W, H, V);
+    A.Theme.frame(canvas);
     A.FXGL?.present(canvas, V, s);
     s?.drawOverlay(ctx, now);
     if (curtain) {

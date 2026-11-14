@@ -68,7 +68,7 @@ The world canvas renders at the device pixel ratio, capped at 2. On touch device
 
 1. **Touch to play, the body steers in the background.** The player only taps, drags and holds, like in any phone game. Pulse and eye closure are read passively and act as stimulation values: they decide what the game offers next. Nobody has to perform with their face.
 2. **Every session is different.** A director (modelled on the Left 4 Dead AI Director) reads the vitals live and chooses mode, world, music, light, task and difficulty. High pulse leads to calm, low pulse to activation, eyes that keep closing to a gentle wake-up (in the morning) or to rest (at night).
-3. **Nothing can go wrong.** No score, no streak, no failure. Every task times out gracefully, mistakes make the next task easier, and every session reaches dawn.
+3. **Nothing can go wrong.** No score, no failure, and no streak inside the game. Every task times out gracefully, mistakes make the next task easier, and every session reaches dawn. The only streak is the day count outside play: one small number on the start screen (06:00 to 21:00, from 2) and one tick on the end screen, never 0, never at night, never in the patient view (Decisions D1, `design/engagement.md` section 6).
 4. **Light comes back.** Polar night to morning in under two minutes. Each finished task returns one colour. At dawn the real bedside light rises.
 5. **One short fixed core, then freedom.** About 20 seconds that are identical every time (start pulse and reaction time), so the clinic can compare nights. Everything after the core is adaptive.
 
@@ -170,7 +170,7 @@ Mistakes are never shown as failure: a wrong bell replays the sequence, a missed
 
 ## 9. Screens outside the game
 
-- **Start screen:** lantern, two equal buttons "Begin" and "Not tonight", icons for sound, camera state, info and "Talk to someone". No greeting, no streak, never the camera image.
+- **Start screen:** lantern, two equal buttons "Begin" and "Not today" ("Not tonight" at night), icons for sound, camera state, info and "Talk to someone". No greeting, never the camera image. One small streak number under the lantern from a streak of 2, 06:00 to 21:00 only, absent otherwise, never 0 (Decisions D1, `design/engagement.md` 6.2).
 - **During the session:** one small close button (top left). Closing saves the session as partial, no confirmation.
 - **End screen:** dawn, "Rest well.", the optional lantern check-in (five flame sizes, one tap; not answering is fine and logged as null), "Talk to someone".
 - **Settings:** per-sensor switches (phone camera, pulse stone, bedside camera, bedside light, presence), "Clinic sees: summary / nothing tonight / pause sharing 7 days", sound on or off (session always starts at 25% of system volume), quiet night on (default), weekly check-in (on by default in the pilot, agreed at discharge, switchable off).
@@ -178,7 +178,7 @@ Mistakes are never shown as failure: a wrong bell replays the sequence, a missed
 
 ### Crisis path (fixed, never AI)
 
-- Triggered only by self-report: the weekly daytime check-in (PHQ-2 style items plus one self-harm item) or tapping "Talk to someone". Never by pulse, eyes, tasks or missed sessions.
+- Triggered only by self-report: the weekly daytime check-in (a start-screen pill, never a push, Decisions D12; PHQ-2 style items plus one self-harm item) or tapping "Talk to someone". Never by pulse, eyes, tasks or missed sessions.
 - Fixed card: "If tonight is heavy, you do not have to carry it alone." Call the clinic, call 112, MIELI Crisis Helpline (09 2525 0111, verify before submission). After a self-harm answer: "Your clinic will see this on the next working day. If you need someone now, call 112 or MIELI." The flag goes to a named clinic contact, reviewed within one working day.
 - Stated in onboarding and pitch: not monitored around the clock, not an emergency service.
 

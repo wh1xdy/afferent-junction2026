@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" data-sky="dawn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your week</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .sticky { position: sticky; top: 0; z-index: 3; background: var(--md-sys-color-surface); }
+  .hero { margin: 4px 16px 0; height: 300px; border-radius: var(--md-sys-shape-corner-extra-large); overflow: hidden; position: relative; background: url("img/sky-dawn-phone.jpg") center 40% / cover; }
+  .hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, transparent 30%, color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 82%, transparent) 100%); }
+  .hero .in { position: absolute; left: 20px; right: 20px; bottom: 18px; z-index: 1; }
+  .arc { display: flex; align-items: center; gap: 0; margin-bottom: 14px; }
+  .arc .lamp { width: 44px; height: 52px; display: grid; place-items: center; position: relative; color: var(--md-sys-color-on-surface); }
+  .arc .lamp::before { content: ""; position: absolute; width: 50px; height: 50px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--c) calc(var(--g) * 60%), transparent) 0%, transparent 70%); }
+  .arc .lamp svg { position: relative; width: 24px; height: 37px; }
+  .arc .path { flex: 1; height: 2px; margin: 0 6px; background-image: linear-gradient(to right, color-mix(in srgb, var(--md-sys-color-lantern-glow) 70%, transparent) 50%, transparent 50%); background-size: 8px 2px; }
+  .hero .when { color: var(--md-sys-color-on-surface-variant); }
+  .card { margin: 0 16px; background: var(--md-sys-color-surface-container); border-radius: var(--md-sys-shape-corner-extra-large); padding: 12px 8px 8px; }
+  .foot { padding: 24px 32px 32px; display: flex; flex-direction: column; gap: 6px; }
+  .foot .row { display: flex; gap: 8px; align-items: center; }
+  .foot .ms { font-size: 18px; }
+  .seg-wrap { padding: 12px 12px; }
+  .learn { color: var(--md-sys-color-on-surface-variant); }
+</style>
+</head>
+<body>
+<div class="phone scroll">
+  <div class="sticky">
+    <div class="safe-top"></div>
+    <div class="top-bar">
+      <a class="icon-btn state" href="start.html" aria-label="Back"><span class="ms">arrow_back</span></a>
+      <h1 class="title title-l" style="margin:0">Your week</h1>
+      <span class="sim-badge" data-show="sim">Simulated</span>
+      <a class="icon-btn state" href="crisis.html?v=talk" aria-label="Talk to someone"><span class="ms">chat_bubble</span></a>
+    </div>
+  </div>
+
+  <section class="hero" aria-label="Today">
+    <div class="in">
+      <div class="arc" aria-label="Start lantern 2, end lantern 4">
+        <span class="lamp" data-lantern="#5A7CA6" data-glow="0.5"></span>
+        <span class="path"></span>
+        <span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span>
+      </div>
+      <p class="headline-s" style="margin:0">You reached dawn.</p>
+      <p class="when label-l" style="margin:4px 0 0">Today · 07:42</p>
+    </div>
+  </section>
+
+  <div class="subhead title-s"><span>Your week</span><button class="icon-btn state" aria-label="The lantern you picked at the start of each night. A dashed lantern means no play that night."><span class="ms">info</span></button></div>
+  <div class="card" style="padding:12px 4px 4px">
+    <div class="week">
+      <button class="day state" aria-label="Sunday, lantern 2"><span class="lamp" data-lantern="#5A7CA6" data-glow="0.5"></span><span class="d">S</span></button>
+      <button class="day state" aria-label="Monday, lantern 3"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span><span class="d">M</span></button>
+      <button class="day state" aria-label="Tuesday, lantern 3"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span><span class="d">T</span></button>
+      <button class="day state" aria-label="Wednesday, no play"><span class="lamp" data-lantern="" data-missed></span><span class="d">W</span></button>
+      <button class="day state" aria-label="Thursday, lantern 4"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span><span class="d">T</span></button>
+      <button class="day state" aria-label="Friday, lantern 3"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span><span class="d">F</span></button>
+      <button class="day today state" aria-label="Today, lantern 2" aria-current="date"><span class="lamp" data-lantern="#5A7CA6" data-glow="0.5"></span><span class="d">S</span></button>
+    </div>
+  </div>
+
+  <div class="subhead title-s"><span>What helped</span><button class="icon-btn state" aria-label="What seemed to calm you on past nights. Afferent keeps learning."><span class="ms">info</span></button></div>
+  <div class="group">
+    <div class="li"><span class="tile"><span class="ms">self_improvement</span></span><span class="txt"><span class="hl">Breathing circle</span></span></div>
+    <div class="li"><span class="tile"><span class="ms">auto_awesome</span></span><span class="txt"><span class="hl">Fireflies</span></span></div>
+    <div class="li"><span class="tile"><span class="ms">air</span></span><span class="txt"><span class="hl">Slow wind</span></span><span class="trail learn" aria-label="Still learning"><span class="ms">hourglass_empty</span></span></div>
+  </div>
+
+  <div class="subhead title-s"><span>Privacy and export</span><button class="icon-btn state" aria-label="One export a day to your clinic. Nobody watches live."><span class="ms">info</span></button></div>
+  <div class="group">
+    <div class="seg-wrap"><div class="seg" role="radiogroup" aria-label="Export">
+      <button class="state" role="radio" aria-checked="true"><span class="ms">check</span>Summary</button>
+      <button class="state" role="radio" aria-checked="false">Skip today</button>
+      <button class="state" role="radio" aria-checked="false">Pause 7 days</button>
+    </div></div>
+    <div class="li"><span class="ms">schedule</span><span class="txt"><span class="hl">Next export</span></span><span class="trail body-m">Sun 07:00</span></div>
+    <a class="li two state" href="#"><span class="ms">description</span><span class="txt"><span class="hl">What is in an export</span><span class="sup">Lanterns, play times, sensor numbers</span></span><span class="trail"><span class="ms">chevron_right</span></span></a>
+    <a class="li two state" href="settings.html"><span class="ms">sensors</span><span class="txt"><span class="hl">Sensors</span><span class="sup">5 of 6 on</span></span><span class="trail"><span class="ms">chevron_right</span></span></a>
+    <a class="li state" href="#"><span class="ms">download</span><span class="txt"><span class="hl">Download my data</span></span><span class="trail"><span class="ms">chevron_right</span></span></a>
+  </div>
+
+  <div class="foot body-s muted">
+    <span class="row"><span class="ms">lock</span>Kept on your home hub</span>
+    <span>Research prototype. Not a CE-marked medical device. Not for clinical use.</span>
+  </div>
+</div>
+<script src="js/ui.js"></script>
+</body>
+</html>

@@ -14,6 +14,8 @@ v3 extends v2 (`afferent.session/2`, still in git history): v2's `core.rt_trials
 - `profile`: `live` in real use; `good_day` and `bad_day` are demo presets (simulated starting vitals and world state).
 - `day_index` is `null` from the phone; the hub fills it (days since TMS end).
 - A declined session contains only `schema`, `session_id`, `patient_id`, `device_id`, `started_iso`, `local_hour`, `status: "declined"`, `profile`, `simulated`, `sharing`. Declined and withheld days never count as missed.
+- Lit morning (streak, village and week lantern alike): status `completed` or `fell_asleep`, or `partial` with a finished `core` (5 trials) and the player's own input (a start mood or any tap). Mood values, reaction times, the Fork choice and Two lanterns outcomes never change it.
+- The hub adds streak context to each daily record (`contracts/daily.v1.schema.json`): `streak_protection` (`freeze`, `repair` or null; the day stays missed), `pause_source` (`patient` or `clinician`), `pause_until`, `streak_len`, `freezes_held`, `repair_active`. A streak pause is separate from `sharing`, which stays a privacy control.
 
 ## 2. Session structure (under 2:00)
 

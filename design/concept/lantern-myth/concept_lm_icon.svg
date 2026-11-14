@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024">
+  <defs>
+    <radialGradient id="sun" cx="50" cy="76" r="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE3A6"/>
+      <stop offset="0.55" stop-color="#FFD58A"/>
+      <stop offset="0.8" stop-color="#F6A77A" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#F6A77A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lamp" cx="61.4" cy="62.5" r="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFF0C9"/>
+      <stop offset="0.3" stop-color="#F4B740"/>
+      <stop offset="1" stop-color="#F4B740" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0B1A33"/>
+      <stop offset="1" stop-color="#2B4C7E"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" fill="url(#sky)"/>
+  <circle cx="50" cy="76" r="40" fill="url(#sun)"/>
+  <path d="M0 80 Q50 64 100 80 V100 H0 Z" fill="#0B1A33"/>
+  <g transform="translate(39.6 43.5) scale(0.62)">
+    <path d="M14.2 1.5 C17.4 5 25.8 10 25.8 19.4 C25.8 22.4 25 24.6 24 26 C26.2 32 28.4 40 30.2 46 L4 46 C5.6 40 7.6 32 9.4 26.2 C8.4 24.4 8 22.2 8.2 19.8 C8.6 12.4 11.4 7 14.2 1.5 Z" fill="#0B1A33"/>
+    <path d="M23.4 30 L35.4 24.6" stroke="#0B1A33" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M35.2 24.8 V27.4" stroke="#0B1A33" stroke-width="1.2"/>
+  </g>
+  <circle cx="61.4" cy="62.5" r="8" fill="url(#lamp)"/>
+  <circle cx="61.4" cy="62.5" r="2.4" fill="#F4B740"/>
+  <circle cx="61.4" cy="62.3" r="1" fill="#FFF0C9"/>
+</svg>

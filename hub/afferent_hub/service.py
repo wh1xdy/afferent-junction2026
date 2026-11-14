@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 from jsonschema import Draft202012Validator
 
-from . import modules, views
+from . import export, modules, views
 from .bedside.controller import Bedside
 from .bedside.simulator import BedsideSimulator
 from .bedside.source import NullSource
@@ -23,7 +23,6 @@ log = logging.getLogger("afferent.hub")
 VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
 RELAYED = ("mode", "game", "task_end", "core_trial", "mood")
-CHECKIN_ITEMS = ("interest", "down", "self_harm")
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
 DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
@@ -63,6 +62,7 @@ class Hub:
         self.rooms = Rooms()
         self.session_v = _validator("session.v3.schema.json")
         self.daily_v = _validator("daily.v1.schema.json")
+        self.checkin_v = _validator("checkin.v1.schema.json")
         self.live: dict[str, str] = {}
         self.locks: dict[str, asyncio.Lock] = {}
         self.summaries: dict[tuple, dict] = {}
@@ -123,9 +123,14 @@ class Hub:
         self.recompute_all()
         return ids
 
+    def daily(self, pid: str) -> list[dict]:
+        p = self.patient(pid)
+        sessions, daily, pauses = self.store.sessions(pid), self.store.daily(pid), p.get("pauses") or []
+        return views.annotate_daily(daily, views.streak(sessions, daily, views.now_day(p), pauses), pauses, p)
+
     def recompute(self, pid: str) -> dict:
         p = self.patient(pid)
-        args = (self.store.sessions(pid), self.store.daily(pid), views.now_day(p))
+        args = (self.store.sessions(pid), self.daily(pid), views.now_day(p))
         try:
             analytics = modules.fn["analyze_patient"](*args)
         except Exception as e:
@@ -187,18 +192,57 @@ class Hub:
     def patient_detail(self, pid: str) -> dict:
         p = self.patient(pid)
         sessions = self.store.sessions(pid)
+        checkins = self.store.checkins(pid)
         return {
             "patient": {**p, "now_day": views.now_day(p)},
             "privacy": self.privacy(pid),
             "latest_session": sessions[-1] if sessions else None,
             "sessions": [views.compact_session(s) for s in sessions],
-            "daily": self.store.daily(pid),
-            "checkins": self.store.checkins(pid),
+            "daily": self.daily(pid),
+            "checkins": checkins,
+            "phq": views.phq_block(p, checkins, views.now_day(p)),
         }
+
+    def export(self, pid: str) -> tuple[str, bytes]:
+        p = self.patient(pid)
+        return export.build(p, self.store.sessions(pid), self.daily(pid), self.analytics(pid), self.store.checkins(pid))
+
+    async def set_pause(self, pid: str, body: dict) -> dict:
+        p = self.patient(pid)
+        nd = views.now_day(p)
+        source = body.get("source", "patient")
+        if source not in views.PAUSE_SOURCES:
+            raise HubError(400, "bad_request", f"source must be one of {', '.join(views.PAUSE_SOURCES)}")
+        try:
+            from_day = views.day_index(p, body["from"]) if body.get("from") else nd
+            until_day = views.day_index(p, body["until"]) if body.get("until") else None
+        except (TypeError, ValueError):
+            raise HubError(400, "bad_request", "from and until must be dates YYYY-MM-DD")
+        pauses = [q for q in p.get("pauses") or [] if q["source"] != source or q["until_day"] < from_day]
+        for q in p.get("pauses") or []:
+            if q["source"] == source and q["from_day"] < from_day <= q["until_day"]:
+                pauses.append({**q, "until_day": from_day - 1})
+        if until_day is not None:
+            if until_day < from_day:
+                raise HubError(400, "bad_request", "until is before from")
+            if source == "patient":
+                until_day = min(until_day, from_day + views.PATIENT_PAUSE_MAX_DAYS - 1)
+            pauses.append({"source": source, "from_day": from_day, "until_day": until_day,
+                           "set_iso": views.now_iso()})
+        async with self.lock(pid):
+            self.store.put_patient({**p, "pauses": sorted(pauses, key=lambda q: q["from_day"])})
+            analytics = await asyncio.to_thread(self.recompute, pid)
+        pause = views.current_pause(self.patient(pid), nd)
+        await self.to_clinic({"type": "pause", "patient_id": pid, "pause": pause})
+        await self.rooms.broadcast("app", {"type": "pause", "pause": pause}, patient_id=pid)
+        await self.broadcast_analytics(pid, analytics)
+        return {"ok": True, "pause": pause,
+                "pauses": [{"source": q["source"], "from": views.day_date(p, q["from_day"]).isoformat(),
+                            "until": views.day_date(p, q["until_day"]).isoformat()} for q in pauses]}
 
     def patient_view(self, pid: str) -> dict:
         p = self.patient(pid)
-        return views.patient_view(p, self.privacy(pid), self.store.sessions(pid), self.store.daily(pid),
+        return views.patient_view(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid),
                                   self.analytics(pid))
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
@@ -273,8 +317,6 @@ class Hub:
             self.live.pop(pid, None)
         if pid == self.settings.bound_patient:
             await self.bedside.session_ended(doc.get("status"))
-        if (doc.get("core") or {}).get("mood_start") == 1 and doc.get("mood_end") == 1:
-            await self.add_flag(pid, "low_mood_twice", "mood", session_id=doc["session_id"])
         await self.to_clinic(views.session_added(doc))
         await self.broadcast_analytics(pid, analytics)
         return {"ok": True, "duplicate": False, "session_id": doc["session_id"], "patient_id": pid,
@@ -297,39 +339,56 @@ class Hub:
         return {"ok": True, "patient_id": pid, "day_index": rec["day_index"], "state": analytics.get("state"),
                 "composite": (analytics.get("composite") or {}).get("value")}
 
-    async def add_flag(self, pid: str, ftype: str, source: str, session_id: str | None = None, t_iso=None):
+    async def add_flag(self, pid: str, ftype: str, source: str, session_id: str | None = None, t_iso=None,
+                       extra: dict | None = None):
         flags = self.store.flags(pid)
+        checkin_id = (extra or {}).get("checkin_id")
+        if checkin_id and any(f.get("checkin_id") == checkin_id for f in flags):
+            return
         if session_id and any(f.get("session_id") == session_id and f["type"] == ftype for f in flags):
             return
-        if not session_id and flags and flags[0]["type"] == ftype and flags[0].get("_t", 0) > time.time() - 60:
+        if not checkin_id and not session_id and flags and flags[0]["type"] == ftype and flags[0].get("_t", 0) > time.time() - 60:
             return
         if session_id and any(f["type"] == ftype and not f.get("session_id") and f.get("_t", 0) > time.time() - 900
                               for f in flags):
             return
-        flag = {"type": ftype, "t_iso": t_iso or views.now_iso(), "source": source}
+        flag = {"type": ftype, "t_iso": t_iso or views.now_iso(), "source": source, **(extra or {})}
         stored = {**flag, "_t": time.time(), **({"session_id": session_id} if session_id else {})}
         self.store.add_flag(pid, stored)
-        await self.to_clinic({"type": "crisis_flag", "patient_id": pid, "flag_type": ftype, "source": source,
-                              "t_iso": flag["t_iso"]})
+        await self.to_clinic({"type": "crisis_flag", "patient_id": pid, "flag_type": ftype,
+                              **{k: v for k, v in flag.items() if k != "type"}})
         await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid),
                               "analytics": self.analytics(pid)})
 
-    async def add_checkin(self, pid: str, msg: dict):
-        self.patient(pid)
-        answers = msg.get("answers") if isinstance(msg.get("answers"), dict) else {}
-        items = {k: answers.get(k) for k in CHECKIN_ITEMS}
-        if not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 3 for v in items.values()):
-            raise HubError(400, "bad_request", f"answers must hold {', '.join(CHECKIN_ITEMS)}, each 0 to 3")
-        t_iso = msg.get("t_iso") or views.now_iso()
-        rec = {"t_iso": t_iso, "day_index": views.now_day(self.patient(pid)), "answers": items,
-               "phq2": items["interest"] + items["down"], "self_harm": items["self_harm"]}
-        self.store.add_checkin(pid, rec)
-        if rec["self_harm"] > 0:
-            await self.add_flag(pid, "weekly_checkin", "weekly_checkin", t_iso=t_iso)
-        return rec
+    async def ingest_checkin(self, doc: dict) -> dict:
+        if not isinstance(doc, dict):
+            raise HubError(400, "bad_request", "checkin must be a JSON object")
+        errs = schema_errors(self.checkin_v, doc)
+        if errs:
+            raise HubError(422, "schema_invalid", "; ".join(errs))
+        pid = doc["patient_id"]
+        p = self.patient(pid)
+        async with self.lock(pid):
+            if self.store.checkin(doc["checkin_id"]) is not None:
+                return {"ok": True, "duplicate": True, "checkin_id": doc["checkin_id"], "patient_id": pid}
+            try:
+                day = views.day_index(p, doc["started_iso"][:10])
+            except (TypeError, ValueError):
+                day = views.now_day(p)
+            stored = {**doc, "day_index": day, "received_iso": views.now_iso()}
+            self.store.add_checkin(stored)
+        flag = views.safety_flag(stored)
+        if flag:
+            await self.add_flag(pid, flag["type"], flag["source"], t_iso=flag["t_iso"],
+                                extra={k: flag[k] for k in ("checkin_id", "label", "screen") if k in flag})
+        await self.to_clinic({"type": "checkin_added", "patient_id": pid, "checkin_id": doc["checkin_id"],
+                              "status": doc.get("status"), "phq9_total": (doc.get("phq9") or {}).get("total")})
+        return {"ok": True, "duplicate": False, "checkin_id": doc["checkin_id"], "patient_id": pid,
+                "safety_flag": flag["type"] if flag else None}
 
     def flags(self, pid: str) -> list[dict]:
-        return [{k: v for k, v in f.items() if k in ("type", "t_iso", "source")} for f in self.store.flags(pid)]
+        keep = ("type", "t_iso", "source", "label", "checkin_id", "screen")
+        return views.sort_flags([{k: v for k, v in f.items() if k in keep} for f in self.store.flags(pid)])
 
     async def clear_flags(self, pid: str):
         self.patient(pid)
@@ -383,6 +442,7 @@ class Hub:
         p = self.patient(pid)
         analytics = self.analytics(pid)
         patient = {**p, "now_day": views.now_day(p)}
+        analytics, patient = views.strip_safety(analytics), views.strip_safety(patient)
         try:
             numbers = modules.fn["summary_numbers"](analytics, patient)
         except Exception:
@@ -511,16 +571,27 @@ class Hub:
         elif t == "privacy":
             change = {k: msg[k] for k in ("sensor", "on", "sharing") if k in msg}
             await self.set_privacy(msg.get("patient_id") or pid, change)
-        elif t == "weekly_checkin":
+        elif t == "pause":
             try:
-                await self.add_checkin(msg.get("patient_id") or pid, msg)
+                await self.set_pause(msg.get("patient_id") or pid, {**msg, "source": "patient"})
             except HubError as e:
-                log.warning("weekly_checkin rejected: %s", e.detail)
+                log.warning("pause rejected: %s", e.detail)
+        elif t == "checkin":
+            doc = msg.get("checkin") if isinstance(msg.get("checkin"), dict) else {}
+            cid = doc.get("checkin_id")
+            if doc and not doc.get("patient_id"):
+                doc = {**doc, "patient_id": msg.get("patient_id") or pid}
+            try:
+                res = await self.ingest_checkin(doc)
+                ack = {"type": "ack", "checkin_id": cid, "ok": True, "duplicate": res["duplicate"], "error": None}
+            except HubError as e:
+                log.warning("checkin rejected: %s", e.detail)
+                ack = {"type": "ack", "checkin_id": cid, "ok": False, "duplicate": False,
+                       "error": f"{e.code}: {e.detail}"}
+            await self.rooms.send(client, ack)
         elif t == "crisis":
-            source = msg.get("source") or "talk_button"
-            ftype = {"mood": "low_mood_twice", "weekly_checkin": "weekly_checkin"}.get(source, "talk_request")
-            await self.add_flag(msg.get("patient_id") or pid, ftype, source, session_id=msg.get("session_id"),
-                                t_iso=msg.get("t_iso"))
+            await self.add_flag(msg.get("patient_id") or pid, "talk_request", msg.get("source") or "talk_button",
+                                session_id=msg.get("session_id"), t_iso=msg.get("t_iso"))
 
     async def app_closed(self, client: Client):
         pid, sid = client.patient_id, client.session_id

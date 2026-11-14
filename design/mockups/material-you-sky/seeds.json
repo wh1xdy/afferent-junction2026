@@ -1,0 +1,69 @@
+{
+  "lantern": "#F2B544",
+  "aurora": "#4FC3D9",
+  "schemes": {
+    "sky-night": {
+      "seed": "#5A657E",
+      "source": "img/world-start-night.jpg",
+      "dark": true,
+      "neutralChroma": 10,
+      "contrast": 0
+    },
+    "sky-blue": {
+      "seed": "#2A5C80",
+      "source": "world stage blue, tokens",
+      "dark": true,
+      "neutralChroma": 10,
+      "contrast": 0
+    },
+    "sky-aurora": {
+      "seed": "#1E3A44",
+      "source": "world stage green, tokens",
+      "dark": true,
+      "neutralChroma": 10,
+      "contrast": 0,
+      "aurora": "#5FE3A1"
+    },
+    "sky-dawn": {
+      "seed": "#F5AD8A",
+      "source": "img/world-end-morning.jpg",
+      "dark": false,
+      "neutralChroma": 8,
+      "contrast": 0
+    },
+    "sky-dawn-dark": {
+      "seed": "#F5AD8A",
+      "source": "img/world-end-morning.jpg",
+      "dark": true,
+      "neutralChroma": 8,
+      "contrast": 0
+    },
+    "clinic": {
+      "seed": "#28335E",
+      "source": "night-500, fixed",
+      "dark": true,
+      "neutralChroma": 6,
+      "contrast": 0,
+      "lanternChroma": 40
+    }
+  },
+  "custom": {
+    "stable": {
+      "hex": "#4FC3D9"
+    },
+    "watch": {
+      "hex": "#FFD27A",
+      "chroma": 30
+    },
+    "checkin": {
+      "hex": "#F2B544"
+    },
+    "booster": {
+      "hex": "#FF8A70",
+      "minHue": 45
+    },
+    "simulated": {
+      "hex": "#B79CFF"
+    }
+  }
+}

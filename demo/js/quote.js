@@ -1,76 +1,76 @@
 (() => {
-  const SEEN = 'afferent.quotes.seen', HOLD_MS = 8000, GUARD_MS = 600;
-  let quotes = null, endShown = false;
+  const SHOW_AT = 1600, SEEN = 'afferent.quotes.seen.v1';
+  const POOLS = { morning: ['morning', 'any', 'after_hard_day'], night: ['night', 'any'] };
+  let quotes = [], offered = false, live = false, timer = 0, el = null;
 
-  const norm = q => {
-    if (typeof q === 'string') return { id: q, text: q, author: '', tags: [] };
-    const text = q?.text ?? q?.quote ?? q?.body;
-    if (!text) return null;
-    const tags = [].concat(q.tags ?? q.tag ?? q.moment ?? []).map(String);
-    return { id: String(q.id ?? text), text, author: q.author ?? q.by ?? q.source ?? '', tags };
-  };
+  const read = () => { try { const v = JSON.parse(localStorage.getItem(SEEN)); return Array.isArray(v) ? v : []; } catch { return []; } };
+  const write = v => { try { localStorage.setItem(SEEN, JSON.stringify(v)); } catch {} };
+
   const ready = fetch('data/quotes.json', { cache: 'no-cache' })
-    .then(r => r.ok ? r.json() : null)
-    .then(d => { const list = Array.isArray(d) ? d : d?.quotes; quotes = Array.isArray(list) ? list.map(norm).filter(Boolean) : null; })
-    .catch(() => { quotes = null; });
+    .then(r => r.ok ? r.json() : [])
+    .then(d => { quotes = (Array.isArray(d) ? d : d?.quotes ?? []).filter(q => q?.id && q.text).map(q => ({ ...q, id: String(q.id), tags: [].concat(q.tags ?? []) })); })
+    .catch(() => { quotes = []; });
 
-  const seen = () => { try { const s = JSON.parse(localStorage.getItem(SEEN)); return Array.isArray(s) ? s : []; } catch { return []; } };
-  const remember = ids => { try { localStorage.setItem(SEEN, JSON.stringify(ids)); } catch {} };
-
-  const tagFor = r => {
-    const mood = r.mood_end ?? r.pre_post?.mood?.end, delta = r.pre_post?.mood?.delta;
-    if ((mood != null && mood <= 2) || (delta != null && delta < 0) || r.profile === 'bad_day') return 'after_hard_day';
-    return r.clock === 'night' ? 'night' : 'morning';
-  };
-
-  const pick = tag => {
-    if (!quotes?.length) return null;
-    const tagged = quotes.filter(q => q.tags.includes(tag));
-    const pool = tagged.length ? tagged : quotes.filter(q => !q.tags.length).length ? quotes.filter(q => !q.tags.length) : quotes;
-    let s = seen(), fresh = pool.filter(q => !s.includes(q.id));
-    if (!fresh.length) { const ids = new Set(pool.map(q => q.id)); s = s.filter(id => !ids.has(id)); fresh = pool; }
-    const q = fresh[Math.floor(Math.random() * fresh.length)];
-    remember([...s, q.id]);
+  const pick = clock => {
+    const tags = POOLS[clock === 'night' ? 'night' : 'morning'];
+    const pool = quotes.filter(q => q.tags.some(t => tags.includes(t)));
+    if (!pool.length) return null;
+    let seen = read().filter(id => quotes.some(q => q.id === id));
+    if (seen.length >= quotes.length) seen = [];
+    const fresh = pool.filter(q => !seen.includes(q.id));
+    const q = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)]
+      : pool.reduce((a, b) => seen.indexOf(a.id) <= seen.indexOf(b.id) ? a : b);
+    write([...seen.filter(id => id !== q.id), q.id]);
     return q;
   };
 
-  let screen, timer = 0, shownAt = 0;
-  const done = () => {
-    if (!screen.classList.contains('on')) return;
-    clearTimeout(timer);
-    screen.classList.remove('on');
-    document.getElementById('phone').classList.remove('quoting');
-    A.bus.emit('quoteDone');
+  const size = q => {
+    const lines = q.text.split('\n').length, n = q.text.length;
+    return lines > 4 || n > 120 ? 'long' : lines > 2 || n > 80 ? 'mid' : '';
   };
-  const show = q => {
-    screen.querySelector('p').textContent = q.text;
-    const cite = screen.querySelector('cite');
-    cite.textContent = q.author;
-    cite.hidden = !q.author;
-    document.getElementById('phone').classList.add('quoting');
-    void screen.offsetWidth;
-    screen.classList.add('on');
-    shownAt = performance.now();
-    timer = setTimeout(done, HOLD_MS);
+
+  const dismiss = () => hide();
+  const hide = () => {
+    live = false; clearTimeout(timer);
+    el?.classList.remove('on');
+    document.getElementById('phone')?.removeEventListener('pointerdown', dismiss, { capture: true });
+  };
+  const show = (q, night) => {
+    el.querySelector('p').textContent = q.text;
+    const cite = el.querySelector('cite');
+    cite.textContent = q.author || 'Morning note';
+    el.className = ['quote-line', size(q), night ? 'night' : ''].filter(Boolean).join(' ');
+    el.dataset.id = q.id;
+    void el.offsetWidth;
+    el.classList.add('on');
+    document.getElementById('phone')?.addEventListener('pointerdown', dismiss, { capture: true, once: true });
   };
 
   const mount = () => {
-    screen = document.createElement('div');
-    screen.id = 'quote'; screen.className = 'quote-screen';
-    screen.innerHTML = '<blockquote><p></p><cite></cite></blockquote>';
-    screen.addEventListener('pointerdown', e => { e.stopPropagation(); if (performance.now() - shownAt > GUARD_MS) done(); });
-    document.getElementById('phone').append(screen);
+    const end = document.getElementById('endQuote') || document.getElementById('end');
+    if (!end) return;
+    el = document.createElement('figure');
+    el.id = 'quote'; el.className = 'quote-line';
+    el.innerHTML = '<blockquote><p></p></blockquote><cite></cite>';
+    end.append(el);
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
   else mount();
 
-  A.bus.on('endScreen', () => { endShown = true; });
-  A.bus.on('sessionEnd', r => {
-    const after = endShown && r.status === 'completed';
-    endShown = false;
-    if (!after) return;
-    ready.then(() => { const q = pick(tagFor(r)); q ? show(q) : A.bus.emit('quoteDone'); });
+  A.bus.on('endScreen', () => { offered = false; hide(); });
+  A.bus.on('crisisOffer', () => { offered = true; hide(); });
+  A.bus.on('home', hide);
+  A.bus.on('shine', ({ night }) => {
+    hide();
+    if (A.Prefs?.get('showLine') === false) return;
+    live = true;
+    timer = setTimeout(() => ready.then(() => {
+      if (!live || offered || !el) return;
+      const q = pick(night ? 'night' : 'morning');
+      if (q) show(q, night);
+    }), SHOW_AT);
   });
+  A.bus.on('shineEnd', ({ skipped } = {}) => { if (skipped) hide(); });
 
-  A.Quote = { pick, done };
+  A.Quote = { pick, hide };
 })();

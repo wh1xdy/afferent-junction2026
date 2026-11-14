@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-sky="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How it works</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .sheet .head { display: flex; align-items: center; padding: 0 12px 4px 24px; }
+  .sheet .head .title-l { flex: 1; }
+  .rows { padding: 4px 0; }
+  .rows .li { padding: 6px 24px; min-height: 56px; }
+  .rows .tile [data-lantern] svg { width: 16px; height: 25px; }
+  .legal { padding: 8px 24px 0; }
+  .acts { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px 0; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="world night" aria-hidden="true"></div>
+  <div class="scrim-start" aria-hidden="true"></div>
+  <div class="scrim-layer"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="h">
+    <div class="handle"></div>
+    <div class="head"><h2 id="h" class="title-l" style="margin:0">How it works</h2><a class="icon-btn state" href="crisis.html?v=talk" aria-label="Talk to someone"><span class="ms">chat_bubble</span></a></div>
+    <div class="rows">
+      <div class="li"><span class="tile lit"><span data-lantern="flame" data-glow="1"></span></span><span class="body-l">Pick the lantern that fits right now.</span></div>
+      <div class="li"><span class="tile"><span class="ms">touch_app</span></span><span class="body-l">Tap, hold or drag to guide the light.</span></div>
+      <div class="li"><span class="tile"><span class="ms">self_improvement</span></span><span class="body-l">Hold while the circle grows.</span></div>
+      <div class="li"><span class="tile"><span class="ms">bedtime</span></span><span class="body-l">Falling asleep is fine.</span></div>
+      <div class="li"><span class="tile"><span class="ms">wb_twilight</span></span><span class="body-l">Dawn ends the night.</span></div>
+      <div class="li"><span class="tile"><span class="ms">lock</span></span><span class="body-l">Only numbers leave the phone.</span></div>
+    </div>
+    <p class="legal body-s muted" style="margin:0">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
+    <div class="acts">
+      <a class="btn text small state" href="anchor.html">The lanterns</a>
+      <button class="btn tonal small state">Got it</button>
+    </div>
+  </div>
+</div>
+<script src="js/ui.js"></script>
+</body>
+</html>

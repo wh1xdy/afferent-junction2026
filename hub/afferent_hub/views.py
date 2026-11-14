@@ -40,16 +40,27 @@ CLINIC_SEES = [
     "Never camera images, sound or messages",
 ]
 
+CRISIS_FOOTER = "Afferent is not an emergency service and is not watched around the clock."
+CLINIC_CONTACT = {"name": "Your clinic", "number": "09 000 0000", "hours": "office hours"}
 CRISIS = {
     "title": "If today is heavy, you do not have to carry it alone.",
-    "text": "Afferent is not an emergency service and is not watched around the clock. "
-            "Your clinic sees a note on the next working day.",
+    "text": "If you need someone now, call 112 or a helpline below. " + CRISIS_FOOTER,
     "contacts": [
         {"label": "Emergency", "number": "112", "tel": "112"},
-        {"label": "MIELI Crisis Helpline (24 h)", "number": "09 2525 0111", "tel": "+358925250111"},
-        {"label": "Your clinic (demo placeholder)", "number": "09 000 0000", "tel": "+35890000000"},
+        {"label": "MIELI Crisis Helpline, in Finnish, 24 h", "number": "09 2525 0111", "tel": "+358925250111"},
+        {"label": "Medical Helpline, 24 h", "number": "116117", "tel": "116117"},
+        {"label": "Your clinic, office hours (demo placeholder)", "number": "09 000 0000", "tel": "+35890000000"},
     ],
 }
+
+CHECKIN_DEFAULTS = {"enabled": True, "cadence_days": 14, "always_ask_cssrs": False, "cssrs_licensed": False,
+                    "protocol_signed": False, "early_request": False, "reminder_local_time": "12:00",
+                    "language": "en"}
+CHECKIN_OVERDUE_DAYS = 17
+SAFETY_FLAGS = {"high": "safety_high", "moderate": "safety_moderate", "incomplete": "safety_incomplete",
+                "low": "safety_low"}
+FLAG_RANK = {"safety_high": 0, "safety_moderate": 1, "safety_incomplete": 2, "safety_low": 3, "talk_request": 4}
+SAFETY_KEYS = ("phq9_9", "cssrs", "safety", "checkins", "phq")
 
 
 def now_iso() -> str:
@@ -67,6 +78,10 @@ def now_day(patient: dict, today: dt.date | None = None) -> int:
 
 def day_date(patient: dict, day: int) -> dt.date:
     return tms_end(patient) + dt.timedelta(days=day)
+
+
+def day_index(patient: dict, date: str) -> int:
+    return (dt.date.fromisoformat(date) - tms_end(patient)).days
 
 
 def _get(d, *path, default=None):
@@ -144,7 +159,81 @@ def config_message(patient: dict, analytics: dict, task_weights: dict, privacy: 
         "measurement_slots": {"fork": 1, "lanterns": 3},
         "dawn_level": dawn_level, "night_hours": [21, 6],
         "privacy": privacy, "server_time_iso": now_iso(),
+        "checkin": checkin_config(patient), "clinic_contact": clinic_contact(patient),
     }
+
+
+def checkin_config(patient: dict) -> dict:
+    over = patient.get("checkin") if isinstance(patient.get("checkin"), dict) else {}
+    return {k: over.get(k, v) for k, v in CHECKIN_DEFAULTS.items()}
+
+
+def clinic_contact(patient: dict) -> dict:
+    over = patient.get("clinic_contact") if isinstance(patient.get("clinic_contact"), dict) else {}
+    return {k: over.get(k) or v for k, v in CLINIC_CONTACT.items()}
+
+
+def safety_flag(doc: dict) -> dict | None:
+    safety = doc.get("safety") or {}
+    ftype = SAFETY_FLAGS.get(safety.get("tier"))
+    if not ftype:
+        return None
+    label = None
+    if ftype == "safety_moderate":
+        if safety.get("source") == "item9_fallback":
+            label = "C-SSRS not asked; tier from item 9"
+        elif (doc.get("cssrs") or {}).get("c6_repeat"):
+            label = "known lifetime behaviour, unchanged since last check-in"
+    t_iso = doc.get("completed_iso") or doc.get("stopped_iso") or doc.get("started_iso") or now_iso()
+    return {"type": ftype, "t_iso": t_iso, "source": "checkin", "checkin_id": doc.get("checkin_id"),
+            "screen": safety.get("screen"), **({"label": label} if label else {})}
+
+
+def sort_flags(flags: list[dict]) -> list[dict]:
+    newest = sorted(flags, key=lambda f: f.get("t_iso") or "", reverse=True)
+    return sorted(newest, key=lambda f: FLAG_RANK.get(f.get("type"), 9))
+
+
+def phq_block(patient: dict, checkins: list[dict], nd: int) -> dict:
+    history = []
+    for c in sorted(checkins, key=lambda c: c.get("started_iso") or ""):
+        phq = c.get("phq9") or {}
+        if phq.get("total") is None:
+            continue
+        iso = c.get("completed_iso") or c.get("started_iso")
+        history.append({"checkin_id": c.get("checkin_id"), "date": (iso or "")[:10] or None, "completed_iso": iso,
+                        "day_index": c.get("day_index"), "total": phq["total"], "phq8_total": phq.get("phq8_total"),
+                        "band": phq.get("band"), "early": bool(c.get("early"))})
+    last = history[-1] if history else None
+    since = nd - last["day_index"] if last and last.get("day_index") is not None else None
+    started = sorted(checkins, key=lambda c: c.get("started_iso") or "")
+    latest = started[-1] if started else None
+    return {
+        "total": last["total"] if last else None, "phq8_total": last["phq8_total"] if last else None,
+        "band": last["band"] if last else None, "date": last["date"] if last else None,
+        "checkin_id": last["checkin_id"] if last else None, "history": history,
+        "days_since": since, "overdue": since is not None and since >= CHECKIN_OVERDUE_DAYS,
+        "last_attempt": {"checkin_id": latest.get("checkin_id"), "status": latest.get("status"),
+                         "started_iso": latest.get("started_iso"),
+                         "safety_tier": (latest.get("safety") or {}).get("tier")} if latest else None,
+    }
+
+
+def crisis_card(patient: dict) -> dict:
+    cc = patient.get("clinic_contact") if isinstance(patient.get("clinic_contact"), dict) else {}
+    if not cc.get("name") or not cc.get("number"):
+        return CRISIS
+    c = clinic_contact(patient)
+    tel = "".join(ch for ch in c["number"] if ch.isdigit() or ch == "+")
+    return {**CRISIS, "contacts": CRISIS["contacts"][:3] + [{"label": f"{c['name']}, {c['hours']}", "number": c["number"], "tel": tel}]}
+
+
+def strip_safety(obj):
+    if isinstance(obj, dict):
+        return {k: strip_safety(v) for k, v in obj.items() if k not in SAFETY_KEYS}
+    if isinstance(obj, list):
+        return [strip_safety(v) for v in obj]
+    return obj
 
 
 def _confidence(p_best, n):
@@ -202,38 +291,88 @@ def _arc(session: dict | None) -> list[float]:
     return [round(start + (end - start) * (i / (n - 1)) ** 0.8, 2) for i in range(n)]
 
 
-STREAK_STATUSES = ("completed", "fell_asleep")
-FREEZE_EVERY, FREEZE_MAX = 7, 2
+LIT_STATUSES = ("completed", "fell_asleep")
+FREEZE_START, FREEZE_EVERY, FREEZE_MAX, REPAIR_DAYS = 2, 7, 2, 3
+PAUSE_SOURCES = ("patient", "clinician")
+PATIENT_PAUSE_MAX_DAYS = 14
 
 
-def streak(sessions: list[dict], daily: list[dict], nd: int, paused: bool = False) -> dict:
-    status_by: dict[int, set] = {}
-    for s in sessions:
-        if s.get("day_index") is not None:
-            status_by.setdefault(s["day_index"], set()).add(s.get("status"))
+def lit(session: dict) -> bool:
+    status = session.get("status")
+    if status in LIT_STATUSES:
+        return True
+    core = session.get("core")
+    if status != "partial" or not isinstance(core, dict):
+        return False
+    trials = _get(core, "rt", "trials", default=[])
+    return len(trials) >= 5 and (core.get("mood_start") is not None or any(t.get("rt_ms") is not None for t in trials))
+
+
+def pause_on(pauses: list[dict], day: int) -> dict | None:
+    hits = [p for p in pauses or [] if p["from_day"] <= day <= p["until_day"]]
+    return next((p for p in hits if p["source"] == "clinician"), hits[0] if hits else None)
+
+
+def streak(sessions: list[dict], daily: list[dict], nd: int, pauses: list[dict] | None = None) -> dict:
+    lit_days = {s["day_index"] for s in sessions if s.get("day_index") is not None and lit(s)}
+    seen = {s["day_index"] for s in sessions if s.get("day_index") is not None}
+    declined = {s["day_index"] for s in sessions if s.get("day_index") is not None and s.get("status") == "declined"}
     daily_by = {d["day_index"]: d for d in daily}
-    days = set(status_by) | set(daily_by)
-    count, freezes, frozen = 0, 0, []
-    for day in range(min(days), (max(days) if paused else nd) + 1) if days else ():
-        statuses, rec = status_by.get(day, set()), daily_by.get(day) or {}
-        if statuses & set(STREAK_STATUSES):
-            count += 1
-            if count % FREEZE_EVERY == 0:
+    first = min(seen | set(daily_by) | {p["from_day"] for p in pauses or []}, default=None)
+    count, freezes, mornings, gap = 0, FREEZE_START, 0, []
+    states, protection, by_day = {}, {}, {}
+    for day in range(first, nd + 1) if first is not None else ():
+        rec = daily_by.get(day) or {}
+        if day in lit_days:
+            mornings += 1
+            if mornings % FREEZE_EVERY == 0:
                 freezes = min(FREEZE_MAX, freezes + 1)
-        elif day == nd or rec.get("declined") or rec.get("played") or statuses:
-            continue
-        elif freezes:
+            for g in gap:
+                protection[g] = "repair"
+            count, gap, states[day] = count + 1, [], "lit"
+        elif (pause_on(pauses, day) or rec.get("pause_source") or rec.get("declined") or day in declined
+              or (day != nd and (day in seen or rec.get("played")))):
+            states[day] = "rest"
+        elif day == nd:
+            states[day] = "today"
+        elif count and freezes:
             freezes -= 1
-            frozen.append(day)
+            protection[day], states[day] = "freeze", "frozen"
         else:
-            count = 0
-    return {"streak": count, "freezes": freezes, "frozen_days": frozen}
+            states[day] = "missed"
+            if count:
+                gap.append(day)
+                if len(gap) > REPAIR_DAYS:
+                    count, gap = 0, []
+        by_day[day] = {"streak_len": count, "freezes_held": freezes, "repair_active": bool(gap)}
+    return {"streak": count if count >= 2 else None, "streak_len": count, "freezes": freezes,
+            "mornings_lit": mornings, "repair_active": bool(gap), "states": states, "protection": protection,
+            "by_day": by_day,
+            "frozen_days": sorted(d for d, v in protection.items() if v == "freeze"),
+            "repaired_days": sorted(d for d, v in protection.items() if v == "repair")}
+
+
+def annotate_daily(daily: list[dict], st: dict, pauses: list[dict], patient: dict) -> list[dict]:
+    out = []
+    for rec in daily:
+        day = rec["day_index"]
+        pause = pause_on(pauses, day)
+        out.append({**rec, "streak_protection": st["protection"].get(day),
+                    "pause_source": pause["source"] if pause else rec.get("pause_source"),
+                    "pause_until": day_date(patient, pause["until_day"]).isoformat() if pause else rec.get("pause_until"),
+                    **st["by_day"].get(day, {"streak_len": 0, "freezes_held": FREEZE_START, "repair_active": False})})
+    return out
+
+
+def current_pause(patient: dict, nd: int) -> dict | None:
+    p = pause_on(patient.get("pauses") or [], nd)
+    return {"source": p["source"], "until": day_date(patient, p["until_day"]).isoformat()} if p else None
 
 
 def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict], analytics: dict) -> dict:
     nd = now_day(patient)
     daily_by = {d["day_index"]: d for d in daily}
-    st = streak(sessions, daily, nd, privacy.get("sharing") in ("paused", "nothing_tonight"))
+    st = streak(sessions, daily, nd, patient.get("pauses") or [])
     week = []
     for day in range(nd - 6, nd + 1):
         if day < 0:
@@ -243,13 +382,14 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         rec = daily_by.get(day) or {}
         mood = _get(s, "core", "mood_start") if s else None
         date = day_date(patient, day)
+        state = st["states"].get(day, "today" if day == nd else "missed")
         week.append({
-            "day": day, "date": date.isoformat(), "weekday": WEEKDAYS[date.weekday()],
+            "day": day, "date": date.isoformat(), "weekday": WEEKDAYS[date.weekday()], "state": state,
             "played": bool(s) or bool(rec.get("played")),
-            "missed": (not s) and bool(rec.get("missed")) and day != nd,
+            "missed": state in ("missed", "frozen"),
             "today": day == nd, "mood": mood, "colour": MOOD_HEX.get(mood),
             "dawn_reached": bool(s and s.get("status") == "completed"),
-            "frozen": day in st["frozen_days"],
+            "frozen": state == "frozen",
         })
     today_s = (day_sessions(sessions, nd) or [None])[-1]
     pp = (today_s or {}).get("pre_post") or {}
@@ -270,7 +410,8 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         "patient": {"id": patient["id"], "display_name": patient.get("display_name")},
         "simulated": bool(patient.get("simulated", True) or (today_s or {}).get("simulated")),
         "date": day_date(patient, nd).isoformat(),
-        "today": today, "week": week, "streak": st["streak"], "freezes": st["freezes"],
+        "today": today, "week": week, "mornings_lit": st["mornings_lit"], "streak": st["streak"],
+        "freezes": st["freezes"], "pause": current_pause(patient, nd),
         "what_helped": what_helped(analytics),
-        "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": CRISIS,
+        "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": crisis_card(patient),
     }

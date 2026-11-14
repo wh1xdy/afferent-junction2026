@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en" data-scheme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111220">
+<title>Afferent start</title>
+<link rel="stylesheet" href="lp.css">
+<style>
+  .scene { background-image: url("img/bg_start.jpg"); background-position: 50% 30%; filter: brightness(0.7) saturate(0.85); }
+  .scene::after { background: linear-gradient(180deg, rgba(8, 9, 20, 0.55) 0%, transparent 16%, transparent 52%, rgba(8, 9, 20, 0.5) 74%, rgba(8, 9, 20, 0.86) 100%); }
+  .top-bar .icon-btn { color: var(--md-sys-color-on-surface); }
+  .center { display: flex; justify-content: center; }
+  .dock { margin-top: auto; padding: 0 24px 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .checkin {
+    background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 62%, transparent);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    color: var(--md-sys-color-on-surface); box-shadow: none; margin-bottom: 20px;
+  }
+  .checkin i { width: 6px; height: 6px; border-radius: 50%; background: var(--md-sys-color-primary); margin-left: -2px; }
+  .lantern-glow { width: 100%; max-width: 300px; }
+  .later { color: var(--md-sys-color-on-surface); min-height: 48px; }
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"></div>
+<main class="phone">
+  <header class="top-bar">
+    <button class="icon-btn sl" aria-label="Sound" aria-pressed="false" data-toggle><span class="c"><span class="ms i-volume-up"></span></span></button>
+    <div class="grow center">
+      <span class="privacy-dot label-m" role="img" aria-label="Phone camera on"><span class="ms s18 i-visibility"></span><i></i></span>
+    </div>
+    <a class="icon-btn sl" href="patient.html" aria-label="Your week"><span class="c"><span class="ms i-insights"></span></span></a>
+    <a class="icon-btn sl" href="settings.html" aria-label="Settings"><span class="c"><span class="ms i-settings"></span></span></a>
+    <a class="icon-btn sl" href="crisis.html" aria-label="Talk to someone"><span class="c"><span class="ms i-support"></span></span></a>
+  </header>
+
+  <div class="dock">
+    <a class="chip checkin sl" href="question.html"><span class="ms i-edit-note"></span>Check-in<i aria-hidden="true"></i></a>
+    <span class="lantern-glow"><button class="fab-ext lit sl"><span class="ms fill i-play-arrow"></span>Begin</button></span>
+    <button class="btn text later sl">Not today</button>
+  </div>
+</main>
+<script src="lp.js"></script>
+</body>
+</html>

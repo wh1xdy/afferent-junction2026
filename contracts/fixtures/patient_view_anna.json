@@ -31,80 +31,98 @@
    "day": 50,
    "date": "2026-11-09",
    "weekday": "Mon",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 51,
    "date": "2026-11-10",
    "weekday": "Tue",
+   "state": "frozen",
    "played": false,
    "missed": true,
    "today": false,
    "mood": null,
    "colour": null,
-   "dawn_reached": false
+   "dawn_reached": false,
+   "frozen": true
   },
   {
    "day": 52,
    "date": "2026-11-11",
    "weekday": "Wed",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 1,
    "colour": "#34476E",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 53,
    "date": "2026-11-12",
    "weekday": "Thu",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 54,
    "date": "2026-11-13",
    "weekday": "Fri",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 55,
    "date": "2026-11-14",
    "weekday": "Sat",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": false,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   },
   {
    "day": 56,
    "date": "2026-11-15",
    "weekday": "Sun",
+   "state": "lit",
    "played": true,
    "missed": false,
    "today": true,
    "mood": 2,
    "colour": "#5A7CA6",
-   "dawn_reached": true
+   "dawn_reached": true,
+   "frozen": false
   }
  ],
+ "mornings_lit": 52,
+ "streak": 41,
+ "freezes": 1,
+ "pause": null,
  "what_helped": [
   {
    "task_id": "breath",
@@ -192,7 +210,7 @@
  ],
  "crisis": {
   "title": "If today is heavy, you do not have to carry it alone.",
-  "text": "Afferent is not an emergency service and is not watched around the clock. Your clinic sees a note on the next working day.",
+  "text": "If you need someone now, call 112 or a helpline below. Afferent is not an emergency service and is not watched around the clock.",
   "contacts": [
    {
     "label": "Emergency",
@@ -200,12 +218,17 @@
     "tel": "112"
    },
    {
-    "label": "MIELI Crisis Helpline (24 h)",
+    "label": "MIELI Crisis Helpline, in Finnish, 24 h",
     "number": "09 2525 0111",
     "tel": "+358925250111"
    },
    {
-    "label": "Your clinic (demo placeholder)",
+    "label": "Medical Helpline, 24 h",
+    "number": "116117",
+    "tel": "116117"
+   },
+   {
+    "label": "Your clinic, office hours (demo placeholder)",
     "number": "09 000 0000",
     "tel": "+35890000000"
    }
