@@ -16,3 +16,9 @@ demo/design/
 *.db
 *.db-wal
 *.db-shm
+art/experiments/
+art/final/
+art/v5review/
+art/final2/raw/
+art/final2/hires/
+art/final2/sheets/
