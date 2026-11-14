@@ -1,11 +1,11 @@
 {
   "name": "afferent",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "scripts": {
     "sync": "npm run design && cap sync",
     "open": "cap open ios",
-    "design": "rm -rf demo/design && cp -R design demo/design",
+    "design": "rm -rf demo/design && mkdir demo/design && cp -R design/tokens.css design/gui-tokens.css design/fonts demo/design/",
     "open:android": "cap open android",
     "build:android": "npm run sync && cd android && ./gradlew assembleDebug"
   },
@@ -15,8 +15,5 @@
     "@capacitor/core": "^8.6.2",
     "@capacitor/ios": "^8.6.2",
     "@capacitor/local-notifications": "^8.3.1"
-  },
-  "devDependencies": {
-    "@mediapipe/tasks-vision": "0.10.14"
   }
 }
