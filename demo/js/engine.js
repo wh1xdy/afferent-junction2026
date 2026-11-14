@@ -12,7 +12,9 @@
   };
   const BLOOM_ORDER = ['yellow', 'blue', 'green'];
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
-  const REST_S = 6, CHECKIN_S = 6, RT_WINDOW = 1.5;
+  const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
+  const PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 106, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
+  const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
 
   A.makeVisual = (profile = 'live') => {
     const V = {
@@ -45,11 +47,11 @@
     Sim.rest = baseline;
     const auto = opts.input === 'auto';
     if (auto && profile === 'live') Sim.offset = 20;
-    const playSeconds = opts.stage ? 60 : 72;
-    const V = A.makeVisual(profile);
+    const V = opts.visual || A.makeVisual(profile);
+    const fromIdle = !!opts.visual && V.black < 0.5;
 
     const s = {
-      t0, night, auto, stage: !!opts.stage, profile, V, phase: 'fadein', phaseAt: t0, done: false, pw: 1,
+      t0, night, auto, stage: !!opts.stage, profile, V, fromIdle, phase: 'fadein', phaseAt: t0, done: false, pw: 1,
       targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', candidate: null, candidateAt: 0,
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
       slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
@@ -57,8 +59,8 @@
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
-      modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, storyDone: new Set(),
-      playSamples: [], tweens: [],
+      modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
+      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S,
 
       rec: {
         schema: 'afferent.session/3', session_id: uuid(), patient_id: A.config.patientId, device_id: A.config.deviceId, app_version: A.config.appVersion,
@@ -70,13 +72,14 @@
       ws(msg) { A.bus.emit('ws', { session_id: this.rec.session_id, ...msg }); },
       setPhase(p) { this.phase = p; this.phaseAt = A.now(); A.bus.emit('segment', p); },
       light(rgbHex, level, fade_ms, reason) {
+        if (this.night && A.config.quietNight !== false) level = Math.min(level, QUIET_CAP);
         this.lastLightLevel = level;
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
         if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },
       haptic() { navigator.vibrate?.(15); A.bus.emit('haptic'); },
       kick(x) { this.flameKick = Math.max(this.flameKick, x); },
-      playLeft(now) { return playSeconds - (now - (this.firstPlayAt ?? now)); },
+      playLeft(now) { return this.playS - (now - (this.firstPlayAt ?? now)); },
       tween(obj, key, from, to, dur) { this.tweens = this.tweens.filter(x => !(x.obj === obj && x.key === key)); this.tweens.push({ obj, key, from, to, start: A.now(), dur }); },
       bloom(group, dur) { this.tween(V.sat, group, V.sat[group], 1, dur); },
 
@@ -93,7 +96,7 @@
       updateRest(now, dt, p, f) {
         const c = this.core;
         c.frames++;
-        if (p.bpm != null) { c.pulse.push(p.bpm); c.pulseQ.push(p.quality); }
+        if (plausible(p.bpm)) { c.pulse.push(p.bpm); c.pulseQ.push(p.quality); }
         if (f?.tracked) {
           c.tracked++;
           if (f.eye_openness != null) { c.open.push(f.eye_openness); c.closed.push(1 - f.eye_openness); }
@@ -184,24 +187,41 @@
         const c = this.core;
         this.coreRec = this.buildCore(now);
         this.restPitch = this.coreRec.rest?.head_pitch_deg ?? null;
-        const startPulse = this.coreRec.rest?.pulse_bpm ?? A.Sensors.pulse(now).bpm;
+        const live = A.Sensors.pulse(now).bpm, startPulse = this.coreRec.rest?.pulse_bpm ?? (plausible(live) ? live : null);
         this.a = startPulse == null ? 0 : (startPulse - this.rest) / 10;
-        this.mode = this.classify();
-        this.transitions.push({ t_ms: this.tm(now), from: null, to: this.mode, arousal: r3(this.a), fatigue: r3(this.fat) });
-        A.bus.emit('mode', this.mode);
-        this.ws({ type: 'mode', mode: this.mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now) });
-        const [lc, ll] = MODES[this.mode].light;
-        this.light(lc, this.night && this.mode === 'fatigue' ? 0 : ll, 2000, 'mode');
+        this.fat = this.fatigueInput();
+        if (!this.stage) this.playS = clamp(SESSION_PLAY_END_S - (now - this.t0), PLAY_MIN_S, PLAY_S);
+        this.setMode(now, this.classify());
         c.trial = null;
         this.setPhase('walk');
         this.planWalk(now);
       },
 
+      fatigueInput() { return clamp(Eyes.perclos() * 2 + Eyes.longClosures() * 0.12, 0, 1); },
+
       classify() {
-        if (this.fat >= 0.45) return this.night ? 'rest' : 'fatigue';
+        const tired = this.mode === 'rest' || this.mode === 'fatigue' ? FAT_EXIT : FAT_ENTER;
+        if (this.fat >= tired) return this.night ? 'rest' : 'fatigue';
         if (this.a >= 0.8) return 'calm';
-        if (this.a <= -0.3) return 'wake';
+        if (this.a <= -0.3) return this.night ? 'flow' : 'wake';
         return 'flow';
+      },
+
+      modeLight(mode) {
+        const [c, l] = MODES[mode].light;
+        if (!this.night) return [c, l];
+        if (mode === 'rest' || mode === 'fatigue') return ['#000000', 0];
+        return [mode === 'calm' ? c : MODES.flow.light[0], Math.min(l, NIGHT_MODE_CAP)];
+      },
+
+      setMode(now, mode) {
+        const from = this.transitions.length ? this.mode : null;
+        this.transitions.push({ t_ms: this.tm(now), from, to: mode, arousal: r3(this.a), fatigue: r3(this.fat) });
+        this.mode = mode; this.reading = mode; this.candidate = null;
+        const [c, l] = this.modeLight(mode);
+        this.light(c, l, 2000, 'mode');
+        A.bus.emit('mode', mode);
+        this.ws({ type: 'mode', mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now) });
       },
 
       intensity(mode) {
@@ -216,14 +236,28 @@
         V.chunks.push(c);
         if (V.chunks.length > 6) V.chunks.shift();
         this.targetX = c.x0 + 240;
-        this.walkSpeed = (this.targetX - V.worldX) / 3;
+        const next = this.measureAt(this.slot + 1), calmPace = this.mode === 'calm' || this.mode === 'rest';
+        this.walkSpeed = (this.targetX - V.worldX) / (next ? 2 : calmPace ? 3 : 2.5);
+      },
+
+      measuresPending(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).length; },
+
+      pick(mode) {
+        const ids = Object.keys(A.MINIGAMES).filter(id => A.MINIGAMES[id].modes.includes(mode));
+        const w = this.weights?.[mode], wt = id => w ? Math.max(0, w[id] ?? 0) : 1;
+        const fresh = ids.filter(id => !this.played.has(id) && wt(id) > 0);
+        if (!fresh.length) return A.pickGame(mode, this.lastGame, w);
+        const { id } = A.pickGame(mode, this.lastGame, Object.fromEntries(ids.map(x => [x, fresh.includes(x) ? wt(x) : 0])));
+        return { id, weight: w ? w[id] ?? null : null };
       },
 
       measureAt(slot) { return slot === this.slots.fork ? 'fork' : slot === this.slots.lanterns ? 'lanterns' : null; },
 
       startGame(now) {
         let slot = ++this.slot;
+        if (this.night && this.mode !== 'rest' && this.classify() === 'rest') this.setMode(now, 'rest');
         const mode = this.mode;
+        this.story('start', slot, now);
         while (this.measureAt(slot) && mode === 'rest') {
           const rec = A.Record.skipped(this.measureAt(slot), slot, mode, this.tm(now), 'rest_mode');
           this.tasks.push(rec);
@@ -236,12 +270,14 @@
         else {
           const w = this.weights?.[mode];
           if (mode === 'rest') { id = 'breath'; weight = w?.breath ?? null; }
-          else ({ id, weight } = A.pickGame(mode, this.lastGame, w));
+          else ({ id, weight } = this.pick(mode));
           k = this.intensity(mode);
           g = A.MINIGAMES[id].make(k, { endless: mode === 'rest' });
           g.world = !!A.MINIGAMES[id].world;
+          if (id === 'breath' && mode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) { g.cycles = 1; g.max = Math.min(g.max, 12); }
           if (mode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) + 3));
           this.lastGame = id;
+          if (mode !== 'rest') this.played.add(id);
         }
         const kind = measure ? 'measurement' : 'adaptive', taskMode = measure ? 'measure' : mode;
         Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind });
@@ -271,11 +307,12 @@
       endGame(now, by) {
         const g = this.closeTask(now, by);
         if (g.mode === 'fatigue') Sim.drowsy *= 0.45;
+        this.story('end', g.slot, now);
         if (this.bloomIdx < BLOOM_ORDER.length) this.bloom(BLOOM_ORDER[this.bloomIdx++], by === 'auto' ? 5 : 1.5);
         if (g.mode === 'wake') this.tween(V, 'iceGlow', V.iceGlow, 1, 2);
         if (g.id === 'breath' || g.mode === 'calm' || g.id === 'lanterns') this.tween(V, 'aurora', V.aurora, Math.min(1, V.aurora + 0.3), 2);
         this.outroUntil = now + 0.6;
-        if (this.playLeft(now) <= 6) { this.startDawn(now); return; }
+        if (this.playLeft(now) <= 6 || g.mode === 'rest') { this.startDawn(now); return; }
         this.setPhase('walk');
         this.planWalk(now);
       },
@@ -284,7 +321,7 @@
         this.dawnAt = now;
         this.setPhase('dawn');
         Au.dawnPhrase();
-        const hexc = this.night ? '#FFC98A' : '#FFF3DC', level = this.night ? Math.min(25, A.config.dawnLevel) : 60;
+        const hexc = this.night ? '#FFC98A' : '#FFF3DC', level = this.night ? A.config.dawnLevel : 60;
         V.borderColor = hex(hexc);
         this.light(hexc, level, 4000, 'dawn');
       },
@@ -298,27 +335,23 @@
         setTimeout(() => this.finish('fell_asleep'), 3200);
       },
 
-      story(tp) {
+      story(ev, slot, now) {
         if (!this.auto || this.profile !== 'live') return;
-        const at = (k, f) => { if (tp >= k && !this.storyDone.has(k)) { this.storyDone.add(k); f(); } };
-        at(42, () => { Sim.drowsy = 0.85; });
-        at(64, () => { Sim.drowsy = 0; });
+        const lanterns = this.slots.lanterns, calmSlot = this.slots.fork + 1;
+        if (ev === 'start' && slot === 1) this.played.add(this.night ? 'breath' : 'loyly');
+        if (ev === 'end' && slot === calmSlot && slot !== lanterns && !this.night) Sim.offset = -10;
+        const g = this.game?.slot === lanterns ? this.game : null;
+        const due = ev === 'end' ? slot === lanterns : ev === 'tick' && g && (g.trials?.length ?? 0) >= 10;
+        if (due && !this.drowsyDone) { this.drowsyDone = true; Sim.drowsy = 1; }
       },
 
       director(now, dt, p) {
-        if (p.bpm != null) this.a = ema(this.a, (p.bpm - this.rest) / 10, dt, 3);
-        this.fat = ema(this.fat, clamp(Eyes.perclos() * 2 + Eyes.longClosures() * 0.12, 0, 1), dt, 2);
+        if (plausible(p.bpm)) this.a = ema(this.a, (p.bpm - this.rest) / 10, dt, 3);
+        this.fat = ema(this.fat, this.fatigueInput(), dt, 2);
         this.reading = this.classify();
         if (this.reading !== this.mode) {
           if (this.candidate !== this.reading) { this.candidate = this.reading; this.candidateAt = now; }
-          if (now - this.candidateAt >= 3) {
-            this.transitions.push({ t_ms: this.tm(now), from: this.mode, to: this.reading, arousal: r3(this.a), fatigue: r3(this.fat) });
-            this.mode = this.reading; this.candidate = null;
-            const [c, l] = MODES[this.mode].light;
-            this.light(c, this.night && this.mode === 'fatigue' ? 0 : l, 2000, 'mode');
-            A.bus.emit('mode', this.mode);
-            this.ws({ type: 'mode', mode: this.mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now) });
-          }
+          if (now - this.candidateAt >= 3) this.setMode(now, this.reading);
         } else this.candidate = null;
         this.modeSeconds[this.mode] += dt;
         this.perclosSum += Eyes.perclos(); this.perclosN++;
@@ -384,6 +417,7 @@
         V.t = now;
         for (const tw of this.tweens) tw.obj[tw.key] = lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
         this.tweens = this.tweens.filter(tw => now - tw.start < tw.dur);
+        if (this.phase === 'end') this.dimEnd(now);
         if (this.done) return;
         const t = now - this.phaseAt;
         Sim.step(dt, this, now);
@@ -411,7 +445,7 @@
         V.stove = this.game?.id === 'breath' ? 0.3 + 0.4 * V.orb.b : ema(V.stove, MODES[this.mode]?.biome === 'sauna' ? 0.4 : 0, dt, 1);
 
         if (this.phase === 'fadein') {
-          V.black = 1 - clamp(t / 2, 0, 1);
+          V.black = this.fromIdle ? 0.35 * Math.sin(Math.PI * clamp(t / 2, 0, 1)) : 1 - clamp(t / 2, 0, 1);
           if (t >= 2) { this.core.restStart = now; this.stage ? this.finishCore(now) : this.startRest(); }
           return;
         }
@@ -422,7 +456,7 @@
 
         if (this.phase === 'walk' || this.phase === 'game') {
           if (!this.firstPlayAt) this.firstPlayAt = now;
-          this.story(now - this.firstPlayAt);
+          this.story('tick', this.slot, now);
           this.director(now, dt, p);
           this.style(now, dt);
           this.closedRun = Eyes.closed ? this.closedRun + dt : 0;
@@ -446,15 +480,23 @@
         if (this.phase === 'end') {
           const t = now - this.phaseAt;
           if (this.auto && this.moodEnd === undefined && t >= 2) this.setMood({ good_day: 5, bad_day: 2, live: 4 }[this.profile]);
-          if (t >= 4) V.black = ema(V.black, 0.8, dt, 1);
-          if (this.moodEnd !== undefined ? now - this.moodAt >= 1.2 : t >= 6) this.finish(this.engaged() ? 'completed' : 'partial');
+          if (this.moodEnd !== undefined ? now - this.moodAt >= 1.2 : t >= END_IDLE_S) this.close();
         }
       },
 
       engaged() { return this.auto || this.inputs > 0; },
 
+      close() { this.finish(this.phase === 'end' && this.engaged() ? 'completed' : 'partial'); },
+
+      dimEnd(now) {
+        const idleAt = this.night ? DIM_AT : END_IDLE_S, t = now - this.phaseAt, at = this.moodEnd !== undefined ? Math.min(idleAt, this.moodAt - this.phaseAt + 1.2) : idleAt;
+        if (this.dimAt === undefined || at < this.dimAt) this.dimAt = Math.max(at, t);
+        V.black = 0.8 * A.ease(clamp((t - this.dimAt) / DIM_S, 0, 1));
+        if (t >= this.dimAt && !this.dimmed) { this.dimmed = true; A.bus.emit('endDim'); }
+      },
+
       setMood(v) {
-        if (this.phase !== 'end' || this.moodEnd !== undefined) return;
+        if (this.done || this.phase !== 'end' || this.moodEnd !== undefined) return;
         this.moodEnd = v; this.moodAt = A.now();
         A.bus.emit('mood', { which: 'end', value: v });
         this.ws({ type: 'mood', which: 'end', value: v });

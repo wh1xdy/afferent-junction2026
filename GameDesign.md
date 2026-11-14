@@ -1,8 +1,68 @@
 # Afferent game design spec
 
-Version 2.0, Sat 14 Nov 2026. Replaces the v1 concept (eye and head gestures as controls). Decisions and the reasons for the pivot are in `Decisions.md`; role models per element are in `References.md`; a working prototype is in `demo/`.
+Version 3.0, Sun 15 Nov 2026 (overnight build). Section 0 describes the game as built in `demo/` and overrides sections 1 to 11 wherever they differ. Sections 1 to 11 are the v2.0 spec (Sat 14 Nov), which replaced the v1 concept (eye and head gestures as controls). Decisions and the reasons for each change are in `Decisions.md` (v3 rows X1 to X36); role models per element are in `References.md`.
 
 The game has no name of its own. It is the Afferent session.
+
+## 0. v3: the game as built
+
+Everything in sections 1 to 11 still holds (touch-only play, vitals-driven director, Among Us style tasks, night rule, crisis path) except the points below.
+
+### 0.1 Session timeline (v3)
+
+| Time | Segment | What happens |
+|---|---|---|
+| 0:00-0:02 | Fade in | The world fades up from black |
+| 0:02-0:08 | **Rest** (fixed core) | 6 s of stillness: resting pulse, spontaneous blink rate, eye openness, head pitch, ambient light. The lantern glows at a fixed slow rhythm |
+| 0:08-0:18 max | **Start check-in** (fixed core) | Five lanterns in a panel; one tap picks the one that fits today. 10 s at most; no answer is fine and logged as null |
+| ~0:18-0:30 | **Reaction trials** (fixed core) | The lantern flares 5 times (foreperiod 1.0 to 2.5 s, window 1500 ms); the player taps each time. Lapse over 1000 ms, anticipation under 150 ms. A tap glyph pulses for the first 3 s. Capped at 24 s |
+| ~0:30-1:46 | **Play** | Walk, task, walk, task, in fixed slots (0.2). Play ends about 106 s after the start, with at least 60 s and at most 76 s of play. A task never runs past the end of play by more than 3 s |
+| ~1:46-1:50 | Dawn | Colour sweeps left to right, the sun rises, the bedside light rises |
+| ~1:50 | End screen | "Good morning." in the morning, "Rest well." at night, the end check-in (the same five lanterns), "Talk to someone". The screen dims 1.2 s after the tap, or after 20 s without one |
+
+Stage mode (demo chip "stage mode (60 s)") keeps the same order with 60 s of play. A night session in rest mode can still end early as `fell_asleep` (30 s of closed eyes, X35).
+
+### 0.2 Task slots
+
+| Slot | Task | Notes |
+|---|---|---|
+| 1 | **Fork** (measurement, X5, X20) | Two choices, 6 s each to decide. Short path: tap 3 slow lights (about 2.5 s), reward 1 glow. Climb: tap 8 faster lights (about 6 s), reward 2 or 3 glows. Identical every session. No choice takes the short path and logs `none` |
+| 2 | Adaptive task | Picked by the director from the current mode, weighted by the hub's bandit weights (X9); flow tasks are uniform (X18) |
+| 3 | **Two lanterns** (measurement, X5, X21) | 12 trials: two lanterns flare, one 8% larger; tap the larger one. Amber is the rich lantern, silver the lean one, 3 rich and 1 lean reward per session (3:1). Gives response bias (log b with 0.5 correction), exploratory |
+| 4+ | Adaptive tasks | Until play time runs out |
+
+In practice a morning session has **4 to 6 tasks**, usually 5 or 6: Fork, one adaptive task, Two lanterns, then one to three adaptive tasks until play time runs out (fewer when a long breath task comes up; breath drops to one cycle when time is short). The adaptive task set is the eight tasks of section 5.
+
+At night in rest mode, Fork and Two lanterns are skipped, not replaced, and logged with `skip_reason: rest_mode` (X19). Rest mode plays one breath task without end until play time runs out, then dawn (or `fell_asleep`).
+
+An unengaged session (no tap or key, not autoplay) is stored as `partial`; Fork ends after one round and Two lanterns after 3 unanswered trials when nobody responds (X36).
+
+### 0.3 Mood check-in (v3, X3)
+
+Two check-ins per session, at the start (inside the fixed core) and on the end screen, feeding `pre_post.mood` (1 to 5). Five lanterns of the same shape, from cool and dim to warm and bright, so colour and brightness rise together and the scale stays ordinal:
+
+| Value | 1 | 2 | 3 | 4 | 5 |
+|---|---|---|---|---|---|
+| Colour | `#34476E` | `#5A7CA6` | `#A9A79A` | `#E8B867` | `#FFCB5C` |
+| Glow | 35% | 50% | 65% | 82% | 100% |
+
+This replaces the v2 "five flame sizes" end-only check-in. Mood 1 at both check-ins of one session offers the crisis card (offered, never forced; X26).
+
+### 0.4 Profiles (demo, X8)
+
+The demo chip "day:" switches between `live` (adaptive, the default), `good_day` and `bad_day`. The two presets set the simulated starting vitals and the starting world (fog, stars, warmth), so the difference is visible within 10 s; they are labelled SIMULATED. Real use is always adaptive.
+
+### 0.5 What each task records (X6)
+
+Every task logs the stimulus and the body response: pulse at start, minimum, maximum, end and delta, intended direction, `helped` (at least 2 bpm in the intended direction), time to target, recovery slope (calm), head pitch delta, eye openness, PERCLOS, errors and completion. `helped` feeds the hub's Thompson sampling, shown on the dashboard as "What helps Anna" with its uncertainty.
+
+### 0.6 Words on screen
+
+Start screen: "Begin" and "Not today" ("Not tonight" at night), plus icons for sound, camera, settings, info, "Your week" and "Talk to someone". End screen: "Good morning." or "Rest well.". The game itself stays wordless.
+
+### 0.7 Render scale
+
+The world canvas renders at the device pixel ratio, capped at 2. On touch devices it steps down once to 1.5 when the 95th percentile frame time stays above 20 ms for two 3 s windows during a session. `?scale=1.5` forces a scale; `?perf=1`, a three-finger tap or Shift+F toggles a hidden frame-time overlay (fps, frame and draw p50/p95, render scale, tint cache), for measuring on the demo phone.
 
 ## 1. Experience pillars
 

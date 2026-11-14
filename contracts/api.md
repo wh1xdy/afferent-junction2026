@@ -77,7 +77,7 @@ Patient list sorted by need: state severity (`booster` > `check_in` > `watch` > 
 
 - `sparkline`: composite for the last 14 days (`null` gaps allowed).
 - `live_now`: true while a session for that patient is running on `/ws/app`.
-- `flags`: `[{"type": "talk_request" | "low_mood_twice", "t_iso": "...", "source": "talk_button" | "mood"}]`, newest first, cleared by the clinician (`POST /api/patients/{id}/flags/clear`).
+- `flags`: `[{"type": "talk_request" | "low_mood_twice" | "weekly_checkin", "t_iso": "...", "source": "talk_button" | "mood" | "weekly_checkin"}]`, newest first, cleared by the clinician (`POST /api/patients/{id}/flags/clear`).
 
 ### GET /api/patients/{id}
 
@@ -196,7 +196,8 @@ Phone to hub:
 | `light` | `rgb`, `level` (0 to 100), `fade_ms`, `reason` (`mode`, `dawn`, `asleep`, `idle`) | game wants the bedside light changed |
 | `session_end` | `session`: the full session v3 document | session over (any status, including declined) |
 | `privacy` | `patient_id`, `sensor` or `sharing`, `on` | patient changes a switch |
-| `crisis` | `patient_id`, `source` (`talk_button`, `mood`), `t_iso` | the fixed crisis card was opened |
+| `crisis` | `patient_id`, `source` (`talk_button`, `mood`, `weekly_checkin`), `t_iso` | the fixed crisis card was opened; the hub stores a flag of type `talk_request`, `low_mood_twice` or `weekly_checkin` |
+| `weekly_checkin` | `patient_id`, `answers` (`interest`, `down`, `self_harm`, each 0 to 3), `phq2`, `self_harm`, `t_iso` | daytime weekly check-in answered (the hub does not store it yet) |
 
 The hub also accepts the v2 form of `session_end` (document spread at top level) by removing `type`.
 

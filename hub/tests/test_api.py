@@ -197,6 +197,10 @@ def test_websocket_relay(client):
                        "t_iso": "2026-11-15T07:50:00+02:00"})
         assert recv_until(clinic, "crisis_flag")["flag_type"] == "talk_request"
 
+        app.send_json({"type": "crisis", "patient_id": "anna", "source": "weekly_checkin",
+                       "t_iso": "2026-11-15T07:52:00+02:00"})
+        assert recv_until(clinic, "crisis_flag")["flag_type"] == "weekly_checkin"
+
         r = client.post("/api/demo/profile", json={"profile": "bad_day", "patient_id": "anna"})
         assert r.json()["sent_to"] == 1
         assert recv_until(app, "profile")["profile"] == "bad_day"

@@ -69,9 +69,18 @@
     SPR.aurora = curtain([[95, 227, 161], [79, 195, 217], [156, 138, 214]], false);
     SPR.auroraGrey = curtain(null, true);
 
-    [c, x] = mk(512, 64); g = x.createLinearGradient(0, 0, 512, 0);
-    g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.3, 'rgba(255,255,255,0.35)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-    x.fillStyle = g; x.beginPath(); x.moveTo(0, 30); x.lineTo(512, 0); x.lineTo(512, 64); x.lineTo(0, 34); x.closePath(); x.fill(); SPR.beam = c;
+    [c, x] = mk(512, 128);
+    for (let i = 0; i < 512; i++) {
+      const q = i / 511, hw = 2 + 60 * q, a = Math.pow(1 - q, 1.7) * Math.min(1, i / 10);
+      g = x.createLinearGradient(0, 64 - hw, 0, 64 + hw);
+      g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, `rgba(255,255,255,${a})`); g.addColorStop(1, 'rgba(255,255,255,0)');
+      x.fillStyle = g; x.fillRect(i, 64 - hw, 1, 2 * hw);
+    }
+    SPR.beam = c;
+
+    [c, x] = mk(256, 256); g = x.createRadialGradient(128, 128, 0, 128, 128, 128);
+    for (const [t, a] of [[0, 0], [0.45, 0], [0.62, 0.22], [0.78, 0.8], [0.84, 1], [0.9, 0.7], [1, 0]]) g.addColorStop(t, `rgba(255,255,255,${a})`);
+    x.fillStyle = g; x.fillRect(0, 0, 256, 256); SPR.halo = c;
 
     [c, x] = mk(128, 128);
     const id = x.createImageData(128, 128), rg = rng(3);
@@ -83,17 +92,24 @@
     x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.arc(64, 38, 36, 0, 6.283); x.fill(); SPR.moon = c;
   })();
 
-  const tints = new Map();
+  const tints = new Map(), spare = new Map(), TINT_MAX = 192, tintStats = { misses: 0, made: 0 };
   function tint(name, c, q = 3) {
     const r = c[0] >> q, g = c[1] >> q, b = c[2] >> q, k = name + r + ':' + g + ':' + b;
     let t = tints.get(k);
-    if (!t) {
-      const src = SPR[name], [cv, x] = mk(src.width, src.height);
-      x.drawImage(src, 0, 0); x.globalCompositeOperation = 'source-in';
-      x.fillStyle = `rgb(${r << q},${g << q},${b << q})`; x.fillRect(0, 0, src.width, src.height);
-      if (tints.size > 160) tints.delete(tints.keys().next().value);
-      tints.set(k, t = cv);
+    if (t) { tints.delete(k); tints.set(k, t); return t; }
+    tintStats.misses++;
+    const src = SPR[name], w = src.width, h = src.height;
+    if (tints.size >= TINT_MAX) {
+      const [ok, old] = tints.entries().next().value, pk = old.width + 'x' + old.height, pool = spare.get(pk) || [];
+      tints.delete(ok);
+      if (pool.length < 8) { pool.push(old); spare.set(pk, pool); }
     }
+    t = spare.get(w + 'x' + h)?.pop();
+    if (!t) { [t] = mk(w, h); tintStats.made++; }
+    const x = t.getContext('2d');
+    x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, w, h); x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'source-in'; x.fillStyle = `rgb(${r << q},${g << q},${b << q})`; x.fillRect(0, 0, w, h);
+    tints.set(k, t);
     return t;
   }
 
@@ -103,10 +119,10 @@
   const GLINTS = Array.from({ length: 70 }, () => ({ x: r0() * 1400, y: Math.pow(r0(), 0.8), p: r0() * 6.28, f: 0.8 + r0() * 2 }));
   const TUFTS = Array.from({ length: 22 }, (_, i) => ({ x: i * 160 + r0() * 90, h: 16 + r0() * 30, rock: r0() < 0.35, w: 30 + r0() * 50, s: r0() * 9 }));
 
-  let S = null, W = 0, H = 0, gy = 0, hy = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null;
+  let S = null, W = 0, H = 0, gy = 0, hy = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
   const states = new WeakMap();
   const MQ = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-  let sized = { W: 0, H: 0 }, vign = null, darkC = null, darkX = null, grainPat = null, borderC = null;
+  let sized = { W: 0, H: 0 }, vign = null, darkC = null, darkX = null, grainPat = null, borderC = null, auroraC = null, auroraX = null;
   const n0 = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
 
   function newState() {
@@ -115,6 +131,7 @@
     return {
       last: null, dt: 0, sun: 0, ds: { yellow: 0.05, blue: 0.05, green: 0.05, dawn: 0 }, prev: { yellow: 0, blue: 0, green: 0, dawn: 0 }, swept: false,
       phase: 0, walk: 0, swing: 0, lx: 0, ly: 0, lastX: null, rings: [], steps: [], lastStep: 0,
+      flashPrev: 0, flashAt: -9, flare: 0, frame: 0, panelFrame: -9, panelA: 0, focus: 0, heavy: 0,
       snow: Array.from({ length: N }, () => ({ x: rs(), y: rs(), z: 0.35 + rs() * 1.15, p: rs() * 6.28 })),
     };
   }
@@ -128,22 +145,26 @@
     x.fillStyle = g; x.fillRect(0, 0, W / 2, H / 2);
     [darkC, darkX] = mk(W / 6, H / 6);
     const [gc, gx] = mk(128, 128); gx.drawImage(SPR.grain, 0, 0); grainPat = ctxRef.createPattern(gc, 'repeat');
-    [borderC, x] = mk(W / 2, H / 2);
-    const b = 18;
-    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, b, 0, 0, 0, b, H / 2], [W / 2, 0, W / 2 - b, 0, W / 2 - b, 0, b, H / 2], [0, 0, 0, b, 0, 0, W / 2, b], [0, H / 2, 0, H / 2 - b, 0, H / 2 - b, W / 2, b]]) {
-      const gg = x.createLinearGradient(x0, y0, x1, y1); gg.addColorStop(0, 'rgba(255,255,255,1)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
-      x.fillStyle = gg; x.fillRect(rx, ry, rw, rh);
-    }
+    [borderC, x] = mk(W / 4, H / 4);
+    x.translate(W / 8, H / 8); x.scale(W / 8, H / 8);
+    const eg = x.createRadialGradient(0, 0, 0, 0, 0, 1.12);
+    for (let i = 0; i <= 16; i++) { const q = i / 16, v = clamp((q * 1.12 - 0.45) / 0.8, 0, 1), s = v * v * (3 - 2 * v); eg.addColorStop(q, `rgba(255,255,255,${(s * s).toFixed(4)})`); }
+    x.fillStyle = eg; x.fillRect(-1.5, -1.5, 3, 3);
     SPR.border = borderC;
     for (const k of [...tints.keys()]) if (k.startsWith('border')) tints.delete(k);
   }
 
+  const lift = () => st.ds.yellow + st.ds.blue + st.ds.green;
   const satOf = g => {
     const d = st.ds;
-    if (g === 'base') return Math.max(0.05, d.dawn, 0.12 * (d.yellow + d.blue + d.green));
+    if (g === 'base') return Math.max(0.05, d.dawn, 0.2 * lift());
     return Math.max(0.05, d[g] || 0, d.dawn);
   };
-  const lightOf = g => Math.min(1.05, lerp(0.6, 1, st.ds.dawn) + 0.12 * (g === 'base' ? 0 : st.ds[g] || 0) + 0.35 * n0(S.daylight, 0));
+  const lightOf = g => {
+    const own = g === 'base' ? 0 : st.ds[g] || 0;
+    if (I.night) return Math.min(0.8, 0.6 + 0.025 * lift() + 0.07 * own + 0.35 * n0(S.daylight, 0));
+    return Math.min(1.05, lerp(0.6, 1, st.ds.dawn) + 0.04 * lift() + 0.12 * own + 0.35 * n0(S.daylight, 0));
+  };
   let HAZE = [40, 46, 60];
   const ROSE = mixc(P.peach, P.coralSoft, 0.45);
   function grade(c, g = 'base', haze = 0) {
@@ -151,7 +172,7 @@
     let r = lerp(l * COOL[0], c[0], s) * L, gg = lerp(l * COOL[1], c[1], s) * L, b = lerp(l * COOL[2], c[2], s) * L;
     if (g === 'green') haze *= 1 - 0.6 * st.ds.dawn;
     if (haze) { r = lerp(r, HAZE[0], haze); gg = lerp(gg, HAZE[1], haze); b = lerp(b, HAZE[2], haze); }
-    const dw = st.ds.dawn * (0.14 + 0.4 * haze) * (g === 'green' ? 0.35 : 1);
+    const dw = st.ds.dawn * (I.night ? 0.6 : 1) * (0.14 + 0.4 * haze) * (g === 'green' ? 0.35 : 1);
     if (dw > 0.002) { r = lerp(r, ROSE[0], dw); gg = lerp(gg, ROSE[1], dw); b = lerp(b, ROSE[2], dw); }
     return [clamp(r, 0, 255), clamp(gg, 0, 255), clamp(b, 0, 255)];
   }
@@ -195,11 +216,19 @@
     st.dt = st.last === null ? 0 : clamp(t - st.last, 0, 0.05);
     st.last = t;
     const dt = st.dt, sw = n0(S.sweep, 0), sat = S.sat || {};
-    if ((sw > 0.02 || n0(sat.dawn, 0) > 0.5) && !st.swept) { st.swept = true; haptic(); ring(1); }
-    st.sun = dt ? ema(st.sun, n0(S.sunP, 0) > 0 || n0(sat.dawn, 0) > 0.5 ? Math.max(n0(S.sunP, 0), n0(sat.dawn, 0)) : 0, dt, 1.1) : n0(S.sunP, 0);
+    st.frame++;
+    st.focus = st.panelFrame === st.frame - 1 ? st.panelA : 0;
+    const fl = n0(S.flash, 0);
+    if (fl > st.flashPrev + 0.2) st.flashAt = t;
+    st.flashPrev = fl;
+    st.flare = fl * (0.4 + 0.6 * clamp((t - st.flashAt) / 0.07, 0, 1));
+    st.heavy = clamp((n0(S.fog, 0.4) - 0.55) / 0.25, 0, 1);
+    if ((sw > 0.02 || n0(sat.dawn, 0) > 0.5) && !st.swept) { st.swept = true; haptic(); ring(I.night ? 0.4 : 1, 'dawn'); }
+    const sunT = I.night ? 0 : n0(S.sunP, 0) > 0 || n0(sat.dawn, 0) > 0.5 ? Math.max(n0(S.sunP, 0), n0(sat.dawn, 0)) : 0;
+    st.sun = dt ? ema(st.sun, sunT, dt, 1.1) : sunT;
     for (const g of GROUPS) {
       const target = Math.max(n0(sat[g], 0), g === 'dawn' ? ease(sw) : ease(sw) * 0.9);
-      if (st.prev[g] < 0.5 && n0(sat[g], 0) >= 0.5 && g !== 'dawn' && st.last > 0.5) { haptic(); ring(0.7); }
+      if (st.prev[g] < 0.5 && n0(sat[g], 0) >= 0.5 && g !== 'dawn' && st.last > 0.5) { haptic(); ring(0.8, g); }
       st.prev[g] = n0(sat[g], 0);
       st.ds[g] = dt ? ema(st.ds[g], target, dt, g === 'dawn' ? 1.4 : 0.8) : target;
     }
@@ -215,33 +244,50 @@
       if (st.steps.length > 60) st.steps.shift();
     }
   }
-  function ring(a) { st.rings.push({ t: n0(S.t, 0), a }); }
+  const RINGC = { yellow: mixc(P.gold, P.amber, 0.5), blue: P.ice, green: P.aurora, dawn: P.glow };
+  function ring(a, g) { st.rings.push({ t: n0(S.t, 0), a, c: RINGC[g] || P.glow }); }
 
   let skyTop, skyMid, skyBot;
   function sky(ctx) {
-    const d = st.ds, dl = n0(S.daylight, 0), dawn = d.dawn;
+    const d = st.ds, dl = n0(S.daylight, 0), dawn = d.dawn, nd = I.night ? dawn : 0, md = I.night ? 0 : dawn;
     let top = mixc(P.night900, P.night700, 0.5), mid = mixc(P.violet700, P.night600, 0.5), bot = mixc(P.night500, P.violet500, 0.35);
-    top = mixc(top, P.blueTop, d.blue * 0.8); mid = mixc(mid, mixc(P.blueTop, P.blueBot, 0.5), d.blue * 0.6); bot = mixc(bot, P.blueBot, d.blue * 0.7);
+    top = mixc(top, P.blueTop, d.blue * 0.85); mid = mixc(mid, mixc(P.blueTop, P.blueBot, 0.5), d.blue * 0.7); bot = mixc(bot, P.blueBot, d.blue * 0.6);
     top = mixc(top, P.greenTop, d.green * 0.35); mid = mixc(mid, P.greenBot, d.green * 0.3);
-    mid = mixc(mid, P.violet600, d.yellow * 0.25); bot = mixc(bot, mixc(P.violet500, P.amber2, 0.3), d.yellow * 0.25);
+    mid = mixc(mid, P.violet600, d.yellow * 0.3); bot = mixc(bot, mixc(P.violet500, P.amber2, 0.45), d.yellow * 0.4);
     top = mixc(top, P.blueBot, dl * 0.5); mid = mixc(mid, P.dawnSky, dl * 0.45); bot = mixc(bot, P.daylight, dl * 0.4);
-    top = mixc(top, mixc(P.blueBot, P.dawnSky, 0.55), dawn); mid = mixc(mid, mixc(P.dawnSky, P.peach, 0.35), dawn); bot = mixc(bot, mixc(P.peach, P.gold, 0.5), dawn);
-    const s = 0.18 + 0.82 * Math.max((d.blue + d.green + d.yellow) / 3, dawn, dl * 0.6);
+    let low = bot;
+    top = mixc(top, mixc(P.dawnSky, P.violet300, 0.12), md); mid = mixc(mid, mixc(P.peach, P.dawnSky, 0.3), md);
+    low = mixc(low, P.coralSoft, md); bot = mixc(bot, P.gold, md);
+    mid = mixc(mid, P.violet600, 0.45 * nd); low = mixc(low, mixc(P.violet500, P.coralSoft, 0.5), 0.55 * nd); bot = mixc(bot, mixc(P.coral, P.peach, 0.5), 0.4 * nd);
+    const s = 0.18 + 0.82 * Math.max(clamp(lift() / 2.4, 0, 1), dawn, dl * 0.6);
     const des = c => { const l = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]; return [lerp(l * COOL[0], c[0], s), lerp(l * COOL[1], c[1], s), lerp(l * COOL[2], c[2], s)]; };
     skyTop = des(top); skyMid = des(mid); skyBot = des(bot);
+    const skyLow = des(low);
     HAZE = mixc(skyBot, skyMid, 0.35);
-    const a = rgb(skyTop.map(Math.round)), b = rgb(skyMid.map(Math.round)), c = rgb(skyBot.map(Math.round));
-    ctx.fillStyle = vgrad(ctx, 'sky' + a + b + c + H, 0, hy + 4, [[0, a], [0.55, b], [1, c]]);
+    const a = rgb(skyTop.map(Math.round)), b = rgb(skyMid.map(Math.round)), l = rgb(skyLow.map(Math.round)), c = rgb(skyBot.map(Math.round));
+    ctx.fillStyle = vgrad(ctx, 'sky' + a + b + l + c + H, 0, hy + 4, [[0, a], [0.5, b], [0.84, l], [1, c]]);
     ctx.fillRect(0, 0, W, hy + 6);
-    if (dawn > 0.01 || st.sun > 0.01) {
-      const p = Math.max(dawn, st.sun);
-      glow(ctx, W * 0.72, hy, W * 0.9, P.coralSoft, 0.35 * p, 'soft');
-      glow(ctx, W * 0.72, hy, W * 0.5, P.gold, 0.4 * p, 'soft');
+    const ex = n0(S.exposure, 1);
+    if (ex < 1 && md < 0.99) { ctx.fillStyle = rgb(P.night950, Math.min(0.5, (1 - ex) * 1.6) * (1 - md)); ctx.fillRect(0, 0, W, hy + 6); }
+    if (d.yellow > 0.06 && dawn < 0.99) sprite(ctx, 'soft', P.amber2, -W * 0.5, hy - H * 0.13, W * 2, H * 0.26, 0.2 * d.yellow * (1 - dawn) * (1 - 0.7 * st.heavy), true);
+    if (md > 0.01 || st.sun > 0.01) {
+      const p = Math.max(md, st.sun);
+      glow(ctx, W * 0.72, hy, W * 0.9, P.coralSoft, 0.3 * p, 'soft');
+      glow(ctx, W * 0.72, hy, W * 0.45, P.gold, 0.24 * p, 'soft');
+    }
+    if (nd > 0.01) {
+      const ca = rgb(P.coral, 0).slice(0, -2);
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = nd;
+      ctx.fillStyle = vgrad(ctx, 'firstlight' + H, hy - H * 0.22, hy + 4, [[0, ca + '0)'], [0.6, ca + '0.07)'], [1, ca + '0.16)']]);
+      ctx.fillRect(0, hy - H * 0.22, W, H * 0.22 + 6);
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+      sprite(ctx, 'soft', P.coral, W * 0.72 - W * 1.1, hy - H * 0.27, W * 2.2, H * 0.36, 0.42 * nd, true);
+      sprite(ctx, 'soft', mixc(P.peach, P.coralSoft, 0.4), W * 0.72 - W * 0.6, hy - H * 0.2, W * 1.2, H * 0.22, 0.36 * nd, true);
     }
   }
 
   function stars(ctx) {
-    const nightA = (1 - st.ds.dawn) * (1 - n0(S.daylight, 0)) * (1 - 0.8 * st.sun);
+    const nightA = nightLeft(0.45) * (1 - n0(S.daylight, 0)) * (1 - 0.8 * st.sun) * (1 - 0.55 * st.heavy);
     if (nightA < 0.02) return;
     const dens = clamp(n0(S.stars, 120) / 160 + 0.3 * n0(S.sparkle, 0), 0.2, 1.4), t = n0(S.t, 0);
     const o = off(LAYER.stars), tw = rm ? 0.15 : 1;
@@ -281,52 +327,55 @@
     SPR.starfield.width = Math.round(W); SPR.starfield.height = Math.round(hy);
   }
 
+  const nightLeft = k => 1 - st.ds.dawn * (I.night ? k : 1);
+  const moonX = () => Math.max(W * 0.25, W * 0.34 - off(LAYER.stars) * 0.25);
+
   function moon(ctx) {
-    const a = (1 - st.ds.dawn) * (1 - n0(S.daylight, 0)) * (1 - st.sun);
+    const a = nightLeft(0.3) * (1 - n0(S.daylight, 0)) * (1 - st.sun) * (1 - 0.4 * st.heavy);
     if (a < 0.02) return;
-    const x = W * 0.2 - off(LAYER.stars) * 0.5 % W, y = H * 0.09, r = H * 0.022;
+    const x = moonX(), y = H * 0.09, r = H * 0.022;
     glow(ctx, x, y, r * 16, grade(P.silver300, 'blue'), 0.16 * a, 'soft'); glow(ctx, x, y, r * 5, grade(P.silver100, 'blue'), 0.22 * a, 'soft');
     sprite(ctx, 'moon', grade(P.silver050, 'blue'), x - r * 1.2, y - r * 1.2, r * 2.4, r * 2.4, 0.9 * a, false);
   }
 
   function aurora(ctx) {
-    const a = clamp(0.12 + 0.88 * n0(S.aurora, 0), 0, 1) * (1 - 0.85 * st.ds.dawn) * (1 - n0(S.daylight, 0));
+    const a = clamp(0.1 * (1 - st.heavy) + 1.1 * n0(S.aurora, 0) + 0.55 * st.ds.green, 0, 1) * (I.night ? 1 - 0.4 * st.ds.dawn : Math.pow(1 - Math.max(st.ds.dawn, st.sun), 2)) * (1 - n0(S.daylight, 0)) * (1 - 0.9 * st.heavy);
     if (a < 0.02) return;
-    const t = n0(S.t, 0) * (rm ? 0.4 : 1), o = off(LAYER.aurora), sg = Math.max(0.22, st.ds.green), step = Math.max(4, Math.round(W / 64));
-    ctx.globalCompositeOperation = 'lighter';
+    const q = 4, w = Math.ceil(W / q) + 2, h = Math.ceil(H * 0.42 / q);
+    if (!auroraC || auroraC.width !== w || auroraC.height !== h) [auroraC, auroraX] = mk(w, h);
+    const x = auroraX, t = n0(S.t, 0) * (rm ? 0.4 : 1), o = off(LAYER.aurora), sg = Math.max(0.22, st.ds.green);
+    x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1; x.clearRect(0, 0, w, h);
+    x.globalCompositeOperation = 'lighter';
     for (let k = 0; k < 2; k++) {
       const base = H * (0.2 + k * 0.1), amp = H * (0.035 + k * 0.012), hgt = H * (0.13 - k * 0.03), alpha = a * (k ? 0.55 : 0.85);
-      for (let x = -step; x < W + step; x += step) {
-        const wx = x + o, e = Math.sin(clamp((x + step) / (W + 2 * step), 0, 1) * Math.PI);
+      for (let i = 0; i < w; i++) {
+        const px = (i - 1) * q, wx = px + o, e = Math.sin(clamp((px + q) / (W + 2 * q), 0, 1) * Math.PI);
         const y = base + amp * Math.sin(wx * 0.006 + t * (0.18 + k * 0.07) + k * 2.4) + H * 0.02 * (noise(wx * 0.01 + t * 0.25 + k * 5) - 0.5);
-        const h = hgt * (0.65 + 0.5 * noise(wx * 0.004 + t * 0.12 + k * 3));
-        const u0 = ((wx * 0.35 + t * 5 + k * 90) % 249 + 249) % 249;
+        const hh = hgt * (0.65 + 0.5 * noise(wx * 0.004 + t * 0.12 + k * 3));
+        const u0 = ((wx * 0.35 + t * 5 + k * 90) % 253 + 253) % 253;
         const fa = alpha * e * (0.75 + 0.25 * Math.sin(t * 0.9 + wx * 0.02));
-        if (sg < 0.98) { ctx.globalAlpha = fa * (1 - sg) * 0.9; ctx.drawImage(SPR.auroraGrey, u0, 0, 6, 128, x, y - h, step, h * 1.08); }
-        if (sg > 0.02) { ctx.globalAlpha = fa * sg; ctx.drawImage(SPR.aurora, u0, 0, 6, 128, x, y - h, step, h * 1.08); }
+        if (sg < 0.98) { x.globalAlpha = fa * (1 - sg) * 0.9; x.drawImage(SPR.auroraGrey, u0, 0, 3, 128, i, (y - hh) / q, 1, hh * 1.08 / q); }
+        if (sg > 0.02) { x.globalAlpha = fa * sg; x.drawImage(SPR.aurora, u0, 0, 3, 128, i, (y - hh) / q, 1, hh * 1.08 / q); }
       }
     }
-    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(auroraC, -q, 0, w * q, h * q);
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   function sun(ctx) {
     const p = st.sun;
     if (p <= 0.005) return;
-    const x = W * 0.72, y = lerp(hy + H * 0.03, hy - H * 0.12, ease(p)), t = n0(S.t, 0);
-    glow(ctx, x, y, H * 0.42, P.coralSoft, 0.4 * p, 'soft');
-    glow(ctx, x, y, H * 0.2, P.gold, 0.45 * p, 'soft');
-    glow(ctx, x, y, H * 0.05, P.sun, 0.8 * p, 'glow');
-    glow(ctx, x, y, H * 0.024, P.daylight, p, 'lamp');
-    if (!rm) {
-      ctx.save(); ctx.translate(x, y); ctx.globalCompositeOperation = 'lighter';
-      for (let i = 0; i < 7; i++) {
-        ctx.save(); ctx.rotate(Math.PI * (0.55 + i * 0.13) + Math.sin(t * 0.1 + i) * 0.03);
-        ctx.globalAlpha = 0.07 * p * (0.6 + 0.4 * Math.sin(t * 0.3 + i * 1.7));
-        ctx.drawImage(tint('beam', P.sun), 0, -H * 0.05, H * 0.9, H * 0.1);
-        ctx.restore();
-      }
-      ctx.restore();
-    }
+    const x = W * 0.72, y = lerp(hy + H * 0.03, hy - H * 0.1, ease(p)), r = H * 0.03;
+    glow(ctx, x, y, H * 0.4, P.coralSoft, 0.28 * p, 'soft');
+    glow(ctx, x, y, H * 0.15, P.gold, 0.3 * p, 'soft');
+    glow(ctx, x, y, r * 2.8, P.gold, 0.26 * p, 'soft');
+    ctx.save();
+    ctx.beginPath(); ctx.rect(0, 0, W, hy + 1); ctx.clip();
+    ctx.fillStyle = rgb(P.sun, Math.min(1, p * 1.4));
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill();
+    glow(ctx, x, y, r * 1.3, P.sun, 0.16 * p);
+    ctx.restore();
   }
 
   function ridge(ctx, base, amp, f, seed, sharp, step, fill) {
@@ -371,20 +420,25 @@
     const x = W * 0.84 - off(LAYER.islands) * 0.08, base = hy + 1, h = H * 0.06, wb = h * 0.2, wt = h * 0.13, t = n0(S.t, 0);
     ctx.fillStyle = col(P.spruce, 'green', 1, 0.4);
     ctx.beginPath(); ctx.moveTo(x - h * 0.9, base); ctx.bezierCurveTo(x - h * 0.4, base - h * 0.3, x + h * 0.4, base - h * 0.32, x + h * 1.1, base); ctx.fill();
+    const vis = 1 - st.focus;
+    if (vis <= 0.01) return;
+    const ga = ctx.globalAlpha;
+    ctx.globalAlpha = ga * vis;
     ctx.fillStyle = col(P.silver100, 'base', 1, 0.2);
     ctx.beginPath(); ctx.moveTo(x - wb / 2, base - h * 0.15); ctx.lineTo(x - wt / 2, base - h); ctx.lineTo(x + wt / 2, base - h); ctx.lineTo(x + wb / 2, base - h * 0.15); ctx.fill();
     ctx.fillStyle = col(P.slate, 'blue', 1, 0.2);
     for (let i = 0; i < 2; i++) ctx.fillRect(x - wb * 0.47 + i * h * 0.02, base - h * (0.38 + i * 0.3), wb * 0.94 - i * h * 0.04, h * 0.09);
     ctx.fillRect(x - wt * 0.7, base - h - h * 0.12, wt * 1.4, h * 0.04);
-    const beam = n0(S.beam, 0) * (1 - 0.9 * st.ds.dawn) * (1 - 0.7 * st.sun), lamp = clamp(0.35 + beam + st.ds.dawn * 0.3, 0, 1);
+    const day = Math.max(st.ds.dawn, st.sun, ease(n0(S.sweep, 0))), beam = n0(S.beam, 0) * (1 - day), lamp = clamp(0.35 + beam, 0, 1) * (1 - 0.7 * day);
     glow(ctx, x, base - h - h * 0.05, h * 0.5 * (0.6 + lamp), P.flame, 0.7 * lamp);
     if (beam > 0.02) {
       ctx.save(); ctx.translate(x, base - h - h * 0.05); ctx.globalCompositeOperation = 'lighter';
       const ang = Math.PI + Math.sin(t * (rm ? 0.4 : 0.8)) * 0.5;
-      ctx.rotate(ang); ctx.globalAlpha = 0.5 * beam;
-      ctx.drawImage(tint('beam', P.flame), 0, -H * 0.04, W * 1.2, H * 0.08);
+      ctx.rotate(ang); ctx.globalAlpha = ga * vis * 0.55 * beam;
+      ctx.drawImage(tint('beam', P.flame), 0, -H * 0.07, W * 1.1, H * 0.14);
       ctx.restore();
     }
+    ctx.globalAlpha = ga;
   }
 
   function sea(ctx) {
@@ -400,9 +454,10 @@
       ctx.fillRect(x, y, r.w * u * (0.5 + k), 1);
     }
     ctx.globalAlpha = 1;
-    const sunP = st.sun, nightA = (1 - st.ds.dawn) * (1 - n0(S.daylight, 0)) * (1 - sunP);
-    if (nightA > 0.05) sprite(ctx, 'soft', grade(P.silver300, 'blue'), W * 0.2 - W * 0.03, hy, W * 0.06, (gy - hy) * 0.8, 0.25 * nightA, true);
+    const sunP = st.sun, nightA = nightLeft(0.3) * (1 - n0(S.daylight, 0)) * (1 - sunP) * (1 - 0.4 * st.heavy), mx = moonX(), nd = I.night ? st.ds.dawn : 0;
+    if (nightA > 0.05) sprite(ctx, 'soft', grade(P.silver300, 'blue'), mx - W * 0.03, hy, W * 0.06, (gy - hy) * 0.8, 0.25 * nightA, true);
     if (sunP > 0.02) sprite(ctx, 'soft', P.gold, W * 0.72 - W * 0.09, hy - 4, W * 0.18, (gy - hy) * 1.1, 0.5 * sunP, true);
+    if (nd > 0.02) sprite(ctx, 'soft', P.coral, W * 0.72 - W * 0.25, hy - 2, W * 0.5, (gy - hy) * 0.7, 0.22 * nd, true);
   }
 
   function midHills(ctx) {
@@ -438,7 +493,7 @@
       const y = near ? lerp(gy - H * 0.06, gy + H * 0.04, k / 2) : lerp(hy - H * 0.03, hy + H * 0.05, k / 2);
       const x = ((k * 397 * u + t * 8 * u * drift * (k % 2 ? 1 : -0.7) - off(f) * (1 + k * 0.1)) % span + span) % span - bw;
       const breath = 0.8 + 0.2 * Math.sin(t * (rm ? 0.15 : 0.35) + k * 2.1);
-      const a = (near ? 0.5 : 0.7) * d * breath;
+      const a = (near ? 0.5 : 0.7) * d * breath * (1 - 0.45 * st.ds.dawn);
       const im = k % 2 ? 'fog_band_b' : 'fog_band';
       if (A.Art.has(im)) {
         const ih = bw / A.Art.aspect(im);
@@ -447,6 +502,23 @@
       }
       sprite(ctx, 'fog', c, x, y - bh / 2, bw, bh, a, false);
       sprite(ctx, 'fog', c, x + bw * 0.98, y - bh / 2, bw, bh, a, false);
+    }
+    fogBank(ctx, near, c, t, drift);
+  }
+
+  function fogBank(ctx, near, c, t, drift) {
+    const hv = st.heavy * (1 - 0.5 * st.ds.dawn);
+    if (hv <= 0.01) return;
+    const y0 = near ? gy - H * 0.05 : hy - H * 0.02, y1 = near ? H : gy, peak = near ? 0.35 : 0.3, k = rgb(c.map(Math.round), 1).slice(0, -2);
+    ctx.globalAlpha = hv;
+    ctx.fillStyle = vgrad(ctx, 'bank' + near + k + H, y0, y1, [[0, k + '0)'], [peak, k + (near ? '0.42)' : '0.5)')], [1, k + (near ? '0.18)' : '0.32)')]]);
+    ctx.fillRect(0, y0, W, y1 - y0);
+    ctx.globalAlpha = 1;
+    const bw = W * 1.4, bh = H * (near ? 0.1 : 0.07), span = bw * 2;
+    for (let i = 0; i < 2; i++) {
+      const y = near ? gy + H * (0.02 + i * 0.07) : hy + H * (0.05 + i * 0.07);
+      const x = ((i * 523 * u + t * 6 * u * drift * (i ? -1 : 0.8) - off(near ? LAYER.fogNear : LAYER.fogFar)) % span + span) % span - bw;
+      for (const xx of [x, x + bw * 0.98]) sprite(ctx, 'fog', c, xx, y - bh / 2, bw, bh, 0.85 * hv, false);
     }
   }
 
@@ -462,7 +534,8 @@
   function ground(ctx) {
     const vs = visible(), step = 8 * u, cs = chunks();
     const g = ctx.createLinearGradient(0, 0, W, 0), cache = {};
-    const cOf = c => cache[c.type] || (cache[c.type] = grade(groundAt(c.type)[0](), groundAt(c.type)[1]));
+    const dk = 0.42 * (1 - st.ds.dawn * (I.night ? 0.4 : 1)) * (1 - 0.7 * n0(S.daylight, 0)), shade = grade(P.night700, 'blue'), warmS = grade(P.peach, 'yellow');
+    const cOf = c => cache[c.type] || (cache[c.type] = mixc(mixc(grade(groundAt(c.type)[0](), groundAt(c.type)[1]), warmS, 0.12 * st.ds.yellow * (1 - st.ds.dawn)), shade, c.type === 'harbour' ? dk * 0.3 : dk));
     for (let i = 0; i <= 16; i++) {
       const x = i / 16 * W, wx = S.worldX + x - fx;
       let k = cs.findIndex(c => wx >= c.x0 && wx < c.x1);
@@ -586,12 +659,20 @@
     ctx.fillRect(a, y - 4 * u, b - a, 7 * u);
     ctx.fillStyle = col(mixc(P.wood, P.night900, 0.5), 'yellow', 1); ctx.fillRect(a, y + 3 * u, b - a, 2 * u);
     ctx.fillStyle = col(P.snow, 'base', 0.9); ctx.fillRect(a, y - 5.5 * u, b - a, 2.2 * u);
+    for (const px of [a, b - 5 * u]) {
+      if (px < -20 || px > W + 20) continue;
+      ctx.fillStyle = col(mixc(P.wood, P.night700, 0.35), 'yellow', 1); ctx.fillRect(px, y - 16 * u, 5 * u, 50 * u);
+      ctx.fillStyle = col(P.snow, 'base', 0.9); ctx.beginPath(); ctx.ellipse(px + 2.5 * u, y - 16 * u, 3.6 * u, 1.8 * u, 0, Math.PI, 0); ctx.fill();
+    }
     const bx = sx(c.x1 - 100), by = gy + 18 * u + Math.sin(t * (rm ? 0.4 : 1.1)) * 1.6 * u, rock = Math.sin(t * (rm ? 0.4 : 1.1) + 1) * 0.03;
     if (bx > -80 && bx < W + 80) {
       ctx.save(); ctx.translate(bx, by); ctx.rotate(rock);
+      ctx.fillStyle = col(mixc(P.wood, P.night900, 0.55), 'yellow', 1);
+      ctx.beginPath(); ctx.moveTo(-36 * u, -11 * u); ctx.quadraticCurveTo(0, -4 * u, 40 * u, -13 * u); ctx.lineTo(38 * u, -8 * u); ctx.quadraticCurveTo(0, -1 * u, -34 * u, -6 * u); ctx.closePath(); ctx.fill();
       ctx.fillStyle = col(P.wood, 'yellow', 1);
-      ctx.beginPath(); ctx.moveTo(-34 * u, -6 * u); ctx.quadraticCurveTo(-30 * u, 8 * u, 0, 9 * u); ctx.quadraticCurveTo(30 * u, 8 * u, 38 * u, -8 * u); ctx.lineTo(-34 * u, -6 * u); ctx.fill();
-      ctx.fillStyle = col(P.snow, 'base', 0.85); ctx.fillRect(-28 * u, -7 * u, 58 * u, 2 * u);
+      ctx.beginPath(); ctx.moveTo(-34 * u, -6 * u); ctx.quadraticCurveTo(-30 * u, 8 * u, 0, 9 * u); ctx.quadraticCurveTo(30 * u, 8 * u, 38 * u, -8 * u); ctx.quadraticCurveTo(0, -1 * u, -34 * u, -6 * u); ctx.fill();
+      ctx.fillStyle = col(mixc(P.wood, P.night900, 0.4), 'yellow', 1); ctx.fillRect(-22 * u, -4 * u, 3 * u, 8 * u); ctx.fillRect(16 * u, -5 * u, 3 * u, 9 * u);
+      ctx.fillStyle = col(P.snow, 'base', 0.85); ctx.beginPath(); ctx.moveTo(-36 * u, -11 * u); ctx.quadraticCurveTo(0, -4 * u, 40 * u, -13 * u); ctx.quadraticCurveTo(0, -6 * u, -36 * u, -11 * u); ctx.fill();
       ctx.restore();
       ctx.strokeStyle = col(P.silver300, 'blue', 0.25); ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(bx - 30 * u, by + 12 * u); ctx.lineTo(bx + 32 * u, by + 12 * u); ctx.stroke();
@@ -711,7 +792,7 @@
     const bright = n0(S.lanternBright, 1), warm = mixc(P.glow, P.amber, 0.3);
     sprite(ctx, 'soft', P.night950, fx - 16 * k, gy - 2 * k, 32 * k, 7 * k, 0.6, false);
     ctx.save(); ctx.translate(fx, gy + 1); ctx.scale(k, k); ctx.translate(0, -bob);
-    const body = rgb(mixc(grade(P.cloak, 'base'), P.violet700, 0.6)), rim = rgb(mixc(warm, P.flame, 0.3), Math.min(1, 0.55 * bright));
+    const body = rgb(mixc(grade(P.cloak, 'base'), P.violet700, 0.6)), rim = rgb(mixc(warm, P.flame, 0.3), Math.min(1, 0.75 * bright));
     const legA = Math.sin(ph) * 0.5 * walk;
     ctx.lineCap = 'round'; ctx.strokeStyle = body; ctx.lineWidth = 3.4;
     for (const s of [-1, 1]) {
@@ -733,8 +814,8 @@
       ctx.quadraticCurveTo(-7, -48, -3, -46);
       ctx.closePath();
     };
-    ctx.save(); ctx.beginPath(); ctx.rect(-30, -47, 60, 50); ctx.clip(); ctx.fillStyle = rim; cloak(); ctx.fill(); ctx.restore();
-    ctx.save(); ctx.translate(-1.1, 0.5); ctx.fillStyle = body; cloak(); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.rect(-30, -50, 60, 53); ctx.clip(); ctx.fillStyle = rim; cloak(); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(-1.7, 0.4); ctx.fillStyle = body; cloak(); ctx.fill(); ctx.restore();
     ctx.fillStyle = rgb(P.night950, 0.5); ctx.beginPath(); ctx.moveTo(6.6, -54.2); ctx.bezierCurveTo(4.9, -53, 4.6, -49.8, 5.4, -47.6); ctx.quadraticCurveTo(6.5, -47, 7.3, -47.8); ctx.bezierCurveTo(8.1, -49.8, 8, -52.4, 6.6, -54.2); ctx.fill();
     const sc = grade(P.coral, 'yellow'), wv = rm ? 0.4 : 1;
     ctx.fillStyle = rgb(sc); ctx.beginPath();
@@ -752,19 +833,20 @@
     ctx.strokeStyle = body; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(3, -38 * by); ctx.quadraticCurveTo(9, -33, F.hx, F.hy); ctx.stroke();
     ctx.restore();
+    glow(ctx, fx + 7 * k, gy - 24 * k, 22 * k, warm, Math.min(0.3, 0.16 * bright), 'soft');
   }
 
   function lantern(ctx) {
     const F = st.fig, k = F.k, t = n0(S.t, 0), x = st.lx, y = st.ly;
-    const fl = (0.88 + 0.12 * noise(t * (rm ? 2 : 7)) + 0.05 * noise(t * 19)) * n0(S.flame, 1), br = n0(S.lanternBright, 1);
+    const f = st.flare, fl = (0.88 + 0.12 * noise(t * (rm ? 2 : 7)) + 0.05 * noise(t * 19)) * n0(S.flame, 1) * (1 + 1.4 * f), br = n0(S.lanternBright, 1);
     const hx = fx + k * F.hx, hy2 = gy + 1 + k * (F.hy - F.bob);
     ctx.strokeStyle = rgb(P.night950, 0.9); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx, hy2); ctx.lineTo(x, y - 3.5 * k); ctx.stroke();
     ctx.save(); ctx.translate(x, y); ctx.rotate(F.swing);
     ctx.fillStyle = rgb(P.night950); ctx.fillRect(-2.6 * k, -3.6 * k, 5.2 * k, 1.4 * k); ctx.fillRect(-2.1 * k, 3.4 * k, 4.2 * k, 1.2 * k);
     ctx.fillStyle = rgb(mixc(P.glow, P.daylight, 0.4)); ctx.fillRect(-2 * k, -2.2 * k, 4 * k, 5.6 * k);
     ctx.restore();
-    glow(ctx, x, y, 7 * k * fl, P.daylight, 0.9 * br);
-    glow(ctx, x, y, 22 * k * fl, P.glow, 0.55 * br);
+    glow(ctx, x, y, 7 * k * fl / (1 + 0.8 * f), P.daylight, 0.9 * br);
+    glow(ctx, x, y, 22 * k * fl, mixc(P.glow, P.amber, 0.25 * f), Math.min(1, 0.55 * br + 0.25 * f));
     for (const sp of S.sparks || []) {
       const age = t - sp.born;
       if (age > 1 || age < 0) continue;
@@ -773,19 +855,21 @@
   }
 
   function lanternLight(ctx) {
-    const R = n0(S.lanternRadius, 70) * u, br = n0(S.lanternBright, 1), t = n0(S.t, 0), x = st.lx, y = st.ly;
-    const fl = 0.93 + 0.07 * noise(t * (rm ? 1.5 : 5)), warm = mixc(P.amber, P.glow, 0.4);
-    glow(ctx, x, y, R * 3.2 * fl, warm, 0.17 * br, 'soft');
-    sprite(ctx, 'soft', warm, x - R * 2.2, gy - R * 0.35, R * 4.4, R * 0.75, 0.28 * br * fl, true);
+    const R = n0(S.lanternRadius, 70) * u, br = n0(S.lanternBright, 1), t = n0(S.t, 0), x = st.lx, y = st.ly, f = st.flare;
+    const fl = 0.93 + 0.07 * noise(t * (rm ? 1.5 : 5)), warm = mixc(mixc(P.amber, P.glow, 0.4), P.amber2, clamp(n0(S.warm, 0) * 2, 0, 0.35));
+    glow(ctx, x, y, R * 3.2 * fl * (1 + 0.5 * f), warm, 0.17 * br, 'soft');
+    const pr = R * 2.4 * (1 + 0.25 * f);
+    sprite(ctx, 'soft', warm, x - pr, gy - pr * 0.17, 2 * pr, pr * 0.44, 0.42 * br * fl, true);
+    if (f > 0.01) glow(ctx, x, y, H * 0.2, mixc(P.glow, P.amber, 0.3), 0.34 * f, 'soft');
     const under = chunkAtX(S.worldX)?.type;
     if (under === 'harbour' || under === 'lake') sprite(ctx, 'soft', P.glow, x - R * 0.25, gy, R * 0.5, R * 1.6, 0.25 * br * fl, true);
   }
   const chunkAtX = wx => chunks().find(c => wx >= c.x0 && wx < c.x1);
 
   function darkness(ctx) {
-    const a = 0.72 * (1 - st.ds.dawn) * (1 - 0.85 * n0(S.daylight, 0)) * (1 - 0.6 * st.sun);
+    const a = 0.72 * nightLeft(0.1) * (1 - 0.85 * n0(S.daylight, 0)) * (1 - 0.6 * st.sun) * (1 - (I.night ? 0.07 : 0.13) * lift());
     if (a <= 0.01) return;
-    const R = n0(S.lanternRadius, 70) * u * 3 / 6, w = W / 6, h = H / 6, dx = darkX;
+    const R = n0(S.lanternRadius, 70) * u * (1 + 0.4 * st.flare) * 3 / 6, w = W / 6, h = H / 6, dx = darkX;
     dx.globalCompositeOperation = 'source-over'; dx.clearRect(0, 0, w + 1, h + 1);
     dx.fillStyle = rgb(P.night950); dx.fillRect(0, 0, w + 1, h + 1);
     dx.globalCompositeOperation = 'destination-out';
@@ -809,20 +893,25 @@
   function tapHint(ctx) {
     const th = n0(S.tapHint, 0);
     if (th <= 0.01) return;
-    const x = st.lx, y = st.ly - 48 * u, p = (n0(S.t, 0) * 1.2) % 1;
-    ctx.strokeStyle = rgb(P.flame, 0.5 * th * (1 - p)); ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(x, y, (6 + p * 14) * u, 0, 6.283); ctx.stroke();
-    glow(ctx, x, y, 10 * u, P.flame, 0.7 * th);
+    const x = st.lx, y = st.ly - 54 * u, t = n0(S.t, 0) * (rm ? 0.5 : 1);
+    ctx.lineWidth = 2 * u;
+    for (let i = 0; i < 2; i++) {
+      const p = (t * 0.8 + i * 0.5) % 1;
+      ctx.strokeStyle = rgb(P.flame, 0.6 * th * Math.sin(p * Math.PI));
+      ctx.beginPath(); ctx.arc(x, y, (12 + p * 14) * u, 0, 6.283); ctx.stroke();
+    }
+    glow(ctx, x, y, 14 * u, P.flame, 0.8 * th);
+    glow(ctx, x, y, 40 * u, P.glow, 0.18 * th, 'soft');
   }
 
   function rings(ctx) {
     const t = n0(S.t, 0);
     for (const r of st.rings) {
-      const p = clamp((t - r.t) / 2.6, 0, 1), e = ease(p);
-      if (rm) { glow(ctx, st.lx, st.ly, H * 0.4, P.glow, 0.25 * r.a * Math.sin(p * Math.PI), 'soft'); continue; }
-      const rr = 10 * u + e * H * 0.55;
-      for (const [lw, al] of [[18, 0.05], [8, 0.08], [2.5, 0.18]]) { ctx.strokeStyle = rgb(P.glow, al * r.a * (1 - p)); ctx.lineWidth = lw * u * (1 - 0.5 * p); ctx.beginPath(); ctx.arc(st.lx, st.ly, rr, 0, 6.283); ctx.stroke(); }
-      glow(ctx, st.lx, st.ly, H * 0.3 * (0.4 + e), P.glow, 0.22 * r.a * (1 - p), 'soft');
+      const p = clamp((t - r.t) / 2.4, 0, 1), e = 1 - Math.pow(1 - p, 2.2);
+      if (rm) { glow(ctx, st.lx, st.ly, H * 0.4, r.c, 0.25 * r.a * Math.sin(p * Math.PI), 'soft'); continue; }
+      const R = 30 * u + e * H * 0.8, fade = Math.pow(1 - p, 1.3) * Math.min(1, p * 8);
+      sprite(ctx, 'halo', r.c, st.lx - R, st.ly - R, 2 * R, 2 * R, 0.3 * r.a * fade, true);
+      glow(ctx, st.lx, st.ly, H * 0.28 * (0.4 + e), r.c, 0.2 * r.a * (1 - p), 'soft');
     }
   }
 
@@ -867,16 +956,17 @@
   }
 
   function overlays(ctx) {
-    const warm = n0(S.warm, 0), flash = rm ? 0 : n0(S.flash, 0), exp = n0(S.exposure, 1), border = n0(S.border, 0), black = n0(S.black, 0);
+    const md = I.night ? 0 : Math.max(st.ds.dawn, st.sun), nd = I.night ? st.ds.dawn : 0, black = n0(S.black, 0);
+    const warm = n0(S.warm, 0), exp = Math.min(lerp(n0(S.exposure, 1), 1, md), 1 - 0.25 * nd) * (1 - 0.12 * nd), dawning = Math.max(st.ds.dawn, ease(n0(S.sweep, 0)));
+    const edge = clamp((n0(S.border, 0) - 0.1) / 0.15, 0, 1) * (1 - dawning);
     if (warm > 0.001) { ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = Math.min(1, warm * 1.8); ctx.fillStyle = vgrad(ctx, 'warm' + H, 0, H, [[0, 'rgba(255,217,160,0)'], [0.55, 'rgba(255,201,138,0.3)'], [1, 'rgba(242,181,68,0.55)']]); ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
-    ctx.drawImage(vign, 0, 0, W, H);
+    ctx.globalAlpha = 1 - 0.65 * md; ctx.drawImage(vign, 0, 0, W, H); ctx.globalAlpha = 1;
     if (grainPat && !rm) {
-      ctx.save(); ctx.globalAlpha = 0.035; const ox = (Math.random() * 128) | 0, oy = (Math.random() * 128) | 0;
+      ctx.save(); ctx.globalAlpha = 0.035 * (1 - 0.6 * md); const ox = (Math.random() * 128) | 0, oy = (Math.random() * 128) | 0;
       ctx.translate(-ox, -oy); ctx.fillStyle = grainPat; ctx.fillRect(0, 0, W + 128, H + 128); ctx.restore();
     }
-    if (flash > 0.01) { ctx.fillStyle = rgb(P.glow, 0.12 * flash); ctx.fillRect(0, 0, W, H); }
     if (exp < 1) { ctx.fillStyle = rgb(P.night950, 1 - exp); ctx.fillRect(0, 0, W, H); }
-    if (border > 0.005 && S.borderColor) { ctx.globalAlpha = Math.min(1, border * 0.7); ctx.drawImage(tint('border', S.borderColor), 0, 0, W, H); ctx.globalAlpha = 1; }
+    if (edge > 0.01) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.24 * edge; ctx.drawImage(tint('border', S.borderColor || P.daylight), 0, 0, W, H); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
     if (black > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, black)})`; ctx.fillRect(0, 0, W, H); }
   }
 
@@ -903,6 +993,7 @@
 
   function panel(ctx, b, o = {}) {
     const r = o.radius ?? 22 * Math.min(1, u * 1.1), accent = o.measure ? P.violet300 : P.glow, done = !!o.done, t = n0(S && S.t, 0);
+    if (st) { st.panelFrame = st.frame; st.panelA = clamp(ctx.globalAlpha, 0, 1); }
     ctx.save();
     sprite(ctx, 'soft', P.night950, b.x - b.w * 0.12, b.y - b.h * 0.08, b.w * 1.24, b.h * 1.3, 0.75, false);
     ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, r);
@@ -923,12 +1014,15 @@
     panel,
     lanternPos: () => [st ? st.lx : fx + 20, st ? st.ly : gy - 30],
     size: () => ({ W, H, gy, fx }),
+    tintStats: () => ({ ...tintStats, size: tints.size }),
     draw(ctx, w, h, state) {
       S = state; W = w; H = h; ctxRef = ctx;
-      gy = H * 0.8; hy = H * 0.6; fx = W * 0.35; u = H / 844;
+      gy = H * 0.82; hy = H * 0.6; fx = W * 0.35; u = H / 844;
       rm = !!(A.config && A.config.reducedMotion) || !!(MQ && MQ.matches);
       pm = rm ? 0.5 : 1;
       st = states.get(S); if (!st) { st = newState(); states.set(S, st); }
+      const sess = A.session && A.session.V === S ? A.session : null;
+      I = { night: S.night ?? !!sess?.night, mode: S.mode ?? sess?.mode ?? null, phase: S.phase ?? sess?.phase ?? null };
       if (sized.W !== W || sized.H !== H || !vign) resize();
       step(); rig();
       ctx.save();

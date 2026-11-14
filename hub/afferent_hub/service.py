@@ -497,7 +497,7 @@ class Hub:
             await self.set_privacy(msg.get("patient_id") or pid, change)
         elif t == "crisis":
             source = msg.get("source") or "talk_button"
-            ftype = "low_mood_twice" if source == "mood" else "talk_request"
+            ftype = {"mood": "low_mood_twice", "weekly_checkin": "weekly_checkin"}.get(source, "talk_request")
             await self.add_flag(msg.get("patient_id") or pid, ftype, source, session_id=msg.get("session_id"),
                                 t_iso=msg.get("t_iso"))
 
