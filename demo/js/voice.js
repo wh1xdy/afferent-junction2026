@@ -98,7 +98,7 @@
         const r = relay();
         try {
           s.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-        } catch { throw fail('mic'); }
+        } catch (e) { throw fail('mic', [e?.name, e?.message].filter(Boolean).join(': ')); }
         if (this.s !== s) { s.stream.getTracks().forEach(t => t.stop()); return; }
         await s.inCtx.audioWorklet.addModule('js/voice-worklet.js');
         if (this.s !== s) return;
@@ -226,7 +226,7 @@
     const live = state !== 'idle' && state !== 'error';
     $('voiceStart').classList.toggle('hidden', live);
     $('voiceEnd').classList.toggle('hidden', !live);
-    $('voiceStatus').textContent = state === 'error' ? ERRORS[detail?.code] || ERRORS.failed : STATUS[state];
+    $('voiceStatus').textContent = state === 'error' ? (ERRORS[detail?.code] || ERRORS.failed) + (detail?.code === 'mic' && detail.text ? ` (${detail.text})` : '') : STATUS[state];
     $('voiceKeyForm').classList.toggle('hidden', !(state === 'error' && ['no_relay', 'code', 'refused'].includes(detail?.code)));
     if (state === 'connecting') { rows.clear(); $('voiceLog').textContent = ''; }
     el.classList.toggle('talked', live || rows.size > 0);
