@@ -732,18 +732,20 @@
   function groundBake(ctx, type) {
     const n = 'ground_' + type;
     if (!ART.has(n)) return null;
-    const dpr = Math.min(1.5, (ctx.canvas?.width || W) / W || 1), sp = specOf(n), top = sp.base, sz = A.Art.size(n);
-    const gh = sp.density ? sz.h / sp.density * u : (H * 0.18 + 8 * u) / (1 - top), key = `g:${type}:${Math.round(gh)}:${dpr.toFixed(2)}`;
+    const sp = specOf(n), top = sp.base, sz = A.Art.size(n), g = groundAt(type)[1];
+    const gh = sp.density ? sz.h / sp.density * u : (H * 0.18 + 8 * u) / (1 - top), y = gy - 3 * u - gh * top;
+    if (sp.tile) return { key: n, tile: true, gh, y, g, tw: gh * sz.w / sz.h };
+    const dpr = Math.min(1.5, (ctx.canvas?.width || W) / W || 1), key = `g:${type}:${Math.round(gh)}:${dpr.toFixed(2)}`;
     if (!ART.has(key)) {
       ART.drop(`g:${type}:`);
       const cw = (PW + 2 * GF) * dpr, th = gh * dpr;
       ART.bake(key, n, cw, th, (x, src, w, h) => {
         const tw = th * w / h;
-        for (let xx = -tw * 0.13; xx < cw; xx += tw * (sp.tile ? 1 : 0.985)) x.drawImage(src, xx, 0, tw, th);
+        for (let xx = -tw * 0.13; xx < cw; xx += tw * 0.985) x.drawImage(src, xx, 0, tw, th);
         ART.feather(x, cw, th, GF / (PW + 2 * GF));
       });
     }
-    return { key, gh, y: gy - 3 * u - gh * top, g: groundAt(type)[1] };
+    return { key, gh, y, g };
   }
 
   function groundArt(ctx, c) {
@@ -752,33 +754,39 @@
     const from = c.from ? groundBake(ctx, c.from) : null;
     const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, f = GF;
     const bent = typeof S.terrain === 'function', SW = 16 * u;
-    for (let i = 0; i < k; i++) {
-      const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f, flip = (c.seed + i) % 2;
-      if (x > W || x + w < 0) continue;
-      const piece = (L, a, s0 = x, s1 = x + w) => {
-        if (a <= 0.003) return;
-        const u0 = clamp((flip ? x + w - s1 : s0 - x) / w, 0, 1), u1 = clamp((flip ? x + w - s0 : s1 - x) / w, 0, 1);
-        if (flip) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); }
-        ART.slice(ctx, L.key, u0, u1, x, L.y, w, L.gh, satOf(L.g), Math.min(1, lightOf(L.g) * 0.8), a);
-        if (flip) ctx.restore();
-      };
-      if (!bent && !from) { piece(cur, 1); continue; }
-      const m = ctx.getTransform(), ma = m.a || 1, D = Math.max(4, Math.round(SW * ma)), toX = dv => (dv - m.e) / ma;
-      const v0 = Math.floor((Math.max(x, -SW) * ma + m.e) / D) * D, v1 = Math.min(x + w, W + SW) * ma + m.e;
-      for (let dv = v0; dv < v1; dv += D) {
-        const x0 = toX(dv), x1 = toX(dv + D);
-        const d0 = bent ? -terr(S.worldX + x0 - fx) : 0, d1 = bent ? -terr(S.worldX + x1 - fx) : 0, kk = (d1 - d0) / (x1 - x0);
-        const q = from ? ease(clamp((S.worldX + (x0 + x1) / 2 - fx - c.x0) / (c.x1 - c.x0), 0, 1)) : 1;
-        const s0 = Math.max(x0, x), s1 = Math.min(x1, x + w);
-        if (s1 <= s0) continue;
-        ctx.save(); ctx.transform(1, kk, 0, 1, 0, d0 - kk * x0);
-        if (from) piece(from, 1, s0, s1);
-        piece(cur, q, s0, s1);
-        ctx.restore();
+    const slice = (L, a, s0, s1, x, w) => ART.slice(ctx, L.key, (s0 - x) / w, (s1 - x) / w, x, L.y, w, L.gh, satOf(L.g), Math.min(1, lightOf(L.g) * 0.8), a);
+    const draw = (L, a, s0, s1) => {
+      if (a <= 0.003) return;
+      if (L.tile) {
+        const t0 = (((S.worldX + s0 - fx) % L.tw) + L.tw) % L.tw, x = s0 - t0;
+        slice(L, a, s0, Math.min(s1, x + L.tw), x, L.tw);
+        if (s1 > x + L.tw) slice(L, a, x + L.tw, s1, x + L.tw, L.tw);
+        return;
       }
+      for (let i = 0; i < k; i++) {
+        const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f, a0 = Math.max(s0, x), a1 = Math.min(s1, x + w);
+        if (a1 <= a0) continue;
+        if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); slice(L, a, 2 * x + w - a1, 2 * x + w - a0, x, w); ctx.restore(); }
+        else slice(L, a, a0, a1, x, w);
+      }
+    };
+    const ext = cur.tile ? 0 : f, e0 = Math.max(sx(c.x0) - ext, -SW), e1 = Math.min(sx(c.x1) + ext, W + SW);
+    if (e1 <= e0) return true;
+    if (!bent && !from) { draw(cur, 1, e0, e1); return true; }
+    const m = ctx.getTransform(), ma = m.a || 1, D = Math.max(4, Math.round(SW * ma)), toX = dv => (dv - m.e) / ma;
+    for (let dv = Math.floor((e0 * ma + m.e) / D) * D; dv < e1 * ma + m.e; dv += D) {
+      const x0 = toX(dv), x1 = toX(dv + D), s0 = Math.max(x0, e0), s1 = Math.min(x1, e1);
+      if (s1 <= s0) continue;
+      const d0 = bent ? -terr(S.worldX + x0 - fx) : 0, d1 = bent ? -terr(S.worldX + x1 - fx) : 0, kk = (d1 - d0) / (x1 - x0);
+      const q = from ? ease(clamp((S.worldX + (x0 + x1) / 2 - fx - c.x0) / (c.x1 - c.x0), 0, 1)) : 1;
+      ctx.save(); ctx.transform(1, kk, 0, 1, 0, d0 - kk * x0);
+      if (from) draw(from, 1, s0, s1);
+      draw(cur, q, s0, s1);
+      ctx.restore();
     }
     return true;
   }
+
 
 
   function ground(ctx) {
