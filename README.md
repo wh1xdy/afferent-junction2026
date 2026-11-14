@@ -51,6 +51,7 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 - `demo/` the game and patient view (Capacitor web root)
 - `hub/` FastAPI hub: API, analytics, clinic dashboard, bedside link
+- `hub/afferent_hub/team/` teammates' hub code, copied byte-identical (never edit; source branch, commit and blob per file in `manifest.json`); glue in `hub/afferent_hub/team_adapters/`, features switched by `AFFERENT_TEAM_*` and `AFFERENT_DATA_MANAGER_URL`. Re-sync: `git fetch junction && (cd hub && .venv/bin/python -m afferent_hub.team_adapters.resync alex_hub)` (or `data_manager`)
 - `contracts/` JSON schemas and fixtures shared by game and hub
 - `design/` tokens, fonts and the final concept art
 - `art/` image and music generation plans and `generate.py`
