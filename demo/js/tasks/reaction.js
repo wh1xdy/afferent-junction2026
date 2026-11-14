@@ -266,7 +266,7 @@
     const U = g.U, x = g.x + g.W * 0.21, y = g.y - g.H * 0.01, p = (at - B.ghostPress) / 0.32;
     const press = p >= 0 && p < 1 && !J.rm() ? Math.sin(Math.PI * p) : 0;
     if (press > 0) J.sprite(ctx, 'glow', C.flame, x, y, 22 * U, 0.5 * press * B.ghostA / 0.62, true);
-    J.finger(ctx, x + 2 * U, y + (2 + 12 * (1 - press)) * U, 32 * U, B.ghostA);
+    J.touch(ctx, x, y, U, B.ghostA, press);
   };
 
   const drawPayoff = (ctx, B, g, at, rm) => {
