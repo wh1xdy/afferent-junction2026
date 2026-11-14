@@ -2,6 +2,7 @@
   "appId": "afferent-posture",
   "version": "0.1.0",
   "platform": "linux",
+  "isolation": "isolated",
   "env": {
     "CAMERA": "auto",
     "WIDTH": "1280",
@@ -15,17 +16,23 @@
     "EMOTION_ENABLED": "1",
     "RECORDING_ENABLED": "1",
     "RECORD_ANNOTATED": "1",
-    "DATA_MANAGER_URL": "http://127.0.0.1:8100",
-    "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}"
+    "DATA_MANAGER_URL": "http://10.99.0.2:8100",
+    "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}",
+    "PREVIEW_WIDTH": "640",
+    "PREVIEW_QUALITY": "55"
   },
   "entitlements": [
     {
       "type": "network",
-      "mode": "host"
-    },
-    {
-      "type": "http",
-      "port": 8000
+      "mode": "mesh",
+      "serviceCIDR": "10.99.0.0/16",
+      "ports": [
+        {
+          "host": 8000,
+          "container": 8000,
+          "protocol": "tcp"
+        }
+      ]
     },
     {
       "type": "camera"

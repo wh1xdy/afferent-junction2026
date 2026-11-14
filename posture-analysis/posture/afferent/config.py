@@ -72,6 +72,8 @@ class Config:
     recordings_dir: str = "/recordings"
     recording_enabled: bool = False
     record_annotated: bool = False  # write skeleton+angles overlay into videos
+    preview_width: int = 0          # live stream width in px (0 = native); recordings stay native
+    preview_quality: int = 70       # live stream JPEG quality
     # Optional push of minute aggregates to afferent-data-manager ("" = off)
     data_manager_url: str = ""
     data_manager_token: str = ""
@@ -130,6 +132,8 @@ class Config:
             recordings_dir=_env("RECORDINGS_DIR", "/recordings"),
             recording_enabled=_env_bool("RECORDING_ENABLED", False),
             record_annotated=_env_bool("RECORD_ANNOTATED", False),
+            preview_width=_env_int("PREVIEW_WIDTH", 0),
+            preview_quality=_env_int("PREVIEW_QUALITY", 70),
             data_manager_url=_env("DATA_MANAGER_URL", ""),
             data_manager_token=_env("DATA_MANAGER_TOKEN", ""),
             one_euro_min_cutoff=_env_float("ONE_EURO_MIN_CUTOFF", 1.0),

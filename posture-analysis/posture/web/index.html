@@ -66,7 +66,7 @@
     <div class="panel">
       <h2>Live view</h2>
       <div id="video-wrap">
-        <img id="stream" src="/stream.mjpg" alt="live">
+        <img id="stream" src="/frame.jpg" alt="live">
         <canvas id="calib-layer" width="1280" height="720"></canvas>
       </div>
       <div class="row">
@@ -435,6 +435,15 @@ setInterval(loadMinutes, 15000);
 setInterval(loadSessions, 15000);
 refresh(); loadMinutes(); loadSessions(); loadDays(); loadRecordings();
 setInterval(()=>{$('clock').textContent=new Date().toLocaleTimeString();},1000);
+</script>
+<script>
+(function framePoll(){
+  var im=document.getElementById("stream");
+  function tick(){ var n=new Image(); n.onload=function(){im.src=n.src;setTimeout(tick,600)};
+                   n.onerror=function(){setTimeout(tick,2000)};
+                   n.src="/frame.jpg?t="+Date.now(); }
+  tick();
+})();
 </script>
 </body>
 </html>

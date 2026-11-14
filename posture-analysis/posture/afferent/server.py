@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from .config import Config
@@ -69,6 +69,13 @@ def stream():
 
     return StreamingResponse(
         gen(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/frame.jpg")
+def frame_jpg():
+    jpeg = _pipeline().latest_jpeg() or _blank_jpeg()
+    return Response(content=jpeg, media_type="image/jpeg",
+                    headers={"Cache-Control": "no-store"})
 
 
 def _blank_jpeg() -> bytes:

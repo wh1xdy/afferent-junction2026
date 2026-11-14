@@ -724,8 +724,12 @@ class Pipeline:
     def _publish_preview(self, image: np.ndarray, res: dict) -> None:
         vis = self._annotate(image, res)
         self._latest_vis = vis
+        pw = self.cfg.preview_width
+        if 0 < pw < vis.shape[1]:
+            vis = cv2.resize(vis, (pw, round(vis.shape[0] * pw / vis.shape[1])),
+                             interpolation=cv2.INTER_AREA)
         ok, buf = cv2.imencode(".jpg", vis,
-                               [cv2.IMWRITE_JPEG_QUALITY, 70])
+                               [cv2.IMWRITE_JPEG_QUALITY, self.cfg.preview_quality])
         if ok:
             with self._preview_lock:
                 self._preview_jpeg = buf.tobytes()
