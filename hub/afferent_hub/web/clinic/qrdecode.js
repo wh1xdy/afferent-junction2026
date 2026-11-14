@@ -7,7 +7,7 @@
     const Q = codec();
     if (!Q) return { status: 'unavailable' };
     let r;
-    try { r = Q.decode(String(text || '').trim(), { now: now * 1000 }); } catch { return { status: 'invalid' }; }
+    try { r = Q.decode(String(text || ''), { now: now * 1000 }); } catch { return { status: 'invalid' }; }
     const status = STATUS[r.status] || 'invalid';
     if (status === 'part') return { status, text };
     return { status, reason: r.reason, iat: r.iat, exp: r.exp, cti: r.cti, pub: r.publicKey, fp: r.fingerprint, body: r.body };
