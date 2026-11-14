@@ -21,6 +21,7 @@ import math
 from typing import Sequence
 
 MAD_TO_SD = 1.4826   # MAD of a normal distribution * 1.4826 = SD
+MIN_BASELINE = 5     # days needed before robust_z answers
 
 
 def _norm_sf(z: float) -> float:
@@ -112,22 +113,26 @@ def sen_slope(xs: Sequence[float], ys: Sequence[float]) -> float | None:
 def robust_z(value: float, history: Sequence[float]) -> dict:
     """How unusual is `value` compared with `history` (the personal baseline)?
 
-    z = (value - median) / (1.4826 * MAD). Falls back to the SD if MAD is 0
-    (very flat history); None if the history is too short (< 5 points).
+    z = (value - median) / (1.4826 * MAD). Falls back to the SD when the MAD is 0
+    (mostly identical days). When the history has no variation at all, z is None
+    and `flat` is True: the caller decides (any change from a flat baseline is
+    outside it). None when the history is too short (< MIN_BASELINE points).
     """
     h = list(history)
-    if len(h) < 5 or value is None:
+    if len(h) < MIN_BASELINE or value is None:
         return {"baseline_n": len(h), "baseline_median": _r(median(h)) if h else None,
-                "baseline_spread": None, "z": None}
+                "baseline_spread": None, "z": None, "flat": False}
     med = median(h)
     mad = median([abs(v - med) for v in h])
     spread = mad * MAD_TO_SD
     if not spread:
         d = describe(h)
         spread = d["std"] or 0.0
-    z = (value - med) / spread if spread else None
+    if not spread:
+        return {"baseline_n": len(h), "baseline_median": _r(med), "baseline_spread": 0.0,
+                "z": None, "flat": True}
     return {"baseline_n": len(h), "baseline_median": _r(med), "baseline_spread": _r(spread),
-            "z": _r(z, 2)}
+            "z": _r((value - med) / spread, 2), "flat": False}
 
 
 def pearson(xs: Sequence[float], ys: Sequence[float]) -> float | None:

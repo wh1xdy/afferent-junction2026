@@ -36,6 +36,7 @@ from __future__ import annotations
 import collections
 import json
 import logging
+import math
 import os
 import socket
 import threading
@@ -52,6 +53,37 @@ class DataManagerError(Exception):
     def __init__(self, msg: str, status: int | None = None):
         super().__init__(msg)
         self.status = status
+
+
+CLOCK_SKEW_WARN_S = 60     # warn when this device's clock is further off the server's
+MDNS_FAILOVER_AFTER = 3    # consecutive connection failures before trying another advert
+
+
+def _num(v, what: str) -> float:
+    if isinstance(v, bool):
+        raise ValueError(f"{what} must be a number, not a bool")
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        raise ValueError(f"{what} must be a number, got {type(v).__name__}") from None
+    if not math.isfinite(x):
+        raise ValueError(f"{what} must be finite")
+    return x
+
+
+def _ts(v):
+    """Keep ISO strings as they are, coerce everything else to a finite number."""
+    return v if isinstance(v, str) else _num(v, "timestamp")
+
+
+def _meta(m) -> dict:
+    if not isinstance(m, dict):
+        raise ValueError("meta must be a dict")
+    try:
+        json.dumps(m, allow_nan=False)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"meta is not JSON-serialisable: {e}") from None
+    return m
 
 
 class Window:
@@ -121,7 +153,12 @@ class DataManagerClient:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self.sent = {"samples": 0, "events": 0, "rejected": 0}
+        self.dropped = 0                  # items refused at enqueue (not a number, bad meta …)
+        self.clock_skew_s: float | None = None   # server clock - local clock, from server_time
         self.last_error: str | None = None
+        self._url_from_mdns = False
+        self._mdns_seen: dict[str, str] = {}     # service name -> url
+        self._conn_failures = 0
         self._last_reject: list = []
         self._zc = None
         self._thread = None
@@ -135,32 +172,52 @@ class DataManagerClient:
 
     # ── public API ──────────────────────────────────────────────────────────
     def sample(self, metric: str, value: float, ts=None, quality: float | None = None,
-               meta: dict | None = None, source: str | None = None):
+               meta: dict | None = None, source: str | None = None) -> bool:
+        """Queue one sample. Returns False (and logs) if it was dropped as invalid.
+
+        Values are coerced to float here (numpy scalars, Decimal …), so nothing that
+        cannot be sent as JSON ever enters the queue and blocks the items behind it.
+        """
         if not self.enabled or value is None:
-            return
-        item = {"metric": metric, "value": value, "ts": ts if ts is not None else time.time(),
-                "source": source or self.source}
-        if quality is not None:
-            item["quality"] = quality
-        if meta:
-            item["meta"] = meta
+            return False
+        try:
+            item = {"metric": str(metric), "value": _num(value, "value"),
+                    "ts": time.time() if ts is None else _ts(ts), "source": str(source or self.source)}
+            if quality is not None:
+                item["quality"] = _num(quality, "quality")
+            if meta:
+                item["meta"] = _meta(meta)
+        except ValueError as e:
+            return self._drop(f"sample {metric!r}: {e}")
         self._samples.append(item)
         if len(self._samples) >= self.batch_size:
             self._wake.set()
+        return True
 
     def interval(self, kind: str, start, end=None, value: float | None = None, id: str | None = None,
-                 meta: dict | None = None, source: str | None = None):
+                 meta: dict | None = None, source: str | None = None) -> bool:
+        """Queue one interval (open if end is None). Returns False if dropped as invalid."""
         if not self.enabled:
-            return
-        item = {"kind": kind, "start": start, "end": end, "source": source or self.source}
-        if value is not None:
-            item["value"] = value
-        if id is not None:
-            item["id"] = str(id)
-        if meta:
-            item["meta"] = meta
+            return False
+        try:
+            item = {"kind": str(kind), "start": _ts(start), "end": None if end is None else _ts(end),
+                    "source": str(source or self.source)}
+            if value is not None:
+                item["value"] = _num(value, "value")
+            if id is not None:
+                item["id"] = str(id)
+            if meta:
+                item["meta"] = _meta(meta)
+        except ValueError as e:
+            return self._drop(f"interval {kind!r}: {e}")
         self._events.append(item)
         self._wake.set()
+        return True
+
+    def _drop(self, why: str) -> bool:
+        self.dropped += 1
+        log.warning("data manager: dropped invalid %s", why)
+        return False
 
     def get(self, path: str, timeout_s: float | None = None, **params) -> dict:
         """GET a read endpoint, e.g. get("/api/v1/stats", metric="env.co2_ppm", source="co2").
@@ -208,8 +265,10 @@ class DataManagerClient:
             self._zc.close()
 
     def status(self) -> dict:
-        return {"enabled": self.enabled, "url": self.url, "queued_samples": len(self._samples), "queued_events": len(self._events),
-                "sent": dict(self.sent), "last_error": self.last_error, "last_rejected": self._last_reject[:3]}
+        return {"enabled": self.enabled, "url": self.url, "url_from_mdns": self._url_from_mdns,
+                "queued_samples": len(self._samples), "queued_events": len(self._events),
+                "sent": dict(self.sent), "dropped": self.dropped, "clock_skew_s": self.clock_skew_s,
+                "last_error": self.last_error, "last_rejected": self._last_reject[:3]}
 
     # ── internals ───────────────────────────────────────────────────────────
     def _discover(self):
@@ -228,8 +287,7 @@ class DataManagerClient:
             if info and info.properties.get(b"role") == b"data-manager":
                 addrs = [socket.inet_ntoa(a) for a in info.addresses if len(a) == 4]
                 if addrs:
-                    self.url = f"http://{addrs[0]}:{info.port}"
-                    log.info("data manager found at %s", self.url)
+                    self._on_advert(name, f"http://{addrs[0]}:{info.port}")
 
         try:
             self._zc = Zeroconf(interfaces=self.mdns_interfaces) if self.mdns_interfaces else Zeroconf()
@@ -237,13 +295,54 @@ class DataManagerClient:
         except Exception as e:
             self.last_error = f"mDNS: {e}"
 
+    def _on_advert(self, name: str, url: str):
+        """First data-manager advert wins. A later or different advert never silently
+        replaces a working server (that is what let a stray advert capture the data and,
+        with a token set, the token); it is only used after the current one failed
+        MDNS_FAILOVER_AFTER times in a row."""
+        with self._lock:
+            self._mdns_seen[name] = url
+            if self.url is None:
+                self.url, self._url_from_mdns = url, True
+                log.info("data manager found at %s (mDNS)", url)
+                if self.token:
+                    log.warning("data manager: sending the API token to an mDNS-discovered host; "
+                                "set DATA_MANAGER_URL to pin it")
+            elif url != self.url:
+                log.info("data manager: ignoring other advert %s (using %s)", url, self.url)
+
+    def _note_connection(self, ok: bool):
+        if ok:
+            self._conn_failures = 0
+            return
+        self._conn_failures += 1
+        if self._url_from_mdns and self._conn_failures >= MDNS_FAILOVER_AFTER:
+            with self._lock:
+                others = [u for u in self._mdns_seen.values() if u != self.url]
+                if others:
+                    log.warning("data manager %s unreachable %d times, switching to %s",
+                                self.url, self._conn_failures, others[-1])
+                    self.url = others[-1]
+                    self._conn_failures = 0
+
     def _post(self, path: str, body: dict) -> dict:
         req = urllib.request.Request(self.url + path, data=json.dumps(body).encode(), method="POST",
                                      headers={"Content-Type": "application/json"})
         if self.token:
             req.add_header("Authorization", f"Bearer {self.token}")
+        t0 = time.time()
         with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
-            return json.loads(r.read().decode())
+            res = json.loads(r.read().decode())
+        t1 = time.time()
+        st = res.get("server_time") if isinstance(res, dict) else None
+        if isinstance(st, (int, float)):
+            skew = round(st / 1000 - (t0 + t1) / 2, 1)
+            if abs(skew) > CLOCK_SKEW_WARN_S and (self.clock_skew_s is None
+                                                 or abs(skew - self.clock_skew_s) > CLOCK_SKEW_WARN_S):
+                log.warning("data manager: this device's clock is %+.0f s off the server's; "
+                            "timestamps will be wrong (check NTP)", -skew)
+            self.clock_skew_s = skew
+        return res
 
     def _send_queue(self, q: collections.deque, path: str, key: str) -> bool:
         with self._lock:
@@ -252,7 +351,16 @@ class DataManagerClient:
             return True
         try:
             res = self._post(path, {key: batch})
+            self._note_connection(True)
+        except (TypeError, ValueError) as e:
+            # unreachable in practice (items are validated at enqueue), but never let one
+            # unserialisable batch sit at the head of the queue forever
+            self.last_error = f"unsendable batch dropped: {e}"
+            log.error("data manager: %s", self.last_error)
+            self.dropped += len(batch)
+            return True
         except urllib.error.HTTPError as e:
+            self._note_connection(True)
             if 400 <= e.code < 500 and e.code not in (401, 408, 429):
                 # the batch itself is bad: retrying will not help
                 self.last_error = f"HTTP {e.code}: {e.read()[:200]!r}"
@@ -261,6 +369,7 @@ class DataManagerClient:
             self._requeue(q, batch, f"HTTP {e.code}")
             return False
         except Exception as e:
+            self._note_connection(False)
             self._requeue(q, batch, str(e))
             return False
         self.sent[key] += res.get("accepted", 0)

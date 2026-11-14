@@ -27,14 +27,16 @@ In the examples: `DM=http://localhost:8100`.
 
 ### Authentication
 
-If the service runs with `API_TOKEN`, every `/api/*` request needs
+Every `/api/*` request needs
 
 ```
 Authorization: Bearer <API_TOKEN>
 ```
 
-otherwise → `401 {"error": "missing or wrong bearer token"}`. `/health` is always open.
-This is health data: always set a token in real use.
+otherwise → `401 {"error": "missing or wrong bearer token"}` (reads, writes and deletes
+alike). `/health` is always open. The service **refuses to start without `API_TOKEN`**
+(`API_TOKEN is not set …`, exit code 2) unless `ALLOW_NO_AUTH=1`, which opens the whole
+API and is for local development only. Generate a token with `openssl rand -hex 16`.
 
 ### Conventions
 
@@ -42,10 +44,10 @@ This is health data: always set a token in real use.
 |---|---|
 | Format | JSON in and out (`Content-Type: application/json`), UTF-8. |
 | Timestamps (stored) | epoch **milliseconds**, UTC (`ts`, `start`, `end`). Responses also carry ISO strings in the home time zone (`time`, `start_time`, `end_time`). |
-| Timestamps (input) | epoch seconds (`1794642860.5`), epoch ms (any number > 1e11), ISO 8601 (`2026-11-14T18:05:00+01:00`, `…Z`, `2026-11-14`). **Query parameters only** also accept `now`, `-30m`, `-24h`, `-7d`. |
+| Timestamps (input) | epoch seconds (`1794642860.5`), epoch ms (any number > 1e11), ISO 8601 (`2026-11-14T18:05:00+01:00`, `…Z`, `2026-11-14`), between 1970 and 2100. **Query parameters only** also accept `now`, `-30m`, `-24h`, `-7d`. |
 | Days | local calendar days in `TZ_NAME` (`YYYY-MM-DD`), DST-safe. Wherever a `day` is expected you can also pass a time (`-1d` = yesterday). |
 | Metric names | `group.name_unit`, lowercase, e.g. `env.co2_ppm`. Only catalog metrics are accepted (§3). |
-| Sources | who measured it: 1–64 chars `[A-Za-z0-9._/:-]`, e.g. `modulino-hub/finger1`. Use one source per sensor / context. |
+| Sources | who measured it: 1–64 chars `[A-Za-z0-9._/:-]`, e.g. `modulino-hub`. Use one source per sensor / context. A measurement with a different error profile is a different *metric* (camera heart rate is `vitals.heart_rate_camera_bpm`), not a source. |
 | CORS | `Access-Control-Allow-Origin: *`: a browser dashboard can call the API directly. |
 | Trailing slash | ignored (`/api/v1/latest/` = `/api/v1/latest`). |
 | Versioning | everything is under `/api/v1`. Fields may be **added** within v1; renaming or removing a field means `/api/v2`. Clients should ignore unknown fields. |
@@ -87,8 +89,8 @@ Body: a batch (preferred), a bare list, or one sample.
   "source": "modulino-hub",
   "samples": [
     {"metric": "env.temperature_c", "value": 21.4},
-    {"metric": "vitals.heart_rate_bpm", "value": 76, "quality": 0.62, "source": "modulino-hub/finger1"},
-    {"metric": "vitals.heart_rate_bpm", "value": 310, "source": "modulino-hub/finger1"},
+    {"metric": "vitals.heart_rate_bpm", "value": 76, "quality": 0.62},
+    {"metric": "vitals.heart_rate_bpm", "value": 310},
     {"metric": "env.co2", "value": 600}
   ]
 }
@@ -111,18 +113,32 @@ Response (`200`):
   "rejected": [
     {"index": 2, "metric": "vitals.heart_rate_bpm", "reason": "value 310 above plausible maximum 220.0 bpm"},
     {"index": 3, "metric": "env.co2", "reason": "unknown metric 'env.co2' (register it with POST /api/v1/metrics)"}
-  ]
+  ],
+  "server_time": 1794655809570
 }
 ```
 
-Rejected reasons: unknown metric, sample sent to an interval metric, value missing / NaN /
-out of range, bad source, `meta` not an object or > 4 KB, timestamp unparseable, more than
+`accepted` is the number of rows actually written. `server_time` (epoch ms) lets a
+producer check its own clock (the Python client does it for you, see §6).
+
+Rejected reasons: unknown metric, sample sent to an interval metric, a field of the wrong
+type (a list as `metric` …), value missing / NaN / out of range, bad source, `meta` not an
+object or > 4 KB, timestamp unparseable / infinite / outside 1970–2100, more than
 `MAX_FUTURE_S` (default 5 min) in the future (fix the producer's clock), older than the raw
-retention window (default 180 days).
+retention window (default 180 days). A malformed item never fails the rest of its batch.
 
 **Idempotent**: a sample is keyed by `(metric, source, ts)`. Re-sending it (retry after a
-timeout) overwrites, never duplicates. Two different values at the same millisecond from the
-same source are therefore one sample.
+timeout) overwrites, never duplicates. Two items of the **same batch** with the same key are
+one row too: the later one is stored and the earlier one is listed in `rejected`. That is
+what happens to a batch sent without `ts` (every item gets the receipt time):
+
+```json
+{"accepted": 1, "rejected": [{"index": 0, "metric": "env.co2_ppm",
+  "reason": "overwritten by item 1: same metric, source and ts (send a distinct ts per sample)"}],
+ "server_time": 1794655809585}
+```
+
+So: always send `ts` when you batch.
 
 **Rates**: send derived values — a BPM every few seconds, a minute median of an angle,
 climate once a minute. Raw waveforms (45 Hz PPG, video) do not belong here.
@@ -162,7 +178,8 @@ curl -X POST $DM/api/v1/events -H 'Content-Type: application/json' -d '{"source"
 {"accepted": 1, "events": [{"index": 0, "id": 87, "ext_id": "visit-demo"}], "rejected": []}
 ```
 
-`id` in the response (`87`) is the internal id, used by `DELETE`.
+`id` in the response (`87`) is the internal id, used by `DELETE`. Responses also carry
+`server_time`, as for samples.
 
 ### `DELETE /api/v1/events/{id}`
 
@@ -206,7 +223,10 @@ until it lands, only direct API calls write data):
 | `env.temperature_c` | sample | °C | −20…60 | `modulino-hub` (mean / 60 s) |
 | `env.humidity_pct` | sample | %RH | 0…100 | `modulino-hub` (mean / 60 s) |
 | `env.co2_ppm` | sample | ppm | 250…10000 | future CO2 sensor |
-| `vitals.heart_rate_bpm` | sample | bpm | 30…220 | `modulino-hub/finger1`, `modulino-hub/finger2` (median / 10 s, `quality` = autocorrelation quality); `afferent-vision/rppg` (`quality` = trust score / 100) |
+| `vitals.heart_rate_bpm` | sample | bpm | 30…220 | contact sensors: `modulino-hub` (fused finger reading, only while a finger is on the clip) |
+| `vitals.heart_rate_camera_bpm` | sample | bpm | 30…220 | `afferent-vision` (fused rPPG, `quality` = trust score / 100) |
+| `vitals.hrv_rmssd_ms` | sample | ms | 1…300 | `modulino-hub` |
+| `vitals.breathing_rate_per_min` | sample | /min | 3…60 | `modulino-hub` |
 | `posture.trunk_inclination_deg` | sample | deg | −90…90 | `posture/<site>/<activity>-<orientation>`, minute medians, standing / walking only |
 | `posture.head_trunk_angle_deg` | sample | deg | 0…180 | same as above |
 | `presence.home` | interval | | | `afferent-presence` |
@@ -218,7 +238,16 @@ until it lands, only direct API calls write data):
 ## 4. Reading data
 
 All read endpoints are `GET`. Ranges default to something sensible, so most calls only
-need `metric`. `source` omitted = all sources pooled.
+need `metric`. `source` omitted = all sources pooled: `/series`, `/daily`, `/stats`,
+`/trend` and `/baseline` then list them in `sources_pooled`, and add a `warning` when there
+is more than one, because pooling two sensors is rarely what you want:
+
+```json
+{"metric": "vitals.heart_rate_bpm", "kind": "sample", "unit": "bpm", "tz": "Europe/Paris",
+ "sources_pooled": ["modulino-hub", "sim/finger1"],
+ "warning": "2 sources pooled; pass source=<one of sources_pooled> to compare like with like",
+ "days": ["…"]}
+```
 
 | Endpoint | Question it answers | Main parameters (default) |
 |---|---|---|
@@ -229,7 +258,7 @@ need `metric`. `source` omitted = all sources pooled.
 | [`/summary`](#summary) | everything about one day | `day` (today) |
 | [`/stats`](#stats) | distribution over a period | `metric`, `source`, `from` (-7d; -30d for intervals), `to`, `min_quality` |
 | [`/trend`](#trend) | is it going up or down over days? | `metric`, `source`, `from` (-30d), `to`, `stat`, `min_hours` (0) |
-| [`/baseline`](#baseline) | is this day unusual for this person? | `metric`, `source`, `day` (today), `days` (14), `stat`, `min_hours` (4), `z` (2) |
+| [`/baseline`](#baseline) | is this day unusual for this person? | `metric`, `source`, `day` (today), `days` (14), `stat`, `min_hours` (per metric), `z` (2) |
 | [`/profile`](#profile) | what does a typical day look like? | `metric`, `source`, `from` (-14d), `to` |
 | [`/correlation`](#correlation) | do two signals move together? | `a`, `b`, `source_a`, `source_b`, `from` (-7d), `to`, `bucket` (1h) |
 | [`/events`](#events) | list of intervals | `kind`, `source`, `from` (-7d), `to`, `limit` |
@@ -244,14 +273,16 @@ need `metric`. `source` omitted = all sources pooled.
 
 ```json
 {"latest": [
-  {"metric": "env.co2_ppm", "source": "sim/co2", "ts": 1794648900000, "value": 825.0,
-   "quality": null, "unit": "ppm", "time": "2026-11-14T10:35:00+01:00", "age_s": 295},
-  {"metric": "env.temperature_c", "source": "modulino-hub", "ts": 1794649195323, "value": 21.4,
-   "quality": null, "unit": "°C", "time": "2026-11-14T10:39:55+01:00", "age_s": 0},
+  {"metric": "env.co2_ppm", "source": "demo", "ts": 1794655809585, "value": 610.0, "quality": null,
+   "unit": "ppm", "lag_s": 0.0, "time": "2026-11-14T12:30:09+01:00", "age_s": 0},
+  {"metric": "env.co2_ppm", "source": "sim/co2", "ts": 1794655800000, "value": 878.0, "quality": null,
+   "unit": "ppm", "lag_s": 9.5, "time": "2026-11-14T12:30:00+01:00", "age_s": 10},
   "…"]}
 ```
 
-`age_s` tells you whether a producer has gone quiet.
+`age_s` (now − measurement) tells you whether a producer has gone quiet. `lag_s` (receipt −
+measurement) tells you about its clock: a few seconds is normal batching, a large steady
+lag means the producer's clock is slow (a fast clock is rejected outright).
 
 <a id="samples"></a>
 ### `GET /api/v1/samples`
@@ -405,14 +436,24 @@ curl "$DM/api/v1/baseline?metric=posture.trunk_inclination_deg&day=-1d"
 ```
 ```json
 {"metric": "posture.trunk_inclination_deg", "source": "*", "stat": "median", "day": "2026-11-13",
- "value": 15.7, "unit": "deg", "baseline_days": 14, "baseline_n": 14, "baseline_median": 8.05,
- "baseline_spread": 0.815, "z": 9.38, "z_flag": 2.0, "verdict": "above usual range",
- "note": "exploratory, relative to this person's own history - not a diagnosis"}
+ "value": 15.7, "unit": "deg", "baseline_days": 14, "min_hours": 1.0, "baseline_n": 14,
+ "baseline_median": 8.05, "baseline_spread": 0.815, "z": 9.38, "flat": false, "z_flag": 2.0,
+ "verdict": "above usual range",
+ "note": "exploratory, relative to this person's own history - not a diagnosis",
+ "sources_pooled": ["sim/posture"]}
 ```
 
+**Flat history**: when every baseline day has the same value (`baseline_spread: 0`), `z` is
+`null` and `flat` is `true`; the verdict is still given: `within usual range` if the day
+equals it, `above` / `below usual range` otherwise.
+
+**`min_hours`** (days with fewer observed hours are left out of the baseline) defaults per
+metric: 4 for environment and presence, 1 for posture (only measured while standing in
+view), 0 for spot-check vitals (heart rate, HRV, breathing: a 10-minute finger session is a
+valid day). Pass `min_hours` to override; the value used is in the response.
+
 Other `verdict` values: `within usual range`, `no data for this day`,
-`baseline too short (needs >= 5 days)`. Baseline days with fewer than `min_hours` observed
-hours are ignored (sample metrics). For an interval metric on **today**, the value is the
+`baseline too short (needs >= 5 days)`. For an interval metric on **today**, the value is the
 partial day so far: compare yesterday (`day=-1d`) for a fair answer.
 
 <a id="profile"></a>
@@ -467,10 +508,10 @@ curl "$DM/api/v1/events?kind=presence.guest_visit&from=-1h"
 
 ```sh
 curl $DM/health
-{"ok": true, "version": "0.1.0", "uptime_s": 18, "ingested_since_start": {"samples": 29854, "events": 88, "rejected": 3}}
+{"ok": true, "version": "0.2.0", "uptime_s": 18, "ingested_since_start": {"samples": 29854, "events": 88, "rejected": 3}}
 curl $DM/api/v1/info
 {"path": "/tmp/dmx/data_manager.db", "tz": "Europe/Paris", "raw_retention_days": 180.0, "size_mb": 3.4,
- "samples": 29854, "events": 87, "daily_rows": 288, "version": "0.1.0", "auth": false, "now": "2026-11-14T10:40:11+01:00"}
+ "samples": 29854, "events": 87, "daily_rows": 288, "version": "0.2.0", "auth": false, "now": "2026-11-14T10:40:11+01:00"}
 ```
 
 ---
@@ -484,21 +525,22 @@ curl $DM/api/v1/info
 | Is the patient going out less and less? | `/trend?metric=presence.outing&stat=minutes&from=-30d` |
 | Was yesterday unusually isolated? | `/baseline?metric=presence.outing&day=-1d` (low z = fewer minutes out than usual) |
 | Visits this month: how many, how long, how many people? | `/daily?metric=presence.guest_visit&from=-30d` → `occurrences`, `minutes`, `max_value`; details: `/events?kind=presence.guest_visit&from=-30d` |
-| Heart rate over the last 2 hours, finger 1 | `/series?metric=vitals.heart_rate_bpm&source=modulino-hub/finger1&from=-2h&bucket=1m` |
-| Do the camera and the finger agree? | `/correlation?a=vitals.heart_rate_bpm&source_a=modulino-hub/finger1&b=vitals.heart_rate_bpm&source_b=afferent-vision/rppg&bucket=1m&from=-1d` |
-| Only trustworthy camera readings | `/samples?metric=vitals.heart_rate_bpm&source=afferent-vision/rppg&min_quality=0.7` |
-| Resting heart rate pattern over the day | `/profile?metric=vitals.heart_rate_bpm&source=modulino-hub/finger1&from=-28d` |
-| Is standing posture worse than usual? | `/baseline?metric=posture.trunk_inclination_deg&source=posture/<site>/standing-profile&day=-1d&min_hours=1` (same for `posture.head_trunk_angle_deg`) |
+| Heart rate over the last 2 hours (finger clip) | `/series?metric=vitals.heart_rate_bpm&source=modulino-hub&from=-2h&bucket=1m` |
+| Do the camera and the finger agree? | `/correlation?a=vitals.heart_rate_bpm&source_a=modulino-hub&b=vitals.heart_rate_camera_bpm&bucket=1m&from=-1d` |
+| Only trustworthy camera readings | `/samples?metric=vitals.heart_rate_camera_bpm&min_quality=0.7` |
+| Resting heart rate pattern over the day | `/profile?metric=vitals.heart_rate_bpm&source=modulino-hub&from=-28d` |
+| Is HRV lower than usual? | `/baseline?metric=vitals.hrv_rmssd_ms&source=modulino-hub&day=-1d` |
+| Is standing posture worse than usual? | `/baseline?metric=posture.trunk_inclination_deg&source=posture/<site>/standing-profile&day=-1d` (same for `posture.head_trunk_angle_deg`) |
 | Is posture drifting over the month? | `/trend?metric=posture.head_trunk_angle_deg&source=posture/<site>/standing-profile&from=-30d` |
 | Is the bedroom stuffy at night? | `/profile?metric=env.co2_ppm&from=-14d` (hours 0–6) |
 | "Right now" dashboard tile | `/latest` + `/summary` |
 | Is a producer down? | `/latest` → `age_s` per source |
+| Is a producer's clock wrong? | `/latest` → `lag_s` per source (large = slow clock); a fast clock shows up as `rejected` "in the future" |
 
 Use a posture source that matches one context (`…/standing-profile`, `…/walking-profile`,
 `…/standing-face`): the pooled `source=*` mixes orientations, which are not comparable.
-Posture only arrives while the person is standing in view, so a day rarely covers 4
-distinct hours: pass `min_hours=1` to `/baseline`, otherwise most days are left out of the
-baseline.
+Posture only arrives while the person is standing in view, so its baseline counts any day
+with at least 1 observed hour (the metric's default `min_hours`).
 
 ---
 
@@ -509,6 +551,16 @@ baseline.
 Copy [`client/data_manager_client.py`](client/data_manager_client.py) (stdlib only).
 Writes are queued and sent by a background thread (never block, never raise); reads are
 synchronous and raise `DataManagerError`.
+
+- `sample()` / `interval()` validate at enqueue and return `False` for an item that could
+  not be sent (a value that is not a finite number, `meta` that is not JSON-serialisable …):
+  it is logged and counted in `status()["dropped"]` instead of blocking the queue. Numpy
+  scalars and `Decimal` are converted to `float`.
+- Every write response updates `status()["clock_skew_s"]` (server clock − this device's);
+  beyond 60 s a warning is logged.
+- mDNS: the first `role=data-manager` advert wins, and a working server is never replaced
+  by a later advert; another one is only tried after 3 failed connections in a row. When
+  you hold a token, pin the server with `DATA_MANAGER_URL` anyway.
 
 ```python
 from data_manager_client import DataManagerClient, DataManagerError, Downsampler
@@ -534,7 +586,7 @@ try:
 except DataManagerError as e:
     print(e.status, e)                                # 400 unknown metric 'nope.metric' …
 
-print(dm.status())   # url, queued, sent, rejected, last_error
+print(dm.status())   # url, queued, sent, rejected, dropped, clock_skew_s, last_error
 dm.close()           # flush on shutdown
 ```
 
@@ -561,7 +613,7 @@ async function dm(path, params = {}) {
   return body;
 }
 const { series } = await dm("/api/v1/series",
-  { metric: "vitals.heart_rate_bpm", source: "modulino-hub/finger1", from: "-2h", bucket: "1m" });
+  { metric: "vitals.heart_rate_bpm", source: "modulino-hub", from: "-2h", bucket: "1m" });
 const points = series.map(p => ({ x: new Date(p.ts), y: p.mean }));
 ```
 
@@ -591,4 +643,7 @@ let days = try JSONDecoder().decode(DailyResponse.self, from: data).days
   `age_s` / health for intervals. Fewer observed hours, not a change in the person, is the
   most common cause of an "unusual" day.
 - Compare like with like: one source per sensor and, for posture, one context per source.
+  A `warning` in a response means several sources were pooled.
+- Check the clocks: `lag_s` in `/latest`, `clock_skew_s` in the client. A board without NTP
+  puts its data on the wrong day.
 - A trend needs about 10 days; a baseline needs at least 5 (14 by default).

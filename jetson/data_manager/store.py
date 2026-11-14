@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS metric (
     max REAL,
     description TEXT,
     builtin INTEGER NOT NULL DEFAULT 0,
-    created INTEGER NOT NULL           -- epoch ms
+    created INTEGER NOT NULL,          -- epoch ms
+    baseline_min_hours REAL            -- NULL = catalog.DEFAULT_BASELINE_MIN_HOURS
 );
 CREATE TABLE IF NOT EXISTS sample (
     metric TEXT NOT NULL,
@@ -103,6 +104,18 @@ class IngestError(ValueError):
     pass
 
 
+def _echo(item, key):
+    """The offending field, for the rejection report (short, JSON-safe)."""
+    if not isinstance(item, dict):
+        return None
+    v = item.get(key)
+    return v if v is None or isinstance(v, str) else repr(v)[:80]
+
+
+def _reason(e: Exception) -> str:
+    return str(e) if isinstance(e, IngestError) else f"invalid item: {type(e).__name__}: {e}"[:200]
+
+
 def _finite(v) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
@@ -125,13 +138,18 @@ class Store:
             if self._w.execute("SELECT 1 FROM schema_version").fetchone() is None:
                 self._w.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
             now = tu.now_ms()
+            cols = {r["name"] for r in self._w.execute("PRAGMA table_info(metric)")}
+            if "baseline_min_hours" not in cols:          # DB created by v0.1.0
+                self._w.execute("ALTER TABLE metric ADD COLUMN baseline_min_hours REAL")
             for name, d in catalog.BUILTIN.items():
                 self._w.execute(
-                    "INSERT INTO metric(name, kind, unit, min, max, description, builtin, created)"
-                    " VALUES (?,?,?,?,?,?,1,?) ON CONFLICT(name) DO UPDATE SET kind=excluded.kind,"
-                    " unit=excluded.unit, min=excluded.min, max=excluded.max,"
-                    " description=excluded.description, builtin=1",
-                    (name, d["kind"], d["unit"], d["min"], d["max"], d["description"], now))
+                    "INSERT INTO metric(name, kind, unit, min, max, description, builtin, created,"
+                    " baseline_min_hours) VALUES (?,?,?,?,?,?,1,?,?) ON CONFLICT(name) DO UPDATE SET"
+                    " kind=excluded.kind, unit=excluded.unit, min=excluded.min, max=excluded.max,"
+                    " description=excluded.description, builtin=1,"
+                    " baseline_min_hours=excluded.baseline_min_hours",
+                    (name, d["kind"], d["unit"], d["min"], d["max"], d["description"], now,
+                     d.get("baseline_min_hours")))
             # a metric dropped from the catalog keeps its data but becomes a regular one
             marks = ",".join("?" * len(catalog.BUILTIN))
             self._w.execute(f"UPDATE metric SET builtin=0 WHERE builtin=1 AND name NOT IN ({marks})",
@@ -175,6 +193,8 @@ class Store:
         return self._metrics_cache
 
     def metric(self, name: str, kind: str | None = None) -> dict:
+        if not isinstance(name, str):
+            raise IngestError("metric must be a string")
         m = self.metrics().get(name)
         if m is None:
             raise IngestError(f"unknown metric {name!r} (register it with POST /api/v1/metrics)")
@@ -191,10 +211,12 @@ class Store:
             if existing and existing["kind"] != d["kind"]:
                 raise IngestError(f"{name!r} already exists as a {existing['kind']}")
             self._w.execute(
-                "INSERT INTO metric(name, kind, unit, min, max, description, builtin, created)"
-                " VALUES (?,?,?,?,?,?,0,?) ON CONFLICT(name) DO UPDATE SET unit=excluded.unit,"
-                " min=excluded.min, max=excluded.max, description=excluded.description",
-                (name, d["kind"], d["unit"], d["min"], d["max"], d["description"], tu.now_ms()))
+                "INSERT INTO metric(name, kind, unit, min, max, description, builtin, created,"
+                " baseline_min_hours) VALUES (?,?,?,?,?,?,0,?,?) ON CONFLICT(name) DO UPDATE SET"
+                " unit=excluded.unit, min=excluded.min, max=excluded.max,"
+                " description=excluded.description, baseline_min_hours=excluded.baseline_min_hours",
+                (name, d["kind"], d["unit"], d["min"], d["max"], d["description"], tu.now_ms(),
+                 d["baseline_min_hours"]))
             self._w.commit()
             self._metrics_cache = None
         return self.metrics()[name]
@@ -244,9 +266,16 @@ class Store:
 
     # ── ingestion ────────────────────────────────────────────────────────────
     def add_samples(self, items: list[dict], default_source: str | None = None) -> dict:
-        """Validate and upsert samples. Invalid items are reported, valid ones kept."""
+        """Validate and upsert samples. Invalid items are reported, valid ones kept.
+
+        Two items of one batch with the same (metric, source, ts) are one sample: the
+        later one wins and the earlier one is reported in `rejected`, so `accepted`
+        is the number of rows actually stored. Items without `ts` all get the receipt
+        time, which is why a batch should always carry timestamps.
+        """
         now = tu.now_ms()
-        rows, rejected, dirty = [], [], set()
+        by_key: dict[tuple, tuple[int, tuple, list]] = {}
+        rejected = []
         for i, it in enumerate(items):
             try:
                 if not isinstance(it, dict):
@@ -258,11 +287,20 @@ class Store:
                 q = it.get("quality")
                 if q is not None and not _finite(q):
                     raise IngestError("quality must be a number")
-                rows.append((m["name"], src, ts, value, q, self._meta(it.get("meta")), now))
-                dirty.add((m["name"], tu.day_of(ts, self.tz)))
-            except IngestError as e:
-                rejected.append({"index": i, "metric": it.get("metric") if isinstance(it, dict) else None,
-                                 "reason": str(e)})
+                row = (m["name"], src, ts, value, q, self._meta(it.get("meta")), now)
+                key = (m["name"], src, ts)
+                losers = by_key[key][2] + [by_key[key][0]] if key in by_key else []
+                by_key[key] = (i, row, losers)
+            except (IngestError, TypeError, ValueError, OverflowError) as e:
+                rejected.append({"index": i, "metric": _echo(it, "metric"), "reason": _reason(e)})
+        for winner, row, losers in by_key.values():
+            for j in losers:
+                rejected.append({"index": j, "metric": row[0],
+                                 "reason": f"overwritten by item {winner}: same metric, source and ts "
+                                           "(send a distinct ts per sample)"})
+        rows = [r for _, r, _ in by_key.values()]
+        dirty = {(r[0], tu.day_of(r[2], self.tz)) for r in rows}
+        rejected.sort(key=lambda r: r["index"])
         if rows:
             with self._wlock:
                 self._w.executemany(
@@ -272,7 +310,7 @@ class Store:
                     " received=excluded.received", rows)
                 self._w.executemany("INSERT OR IGNORE INTO dirty(metric, day) VALUES (?,?)", dirty)
                 self._w.commit()
-        return {"accepted": len(rows), "rejected": rejected}
+        return {"accepted": len(rows), "rejected": rejected, "server_time": now}
 
     def upsert_events(self, items: list[dict], default_source: str | None = None) -> dict:
         now = tu.now_ms()
@@ -309,11 +347,10 @@ class Store:
                     row = self._w.execute("SELECT id FROM event WHERE source=? AND kind=? AND ext_id=?",
                                           (src, m["name"], ext)).fetchone()
                     out.append({"index": i, "id": row["id"], "ext_id": ext})
-                except IngestError as e:
-                    rejected.append({"index": i, "kind": it.get("kind") if isinstance(it, dict) else None,
-                                     "reason": str(e)})
+                except (IngestError, TypeError, ValueError, OverflowError) as e:
+                    rejected.append({"index": i, "kind": _echo(it, "kind"), "reason": _reason(e)})
             self._w.commit()
-        return {"accepted": len(out), "events": out, "rejected": rejected}
+        return {"accepted": len(out), "events": out, "rejected": rejected, "server_time": now}
 
     def delete_event(self, event_id: int) -> bool:
         with self._wlock:
@@ -404,12 +441,21 @@ class Store:
         return rows
 
     def latest(self) -> list[dict]:
-        rows = self._q("SELECT s.metric, s.source, s.ts, s.value, s.quality FROM sample s"
+        rows = self._q("SELECT s.metric, s.source, s.ts, s.value, s.quality, s.received FROM sample s"
                        " JOIN (SELECT metric, source, MAX(ts) AS ts FROM sample GROUP BY metric, source) l"
                        " USING (metric, source, ts) ORDER BY s.metric, s.source")
         for r in rows:
             r["unit"] = self.metrics().get(r["metric"], {}).get("unit")
+            # receipt - measurement time: a few seconds is normal (client batching);
+            # a large, steady lag means the producer's clock is slow
+            r["lag_s"] = round((r.pop("received") - r["ts"]) / 1000, 1)
         return rows
+
+    def sources(self, metric, frm=None, to=None) -> list[str]:
+        """Distinct sources of a sample metric in [frm, to] (for pooled-result warnings)."""
+        w, a = self._where(metric, None, frm, to)
+        return [r["source"] for r in self._q(f"SELECT DISTINCT source FROM sample WHERE {w}"
+                                              " ORDER BY source", a)]
 
     def counts(self) -> dict[str, dict]:
         out = {}
@@ -591,7 +637,7 @@ class Store:
                 "last_day": dv[-1][0] if dv else None,
                 "daily": [{"day": d, "value": v} for d, v in dv]}
 
-    def baseline(self, metric, source=None, day=None, days=14, stat=None, min_hours=4,
+    def baseline(self, metric, source=None, day=None, days=14, stat=None, min_hours=None,
                  z_flag=2.0) -> dict:
         """Compare one day with the person's own previous `days` days."""
         from datetime import date, timedelta
@@ -601,6 +647,8 @@ class Store:
         d = date.fromisoformat(day)
         hist_from = (d - timedelta(days=int(days))).isoformat()
         hist_to = (d - timedelta(days=1)).isoformat()
+        if min_hours is None:
+            min_hours = catalog.baseline_min_hours(m)
         mh = min_hours if m["kind"] == catalog.SAMPLE else 0
         history = [v for _, v in self.daily_values(metric, source, hist_from, hist_to, stat, mh)]
         if m["kind"] == catalog.SAMPLE:
@@ -611,12 +659,17 @@ class Store:
         value = cur[0] if cur else None
         rz = stats.robust_z(value, history) if value is not None else \
             {"baseline_n": len(history), "baseline_median": stats.median(history) if history else None,
-             "baseline_spread": None, "z": None}
+             "baseline_spread": None, "z": None, "flat": False}
         z = rz["z"]
         if value is None:
             verdict = "no data for this day"
-        elif z is None:
-            verdict = "baseline too short (needs >= 5 days)"
+        elif rz["baseline_n"] < stats.MIN_BASELINE:
+            verdict = f"baseline too short (needs >= {stats.MIN_BASELINE} days)"
+        elif rz["flat"]:
+            # no variation at all in the history: any change is outside it
+            med = rz["baseline_median"]
+            verdict = ("within usual range" if value == med else
+                       "above usual range" if value > med else "below usual range")
         elif z >= z_flag:
             verdict = "above usual range"
         elif z <= -z_flag:
@@ -624,8 +677,8 @@ class Store:
         else:
             verdict = "within usual range"
         return {"metric": metric, "source": source or "*", "stat": stat, "day": day,
-                "value": value, "unit": m["unit"], "baseline_days": int(days), **rz,
-                "z_flag": z_flag, "verdict": verdict,
+                "value": value, "unit": m["unit"], "baseline_days": int(days),
+                "min_hours": mh, **rz, "z_flag": z_flag, "verdict": verdict,
                 "note": "exploratory, relative to this person's own history - not a diagnosis"}
 
     def correlate(self, a, b, source_a=None, source_b=None, frm=None, to=None,

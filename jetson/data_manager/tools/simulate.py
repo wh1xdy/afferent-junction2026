@@ -113,8 +113,9 @@ def main():
                 samples.append({"metric": "vitals.heart_rate_bpm", "value": round(hr), "ts": ts,
                                 "source": "sim/finger1", "quality": round(rng.uniform(0.3, 0.9), 2)})
                 if awake and rng.random() < 0.5:
-                    samples.append({"metric": "vitals.heart_rate_bpm", "value": round(hr + rng.gauss(0, 4)),
-                                    "ts": ts + 1, "source": "sim/rppg", "quality": round(rng.uniform(-2, 8), 1)})
+                    samples.append({"metric": "vitals.heart_rate_camera_bpm",
+                                    "value": round(hr + rng.gauss(0, 4)), "ts": ts + 1,
+                                    "source": "sim/rppg", "quality": round(rng.uniform(0.3, 0.9), 2)})
                 if awake and rng.random() < 0.6:       # person seen by the camera
                     samples += [
                         {"metric": "posture.trunk_inclination_deg", "value": round(8 + 10 * w + rng.gauss(0, 4), 1),

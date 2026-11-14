@@ -14,6 +14,7 @@ Accepted input formats (body fields and query parameters):
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
 from datetime import date, datetime, timedelta, timezone
@@ -25,6 +26,8 @@ except ImportError:  # pragma: no cover
 
 log = logging.getLogger("data_manager.time")
 
+TS_MIN_MS = 0                    # 1970-01-01
+TS_MAX_MS = 4_102_444_800_000    # 2100-01-01
 _REL = re.compile(r"^-(\d+(?:\.\d+)?)([smhd])$")
 _UNIT_S = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 
@@ -52,25 +55,32 @@ def parse_ts(v, *, allow_relative: bool = False, now: int | None = None) -> int:
         raise ValueError("invalid timestamp")
     if isinstance(v, (int, float)):
         x = float(v)
-        return int(x) if abs(x) > 1e11 else int(round(x * 1000))
+        if not math.isfinite(x):
+            raise ValueError("timestamp must be a finite number")
+        ms = int(x) if abs(x) > 1e11 else int(round(x * 1000))
+        if not TS_MIN_MS <= ms <= TS_MAX_MS:
+            raise ValueError("timestamp outside 1970-2100")
+        return ms
     s = str(v).strip()
     if allow_relative:
         if s == "now":
             return now
         m = _REL.match(s)
         if m:
-            return now - int(float(m.group(1)) * _UNIT_S[m.group(2)] * 1000)
+            return parse_ts(now - int(float(m.group(1)) * _UNIT_S[m.group(2)] * 1000))
     try:
-        return parse_ts(float(s))
+        x = float(s)
     except ValueError:
-        pass
+        x = None
+    if x is not None:
+        return parse_ts(x)
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except ValueError:
         raise ValueError(f"unparseable timestamp {s!r}") from None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return int(dt.timestamp() * 1000)
+    return parse_ts(int(dt.timestamp() * 1000))
 
 
 def day_of(ts_ms: int, tz) -> str:
