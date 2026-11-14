@@ -1,5 +1,4 @@
 import ARKit
-import AVFoundation
 import Capacitor
 import WebKit
 
@@ -24,28 +23,15 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin {
             call.reject("needs ARKit face tracking")
             return
         }
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            DispatchQueue.main.async {
-                self.wanted = true
-                self.hold()
-                call.resolve()
+        DispatchQueue.main.async { self.wanted = true }
+        FaceSession.authorize { ok in
+            guard ok else {
+                self.wanted = false
+                call.reject("camera permission denied", "unauthorized")
+                return
             }
-        case .notDetermined:
-            DispatchQueue.main.async { self.wanted = true }
-            AVCaptureDevice.requestAccess(for: .video) { ok in
-                DispatchQueue.main.async {
-                    guard ok else {
-                        self.wanted = false
-                        call.reject("camera permission denied", "unauthorized")
-                        return
-                    }
-                    if self.wanted { self.hold() }
-                    call.resolve()
-                }
-            }
-        default:
-            call.reject("camera permission denied", "unauthorized")
+            if self.wanted { self.hold() }
+            call.resolve()
         }
     }
 

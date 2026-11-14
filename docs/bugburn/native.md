@@ -120,3 +120,9 @@ Branch `burndown/native`, from `fix/bug-burndown` @ 4daecf6.
 - `ios/App/FingerTests` and `TeamTests` use symlinks; on this Windows checkout (`core.symlinks=false`) they are plain text files,
   so those Swift packages would not build from a Windows checkout. Fine on macOS.
 - `ios/Afferent/FingerSensor.swift` connects to any heart-rate peripheral when nothing else is connected (documented prototype behaviour).
+
+## Merge-time correction (coordinator)
+- The first version of fix 1 called `AVCaptureDevice.authorizationStatus/requestAccess` in `AfferentEyes.swift`, which broke
+  `demo/tests/sensors.test.js` test y ("only the camera plugin and its face half touch the camera"). The check now lives in
+  `FaceSession.authorize(_:)`; `AfferentEyes.start` calls it with the same behaviour (reject `unauthorized`, `stop()` during the prompt respected).
+- Verification: `node demo/tests/sensors.test.js` → 31 ok, 0 failed; `node demo/tests/haptics.test.js` → 0 failed. Swift still not compiled (no Xcode).
