@@ -6,12 +6,30 @@ processing shares the live code path.
 """
 from __future__ import annotations
 
+import os
 import threading
 import time
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
+
+_VIDEO_EXT = (".mp4", ".avi", ".mov", ".mkv")
+
+
+def _is_file_source(src) -> bool:
+    """True when `src` should be treated as a video file.
+
+    A source is a file only when it exists as a regular file or carries a
+    video extension. `/dev/*` paths, bare numbers and `videoN` names are
+    camera devices — `/dev/video0` contains "/" but must NOT be treated
+    as a file (it would get synthetic idx/fps timestamps)."""
+    s = str(src)
+    if s.isdigit() or s.startswith("/dev/"):
+        return False
+    if os.path.isfile(s):
+        return True
+    return s.lower().endswith(_VIDEO_EXT)
 
 
 @dataclass
@@ -43,9 +61,7 @@ class Capture:
     # -- lifecycle ------------------------------------------------------------
     def open(self) -> bool:
         src = self.source
-        if isinstance(src, str) and not src.isdigit() \
-                and (src.endswith((".mp4", ".avi", ".mov", ".mkv"))
-                     or "/" in src or src.startswith(".")):
+        if isinstance(src, str) and _is_file_source(src):
             self._is_file = True
         cap = cv2.VideoCapture(src)
         if not cap.isOpened():

@@ -86,14 +86,63 @@ def test_visage_aggregation(tmp_path):
     st.close()
 
 
+def test_minute_one_row_per_context(tmp_path):
+    """A minute mixing two activity x orientation contexts writes one row
+    per context — never a majority-voted mixture."""
+    st = _storage(tmp_path)
+    agg = MinuteAggregator(st, min_valid_frames=5,
+                           extractor_version="t", model_version="m")
+    base = 1_700_000_000.0
+    angles = {"neck_flexion": 10.0, "trunk_inclination": 5.0,
+              "shoulder_asymmetry": 2.0, "head_lateral_tilt": 1.0,
+              "slump_index": 0.9}
+    for i in range(6):
+        agg.add(base + i * 0.1, "sitting", "profile", angles, 0.9)
+    for i in range(7):
+        agg.add(base + 10 + i * 0.1, "walking", "face", angles, 0.7)
+    agg.flush()
+    rows = st.query("SELECT * FROM minute ORDER BY activity")
+    assert len(rows) == 2
+    assert rows[0]["ts"] == rows[1]["ts"] == int(base // 60 * 60_000)
+    by_act = {r["activity"]: r for r in rows}
+    assert by_act["sitting"]["orientation"] == "profile"
+    assert by_act["sitting"]["n_valid_frames"] == 6
+    assert by_act["walking"]["orientation"] == "face"
+    assert by_act["walking"]["n_valid_frames"] == 7
+    # context keeps its own slump, not a mixture
+    assert by_act["sitting"]["slump"] == pytest.approx(0.9)
+    assert by_act["walking"]["slump"] == pytest.approx(0.7)
+    st.close()
+
+
+def test_minute_context_below_threshold_dropped(tmp_path):
+    """min_valid applies per context: a thin context does not piggyback
+    on a well-sampled one."""
+    st = _storage(tmp_path)
+    agg = MinuteAggregator(st, min_valid_frames=5)
+    base = 1_700_000_000.0
+    angles = {"neck_flexion": 10.0}
+    for i in range(8):
+        agg.add(base + i * 0.1, "sitting", "profile", angles, 0.9)
+    for i in range(3):  # only 3 frames in this context -> dropped
+        agg.add(base + 20 + i * 0.1, "walking", "face", angles, 0.7)
+    agg.flush()
+    rows = st.query("SELECT * FROM minute")
+    assert len(rows) == 1
+    assert rows[0]["activity"] == "sitting"
+    st.close()
+
+
 def test_daily_aggregate():
     rows = [
-        {"activity": "sitting", "orientation": "face", "slump": 0.9,
+        {"ts": 1_700_000_000_000, "activity": "sitting",
+         "orientation": "face", "slump": 0.9,
          "angles": '{"neck_flexion": null, "trunk_inclination": null,'
                    ' "shoulder_asymmetry": {"med": 3.0},'
                    ' "head_lateral_tilt": {"med": 2.0},'
                    ' "slump_index": {"med": 0.9}}'},
-        {"activity": "standing", "orientation": "profile", "slump": 0.8,
+        {"ts": 1_700_000_060_000, "activity": "standing",
+         "orientation": "profile", "slump": 0.8,
          "angles": '{"neck_flexion": {"med": 12.0},'
                    ' "trunk_inclination": {"med": 6.0},'
                    ' "shoulder_asymmetry": null, "head_lateral_tilt": null,'
@@ -106,3 +155,32 @@ def test_daily_aggregate():
     assert agg["angle_medians"]["neck_flexion"] == 12.0
     assert agg["angle_medians"]["trunk_inclination"] == 6.0
     assert agg["activity_shares"]["sitting"] == 0.5
+
+
+def test_daily_aggregate_groups_by_context():
+    """Two context rows sharing one minute: coverage counts the minute
+    once, per-context stats stay separate."""
+    rows = [
+        {"ts": 1_700_000_000_000, "activity": "sitting",
+         "orientation": "profile", "slump": 0.9,
+         "angles": {"neck_flexion": {"med": 10.0}}},
+        {"ts": 1_700_000_000_000, "activity": "walking",
+         "orientation": "face", "slump": 0.7,
+         "angles": {"shoulder_asymmetry": {"med": 4.0}}},
+        {"ts": 1_700_000_060_000, "activity": "sitting",
+         "orientation": "profile", "slump": 0.8,
+         "angles": {"neck_flexion": {"med": 14.0}}},
+    ]
+    agg = daily_aggregate(rows)
+    assert agg["minutes"] == 2                 # distinct minutes
+    assert agg["context_rows"] == 3
+    assert agg["coverage"] == round(2 / 1440, 4)
+    ctx = agg["contexts"]
+    assert ctx["sitting|profile"]["minutes"] == 2
+    assert ctx["sitting|profile"]["angle_medians"]["neck_flexion"] == 12.0
+    assert ctx["sitting|profile"]["slump_median"] == pytest.approx(0.85)
+    assert ctx["walking|face"]["minutes"] == 1
+    assert ctx["walking|face"]["angle_medians"]["neck_flexion"] is None
+    # shares are over context-minutes and sum to 1
+    assert agg["activity_shares"]["sitting"] == pytest.approx(2 / 3, abs=1e-4)
+    assert agg["orientation_shares"]["profile"] == pytest.approx(2 / 3, abs=1e-4)

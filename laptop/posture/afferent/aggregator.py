@@ -31,7 +31,15 @@ def _percentiles(values: list[float]) -> dict[str, float] | None:
 
 
 class MinuteAggregator:
-    """Buffers per-frame samples, flushes one `minute` row per wall minute."""
+    """Buffers per-frame samples, flushes `minute` rows per wall minute.
+
+    Samples are bucketed by (activity, orientation): a minute that mixes
+    contexts (e.g. profile sitting then front walking) produces one row
+    per context, so a variable is only ever aggregated/compared within
+    the same situation (plan §16-17). The min_valid threshold applies
+    per context: a context row is only written when it holds enough
+    valid frames on its own.
+    """
 
     def __init__(self, storage, min_valid_frames: int = 30,
                  extractor_version: str = "", model_version: str = ""):
@@ -40,9 +48,8 @@ class MinuteAggregator:
         self.extractor_version = extractor_version
         self.model_version = model_version
         self._cur_minute: int | None = None
-        self._samples: list[dict[str, Any]] = []
-        self._orientation_votes: dict[str, int] = defaultdict(int)
-        self._activity_votes: dict[str, int] = defaultdict(int)
+        # (activity, orientation) -> {"samples": [angle dict], "slumps": []}
+        self._buckets: dict[tuple[str, str], dict[str, Any]] = {}
 
     @staticmethod
     def _minute_key(t: float) -> int:
@@ -60,42 +67,35 @@ class MinuteAggregator:
         validity = geo.valid_angles(orientation)
         kept = {n: v for n, v in angles.items()
                 if v is not None and validity.get(n) in ("yes", "approx")}
-        self._samples.append({"angles": kept, "slump": slump})
-        self._orientation_votes[orientation] += 1
-        self._activity_votes[activity] += 1
+        key = (activity or "unknown", orientation or "unknown")
+        b = self._buckets.setdefault(key, {"samples": [], "slumps": []})
+        b["samples"].append(kept)
+        if slump is not None:
+            b["slumps"].append(slump)
 
     def flush(self) -> None:
         if self._cur_minute is None:
             return
-        n = len(self._samples)
-        if n >= self.min_valid:
-            orient = self._majority(self._orientation_votes)
-            activity = self._majority(self._activity_votes)
+        ts_ms = int(self._cur_minute * 1000)
+        for (activity, orient), b in self._buckets.items():
+            n = len(b["samples"])
+            if n < self.min_valid:
+                continue
             # Aggregate each angle only over frames where it was valid.
             agg: dict[str, dict | None] = {}
             for name in ANGLE_NAMES:
-                vals = [s["angles"].get(name) for s in self._samples]
-                vals = [v for v in vals if v is not None]
-                agg[name] = _percentiles(vals)
-            slumps = [s["slump"] for s in self._samples
-                      if s["slump"] is not None]
+                agg[name] = _percentiles(
+                    [s.get(name) for s in b["samples"]])
+            slumps = b["slumps"]
             slump_med = float(np.median(slumps)) if slumps else None
             self.storage.add_minute(
-                ts_ms=int(self._cur_minute * 1000),
+                ts_ms=ts_ms,
                 activity=activity, orientation=orient,
                 n_valid=n, angles=agg, slump=slump_med,
                 extractor_version=self.extractor_version,
                 model_version=self.model_version)
-        self._samples = []
-        self._orientation_votes = defaultdict(int)
-        self._activity_votes = defaultdict(int)
+        self._buckets = {}
         self._cur_minute = None
-
-    @staticmethod
-    def _majority(votes: dict[str, int]) -> str:
-        if not votes:
-            return "unknown"
-        return max(votes.items(), key=lambda kv: kv[1])[0]
 
 
 class VisageAggregator:
@@ -190,48 +190,79 @@ class VisageAggregator:
         self._arousal = []
 
 
+def _angle_med(rows: list[dict], name: str) -> float | None:
+    """Median of the per-minute medians of one angle over `rows`."""
+    vals = []
+    for r in rows:
+        angles = r.get("angles")
+        if isinstance(angles, str):
+            import json as _j
+            try:
+                angles = _j.loads(angles)
+            except _j.JSONDecodeError:
+                angles = None
+        node = (angles or {}).get(name)
+        if isinstance(node, dict) and "med" in node:
+            vals.append(node["med"])
+    return float(np.median(vals)) if vals else None
+
+
+def _slump_med(rows: list[dict]) -> float | None:
+    # slump is a scalar column, not inside angles JSON
+    vals = [r.get("slump") for r in rows if r.get("slump") is not None]
+    return float(np.median(vals)) if vals else None
+
+
 def daily_aggregate(day_rows: list[dict]) -> dict[str, Any]:
     """Aggregate one day's `minute` rows into `jour` aggregates + coverage.
 
-    day_rows: list of minute dicts (as returned by storage.minutes_since).
+    day_rows: list of minute dicts (as returned by storage.minutes_since);
+    several rows may share one ts — one per (activity, orientation)
+    context. Aggregates are grouped by context so a variable is only
+    compared to itself in the same situation; `coverage` counts the
+    distinct minutes that hold at least one valid context row.
     """
     if not day_rows:
         return {"coverage": 0.0, "minutes": 0}
-    n = len(day_rows)
-    coverage = n / 1440.0
+    n_rows = len(day_rows)
+    n_minutes = len({r.get("ts") for r in day_rows})
+    coverage = n_minutes / 1440.0
 
-    def _med(key_path):
-        vals = []
-        for r in day_rows:
-            angles = r.get("angles")
-            if isinstance(angles, str):
-                import json as _j
-                angles = _j.loads(angles)
-            node = angles
-            for k in key_path:
-                node = (node or {}).get(k)
-                if node is None:
-                    break
-            if isinstance(node, dict) and "med" in node:
-                vals.append(node["med"])
-        return float(np.median(vals)) if vals else None
+    # --- per-context aggregates -----------------------------------------
+    ctx_rows: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for r in day_rows:
+        ctx_rows[(r.get("activity") or "unknown",
+                  r.get("orientation") or "unknown")].append(r)
+    contexts = {
+        f"{act}|{orient}": {
+            "minutes": len(rows),
+            "share": round(len(rows) / n_rows, 4),
+            "angle_medians": {name: _angle_med(rows, name)
+                              for name in ANGLE_NAMES},
+            "slump_median": _slump_med(rows),
+        }
+        for (act, orient), rows in sorted(ctx_rows.items())
+    }
+
+    # --- shares of tracked context-minutes (sum to 1) --------------------
+    shares: dict[str, dict[str, int]] = {"activity": defaultdict(int),
+                                       "orientation": defaultdict(int)}
+    for (act, orient), rows in ctx_rows.items():
+        shares["activity"][act] += len(rows)
+        shares["orientation"][orient] += len(rows)
 
     agg = {
-        "minutes": n,
+        "minutes": n_minutes,
+        "context_rows": n_rows,
         "coverage": round(coverage, 4),
-        "activity_shares": {},
-        "orientation_shares": {},
-        "angle_medians": {name: _med((name,)) for name in ANGLE_NAMES},
+        "contexts": contexts,
+        "activity_shares": {
+            k: round(v / n_rows, 4) for k, v in shares["activity"].items()},
+        "orientation_shares": {
+            k: round(v / n_rows, 4)
+            for k, v in shares["orientation"].items()},
+        "angle_medians": {name: _angle_med(day_rows, name)
+                          for name in ANGLE_NAMES},
+        "slump_median": _slump_med(day_rows),
     }
-    # slump is a scalar column, not inside angles JSON
-    slumps = [r.get("slump") for r in day_rows
-              if r.get("slump") is not None]
-    agg["slump_median"] = float(np.median(slumps)) if slumps else None
-
-    for field_name in ("activity", "orientation"):
-        votes: dict[str, int] = defaultdict(int)
-        for r in day_rows:
-            votes[r.get(field_name) or "unknown"] += 1
-        agg[f"{field_name}_shares"] = {
-            k: round(v / n, 4) for k, v in votes.items()}
     return agg

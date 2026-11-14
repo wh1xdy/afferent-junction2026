@@ -5,6 +5,18 @@ extractor_version / model_version and a `site` tag (room): the same
 camera can move between rooms, and aggregates from different sites
 never mix. Single writer guarded by a lock; WAL mode for concurrent
 reads from the API.
+
+Timestamp convention (schema v3): **every stored timestamp is epoch
+milliseconds (int)** — minute.ts, visage_minute.ts, identite.ts,
+episode.start/end, session.start/end, galerie.created. The pipeline
+itself runs on epoch seconds; conversion happens at the storage
+boundary (add_episode multiplies by 1000, session writers use
+_now_ms()). `jour.day` is not a timestamp but a "YYYY-MM-DD" label.
+
+Schema v3 also makes `minute` rows per-context: the primary key is
+(ts, site, activity, orientation) so a minute mixing, e.g., profile
+sitting and front walking keeps one row per context — a variable is
+only ever compared to itself in the same situation (plan §16-17).
 """
 from __future__ import annotations
 
@@ -15,7 +27,7 @@ import threading
 import time
 from typing import Any
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Config keys that live per-site (room): the same camera moves between
 # rooms, each with its own floor homography and upright references. They
@@ -30,14 +42,15 @@ CREATE TABLE IF NOT EXISTS schema_version (
 CREATE TABLE IF NOT EXISTS minute (
     ts INTEGER NOT NULL,               -- epoch ms, start of minute
     site TEXT NOT NULL DEFAULT 'default',
-    activity TEXT,
-    orientation TEXT,
-    n_valid_frames INTEGER,
+    activity TEXT NOT NULL DEFAULT 'unknown',
+    orientation TEXT NOT NULL DEFAULT 'unknown',
+    n_valid_frames INTEGER,            -- valid frames in THIS context
     angles TEXT,                       -- JSON: name -> {med,p10,p90}
     slump REAL,
     extractor_version TEXT,
     model_version TEXT,
-    PRIMARY KEY (ts, site)
+    -- one row per (minute, activity, orientation): never mix contexts
+    PRIMARY KEY (ts, site, activity, orientation)
 );
 CREATE TABLE IF NOT EXISTS visage_minute (
     ts INTEGER NOT NULL,
@@ -57,7 +70,7 @@ CREATE TABLE IF NOT EXISTS visage_minute (
 CREATE TABLE IF NOT EXISTS galerie (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     embedding BLOB NOT NULL,           -- float32 vector
-    created REAL NOT NULL,
+    created INTEGER NOT NULL,          -- epoch ms
     type TEXT NOT NULL                 -- 'enrolement' | 'adaptative'
 );
 CREATE TABLE IF NOT EXISTS identite (
@@ -67,8 +80,8 @@ CREATE TABLE IF NOT EXISTS identite (
 );
 CREATE TABLE IF NOT EXISTS episode (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    start REAL NOT NULL,
-    end REAL NOT NULL,
+    start INTEGER NOT NULL,            -- epoch ms
+    end INTEGER NOT NULL,              -- epoch ms
     type TEXT NOT NULL,
     site TEXT,
     orientation TEXT,
@@ -82,8 +95,8 @@ CREATE TABLE IF NOT EXISTS episode (
 );
 CREATE TABLE IF NOT EXISTS session (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    start REAL NOT NULL,
-    end REAL,
+    start INTEGER NOT NULL,            -- epoch ms
+    end INTEGER,                       -- epoch ms
     site TEXT,
     simulated INTEGER NOT NULL DEFAULT 0,
     quality_ok INTEGER,
@@ -136,7 +149,7 @@ class Storage:
         with self._wlock:
             prev = self._schema_version()
             if prev is not None and prev < SCHEMA_VERSION:
-                self._pre_migrate_v2()
+                self._pre_migrate(prev)
             self._conn.executescript(SCHEMA)
             # A previous POST /api/site/<id> wins over the env default so a
             # restart keeps the last selected site.
@@ -156,7 +169,7 @@ class Storage:
                     (SCHEMA_VERSION,))
                 self._conn.commit()
             elif prev < SCHEMA_VERSION:
-                self._post_migrate_v2()
+                self._post_migrate(prev)
                 self._conn.execute("DELETE FROM schema_version")
                 self._conn.execute(
                     "INSERT INTO schema_version(version) VALUES (?)",
@@ -182,30 +195,88 @@ class Storage:
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
             (name,)).fetchone() is not None
 
-    def _pre_migrate_v2(self) -> None:
-        """v1 -> v2, part 1 (before SCHEMA recreates tables): `site` joins
-        the PK of minute/visage_minute/jour, which ALTER cannot do — rename
-        the old tables aside; rows are copied back in _post_migrate_v2."""
-        # the v1 index follows the renamed table; drop it so SCHEMA can
-        # recreate it on the new minute table
+    def _pre_migrate(self, prev: int) -> None:
+        """Rename tables whose shape changes aside, before SCHEMA creates
+        the new ones; rows are copied back in _post_migrate.
+
+        v1 -> v2: `site` joins the PK of minute/visage_minute/jour.
+        v2 -> v3: minute gains (activity, orientation) in its PK and
+        episode/session/galerie timestamps switch epoch-s -> epoch-ms.
+        Both changes need table rebuilds, which ALTER cannot do.
+        """
+        # the old indexes follow the renamed tables; drop them so SCHEMA
+        # can recreate them on the new tables
         self._conn.execute("DROP INDEX IF EXISTS idx_minute_ts")
-        for t in ("minute", "visage_minute", "jour"):
-            if self._table_exists(t):
-                self._conn.execute(f"ALTER TABLE {t} RENAME TO {t}_v1")
+        self._conn.execute("DROP INDEX IF EXISTS idx_episode_start")
+        if prev < 2:
+            for t in ("minute", "visage_minute", "jour"):
+                if self._table_exists(t):
+                    self._conn.execute(f"ALTER TABLE {t} RENAME TO {t}_v1")
+        if prev < 3:
+            for t in ("minute", "episode", "session", "galerie"):
+                if self._table_exists(t):
+                    self._conn.execute(f"ALTER TABLE {t} RENAME TO {t}_v2")
         self._conn.commit()
 
-    def _post_migrate_v2(self) -> None:
-        """v1 -> v2, part 2: tag existing rows with the active site."""
-        for t in ("episode", "session"):
-            cols = {r["name"] for r in self._conn.execute(
-                f"PRAGMA table_info({t})")}
-            if "site" not in cols:
-                self._conn.execute(f"ALTER TABLE {t} ADD COLUMN site TEXT")
+    def _post_migrate(self, prev: int) -> None:
+        """Copy rows from the parked *_v1 / *_v2 tables into the new
+        schema, tagging sites and converting timestamps to epoch-ms."""
+        if prev < 2:
+            # v1 episode/session had no `site` column; they are parked as
+            # *_v2 — add+fill it there so the v3 copy below carries it.
+            for t in ("episode_v2", "session_v2"):
+                if not self._table_exists(t):
+                    continue
+                cols = {r["name"] for r in self._conn.execute(
+                    f"PRAGMA table_info({t})")}
+                if "site" not in cols:
+                    self._conn.execute(
+                        f"ALTER TABLE {t} ADD COLUMN site TEXT")
+                self._conn.execute(
+                    f"UPDATE {t} SET site=? WHERE site IS NULL",
+                    (self.site,))
+            self._copy_v1_rows()
+        if prev < 3:
+            self._copy_v2_minute()
+            # episode/session: epoch-seconds REAL -> epoch-ms INTEGER.
+            for t in ("episode", "session"):
+                old = f"{t}_v2"
+                if not self._table_exists(old):
+                    continue
+                cols = [r["name"] for r in self._conn.execute(
+                    f"PRAGMA table_info({t})")]
+                sel = ", ".join(
+                    f"CAST(ROUND({c} * 1000) AS INTEGER)"
+                    if c in ("start", "end") else c
+                    for c in cols)
+                self._conn.execute(
+                    f"INSERT OR REPLACE INTO {t}({','.join(cols)})"
+                    f" SELECT {sel} FROM {old}")
+                self._conn.execute(f"DROP TABLE {old}")
+            # galerie.created: epoch-s REAL -> epoch-ms INTEGER
+            if self._table_exists("galerie_v2"):
+                self._conn.execute(
+                    "INSERT OR REPLACE INTO galerie(id, embedding, created,"
+                    " type) SELECT id, embedding,"
+                    " CAST(ROUND(created * 1000) AS INTEGER), type"
+                    " FROM galerie_v2")
+                self._conn.execute("DROP TABLE galerie_v2")
+        self._conn.commit()
+
+    def _copy_v1_rows(self) -> None:
+        """v1 -> v3 copy for the tables parked as *_v1: tag rows with the
+        active site; minute additionally gains non-null context labels."""
+        if self._table_exists("minute_v1"):
             self._conn.execute(
-                f"UPDATE {t} SET site=? WHERE site IS NULL", (self.site,))
+                "INSERT OR REPLACE INTO minute(ts, site, activity,"
+                " orientation, n_valid_frames, angles, slump,"
+                " extractor_version, model_version)"
+                " SELECT ts, ?, COALESCE(activity,'unknown'),"
+                " COALESCE(orientation,'unknown'), n_valid_frames, angles,"
+                " slump, extractor_version, model_version FROM minute_v1",
+                (self.site,))
+            self._conn.execute("DROP TABLE minute_v1")
         copies = {
-            "minute": ("ts, activity, orientation, n_valid_frames, angles,"
-                       " slump, extractor_version, model_version"),
             "visage_minute": ("ts, n_valid, expr_mean, expr_std, pitch_mean,"
                               " smile_episodes, emotions, valence_mean,"
                               " arousal_mean, extractor_version,"
@@ -221,7 +292,20 @@ class Storage:
                 f"INSERT OR REPLACE INTO {t}({cols}, site)"
                 f" SELECT {cols}, ? FROM {old}", (self.site,))
             self._conn.execute(f"DROP TABLE {old}")
-        self._conn.commit()
+
+    def _copy_v2_minute(self) -> None:
+        """v2 -> v3 minute copy: keep the stored majority activity and
+        orientation labels; they become the row's context in the new PK."""
+        if not self._table_exists("minute_v2"):
+            return
+        self._conn.execute(
+            "INSERT OR REPLACE INTO minute(ts, site, activity, orientation,"
+            " n_valid_frames, angles, slump, extractor_version,"
+            " model_version)"
+            " SELECT ts, site, COALESCE(activity,'unknown'),"
+            " COALESCE(orientation,'unknown'), n_valid_frames, angles,"
+            " slump, extractor_version, model_version FROM minute_v2")
+        self._conn.execute("DROP TABLE minute_v2")
 
     def _migrate_scoped_config(self) -> None:
         """Pre-site DBs stored calibration keys unscoped. Copy each one to
@@ -298,13 +382,15 @@ class Storage:
         return int(row["n"]) if row else 0
 
     def add_gallery(self, embedding: "np.ndarray", gtype: str = "enrolement",
-                    created: float | None = None) -> int:
+                    created: int | None = None) -> int:
+        """`created` is epoch ms (defaults to now)."""
         import numpy as np
         blob = np.asarray(embedding, dtype=np.float32).tobytes()
         with self._wlock:
             cur = self._conn.execute(
                 "INSERT INTO galerie(embedding, created, type) VALUES (?,?,?)",
-                (blob, created if created is not None else time.time(), gtype))
+                (blob,
+                 created if created is not None else _now_ms(), gtype))
             self._conn.commit()
             return int(cur.lastrowid)
 
@@ -318,11 +404,15 @@ class Storage:
     def add_minute(self, ts_ms: int, activity: str | None, orientation: str | None,
                    n_valid: int, angles: dict, slump: float | None,
                    extractor_version: str, model_version: str) -> None:
+        """Write one context row: (ts, site, activity, orientation) is the
+        PK, so re-flushing the same context replaces it while a different
+        context in the same minute gets its own row."""
         self._write(
             "INSERT OR REPLACE INTO minute(ts, site, activity, orientation,"
             " n_valid_frames, angles, slump, extractor_version, model_version)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
-            (ts_ms, self.site, activity, orientation, n_valid,
+            (ts_ms, self.site, activity or "unknown",
+             orientation or "unknown", n_valid,
              json.dumps(angles), slump, extractor_version, model_version))
 
     def add_visage_minute(self, ts_ms: int, n_valid: int, expr_mean: dict,
@@ -346,13 +436,17 @@ class Storage:
 
     def add_episode(self, ep: dict, variables: dict | None = None,
                     extractor_version: str = "", model_version: str = "") -> int:
+        """ep["start"]/["end"] are epoch seconds (pipeline clock); the row
+        stores epoch ms like every other timestamp in the DB."""
+        start_ms = int(round(ep["start"] * 1000))
+        end_ms = int(round(ep["end"] * 1000))
         with self._wlock:
             cur = self._conn.execute(
                 "INSERT INTO episode(start, end, type, site, orientation,"
                 " duration_s, distance_m, n_steps, valid, variables,"
                 " extractor_version, model_version)"
                 " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (ep["start"], ep["end"], ep["type"], self.site,
+                (start_ms, end_ms, ep["type"], self.site,
                  ep.get("orientation"),
                  ep.get("duration_s"), ep.get("distance_m"), ep.get("n_steps"),
                  int(bool(ep.get("valid", True))),
@@ -371,7 +465,7 @@ class Storage:
             cur = self._conn.execute(
                 "INSERT INTO session(start, site, simulated,"
                 " extractor_version, model_version) VALUES (?,?,?,?,?)",
-                (time.time(), self.site, int(simulated), extractor_version,
+                (_now_ms(), self.site, int(simulated), extractor_version,
                  model_version))
             self._conn.commit()
             return int(cur.lastrowid)
@@ -380,7 +474,7 @@ class Storage:
                     quality_ok: bool) -> None:
         self._write(
             "UPDATE session SET end=?, variables=?, quality_ok=? WHERE id=?",
-            (time.time(), json.dumps(variables), int(quality_ok), session_id))
+            (_now_ms(), json.dumps(variables), int(quality_ok), session_id))
 
     def add_day(self, day: str, aggregates: dict, coverage: float,
                 recalibrated: bool = False, extractor_version: str = "",
@@ -394,6 +488,8 @@ class Storage:
 
     # -- reads (scoped to the active site) --------------------------------------
     def minutes_since(self, since_ms: int = 0, limit: int = 1440) -> list[dict]:
+        """All context rows since `since_ms` — several rows may share one
+        ts (one per activity x orientation present in that minute)."""
         return self.query(
             "SELECT * FROM minute WHERE ts>=? AND site=?"
             " ORDER BY ts DESC LIMIT ?",
@@ -411,11 +507,11 @@ class Storage:
             "SELECT * FROM session WHERE site=? ORDER BY start DESC",
             (self.site,))
 
-    def episodes(self, since: float = 0.0, limit: int = 500) -> list[dict]:
+    def episodes(self, since_ms: int = 0, limit: int = 500) -> list[dict]:
         return self.query(
             "SELECT * FROM episode WHERE start>=? AND site=?"
             " ORDER BY start DESC LIMIT ?",
-            (since, self.site, limit))
+            (since_ms, self.site, limit))
 
     def days(self) -> list[dict]:
         return self.query(

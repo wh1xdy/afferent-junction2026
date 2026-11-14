@@ -122,13 +122,20 @@ class IdentityTracker:
     def __init__(self, storage, threshold: float = 0.45,
                  lost_after_s: float = 3.0,
                  enroll_min: int = 10, enroll_max: int = 20,
-                 dedupe_cosine: float = 0.985):
+                 dedupe_cosine: float = 0.985,
+                 mismatch_unlock_s: float = 5.0,
+                 face_max_age_s: float = 0.5):
         self.storage = storage
         self.threshold = threshold
         self.lost_after_s = lost_after_s
         self.enroll_min = enroll_min
         self.enroll_max = enroll_max
         self.dedupe_cosine = dedupe_cosine
+        # faces visible inside the target bbox that persistently mismatch
+        # the gallery (< 0.8*threshold) for this long de-lock the target
+        self.mismatch_unlock_s = mismatch_unlock_s
+        # face detections older than this are ignored for association
+        self.face_max_age_s = face_max_age_s
 
         self.state = STATE_SEARCH
         self.target: PersonTrack | None = None
@@ -137,6 +144,9 @@ class IdentityTracker:
         self._last_seen_t = 0.0
         self._tracker = PersonTracker()
         self._pending_lock: int | None = None
+        # cumulative seconds of fresh-face mismatch while LOCKED
+        self._mismatch_s = 0.0
+        self._mismatch_last_t: float | None = None
 
         # enrollment
         self.enrolling = False
@@ -174,34 +184,48 @@ class IdentityTracker:
     def update(self, t: float, persons: list[dict]) -> PersonTrack | None:
         """Advance the state machine. Returns the locked target track."""
         tracks = self._tracker.update(persons, t)
+        # drop stale face->person associations: detections run every N
+        # frames, so `self.faces` can lag the current frame time
+        fresh = self._fresh(t)
 
         if self.enrolling:
-            self._collect_enrollment(tracks, t)
+            self._collect_enrollment(tracks, t, fresh)
 
         if self.state == STATE_LOCKED and self.target is not None:
             tid = self.target.track_id
-            self.target = next((tr for tr in tracks if tr.track_id == tid),
-                               None)
-            if self.target is not None:
+            match = next((tr for tr in tracks if tr.track_id == tid),
+                         None)
+            if match is not None:
+                self.target = match
                 self._last_seen_t = t
-                self._verify_locked(tracks, t)
-                return self.target
+                if self._verify_locked(t, fresh):
+                    return self.target
+                # persistent face mismatch: lock dropped -> LOST
+                self.target = None
+                return None
             if t - self._last_seen_t <= self.lost_after_s:
-                # brief occlusion: keep the last target, do not re-search yet
+                # brief occlusion: keep returning the last known track so
+                # the smoother and gait buffer are not reset every frame
                 return self.target
             self._transition(STATE_LOST, t, self.last_match_score)
             self.target = None
             return None
 
         # SEARCH / LOST: try to lock
-        locked = self._try_lock(tracks, t)
+        locked = self._try_lock(tracks, t, fresh)
         if locked is not None:
             self._transition(STATE_LOCKED, t, self.last_match_score)
             self.target = locked
             self._locked_since = t
             self._last_seen_t = t
+            self._mismatch_s = 0.0
+            self._mismatch_last_t = None
             return locked
         return None
+
+    def _fresh(self, t: float) -> list[FaceObs]:
+        return [f for f in self.faces
+                if (t - f.t) <= self.face_max_age_s]
 
     # -- internals ---------------------------------------------------------------
     def _transition(self, new_state: str, t: float,
@@ -229,13 +253,13 @@ class IdentityTracker:
         i = int(np.argmax(scores))
         return scores[i], i
 
-    def _try_lock(self, tracks: list[PersonTrack], t: float
-                  ) -> PersonTrack | None:
-        if not self.faces or not tracks:
+    def _try_lock(self, tracks: list[PersonTrack], t: float,
+                  fresh: list[FaceObs]) -> PersonTrack | None:
+        if not fresh or not tracks:
             return None
         gallery_empty = self.storage.gallery_count() == 0
         best: tuple[float, FaceObs, PersonTrack] | None = None
-        for face in self.faces:
+        for face in fresh:
             if gallery_empty:
                 continue
             score, _ = self._best_gallery_match(face.embedding)
@@ -252,14 +276,21 @@ class IdentityTracker:
         best[2].face = best[1]
         return best[2]
 
-    def _verify_locked(self, tracks: list[PersonTrack], t: float) -> None:
-        """Re-verify the locked target when a fresh face is visible."""
+    def _verify_locked(self, t: float, fresh: list[FaceObs]) -> bool:
+        """Re-verify the locked target when a fresh face is visible.
+
+        Returns False when the lock was dropped: faces inside the target
+        bbox that persistently mismatch the gallery (< 0.8*threshold) for
+        MISMATCH_UNLOCK_S cumulative seconds mean we are tracking the
+        wrong person -> transition to LOST."""
         if self.target is None:
-            return
+            return True
         best_score = 0.0
-        for face in self.faces:
+        relevant: list[FaceObs] = []
+        for face in fresh:
             if not self._face_in_person(face, self.target):
                 continue
+            relevant.append(face)
             score, _ = self._best_gallery_match(face.embedding)
             best_score = max(best_score, score)
         if best_score > 0:
@@ -268,30 +299,38 @@ class IdentityTracker:
             if (self.last_match_score >= self.threshold
                     and self.storage.gallery_count() < 200
                     and t - self._last_adapt > 30):
-                for face in self.faces:
-                    if self._face_in_person(face, self.target):
-                        self.storage.add_gallery(
-                            face.embedding, "adaptative", time.time())
-                        self._last_adapt = t
-                        break
-        # If faces are present but none match the target inside its bbox,
-        # and this persists, the lock is stale -> re-search.
-        relevant = [f for f in self.faces
-                    if self._face_in_person(f, self.target)]
+                for face in relevant:
+                    self.storage.add_gallery(
+                        face.embedding, "adaptative",
+                        int(time.time() * 1000))
+                    self._last_adapt = t
+                    break
+        # Strong mismatch evidence accumulates while faces are visible;
+        # a good match clears it, no face leaves it unchanged.
         if relevant and best_score < self.threshold * 0.8:
-            # strong mismatch evidence; require persistence via LOST path
-            pass  # keep simple: LOST only via track loss for POC
+            if self._mismatch_last_t is not None:
+                self._mismatch_s += max(0.0, t - self._mismatch_last_t)
+            self._mismatch_last_t = t
+            if self._mismatch_s >= self.mismatch_unlock_s:
+                self._transition(STATE_LOST, t, self.last_match_score)
+                self._mismatch_s = 0.0
+                self._mismatch_last_t = None
+                return False
+        elif relevant:
+            self._mismatch_s = 0.0
+            self._mismatch_last_t = None
+        return True
 
     def _collect_enrollment(self, tracks: list[PersonTrack],
-                            t: float) -> None:
+                            t: float, fresh: list[FaceObs]) -> None:
         """Collect embeddings of the single largest face."""
-        if not self.faces or not tracks:
+        if not fresh or not tracks:
             return
         if len(self._enroll_buf) >= self.enroll_max:
             self.stop_enrollment()
             return
         # largest face by bbox area
-        face = max(self.faces,
+        face = max(fresh,
                    key=lambda f: (f.bbox[2] - f.bbox[0])
                    * (f.bbox[3] - f.bbox[1]))
         # must fall inside some person bbox (upper part)
@@ -309,4 +348,4 @@ class IdentityTracker:
             if cosine(emb, g) > self.dedupe_cosine:
                 return
         self._enroll_buf.append(emb)
-        self.storage.add_gallery(emb, "enrolement", time.time())
+        self.storage.add_gallery(emb, "enrolement", int(time.time() * 1000))

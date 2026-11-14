@@ -47,7 +47,7 @@ class Config:
     det_every: int = 0              # detector skip interval; 0 -> auto
     models_dir: str = "/models"
     insightface_model: str = "buffalo_l"   # buffalo_l | buffalo_s
-    face_detect_every: int = 5      # run face detection every N processed frames
+    face_detect_every: int = 3      # run face detection every N processed frames
     face_every: int = 1             # MediaPipe landmarker every N processed frames
     emotion_enabled: bool = True
     emotion_every: int = 10         # HSEmotion cadence on target crop
@@ -55,10 +55,15 @@ class Config:
     # Identity
     face_match_threshold: float = 0.45    # cosine similarity
     lost_after_s: float = 3.0
+    mismatch_unlock_s: float = 5.0  # cumulative wrong-face time -> de-lock
+    face_max_age_s: float = 0.5     # drop face obs older than this
     enroll_min: int = 10
     enroll_max: int = 20
     enroll_dedupe_cosine: float = 0.985   # reject near-duplicate embeddings
     gallery_adapt: bool = True            # allow type='adaptative' updates
+
+    # Gait
+    gait_min_fps: float = 8.0       # below -> episode flagged undersampled
 
     # Aggregation
     db_path: str = "/data/afferent.db"
@@ -102,12 +107,15 @@ class Config:
             det_every=det_every,
             models_dir=_env("MODELS_DIR", "/models"),
             insightface_model=_env("INSIGHTFACE_MODEL", "buffalo_l"),
-            face_detect_every=_env_int("FACE_DETECT_EVERY", 5),
+            face_detect_every=_env_int("FACE_DETECT_EVERY", 3),
             face_every=_env_int("FACE_EVERY", 1),
             emotion_enabled=_env_bool("EMOTION_ENABLED", True),
             emotion_every=_env_int("EMOTION_EVERY", 10),
             face_match_threshold=_env_float("FACE_MATCH_THRESHOLD", 0.45),
             lost_after_s=_env_float("LOST_AFTER_S", 3.0),
+            mismatch_unlock_s=_env_float("MISMATCH_UNLOCK_S", 5.0),
+            face_max_age_s=_env_float("FACE_MAX_AGE_S", 0.5),
+            gait_min_fps=_env_float("GAIT_MIN_FPS", 8.0),
             enroll_min=_env_int("ENROLL_MIN", 10),
             enroll_max=_env_int("ENROLL_MAX", 20),
             enroll_dedupe_cosine=_env_float("ENROLL_DEDUPE_COSINE", 0.985),

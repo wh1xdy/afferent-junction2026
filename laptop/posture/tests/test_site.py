@@ -176,8 +176,14 @@ def test_v1_db_migrates_tagging_existing_rows(tmp_path):
     assert v["version"] == SCHEMA_VERSION
     row = st.query_one("SELECT * FROM minute WHERE ts=123")
     assert row["site"] == "default" and row["activity"] == "sitting"
-    assert st.query_one("SELECT site FROM episode")["site"] == "default"
-    assert st.query_one("SELECT site FROM session")["site"] == "default"
+    # v1 rows had NULL-able labels -> migrated as 'unknown'
+    assert row["orientation"] == "unknown"
+    ep = st.query_one("SELECT * FROM episode")
+    assert ep["site"] == "default"
+    # epoch-s -> epoch-ms conversion in the v1->v3 chain
+    assert ep["start"] == 1000 and ep["end"] == 2000
+    sess = st.query_one("SELECT * FROM session")
+    assert sess["site"] == "default" and sess["start"] == 1000
     assert st.query_one("SELECT site FROM jour")["site"] == "default"
     # same-ts rows for another site must coexist (PK includes site)
     st.set_site("other")
@@ -188,6 +194,92 @@ def test_v1_db_migrates_tagging_existing_rows(tmp_path):
     # legacy unscoped calibration was copied into site:default scope
     st.set_site("default")
     assert st.get_config("floor_homography") == "H1"
+    st.close()
+
+
+def test_v2_db_migrates_to_v3(tmp_path):
+    """v2 -> v3: minute rebuilt with (activity, orientation) in the PK and
+    site column kept; episode/session/galerie timestamps x1000."""
+    db = str(tmp_path / "s.db")
+    con = sqlite3.connect(db)
+    con.executescript("""
+        CREATE TABLE schema_version (version INTEGER NOT NULL);
+        INSERT INTO schema_version VALUES (2);
+        CREATE TABLE minute (
+            ts INTEGER NOT NULL, site TEXT NOT NULL DEFAULT 'default',
+            activity TEXT, orientation TEXT, n_valid_frames INTEGER,
+            angles TEXT, slump REAL, extractor_version TEXT,
+            model_version TEXT, PRIMARY KEY (ts, site));
+        INSERT INTO minute(ts, site, activity, orientation, n_valid_frames,
+            angles, slump) VALUES
+            (1700000000000, 'kitchen', 'sitting', 'profile', 40, '{}', 0.9),
+            (1700000060000, 'kitchen', NULL, NULL, 20, '{}', NULL);
+        CREATE TABLE visage_minute (
+            ts INTEGER NOT NULL, site TEXT NOT NULL DEFAULT 'default',
+            n_valid INTEGER, expr_mean TEXT, expr_std TEXT, pitch_mean REAL,
+            smile_episodes INTEGER, emotions TEXT, valence_mean REAL,
+            arousal_mean REAL, extractor_version TEXT, model_version TEXT,
+            PRIMARY KEY (ts, site));
+        CREATE TABLE galerie (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, embedding BLOB NOT NULL,
+            created REAL NOT NULL, type TEXT NOT NULL);
+        INSERT INTO galerie(embedding, created, type)
+            VALUES (x'0000', 1700000000.5, 'enrolement');
+        CREATE TABLE identite (ts INTEGER NOT NULL, state TEXT NOT NULL,
+                               score REAL);
+        CREATE TABLE episode (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, start REAL NOT NULL,
+            end REAL NOT NULL, type TEXT NOT NULL, site TEXT,
+            orientation TEXT, duration_s REAL, distance_m REAL,
+            n_steps INTEGER, valid INTEGER, variables TEXT,
+            extractor_version TEXT, model_version TEXT);
+        INSERT INTO episode(start, end, type, site, valid)
+            VALUES (1700000000.5, 1700000005.25, 'walk', 'kitchen', 1);
+        CREATE TABLE session (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, start REAL NOT NULL,
+            end REAL, site TEXT, simulated INTEGER NOT NULL DEFAULT 0,
+            quality_ok INTEGER, variables TEXT, extractor_version TEXT,
+            model_version TEXT);
+        INSERT INTO session(start, end, site, simulated)
+            VALUES (1700000000.0, NULL, 'kitchen', 1);
+        CREATE TABLE jour (
+            day TEXT NOT NULL, site TEXT NOT NULL DEFAULT 'default',
+            aggregates TEXT, coverage REAL, recalibrated INTEGER DEFAULT 0,
+            extractor_version TEXT, model_version TEXT,
+            PRIMARY KEY (day, site));
+        INSERT INTO jour(day, site, coverage) VALUES
+            ('2026-01-01', 'kitchen', 0.5);
+        CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT);
+        CREATE INDEX idx_episode_start ON episode(start);
+        CREATE INDEX idx_minute_ts ON minute(ts);
+    """)
+    con.close()
+
+    st = Storage(db, site="kitchen")
+    v = st.query_one("SELECT version FROM schema_version")
+    assert v["version"] == SCHEMA_VERSION
+
+    rows = st.query("SELECT * FROM minute ORDER BY activity")
+    assert len(rows) == 2
+    assert rows[0]["activity"] == "sitting"   # 's' < 'u'
+    assert rows[0]["orientation"] == "profile"
+    assert rows[0]["site"] == "kitchen"       # site column preserved
+    assert rows[1]["activity"] == "unknown"   # NULL -> unknown
+    assert rows[1]["orientation"] == "unknown"
+
+    # migrated majority-label rows coexist with new per-context writes
+    st.add_minute(ts_ms=1700000000000, activity="walking",
+                  orientation="face", n_valid=10, angles={}, slump=None,
+                  extractor_version="t", model_version="m")
+    assert len(st.query("SELECT * FROM minute WHERE ts=1700000000000")) == 2
+
+    ep = st.query_one("SELECT * FROM episode")
+    assert ep["start"] == 1700000000500 and ep["end"] == 1700000005250
+    assert isinstance(ep["start"], int)
+    sess = st.query_one("SELECT * FROM session")
+    assert sess["start"] == 1700000000000 and sess["end"] is None
+    g = st.query_one("SELECT created FROM galerie")
+    assert g["created"] == 1700000000500  # x1000
     st.close()
 
 

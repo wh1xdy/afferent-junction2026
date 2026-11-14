@@ -57,6 +57,8 @@ def test_minute_episode_session_rows(tmp_path):
     st.update_episode_variables(ep_id, {"cadence_steps_min": 108.0})
     ep = st.query_one("SELECT * FROM episode WHERE id=?", (ep_id,))
     assert json.loads(ep["variables"])["cadence_steps_min"] == 108.0
+    # epoch-ms convention: writers convert epoch-s -> ms
+    assert ep["start"] == 1000 and ep["end"] == 5000
 
     sid = st.start_session(simulated=True, extractor_version="t",
                            model_version="m")
@@ -64,6 +66,8 @@ def test_minute_episode_session_rows(tmp_path):
     sess = st.sessions()
     assert len(sess) == 1 and sess[0]["simulated"] == 1
     assert sess[0]["end"] is not None
+    # epoch-ms: session timestamps sit at ~1e12
+    assert sess[0]["start"] > 1e12 and sess[0]["end"] > 1e12
 
     st.add_day("2026-11-13", {"minutes": 10, "coverage": 0.007}, 0.007)
     days = st.days()
@@ -87,4 +91,42 @@ def test_minutes_since_filter(tmp_path):
                       extractor_version="t", model_version="m")
     rows = st.minutes_since(1_700_000_060_000)
     assert len(rows) == 2
+    st.close()
+
+
+def test_minute_contexts_share_one_ts(tmp_path):
+    """PK (ts, site, activity, orientation): several contexts coexist in
+    one minute; the same context re-written replaces itself."""
+    st = _st(tmp_path)
+    ts = 1_700_000_000_000
+    st.add_minute(ts_ms=ts, activity="sitting", orientation="profile",
+                  n_valid=40, angles={}, slump=0.9,
+                  extractor_version="t", model_version="m")
+    st.add_minute(ts_ms=ts, activity="walking", orientation="face",
+                  n_valid=20, angles={}, slump=0.7,
+                  extractor_version="t", model_version="m")
+    assert len(st.minutes_since(ts)) == 2
+    # same ts+context replaces, does not duplicate
+    st.add_minute(ts_ms=ts, activity="sitting", orientation="profile",
+                  n_valid=55, angles={}, slump=0.8,
+                  extractor_version="t", model_version="m")
+    rows = st.minutes_since(ts)
+    assert len(rows) == 2
+    sit = next(r for r in rows if r["activity"] == "sitting")
+    assert sit["n_valid_frames"] == 55 and sit["slump"] == 0.8
+    st.close()
+
+
+def test_episodes_since_ms_filter(tmp_path):
+    st = _st(tmp_path)
+    st.add_episode({"start": 1_700_000_000.0, "end": 1_700_000_005.0,
+                    "type": "walk", "valid": True},
+                   extractor_version="t", model_version="m")
+    st.add_episode({"start": 1_700_000_100.0, "end": 1_700_000_103.0,
+                    "type": "sit", "valid": True},
+                   extractor_version="t", model_version="m")
+    assert len(st.episodes(0)) == 2
+    rows = st.episodes(1_700_000_050_000)   # epoch ms
+    assert len(rows) == 1 and rows[0]["type"] == "sit"
+    assert rows[0]["start"] == 1_700_000_100_000
     st.close()

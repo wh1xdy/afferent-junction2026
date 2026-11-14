@@ -180,7 +180,6 @@ class EpisodeTracker:
         self._walk_dist = 0.0
         self._walk_last: tuple[float, float] | None = None
         self._steps = 0
-        self._closed_short = False
 
     # -- feed -----------------------------------------------------------------
     def update(self, fs: FrameSituation) -> None:
@@ -204,10 +203,8 @@ class EpisodeTracker:
             self._samples = []
             self._walk_dist = 0.0
             self._steps = 0
-            self._closed_short = False
         if etype is not None:
             self._samples.append(fs)
-            self._check_duration(fs.t)
 
     def note_step(self) -> None:
         """Called by the pipeline when a gait step is detected."""
@@ -220,18 +217,6 @@ class EpisodeTracker:
     # -- internals ------------------------------------------------------------
     _MIN_DUR = {"walk": 0.5, "stand": STAND_STILL_S, "sit": SIT_STABLE_S,
                 "transition": 0.3}
-
-    def _check_duration(self, t: float) -> None:
-        if self._cur is None or self._closed_short:
-            return
-        if t - self._start < self._MIN_DUR.get(self._cur, 0.5):
-            return
-        # Emit once the episode reaches its minimum reportable duration;
-        # the episode stays open until the activity changes (then _close
-        # emits the final version). To avoid double-reporting we mark
-        # _closed_short only for episodes we already emitted — instead we
-        # emit on close only, so nothing to do here.
-        pass
 
     def _close(self, end_t: float) -> None:
         if self._cur is None:
