@@ -14,9 +14,12 @@ the `Authorization` header Vertex requires. The relay only accepts phones that s
 transcription on both sides), and forwards only audio from the phone, so the phone cannot change the
 model or the prompt.
 
-The prompt makes Gemini Live a companion for light conversation — pets, food and cooking, nature,
-small daily moments — with active listening in the spirit of Carl Rogers. It is not an assistant and
-does not do research or tasks; the safety lines (support button, 112) are always in.
+The prompt offers two approaches: everyday topic invitations for light conversation or a starting
+point, and active listening in the spirit of Carl Rogers when someone shares an experience or feeling.
+Most listening replies are brief reflections without questions; questions are occasional invitations,
+never asked on successive replies or repeated when they get no uptake. Silence is allowed rather
+than filled with prompts. It is not an assistant and does not do research or tasks; the safety lines
+(support button, 112) are always in.
 
 Once a day the phone asks its home hub for a wellbeing read (`GET /api/patients/{pid}/wellbeing`,
 see the main README) and may pass it in the auth message as `context`:
