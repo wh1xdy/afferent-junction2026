@@ -12,7 +12,7 @@ Needs Python 3 (the script creates `hub/.venv` and installs `hub/requirements.tx
 
 | URL | What |
 |---|---|
-| `http://localhost:8000/clinic/` | Clinician dashboard (list, patient detail, validation tab) |
+| `http://localhost:8000/clinic/` | Clinician dashboard (exports received via QR, validation tab) |
 | `http://localhost:8000/app/?input=touch` | Game, played by touch (the default) |
 | `http://localhost:8000/app/patient.html?patient=anna` | Patient view ("your week", privacy switches) |
 | `http://localhost:8000/app/?input=auto` | Opt-in only: autoplay story, only for unattended demos |

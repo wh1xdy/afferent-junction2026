@@ -32,7 +32,7 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass
 class Config:
     # Capture
-    camera: str = "0"               # index, /dev/videoN path, or video file
+    camera: str = "0"               # "auto", index, /dev/videoN path, or video file
     width: int = 1920
     height: int = 1080
     fps: int = 30                   # requested camera fps
@@ -71,6 +71,12 @@ class Config:
     min_valid_frames: int = 30      # per minute row
     recordings_dir: str = "/recordings"
     recording_enabled: bool = False
+    record_annotated: bool = False  # write skeleton+angles overlay into videos
+    preview_width: int = 0          # live stream width in px (0 = native); recordings stay native
+    preview_quality: int = 70       # live stream JPEG quality
+    # Optional push of minute aggregates to afferent-data-manager ("" = off)
+    data_manager_url: str = ""
+    data_manager_token: str = ""
 
     # Filtering
     one_euro_min_cutoff: float = 1.0
@@ -125,6 +131,11 @@ class Config:
             min_valid_frames=_env_int("MIN_VALID_FRAMES", 30),
             recordings_dir=_env("RECORDINGS_DIR", "/recordings"),
             recording_enabled=_env_bool("RECORDING_ENABLED", False),
+            record_annotated=_env_bool("RECORD_ANNOTATED", False),
+            preview_width=_env_int("PREVIEW_WIDTH", 0),
+            preview_quality=_env_int("PREVIEW_QUALITY", 70),
+            data_manager_url=_env("DATA_MANAGER_URL", ""),
+            data_manager_token=_env("DATA_MANAGER_TOKEN", ""),
             one_euro_min_cutoff=_env_float("ONE_EURO_MIN_CUTOFF", 1.0),
             one_euro_beta=_env_float("ONE_EURO_BETA", 0.5),
             kpt_conf_threshold=_env_float("KPT_CONF_THRESHOLD", 0.3),

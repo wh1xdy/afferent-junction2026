@@ -14,7 +14,7 @@
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
   const DAWN_S = 8, PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 102, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
-  const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8;
+  const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8, SPARK_S = 0.7, SPARK_C = hex('#FFD9A0');
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
   const RP = () => A.PRESENT?.reaction || {};
@@ -61,7 +61,7 @@
       t0, night, auto, stage: !!opts.stage, profile, V, fromIdle, phase: 'fadein', phaseAt: t0, done: false, pw: 1,
       targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', candidate: null, candidateAt: 0,
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
-      slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
+      slots: { fork: null, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
@@ -86,6 +86,32 @@
       },
       haptic(name = 'light') { if (A.J) A.J.hap(name); else { navigator.vibrate?.(15); A.bus.emit('haptic'); } },
       kick(x) { this.flameKick = Math.max(this.flameKick, x); },
+      kindleFrom(i, now) {
+        const b = this.box();
+        this.spark = { x0: b.x + b.w * (0.05 + 0.9 * (i + 0.5) / 5), y0: b.y + b.h * 0.5, at: now, lit: false };
+      },
+      updateSpark(now) {
+        const sp = this.spark;
+        if (!sp || sp.lit || now - sp.at < SPARK_S) return;
+        sp.lit = true; this.kick(0.6); Au.piano(9, 0.1); this.haptic('light');
+        for (let i = 0; i < 6; i++) V.sparks.push({ born: now, dx: R() * 2 - 1, dy: -R() });
+      },
+      drawSpark(ctx, now) {
+        const sp = this.spark;
+        if (!sp) return;
+        const t = (now - sp.at) / SPARK_S;
+        if (t >= 1.6) { this.spark = null; return; }
+        if (t >= 1) return;
+        const [x1, y1] = A.World.lanternPos(), e = A.ease(clamp(t, 0, 1)), cx = (sp.x0 + x1) / 2, cy = Math.min(sp.y0, y1) - 40;
+        const at = k => [lerp(lerp(sp.x0, cx, k), lerp(cx, x1, k), k), lerp(lerp(sp.y0, cy, k), lerp(cy, y1, k), k)];
+        for (let j = 4; j >= 0; j--) {
+          const [x, y] = at(clamp(e - j * 0.05, 0, 1)), a = (1 - j / 5) * (A.config.reducedMotion ? 0.6 : 1);
+          A.MINI.glow(ctx, x, y, 14 - 2 * j, SPARK_C, 0.55 * a);
+        }
+        const [x, y] = at(e);
+        ctx.fillStyle = 'rgba(255,240,214,0.95)';
+        ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 6.29); ctx.fill();
+      },
       playLeft(now) { return this.playS - (now - (this.firstPlayAt ?? now)); },
       tween(obj, key, from, to, dur) { this.tweens = this.tweens.filter(x => !(x.obj === obj && x.key === key)); this.tweens.push({ obj, key, from, to, start: A.now(), dur }); },
       bloom(group, dur) { this.tween(V.sat, group, V.sat[group], 1, dur); },
@@ -251,12 +277,8 @@
       measuresPending(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).length; },
 
       pick(mode) {
-        const ids = Object.keys(A.MINIGAMES).filter(id => A.MINIGAMES[id].modes.includes(mode));
-        const w = this.weights?.[mode], wt = id => w ? Math.max(0, w[id] ?? 0) : 1;
-        const fresh = ids.filter(id => !this.played.has(id) && wt(id) > 0);
-        if (!fresh.length) return A.pickGame(mode, this.lastGame, w);
-        const { id } = A.pickGame(mode, this.lastGame, Object.fromEntries(ids.map(x => [x, fresh.includes(x) ? wt(x) : 0])));
-        return { id, weight: w ? w[id] ?? null : null };
+        const { id, p } = A.pickGame(mode, this.lastGame, this.played);
+        return { id, p: r3(p) };
       },
 
       measureAt(slot) { return slot === this.slots.fork ? 'fork' : slot === this.slots.lanterns ? 'lanterns' : null; },
@@ -289,18 +311,17 @@
           slot = ++this.slot;
         }
         const measure = force ? forceMeasure : this.measureAt(slot);
-        let id, k = null, weight = null, gameMode = mode;
+        let id, k = null, weight = null, p = null, gameMode = mode;
         if (measure) id = measure;
         else {
-          const w = this.weights?.[mode];
           if (forceGame) { id = forceGame; if (!A.MINIGAMES[id].modes.includes(mode)) gameMode = A.MINIGAMES[id].modes[0]; }
-          else if (mode === 'rest') { id = 'breath'; weight = w?.breath ?? null; }
-          else ({ id, weight } = this.pick(mode));
+          else if (mode === 'rest') { id = 'breath'; p = 1; }
+          else ({ id, p } = this.pick(mode));
           k = Number.isFinite(A.config?.forceK) ? clamp(A.config.forceK, 0, 1) : this.intensity(gameMode);
           this.lastGame = id;
           if (gameMode !== 'rest') this.played.add(id);
         }
-        this.next = { slot, id, measure, mode, gameMode, k, weight };
+        this.next = { slot, id, measure, mode, gameMode, k, weight, p };
         return this.next;
       },
 
@@ -311,7 +332,7 @@
           this.slot = n.slot - 1; this.next = null; n = this.planTask(now);
         }
         this.next = null;
-        const { slot, id, measure, mode, gameMode } = n, k = n.k, weight = n.weight;
+        const { slot, id, measure, mode, gameMode } = n, k = n.k, weight = n.weight, assignP = n.p ?? null;
         let g;
         A.J?.reset(now);
         try { g = measure ? A.MEASURES[id].make() : (A.Skill?.start(id, gameMode, k), A.MINIGAMES[id].make(k, { endless: gameMode === 'rest' })); }
@@ -325,8 +346,8 @@
         }
         if (!measure) {
           g.world = !!A.MINIGAMES[id].world;
-          if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) { g.cycles = 1; g.max = Math.min(g.max, 12); }
-          if (gameMode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) - (MEASURE_RIDE_S + 4 + (SEC_HILL[mode] || 4) + 3) * this.measuresPending(slot) - 8));
+          // Games always play to their end; the session clock only decides which game fits next, never cuts one short.
+          if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) g.cycles = 1;
         }
         g.bare ??= true;
         if (!measure) g.rt = A.RT?.log() ?? null;
@@ -335,12 +356,12 @@
         Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind, inputs0: this.inputs });
         this.game = g; this.gameMode = taskMode;
         if (this.T.taskStart(g, now) && A.Skill?.cur?.id === id) { const c = A.Skill.cur; c.c = c.tiers[0]; c.tier = 1; c.carry = true; }
-        this.track = A.Record.track({ id, slot, kind, mode: taskMode, director_mode: mode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight) }, now);
+        this.track = A.Record.track({ id, slot, kind, mode: taskMode, director_mode: mode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight), assign_p: assignP }, now);
         if (taskMode === 'calm' || taskMode === 'rest') Au.pad(true);
         if (MODES[mode].biome === 'sauna' && !measure) Au.crackle(true);
         this.setPhase('game');
         A.bus.emit('game', { id, mode: taskMode, k: k ?? 0, slot, kind });
-        this.ws({ type: 'game', id, slot, kind, mode: taskMode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight), t_ms: this.tm(now) });
+        this.ws({ type: 'game', id, slot, kind, mode: taskMode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight), assign_p: assignP, t_ms: this.tm(now) });
       },
 
       closeTask(now, by) {
@@ -501,6 +522,7 @@
           for (let i = 0; i < n; i++) V.sparks.push({ born: now, dx: R() * 2 - 1, dy: -R() });
           if (V.sparks.length > 40) V.sparks.splice(0, V.sparks.length - 40);
         }
+        this.updateSpark(now);
         this.flameKick = ema(this.flameKick, 0, dt, 0.2);
         V.flame = 1 + this.flameKick;
         V.flash = ema(V.flash, 0, dt, 0.25);
@@ -512,7 +534,7 @@
 
         if (this.phase === 'fadein') {
           V.black = this.fromIdle ? 0.35 * Math.sin(Math.PI * clamp(t / 2, 0, 1)) : 1 - clamp(t / 2, 0, 1);
-          if (t >= 2) { this.core.restStart = now; this.stage ? this.finishCore(now) : forced() === 'reaction' ? this.startRt(now) : this.startRest(); }
+          if (t >= 2) { this.core.restStart = this.core.restEnd = now; this.stage ? this.finishCore(now) : this.startRt(now); }
           return;
         }
         if (this.phase === 'rest') { this.updateRest(now, dt, p, f); return; }
@@ -593,6 +615,11 @@
       },
 
       drawOverlay(ctx, now) {
+        this.drawLayers(ctx, now);
+        this.drawSpark(ctx, now);
+      },
+
+      drawLayers(ctx, now) {
         const at = A.J ? A.J.at : now;
         if (this.phase === 'rt' || now < (this.coreHoldUntil || 0)) RP().draw?.(ctx, this, at);
         const g = this.panel || this.game || this.outro?.g;

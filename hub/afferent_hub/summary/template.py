@@ -102,7 +102,7 @@ def _sessions(n):
 
 def _bandit(n):
     task = n.get("best_calm_task")
-    if not task:
+    if not task or not n.get("best_calm_n"):
         return None
     detail = []
     if n.get("best_calm_helped") is not None and n.get("best_calm_n"):

@@ -30,6 +30,22 @@
     beacon: '<path d="M10 20l1-11h2l1 11z"/><path d="M9.5 9h5"/><path d="M15 6.5l5-2M15 8.5l5 1"/>',
     shutters: '<rect x="5" y="4.5" width="14" height="15" rx="1.5"/><path d="M5 9.5h14M5 14.5h14"/>',
     threads: '<path d="M3.5 9c3-3 5 3 8.5 0s5.5-3 8.5 0"/><path d="M3.5 15c3-3 5 3 8.5 0s5.5-3 8.5 0"/>',
+    windows: '<path d="M4 10.5L12 4l8 6.5"/><rect x="6" y="10.5" width="12" height="9.5"/><path d="M12 12.5v6M9 15.5h6"/>',
+    vihta: '<path d="M15.5 3.5l-4 9"/><path d="M11.5 12.5c-3 0-5.5 2.5-5.5 5.5 3 0 6-1.5 7-4.5z"/><path d="M4 20.5h16"/>',
+    birds: '<path d="M3.5 17.5h17"/><path d="M8 17.5c-2-1-2.5-4 0-5.5s5-1 6-3.5c1 1.5 1 3-.5 4.5 2 .5 3 2 3 4.5"/><circle cx="14.5" cy="9" r=".6"/>',
+    swans: '<path d="M4 17.5h16"/><path d="M6 15.5c1 1.5 7 1.5 9 0 1-1 0-4-2-3.5s-2-5 1-5.5c1.5-.2 2 1 2.5 1.5"/>',
+    faces: '<rect x="3.5" y="5" width="7.5" height="14" rx="1"/><rect x="13" y="5" width="7.5" height="14" rx="1"/><circle cx="16.75" cy="12" r="1.3"/>',
+    owls: '<path d="M7 8l1.5-3 2 2h3l2-2L17 8v6a5 5 0 0 1-10 0z"/><circle cx="10" cy="10.5" r="1.3"/><circle cx="14" cy="10.5" r="1.3"/>',
+    seals: '<ellipse cx="12" cy="18" rx="7" ry="2"/><path d="M9 17.5c0-5 1-9 3-9s3 4 3 9"/><circle cx="11" cy="11" r=".6"/><circle cx="13" cy="11" r=".6"/>',
+    reindeer: '<path d="M8 11h8l1.5 3v5M8 11l-1.5 3v5M8 11V7l-2-3M8 7l2-2.5M16 11V7l2-3M16 7l-2-2.5"/>',
+    ferry: '<path d="M3.5 15.5h15l-2 3h-11z"/><path d="M7 15.5v-4h7v4M10 11.5V8"/><path d="M20.5 9v9.5"/>',
+    drips: '<path d="M4 4.5h16"/><path d="M7 4.5l1.5 6 1.5-6M14 4.5l1.5 8 1.5-8"/><path d="M15.5 16c-1 1.5-1 3 0 3s1-1.5 0-3z"/>',
+    buoys: '<circle cx="6" cy="17" r="2"/><circle cx="12" cy="8" r="2"/><circle cx="18" cy="15" r="2"/><path d="M7.5 15.5l3-6M13.5 9.5l3 4"/>',
+    steps: '<ellipse cx="9" cy="16" rx="1.6" ry="2.6"/><ellipse cx="14.5" cy="11" rx="1.6" ry="2.6"/><ellipse cx="10" cy="6" rx="1.6" ry="2.6"/>',
+    glance: '<path d="M3.5 18h17"/><path d="M6 16h5l-1 2H7zM13 16h5l-1 2h-3z"/><path d="M8.5 16V9l3 7M15.5 16V8l3 8"/>',
+    signpost: '<path d="M12 20.5v-14"/><path d="M6 6.5h10l2.5 2.5L16 11.5H6z"/>',
+    runes: '<rect x="3.5" y="6" width="7.5" height="12" rx="1.5"/><rect x="13" y="6" width="7.5" height="12" rx="1.5"/><path d="M6 9v6h3M18 9v6h-3"/>',
+    fog: '<circle cx="12" cy="11" r="5"/><path d="M10 13c1 .6 3 .6 4 0"/><path d="M3.5 17.5h17M5.5 20h13"/>',
     loyly: '<path d="M4 19.5h16"/><path d="M8.5 16c-1.5-2 1.5-3.5 0-5.5s1-3 0-5"/><path d="M15.5 16c-1.5-2 1.5-3.5 0-5.5s1-3 0-5"/>',
     dot: '<circle cx="12" cy="12" r="4"/>',
     hourglass: '<path d="M7 3.5h10M7 20.5h10M8 3.5c0 4.5 4 5.5 4 8.5s-4 4-4 8.5M16 3.5c0 4.5-4 5.5-4 8.5s4 4 4 8.5"/>',
@@ -58,8 +74,9 @@
       if (!s) return null;
       try {
         const u = new URL(s);
-        if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host;
-        return u.origin;
+        const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
+        if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
+        return u.origin + key;
       } catch { return null; }
     };
     let ls = null;
@@ -126,7 +143,6 @@
     renderPause();
     renderWeek();
     renderStrata();
-    renderHelped(view?.what_helped || []);
     renderToday(t);
     renderSharing();
     renderSensors();
@@ -227,9 +243,8 @@
     });
   }
 
-  const moodOf = d => d.state === 'lit' && d.mood >= 1 && d.mood <= 5 ? Math.round(d.mood) : null;
   const dayLight = d => {
-    const m = moodOf(d), fill = d.state === 'lit' ? (d.today ? '#F2C230' : m ? token(`--af-mood-${m}`) || d.colour : '#FFD58A') : null;
+    const fill = d.state === 'lit' ? (d.today ? '#F2C230' : '#FFD58A') : null;
     return el('span', { class: `light s-${d.state}${d.today ? ' today' : ''}`, style: fill ? `--fill:${fill}` : null, 'aria-hidden': 'true' });
   };
 

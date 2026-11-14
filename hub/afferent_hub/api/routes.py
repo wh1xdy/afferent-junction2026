@@ -39,6 +39,10 @@ async def patient(pid: str, request: Request):
 async def analytics(pid: str, request: Request):
     return hub(request).analytics(pid)
 
+@router.get("/patients/{pid}/wellbeing")
+async def wellbeing(pid: str, request: Request):
+    return await hub(request).voice_context(pid)
+
 @router.get("/patients/{pid}/patient-view")
 async def patient_view(pid: str, request: Request):
     return hub(request).patient_view(pid)

@@ -32,6 +32,22 @@ HELPED_TEXT = {
     "shutters": "Opening the shutters often helps when your eyes feel heavy.",
     "threads": "The aurora threads often help you settle into the moment.",
     "stars": "Joining the stars often helps you settle into the moment.",
+    "windows": "Lighting the cabin windows often helps you wake up.",
+    "vihta": "A quick round with the vihta often wakes you up.",
+    "birds": "Watching the birds often helps you settle into the moment.",
+    "swans": "Following the swans often helps you focus.",
+    "faces": "The frosted windows often help you settle into the moment.",
+    "owls": "Finding the owl often helps you wake up.",
+    "seals": "Catching the seals often helps you wake up.",
+    "reindeer": "Watching the reindeer often helps you focus.",
+    "ferry": "Timing the ferry often helps you wake up.",
+    "drips": "Keeping the drip rhythm often helps you settle.",
+    "buoys": "Roping the buoys often helps you focus.",
+    "steps": "Following the snow steps often helps you settle into the moment.",
+    "glance": "A glance at the harbour often helps you focus.",
+    "signpost": "Reading the signposts often helps you wake up.",
+    "runes": "Turning the runes often helps you focus.",
+    "fog": "Reading the faces in the fog often helps you settle.",
 }
 DAWN_TEXT = "Days with the dawn light are often followed by brighter check-ins (still learning)."
 

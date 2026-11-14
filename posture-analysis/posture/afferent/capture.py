@@ -1,6 +1,7 @@
 """Threaded V4L2/OpenCV capture: always keeps the latest frame.
 
-CAMERA accepts an integer index, a /dev/videoN path, or a video file path.
+CAMERA accepts "auto" (first working V4L2 device, /dev/v4l/by-path links
+preferred), an integer index, a /dev/videoN path, or a video file path.
 For video files, timestamps come from frame index / fps so offline
 processing shares the live code path.
 """
@@ -52,6 +53,7 @@ class Capture:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._cap: cv2.VideoCapture | None = None
+        self.resolved_source: str | None = None   # actual device for "auto"
         self._is_file = False
         self._file_fps = 30.0
         self._t0_epoch = 0.0
@@ -63,6 +65,45 @@ class Capture:
         src = self.source
         if isinstance(src, str) and _is_file_source(src):
             self._is_file = True
+            cap = cv2.VideoCapture(src)
+            if not cap.isOpened():
+                self.error = f"cannot open video source {self.source!r}"
+                return False
+            self._cap = cap
+            self._file_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        self._t0_epoch = time.time()
+        # Cameras are opened lazily inside the thread so `CAMERA=auto` and
+        # hot-plug retry work even when no device is present at startup.
+        self._thread = threading.Thread(target=self._run, daemon=True,
+                                        name="capture")
+        self._thread.start()
+        return True
+
+    def _resolve_source(self):
+        """CAMERA=auto picks the first working V4L2 device, preferring
+        /dev/v4l/by-path/ links which stay stable when the webcam moves to
+        another /dev/videoN index (replug, reboot, other cameras)."""
+        if str(self.source).lower() != "auto":
+            return self.source
+        import glob
+        candidates = (sorted(glob.glob("/dev/v4l/by-path/*"))
+                      + sorted(glob.glob("/dev/video*")))
+        for dev in candidates:
+            cap = cv2.VideoCapture(dev)
+            ok, img = (False, None)
+            if cap.isOpened():
+                ok, img = cap.read()
+            cap.release()
+            if ok and img is not None:
+                self.resolved_source = dev
+                return dev
+        return None
+
+    def _open_camera(self) -> bool:
+        src = self._resolve_source()
+        if src is None:
+            self.error = "no camera device found"
+            return False
         cap = cv2.VideoCapture(src)
         if not cap.isOpened():
             # numeric string fallback
@@ -73,21 +114,14 @@ class Capture:
         if not cap.isOpened():
             self.error = f"cannot open camera source {self.source!r}"
             return False
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        cap.set(cv2.CAP_PROP_FPS, self.fps)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        # V4L2 often rejects MJPG at high res/fps combos; retry with
+        # lower settings if the read fails.
         self._cap = cap
-        self._t0_epoch = time.time()
-        if self._is_file:
-            self._file_fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        else:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            cap.set(cv2.CAP_PROP_FPS, self.fps)
-            cap.set(cv2.CAP_PROP_FOURCC,
-                    cv2.VideoWriter_fourcc(*"MJPG"))
-            # V4L2 often rejects MJPG at high res/fps combos; retry with
-            # lower settings if the read fails.
-        self._thread = threading.Thread(target=self._run, daemon=True,
-                                        name="capture")
-        self._thread.start()
+        self.error = None
         return True
 
     def close(self) -> None:
@@ -126,13 +160,23 @@ class Capture:
         empty_reads = 0
         while not self._stop.is_set():
             if self._cap is None:
-                break
+                if self._is_file or not self._open_camera():
+                    if self._is_file:
+                        break
+                    time.sleep(2.0)     # camera absent: retry until it appears
+                    continue
             ok, img = self._cap.read()
             if not ok or img is None:
                 empty_reads += 1
                 if empty_reads > 50:
-                    self.error = "capture read failed repeatedly"
-                    break
+                    self._cap.release()
+                    self._cap = None
+                    empty_reads = 0
+                    if self._is_file:
+                        self.error = "capture read failed repeatedly"
+                        break
+                    self.error = "camera lost; reconnecting"
+                    continue
                 time.sleep(0.01)
                 continue
             empty_reads = 0

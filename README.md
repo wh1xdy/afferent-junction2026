@@ -298,6 +298,88 @@ The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numb
 - Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
 - The printed page lists the same weekly numbers under the code.
 
+### Talk transcripts on the hub
+
+When a Talk conversation ends, the phone sends the transcript to the hub over the app link
+(`{type: "transcript"}` on `/ws/app`) and keeps it in a local outbox until the hub acks it
+(`demo/js/voice.js`). Audio itself only ever goes to Google while the conversation is open;
+the transcript stays on the phone (last 20 conversations) and on the hub — nothing goes to
+the clinic or the data manager.
+
+The hub appends each transcript as **one JSON line** to a rotating log
+(`hub/afferent_hub/transcripts.py`):
+
+- Directory: `AFFERENT_TRANSCRIPTS_DIR`, default `hub/data/transcripts/` — next to
+  `afferent.db` on the hub's disk (the Jetson when the hub runs there).
+- Ring buffer: `transcript-000001.jsonl`, `transcript-000002.jsonl`, …; a new file starts
+  past `AFFERENT_TRANSCRIPT_FILE_MB` (10 MB), and once the directory passes
+  `AFFERENT_TRANSCRIPT_TOTAL_MB` (500 MB) the oldest files are removed — the current file
+  is never removed.
+- A resent `transcript_id` (ack lost on disconnect) is deduplicated in-process and the ack
+  carries `duplicate: true`; the id also stays inside each row for post-hoc dedupe across
+  a hub restart.
+
+Each line is a self-contained record:
+
+```json
+{"transcript_id": "3f6b…", "patient_id": "anna",
+ "t_iso": "2026-11-14T15:30:00.000Z", "received_iso": "2026-11-14T17:36:43+02:00",
+ "turns": [{"role": "user", "text": "I feel a bit tired today"},
+           {"role": "agent", "text": "I hear you. Did you sleep alright?"}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `transcript_id` | uuid from the phone; dedupe key |
+| `patient_id` | patient the conversation belongs to |
+| `t_iso` | when the conversation ended, phone clock (UTC ISO 8601) |
+| `received_iso` | when the hub wrote the row, hub clock |
+| `turns` | ordered list; `role` is `user` or `agent`, `text` is that turn's full transcript |
+
+### Daily wellbeing read for the voice companion
+
+Once a day the phone asks the hub how its patient seems to be doing — `{type: "voice_context"}`
+on `/ws/app`, answered by `{type: "voice_context", ...}` — and anyone on the hub can read the
+same thing at `GET /api/patients/{pid}/wellbeing` (`hub/afferent_hub/wellbeing.py`, wired in
+`service.py`).
+
+The answer:
+
+```json
+{"type": "voice_context", "patient_id": "anna", "date": "2026-11-15",
+ "indicator": "bad", "suggest_doctor": true,
+ "facts": ["skipped the morning practice on 4 of the last 7 days",
+           "went outside on 0 of the last 5 days"]}
+```
+
+- `indicator` is `ok`, `watch` or `bad`, from the hub's own data: the analytics state
+  (`check_in`/`booster` → bad, `watch` → watch) and the last PHQ-9 band (`moderate` or worse
+  → bad, `mild` → watch, an overdue check-in → watch).
+- `facts` are short clauses. The hub adds its own (missed practice, the last questionnaire);
+  when the indicator is `bad` it also asks the data manager (`AFFERENT_DATA_MANAGER_URL`)
+  for presence facts — outings, time at home and visitors over the last two weeks. Every
+  sensor read is best-effort: a quiet data manager means fewer facts, never an error.
+- `suggest_doctor` is `indicator == "bad"`.
+
+The phone caches the answer for the day (`demo/js/voice.js`) and hands it to the voice relay
+inside the auth message (`{auth, context}`); the relay (`voice-relay/main.py`) validates it
+and appends it to the system instruction. So on a bad day the companion gently acknowledges
+that things have not been easy, reminds the person the app and their care team are there
+exactly for that, and suggests — once, without pushing — that they talk to their doctor.
+
+### Home hub on the Jetson
+
+The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the real UNO Q as bedside and the data manager all run on the mesh. The Mac is needed only as the doorway for a browser or the phone (below).
+
+- Deploy: `jetson/home_hub/deploy.sh`. It copies the tracked files of `hub/`, `demo/`, `contracts/`, `design/` (without test folders) into the git-ignored `stage/` and runs `wendy run`; an untracked file in those folders stops it. The SQLite database is on the volume `afferent-home-hub` and survives a redeploy. The image pins its packages (`jetson/home_hub/constraints.txt`) and runs the hub as a non-root user.
+- Pairing token: every `/api/*` and `/ws/*` route except `/api/health` needs the hub token. The first deploy makes it in `~/.afferent/home-hub.token` (mode 600) and passes it to the app; it is never in the repo. `jetson/home_hub/pair.sh` prints the pairing link (it holds the token; open it, do not paste it anywhere). A browser opens the link once and gets a cookie; the phone app keeps the token in its hub address (`<ip>/k/<token>`). Requests from other web origins and DNS names are refused, and `/ws/bedside` is closed while the bedside is the UNO Q.
+- Browser on the Mac: `wendy net forward 18000:18000 --device 169.254.246.159:50052` (keep it running), then open the link from `jetson/home_hub/pair.sh`: it lands on the patient view (`/app/patient.html`); the game is `/app/`. `/clinic/` shows only the simulated demo roster and scanned codes: the real patient reaches the clinic view only through the QR code she shows. The forward allows about 8 connections at once across all forwards, so keep to one browser tab.
+- Phone: Personal Hotspot over the USB cable (mobile data on), so the Mac gets an address on the "iPhone USB" port. Terminal 1: the forward above. Terminal 2: `IP=$(ipconfig getifaddr en8); echo $IP; socat TCP-LISTEN:8000,bind=$IP,fork,reuseaddr TCP:127.0.0.1:18000`. Then `jetson/home_hub/pair.sh $IP` gives the Hub address for the app's Settings. The relay listens only on the cable link. Not yet tried end to end with the phone. Run `wendy auth refresh-certs` before a demo.
+- Bedside: `AFFERENT_BEDSIDE=unoq:auto` finds the UNO Q over mDNS (`role=modulino-hub`, `.mesh.local.` host names only) and looks it up again when the link is lost. No simulator runs here.
+- Data manager: `AFFERENT_DATA_MANAGER_URL=auto` finds it the same way (`role=data-manager`); one that answers is kept, and only the device in `AFFERENT_DATA_MANAGER_DEVICE` (default: this Jetson) is used, since the bearer token goes to it. The token comes from `AFFERENT_DATA_MANAGER_TOKEN` or `~/.afferent/data-manager.token` at deploy time. Routes: `/api/sensors/<name>`, `/api/patients/<id>/sensors/room`.
+- Real and simulated: the patient `AFFERENT_BEDSIDE_PATIENT` (default `anna`, the id the app sends) starts empty with `simulated: false` and only ever holds what was recorded; before the first session the hub reports "Not enough data yet" and no state, also in the QR code. A session the app marks simulated marks that day and names the simulated fields. The other demo patients are seeded and marked Simulated. `AFFERENT_HOME_DEMO_ROSTER=0` leaves them out, and removes them if an earlier start seeded them; the real patient's data stays. `POST /api/demo/reset` and `/api/demo/profile` are refused here.
+- Other values: `AFFERENT_HOME_PATIENT_NAME`, `AFFERENT_HOME_TMS_END` (YYYY-MM-DD, default the day of the first start), `AFFERENT_HUB_ORIGINS`, `AFFERENT_HUB_HOSTS`, `AFFERENT_TZ` (default `Europe/Helsinki`), `WENDY_DEVICE`.
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)
