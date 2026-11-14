@@ -306,7 +306,6 @@
     const tm = setTimeout(off, undo ? 8000 : 5200);
     t.querySelector('.toast-act')?.addEventListener('click', () => { clearTimeout(tm); off(); undo(); });
   }
-  C.scanToast = toast;
 
   function open() {
     if (!el.hidden) return;

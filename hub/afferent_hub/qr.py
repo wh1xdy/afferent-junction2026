@@ -1,7 +1,7 @@
 import datetime as dt
-import statistics
 
 from . import views
+from .analytics import stats
 from .analytics.features import FEATURES
 
 VERSION = 1
@@ -20,11 +20,6 @@ def _minute(iso: str | None) -> int | None:
     except (TypeError, ValueError):
         return None
     return t.hour * 60 + t.minute
-
-
-def _median(values) -> float | None:
-    vals = [v for v in values if v is not None]
-    return statistics.median(vals) if vals else None
 
 
 def phq_baseline(patient: dict, history: list[dict]) -> tuple[int | None, str, list[dict]]:
@@ -126,7 +121,7 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
         for k in range(WEEKS):
             start = nd - PERIOD_DAYS + 1 + 7 * k
             days = [d for d in range(start, start + 7) if d >= 0 and d in idx and idx[d] < len(series)]
-            m = _median(series[idx[d]] for d in days) if days else None
+            m = stats.median([series[idx[d]] for d in days]) if days else None
             out.append(None if m is None else round(m, 4))
         return out
 

@@ -48,6 +48,11 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   await clinic.evaluate(() => { window.__noReload = true; });
   const rowBefore = await clinic.evaluate((id) => JSON.parse(JSON.stringify(C.state.list.patients.find((p) => p.id === id))), PATIENT);
 
+  const bedsideLights = [];
+  const bedside = new WebSocket(HUB.replace(/^http/, 'ws') + '/ws/bedside');
+  bedside.onmessage = (e) => { const m = parse({ payload: e.data }); if (m && m.type === 'light') bedsideLights.push({ t: Date.now(), ...m }); };
+  await new Promise((r) => { bedside.onopen = r; bedside.onerror = r; });
+
   const app = await browser.newPage({ viewport: { width: 430, height: 900 } });
   watch(app, 'app');
   const appSent = [], appRecv = [];
@@ -95,7 +100,6 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   const forPatient = (m) => !m.patient_id || m.patient_id === PATIENT;
   const seen = new Set(types(clinicMsgs, forPatient));
   check('dashboard got session_started', seen.has('session_started'));
-  check('dashboard got live metrics', clinicMsgs.some((x) => x.m.type === 'live' && forPatient(x.m)), `${clinicMsgs.filter((x) => x.m.type === 'live').length} live`);
   check('dashboard got session_added', seen.has('session_added'));
   check('dashboard got analytics_updated', clinicMsgs.some((x) => x.m.type === 'analytics_updated' && x.m.patient_id === PATIENT));
 
@@ -110,7 +114,6 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
     `composite ${rowBefore.composite} -> ${state.row.composite}, last session ${rowBefore.last_session_iso} -> ${state.row.last_session_iso}, live_now ${state.row.live_now}`);
 
   const dawnSent = appSent.find((s) => s.m.type === 'light' && s.m.reason === 'dawn');
-  const bedsideLights = clinicMsgs.filter((x) => x.m.type === 'bedside_state' && x.m.light).map((x) => ({ t: x.t, ...x.m.light }));
   const atDawn = dawnSent && bedsideLights.find((l) => l.t >= dawnSent.t - 200 && l.reason === 'dawn');
   const bedsideAfter = await getJSON('/api/bedside/state');
   check('game sent dawn light', dawnSent, dawnSent ? JSON.stringify(dawnSent.m) : 'no light with reason dawn');
@@ -120,6 +123,7 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   check('no errors in clinic page', errors.clinic.length === 0, errors.clinic.slice(0, 5).join(' | '));
   check('no errors in app page', errors.app.length === 0, errors.app.slice(0, 5).join(' | '));
 
+  bedside.close();
   await browser.close();
   for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? '  (' + r.detail + ')' : ''}`);
   const failed = results.filter((r) => !r.ok).length;

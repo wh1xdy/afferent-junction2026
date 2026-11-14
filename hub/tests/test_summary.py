@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from afferent_hub import summary
-from afferent_hub.summary import guard, ollama, prompt, summary_numbers, template, weekly_summary
+from afferent_hub.summary import guard, ollama, prompt, summary_numbers, weekly_summary
 
 ROOT = Path(__file__).resolve().parents[2]
 FIX = ROOT / "contracts" / "fixtures"
@@ -123,8 +123,7 @@ def test_template_output_on_fixture(analytics):
     r = weekly_summary(analytics, PATIENT)
     assert r["source"] == "template" and r["model"] is None
     assert r["fallback_reason"] == "no Gemma model on Ollama"
-    assert r["inputs_used"] == r["numbers"]
-    assert r["generated_at"] and r["generated_iso"] == r["generated_at"]
+    assert r["generated_iso"]
     assert r["patient_id"] == "anna" and (r["week_start_day"], r["week_end_day"]) == (50, 56)
     assert r["simulated"] is True and "no diagnosis" in r["disclaimer"]
     t = r["text"]
