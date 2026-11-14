@@ -190,7 +190,7 @@
 
     const st = {
       state: 'core', at: A.now(), held: false, prevHeld: false, botHeld: false, botQ: [], swallow: false, rideSwallow: false,
-      pressTs: null, releaseTs: null, kindle: 0, kindleDone: null,
+      pressTs: null, releaseTs: null, kindle: 0, kindleDone: null, waitS: 0,
       station: null, plan: null, freeHills: 0, segHill: 0, motes: [], spray: [], trail: [], light: 0, fold: null,
       crouch: 0, spread: 0, squash: [1, 1], squashAt: -9, squashK: null, sit: 0, lift: 0, speed01: 0,
       cam: { x: 0, y: 0, z: 1, vx: 0, vy: 0 }, nudge: null, dawnT: 0, dawnHeld: 0, lastTouch: A.now(), giveTick: 0,
@@ -847,6 +847,7 @@
           }
           b.ang = ema(b.ang, 0, dt, 0.2);
         } else if (st.state === 'exit') {
+          if (now >= st.exitAt && !st.exitTap) st.waitS += dt;
           if (now >= st.exitAt && st.exitTap) {
             st.state = 'ride'; st.at = now;
             const P = MODE(curMode(), kOf(curMode()));
@@ -940,6 +941,11 @@
       },
 
       atSummit() { return st.state === 'summitStop' && !st.dawnStarted; },
+
+      // Seconds the rider has waited at a dot, if it is waiting now (main.js puts a line over the dot), else null.
+      waiting(now) { const at = dotFrom(); return at != null && now >= at && !s.auto ? now - at : null; },
+      // Seconds spent waiting at exit dots so far: the play clock leaves them out (engine.js playLeft).
+      waited() { return st.waitS; },
 
       stageOrigin() {
         const z = A.World?.size?.(), u = unit(), sta = st.station;
@@ -1243,6 +1249,11 @@
       }
     }
 
+    // When the rider started waiting at a dot for a tap (the ready dot after the fishing, the exit dot after a task), else null.
+    function dotFrom() {
+      return s.phase !== 'walk' ? null : st.state === 'ready' ? st.readyFrom : st.state === 'exit' && !st.exitTap ? st.exitAt : null;
+    }
+
     function drawOver(ctx, now) {
       const z = A.World?.size?.(), J = A.J;
       if (!z?.W || !J) return;
@@ -1255,7 +1266,7 @@
       if (s.auto) return;
       let fa = 0, press = 0;
       if (s.phase === 'rest' && !A.Input.holding()) { fa = 0.7; press = 1; }
-      const waitFrom = s.phase !== 'walk' ? null : st.state === 'ready' ? st.readyFrom : st.state === 'exit' && !st.exitTap ? st.exitAt : null;
+      const waitFrom = dotFrom();
       if (waitFrom != null && now >= waitFrom) { fa = 0.8; press = 0.5 + 0.5 * Math.sin(PI * clamp((now - waitFrom) / 0.9, 0, 1)); }
       if (s.phase === 'rt' && !s.rtArmed) { fa = 0.8; press = 1; }
       if (st.state === 'ride' && (st.tut || st.noTouchHills >= 2) && now - st.lastInput > 0.6 && !b.air) {

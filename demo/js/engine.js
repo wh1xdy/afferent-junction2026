@@ -112,7 +112,8 @@
         ctx.fillStyle = 'rgba(255,240,214,0.95)';
         ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 6.29); ctx.fill();
       },
-      playLeft(now) { return this.playS - (now - (this.firstPlayAt ?? now)); },
+      // Play time left. Waiting at an exit dot for the tap to go on is not play, so it does not use the clock up.
+      playLeft(now) { return this.playS - (now - (this.firstPlayAt ?? now) - (this.T?.waited?.() ?? 0)); },
       tween(obj, key, from, to, dur) { this.tweens = this.tweens.filter(x => !(x.obj === obj && x.key === key)); this.tweens.push({ obj, key, from, to, start: A.now(), dur }); },
       bloom(group, dur) { this.tween(V.sat, group, V.sat[group], 1, dur); },
 
@@ -293,7 +294,9 @@
         const left = this.playLeft(now), pend = this.measuresPending(this.slot), ride = (SEC_HILL[m] || 4) + 3;
         const short = left - ride * hills - (MEASURE_RIDE_S + ride) * pend < 12;
         if (this.measureAt(this.slot + 1)) return { kind: 'task', hills: short ? 1 : hills };
-        if (left - ride - (MEASURE_RIDE_S + ride) * pend - 5 >= 10) return { kind: 'task', hills: short ? 1 : hills };
+        // The first adaptive game always comes, however long the core, the Fork or the waits took; the clock only trims the rest.
+        const firstGame = !this.tasks.some(t => t.kind === 'adaptive');
+        if (firstGame || left - ride - (MEASURE_RIDE_S + ride) * pend - 5 >= 10) return { kind: 'task', hills: short ? 1 : hills };
         if (pend > 0) { this.slot = this.measureNext(this.slot) - 1; return { kind: 'task', hills: 1 }; }
         return { kind: 'summit', seconds: clamp(left, 4, 12) };
       },
