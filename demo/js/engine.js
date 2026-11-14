@@ -417,7 +417,7 @@
         V.t = now;
         for (const tw of this.tweens) tw.obj[tw.key] = lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
         this.tweens = this.tweens.filter(tw => now - tw.start < tw.dur);
-        if (this.phase === 'end') this.dimEnd(now);
+        if (this.phase === 'end' && this.night) this.dimEnd(now);
         if (this.done) return;
         const t = now - this.phaseAt;
         Sim.step(dt, this, now);

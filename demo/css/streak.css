@@ -1,111 +1,97 @@
-.morning-mark { position: absolute; inset: 0; pointer-events: none !important; }
-.morning-mark .n {
-  position: absolute; transform: translateX(-50%);
-  font-family: var(--af-font-ui, system-ui, sans-serif); font-size: var(--af-text-xs, 12px); font-weight: 500; line-height: 1;
-  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
-  color: var(--af-lantern-glow, #FFD9A0); text-shadow: 0 0 10px rgba(255, 201, 138, 0.45), 0 0 18px rgba(10, 14, 28, 0.9);
+.morning-mark {
+  position: absolute; left: 16px; right: 16px; top: calc(29.4% - 22px); z-index: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; pointer-events: none !important;
+  animation: markIn 900ms var(--af-ease-in) 200ms both;
 }
+@keyframes markIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.morning-mark .chip {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: 12px; height: 44px; padding: 0 22px 0 18px;
+  border-radius: 22px; text-decoration: none; color: var(--af-birch);
+  background: color-mix(in srgb, #3E5478 52%, transparent);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1);
+}
+.morning-mark .chip:focus-visible { outline: 3px solid var(--md-sys-color-secondary); outline-offset: 2px; }
+.morning-mark .laminate { width: 30px; height: 25px; flex: none; }
+.morning-mark .n { font: 300 28px/1 var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: 0; margin-top: -2px; }
+.morning-mark .u { font: 500 13px/16px var(--af-font-ui); letter-spacing: 0.2px; color: color-mix(in srgb, var(--af-birch) 88%, transparent); }
 .morning-mark .bye {
-  position: absolute; left: 0; right: 0; text-align: center;
-  font-family: var(--af-font-display, Georgia, serif); font-size: 17px; font-weight: 300; letter-spacing: 0.01em;
-  color: var(--ink); opacity: 0.85; text-shadow: 0 0 16px rgba(10, 14, 28, 0.9);
+  margin: 0; font: 300 19px/26px var(--af-font-brand); color: var(--af-frost);
+  text-shadow: 0 1px 14px color-mix(in srgb, var(--af-fjord) 80%, transparent);
 }
-.morning-mark [hidden] { display: none; }
 
-#endText .tick {
-  position: relative; display: inline-block; vertical-align: 0.15em; margin-left: 0.55em;
-  min-width: 1.2em; height: 1.25em; overflow: hidden;
-  font-family: var(--af-font-ui, system-ui, sans-serif); font-size: var(--af-text-xs, 12px); font-weight: 500; line-height: 1.25em;
-  font-variant-numeric: tabular-nums; text-align: left; letter-spacing: 0.04em;
-  color: var(--af-lantern-glow, #FFD9A0); text-shadow: 0 0 10px rgba(255, 201, 138, 0.5);
-}
-#endText .tick span { position: absolute; left: 0; top: 0; }
-#endText .tick .old { opacity: 0; }
-#endText .tick.roll .old { animation: tkOut 520ms var(--af-ease-out-soft, ease-out) 450ms both; }
-#endText .tick.roll .new { animation: tkIn 520ms var(--af-ease-out-soft, ease-out) 520ms both; }
-#endText .tick.rise .new { animation: tkFade 700ms var(--af-ease-out-soft, ease-out) 450ms both; }
-#endText .tick.done span, #endText .tick.still span { animation: none; }
-#endText .tick.done .old, #endText .tick.still .old { opacity: 0; }
+.end-count { margin: 0; display: flex; align-items: baseline; gap: 8px; white-space: nowrap; color: var(--md-sys-color-on-surface); }
+.end-count .num { position: relative; display: inline-block; min-width: 1.1em; height: 30px; overflow: hidden; font: 400 26px/30px var(--af-font-brand); font-variant-numeric: tabular-nums; text-align: right; }
+.end-count .unit { font: 500 13px/16px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
+.end-count .tick { display: block; position: relative; height: 30px; }
+.end-count .tick span { position: absolute; right: 0; top: 0; }
+.end-count .tick .old { opacity: 0; }
+.end-count .tick.roll .old { animation: tkOut 520ms var(--af-ease-std) 1650ms both; }
+.end-count .tick.roll .new { animation: tkIn 520ms var(--af-ease-std) 1720ms both; }
+.end-count .tick.rise .new { animation: tkFade 700ms var(--af-ease-std) 1650ms both; }
+.end-count .tick.done span, .end-count .tick.still span { animation: none; }
+.end-count .tick.done .old, .end-count .tick.still .old { opacity: 0; }
 @keyframes tkOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-100%); } }
 @keyframes tkIn { from { opacity: 0; transform: translateY(100%); } to { opacity: 1; transform: none; } }
 @keyframes tkFade { from { opacity: 0; } to { opacity: 1; } }
 
+.week-lights { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 30px); }
+.week-lights .day { --c: var(--af-honey); display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.week-lights .light { position: relative; width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; }
+.week-lights .d { font: 600 12px/16px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
+.week-lights .lit .light { background: var(--c); }
+.week-lights .sun .light { background: var(--md-sys-color-sun); box-shadow: 0 0 0 3px var(--md-sys-color-sun-container); }
+.week-lights .sun .d { color: var(--md-sys-color-on-surface); }
+.week-lights .missed .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline); }
+.week-lights .frozen .light { box-shadow: inset 0 0 0 2px var(--af-frost); }
+.week-lights .rest .light { width: 11px; height: 11px; margin: 5px 0 0; box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline-variant); }
+.week-lights .rest .d { margin-top: -5px; }
+.week-lights .today .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-sun); }
+.week-lights .today .light::after { content: ""; position: absolute; left: 5px; top: 5px; width: 6px; height: 6px; border-radius: 50%; background: #FFB54A; }
+.week-lights .future .light, .week-lights .none .light { box-shadow: inset 0 0 0 1.5px var(--md-sys-color-outline-variant); }
+.week-lights .future .d, .week-lights .none .d { opacity: 0.6; }
+
 .mote {
   position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; z-index: 2;
   pointer-events: none; opacity: 0;
-  background: radial-gradient(circle, #FFF3DC 0%, #FFD9A0 38%, rgba(255, 201, 138, 0) 72%);
-  box-shadow: 0 0 18px 6px rgba(255, 201, 138, 0.35);
+  background: radial-gradient(circle, #FFF0D2 0%, #FFD58A 40%, rgba(255, 213, 138, 0) 72%);
+  box-shadow: 0 0 18px 6px rgba(255, 213, 138, 0.35);
 }
-.mote.landed { box-shadow: 0 0 10px 3px rgba(255, 201, 138, 0.3); }
+.mote.landed { box-shadow: 0 0 10px 3px rgba(255, 213, 138, 0.3); }
+.end[data-phase="sheet"] ~ .mote, #phone:has(.end[data-phase="sheet"]) .mote { opacity: 0 !important; transition: opacity 400ms; }
 
-#end.shining .flames, #end.shone .flames { opacity: 0; transition: opacity 600ms ease 900ms; pointer-events: none; }
-#end.shining .choices { opacity: 0.4; }
-
-.quote-line {
-  position: absolute; left: 0; right: 0; top: 66%; margin: 0; padding: 0 34px; transform: translateY(-50%);
-  text-align: center; pointer-events: none !important;
-  opacity: 0; transition: opacity 700ms var(--af-ease-out-soft, ease-out);
-}
-.quote-line.on { opacity: 1; transition-duration: 900ms; }
-.quote-line blockquote { margin: 0; }
+.quote-line { margin: 20px 0 0; opacity: 0; transition: opacity 600ms var(--af-ease-std); pointer-events: none; }
+.quote-line.on { opacity: 1; }
+.quote-line blockquote { margin: 0; max-width: 32ch; }
 .quote-line p {
-  margin: 0; font-family: var(--af-font-display, Georgia, serif); font-size: 17px; font-weight: 300; line-height: 1.45;
-  color: var(--af-lantern-flame, #F2E6C9); text-shadow: 0 0 18px rgba(10, 14, 28, 0.85); text-wrap: balance;
-  white-space: pre-line; overflow-wrap: break-word;
+  margin: 0; font: 300 21px/31px var(--af-font-voice); font-variation-settings: "opsz" 48;
+  color: #3A3226; white-space: pre-line; overflow-wrap: break-word; text-wrap: pretty;
 }
-.quote-line.mid p { font-size: 15px; line-height: 1.42; }
-.quote-line.long p { font-size: 13.5px; line-height: 1.4; }
-.quote-line.long { padding: 0 28px; }
-.quote-line.night.on { opacity: 0.62; }
-.quote-line.night p { color: var(--af-silver-300, #B9CAD6); text-shadow: 0 0 14px rgba(5, 7, 15, 0.9); }
-.quote-line.night cite { opacity: 0.5; }
-.quote-line cite {
-  display: block; margin-top: 10px; font-style: normal; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--af-silver-300, #B9CAD6); opacity: 0.7;
-}
-.quote-line cite[hidden] { display: none; }
-#end.off .quote-line, #phone.card-open #end .quote-line { opacity: 0; transition-duration: 300ms; }
-
-.mornings { margin-top: 4px; }
-.toggle.field { width: 100%; background: none; border: 0; font-family: inherit; text-align: left; }
-.toggle.field input[type="time"], .card.onboard input[type="time"] {
-  flex: none; position: static; opacity: 1; width: auto; height: auto; padding: 5px 10px; border-radius: 10px;
-  border: 1px solid var(--line); background: rgba(10, 14, 28, 0.55); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums;
-  color-scheme: dark;
-}
-#pauseRow b { font-weight: 400; color: var(--dim); }
-#pauseRow[aria-expanded="true"] b { color: var(--warm); }
-.pause-menu {
-  display: flex; flex-direction: column; margin: 2px 0 8px; border-radius: 14px; overflow: hidden;
-  border: 1px solid var(--line); background: rgba(10, 14, 28, 0.5);
-}
-.pause-menu > * {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 11px 14px; border: 0; background: none; color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
-}
-.pause-menu > * + * { border-top: 1px solid var(--line); }
-.pause-menu > button:hover { background: rgba(255, 217, 160, 0.06); }
-.pause-menu input[type="date"] {
-  padding: 4px 8px; border-radius: 9px; border: 1px solid var(--line); background: rgba(10, 14, 28, 0.6);
-  color: var(--ink); font: inherit; font-size: 13px; color-scheme: dark;
-}
-#resumeBtn { color: var(--warm); }
+.quote-line.mid p { font-size: 19px; line-height: 28px; }
+.quote-line.long p { font-size: 17px; line-height: 25px; }
+.quote-line cite { display: block; margin-top: 8px; font: 500 12px/16px var(--af-font-ui); font-style: normal; letter-spacing: 0.2px; color: var(--md-sys-color-on-surface-variant); }
+.quote-line.night { display: none; }
+#phone.card-open .quote-line { opacity: 0; }
 
 #phone.onboarding #start { opacity: 0; pointer-events: none; }
 #phone.onboarding #start * { pointer-events: none !important; }
-.card.onboard { display: flex; flex-direction: column; gap: 10px; padding-top: 24px; z-index: 3; }
-.card.onboard .lead { margin-bottom: 6px; font-size: 20px; line-height: 1.6; }
-.card.onboard #obCue {
-  display: block; width: 100%; box-sizing: border-box; margin: 6px 0;
-  padding: 6px 2px; border: 0; border-bottom: 1px solid rgba(255, 217, 160, 0.45); background: none;
-  color: var(--warm); font: inherit; font-size: 18px; outline: none;
+.onboard { position: absolute; inset: 0; z-index: 5; background: color-mix(in srgb, var(--md-sys-color-scrim) 35%, transparent); animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+.onboard-sheet { padding-left: 0; padding-right: 0; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
+.ob-mark { display: block; padding: 8px 24px 0; }
+.ob-mark .laminate { width: 36px; height: 30px; }
+.ob-lead { margin: 12px 24px 24px; font: 300 28px/38px var(--af-font-brand); color: var(--md-sys-color-on-surface); }
+.ob-lead input {
+  width: 100%; display: block; margin: 4px 0; padding: 4px 0 6px; border: 0; border-bottom: 2px solid var(--md-sys-color-primary);
+  background: none; color: var(--md-sys-color-on-surface); font: 400 22px/30px var(--af-font-ui); outline: none;
 }
-.card.onboard #obCue:focus { border-bottom-color: var(--warm); }
-.card.onboard .small { margin: 6px 2px 4px; line-height: 1.5; }
-.card.onboard .primary { margin-top: 4px; }
+.ob-note { margin: 16px 32px 0; font: 400 14px/20px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
+.ob-go { padding: 24px 16px 4px; }
 
 @media (prefers-reduced-motion: reduce) {
-  #endText .tick span { animation: none !important; }
-  #endText .tick .new { opacity: 1; }
+  .end-count .tick span { animation: none !important; }
+  .end-count .tick .new { opacity: 1; }
   .quote-line, .quote-line.on { transition-duration: 1ms; }
+  .morning-mark { animation: none; }
 }
+:root[data-motion="reduced"] .end-count .tick span { animation: none !important; }
+:root[data-motion="reduced"] .end-count .tick .new { opacity: 1; }
+:root[data-motion="reduced"] .morning-mark { animation: none; }

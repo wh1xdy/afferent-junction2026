@@ -146,31 +146,27 @@
   let mark = null, tickEl = null, moteEl = null, armed = false, shine = null, landed = null;
 
   const lanternAt = () => A.World?.lanternPos?.() || [$('phone').clientWidth * 0.35 + 20, $('phone').clientHeight * 0.82 - 30];
-  const placeMark = () => {
-    if (!mark) return;
-    const [x, y] = lanternAt();
-    mark.querySelector('.n').style.cssText = `left:${x}px;top:${y + 14}px`;
-    mark.querySelector('.bye').style.top = `${y - 96}px`;
-  };
   function renderStart() {
     if (!mark) return;
     const s = summary(), n = !night() && prefs.showCount ? s.shown : null;
     mark.querySelector('.n').textContent = n ?? '';
-    mark.querySelector('.n').hidden = !n;
+    mark.querySelector('.chip').hidden = !n;
+    mark.querySelector('.chip').setAttribute('aria-label', n ? `${n} mornings. Your mornings` : '');
     mark.querySelector('.bye').hidden = !s.todayLit;
     mark.hidden = !n && !s.todayLit;
-    mark.setAttribute('aria-label', [n ? `${n} mornings` : '', s.todayLit ? 'See you tomorrow.' : ''].filter(Boolean).join('. '));
-    placeMark();
   }
 
   const playTick = (from, to) => {
-    const text = $('endText');
+    const box = $('endCount');
+    if (!box) return;
     tickEl?.remove();
     tickEl = document.createElement('span');
     tickEl.className = 'tick' + (from === to ? ' still' : from ? ' roll' : ' rise');
-    tickEl.setAttribute('aria-label', `${to} mornings`);
     tickEl.innerHTML = `<span class="old">${from ?? ''}</span><span class="new">${to}</span>`;
-    text.append(tickEl);
+    const num = box.querySelector('.num');
+    num.textContent = ''; num.append(tickEl);
+    box.setAttribute('aria-label', `${to} mornings`);
+    box.hidden = false;
   };
 
   const playMote = () => {
@@ -216,6 +212,7 @@
     if (shine && !shine.over) endShine(false);
     shine = null; armed = false;
     tickEl?.remove(); tickEl = null;
+    if ($('endCount')) $('endCount').hidden = true;
     moteEl?.remove(); moteEl = null;
     $('end')?.classList.remove('shining', 'shone');
   };
@@ -225,10 +222,10 @@
     if (!$('start')) return;
     if (q.has('days')) seed(q.get('days').toUpperCase());
     else if (q.has('streak')) seed('L'.repeat(Math.max(0, Math.min(400, Number(q.get('streak')) | 0))));
-    mark = div('morning-mark', '<span class="n"></span><span class="bye">See you tomorrow.</span>');
+    mark = div('morning-mark', `<a class="chip state" href="patient.html${location.search}">${A.Glyph ? A.Glyph.laminate() : ''}<span class="n"></span><span class="u">mornings</span></a><p class="bye">See you tomorrow.</p>`);
     mark.setAttribute('role', 'status');
-    $('start').append(mark);
-    addEventListener('resize', placeMark);
+    const bar = $('start').querySelector('.top-bar');
+    bar ? bar.after(mark) : $('start').append(mark);
     renderStart();
     setTimeout(renderStart, 400);
 

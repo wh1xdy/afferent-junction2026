@@ -1,143 +1,131 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-sky="kaamos">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Afferent</title>
+  <meta name="theme-color" content="#0D182A">
+  <title>afferent</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/gui-tokens.css">
+  <link rel="stylesheet" href="css/gui/fonts.css">
+  <link rel="stylesheet" href="css/gui/m3.css">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="css/game-ui.css">
-  <link rel="stylesheet" href="css/flow-ui.css">
   <link rel="stylesheet" href="css/checkin.css">
   <link rel="stylesheet" href="css/streak.css">
+  <link rel="stylesheet" href="css/gui/shell.css">
 </head>
 <body>
   <main id="app">
     <section id="phone">
       <canvas id="game"></canvas>
 
-      <button id="closeBtn" class="icon close hidden" aria-label="End session">
-        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-      <span id="simBadge" class="af-simulated sim-badge hidden">SIMULATED</span>
-
+      <button id="closeBtn" class="icon-btn play-close state hidden" type="button" aria-label="End session"><span class="ms">close</span></button>
+      <span id="simBadge" class="sim-badge play-sim hidden">SIMULATED</span>
       <span id="cue" class="cue" aria-live="polite"></span>
-      <button id="wakeBtn" class="icon close faint hidden" aria-label="Back">
-        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
+      <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
 
-      <div id="start" class="overlay fade">
-        <div class="bar">
-          <button id="soundBtn" class="icon" aria-label="Sound">
-            <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a4.5 4.5 0 0 1 0 7"/></svg>
-          </button>
-          <button id="camBtn" class="icon cam" data-open="settings" aria-label="Camera">
-            <svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/><path class="slash" d="M4 4l16 16"/></svg>
-            <i class="dot"></i>
-          </button>
-          <span class="spacer"></span>
-          <a id="weekBtn" class="icon" href="patient.html" aria-label="Your week">
-            <svg viewBox="0 0 24 24"><circle cx="4.5" cy="13" r="1.6"/><circle cx="9.5" cy="11" r="1.9"/><circle cx="14.5" cy="12" r="2.2"/><circle cx="19.5" cy="10" r="2.5"/></svg>
-          </a>
-          <button class="icon" data-open="settings" aria-label="Sensors and settings">
-            <svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
-          </button>
-          <button class="icon" data-open="info" aria-label="How it works">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>
-          </button>
-          <button class="icon" data-open="crisis" aria-label="Talk to someone">
-            <svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>
-          </button>
-        </div>
-        <button id="checkinBtn" class="checkin-pill hidden" type="button">Check-in</button>
-        <div class="choices">
-          <button id="begin" class="primary">Begin</button>
-          <button id="decline" class="primary">Not tonight</button>
-        </div>
-        <div class="chips">
-          <button id="inputChip" class="chip"></button>
-          <button id="clockChip" class="chip"></button>
-          <button id="stageChip" class="chip"></button>
-          <button id="profileChip" class="chip"></button>
+      <div id="start" class="screen start fade">
+        <div class="start-scrim" aria-hidden="true"></div>
+        <header class="top-bar">
+          <button class="icon-btn state" data-open="settings" type="button" aria-label="Settings"><span class="ms">settings</span></button>
+          <button class="icon-btn state" data-open="info" type="button" aria-label="How it works"><span class="ms">info</span></button>
+          <button id="camBtn" class="privacy state" data-open="settings" type="button" aria-label="Camera on. Open settings" hidden><span class="ms fill">videocam</span></button>
+          <span class="sp"></span>
+          <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div class="dock">
+          <button id="checkinBtn" class="checkin-chip state hidden" type="button"><span class="dot" aria-hidden="true"></span>Check-in</button>
+          <button id="begin" class="kindle state" type="button" aria-label="Hold to kindle" aria-describedby="beginLabel"></button>
+          <span id="beginLabel" class="kindle-label t-label" aria-hidden="true">Hold to kindle</span>
+          <button id="decline" class="btn text decline state" type="button">Not today</button>
         </div>
       </div>
 
-      <div id="end" class="overlay fade off">
-        <div class="bar">
-          <span class="spacer"></span>
-          <button class="icon" data-open="crisis" aria-label="Talk to someone">
-            <svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>
-          </button>
+      <div id="end" class="screen end fade off" data-phase="">
+        <div class="end-scrim" aria-hidden="true"></div>
+        <header class="top-bar">
+          <span class="sp"></span>
+          <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div class="end-night" aria-live="polite">
+          <span class="ms moon" aria-hidden="true">bedtime</span>
+          <p id="endText" class="t-display end-title">Rest well.</p>
         </div>
-        <p id="endText" class="rest">Rest well.</p>
-        <div id="offer" class="offer hidden">
-          <p>Would you like someone to talk to?</p>
-          <div class="offer-btns"><button id="offerYes" class="primary">Yes</button><button id="offerNo" class="primary quiet">Not now</button></div>
+        <div id="moodEnd" class="mood-row" role="radiogroup" aria-labelledby="moodAsk"><p id="moodAsk" class="mood-ask">How are you now?</p></div>
+        <div class="end-sheet" role="region" aria-label="Good morning" data-scheme="kevat">
+          <div class="end-paper">
+            <h1 class="t-display end-hello">Good morning.</h1>
+            <div id="endQuote" class="end-quote"></div>
+            <div id="offer" class="offer hidden">
+              <p class="t-title">Would you like someone to talk to?</p>
+              <div class="offer-btns"><button id="offerNo" class="btn text small state" type="button">Not now</button><button id="offerYes" class="btn tonal small state" type="button">Yes</button></div>
+            </div>
+            <div class="end-week">
+              <ol id="endWeek" class="week-lights" aria-label="This week"></ol>
+              <p id="endCount" class="end-count" hidden><span class="num"></span> <span class="unit">mornings</span></p>
+            </div>
+          </div>
         </div>
-        <div id="moodEnd" class="flames"></div>
-        <div class="choices"><button id="again" class="primary quiet">Back</button></div>
+        <div class="end-actions">
+          <button id="again" class="btn filled block state" type="button">Done</button>
+        </div>
       </div>
 
-      <div id="crisis" class="card hidden">
-        <p id="crisisLead" class="lead">If today is heavy, you do not have to carry it alone.</p>
-        <a class="primary contact" href="tel:112"><span>Emergency</span><small>112</small></a>
-        <a class="primary contact" href="tel:0925250111"><span>MIELI Crisis Helpline, in Finnish, 24 h</span><small>09 2525 0111</small></a>
-        <a class="primary contact" href="tel:116117"><span>Medical Helpline, 24 h</span><small>116117</small></a>
-        <a class="primary contact" href="tel:0900000000"><span>Your clinic, office hours</span><small>09 000 0000 (demo placeholder)</small></a>
-        <p class="small">Afferent is not an emergency service and is not watched around the clock.</p>
-        <button class="primary quiet" data-close="crisis">Close</button>
+      <div id="crisis" class="screen talk hidden" role="dialog" aria-modal="true" aria-labelledby="crisisLead">
+        <div class="talk-body">
+          <span class="tile lit talk-tile" aria-hidden="true"></span>
+          <h2 id="crisisLead" class="t-headline">If today is heavy, you do not have to carry it alone.</h2>
+          <div class="group contacts">
+            <a class="li contact state" href="tel:112" aria-label="Call 112"><span class="txt"><span class="hl">Emergency</span><span class="sup">112</span></span><span class="call"><span class="ms fill">call</span></span></a>
+            <a class="li contact main state" href="tel:0925250111" aria-label="Call MIELI Crisis Helpline"><span class="txt"><span class="hl">MIELI Crisis Helpline</span><span class="sup">09 2525 0111 · in Finnish, 24 h</span></span><span class="call primary"><span class="ms fill">call</span></span></a>
+            <a class="li contact state" href="tel:116117" aria-label="Call Medical Helpline"><span class="txt"><span class="hl">Medical Helpline</span><span class="sup">116117 · 24 h</span></span><span class="call"><span class="ms fill">call</span></span></a>
+            <a class="li contact state" href="tel:0900000000" aria-label="Call your clinic"><span class="txt"><span class="hl">Your clinic</span><span class="sup">09 000 0000 · office hours</span></span><span class="call"><span class="ms fill">call</span></span></a>
+          </div>
+          <p class="t-body-s muted talk-foot">Afferent is not an emergency service and is not watched around the clock.</p>
+        </div>
+        <div class="talk-actions"><button class="btn tonal block state" data-close="crisis" type="button">Close</button></div>
       </div>
 
-      <div id="info" class="card hidden">
-        <p class="lead">How it works</p>
-        <dl class="keys">
-          <dt>Start</dt><dd>rest a moment, pick the lantern that fits how you feel, then tap when the lantern flares (5 times)</dd>
-          <dt>Tasks</dt><dd>tap, drag or swipe inside the panel</dd>
-          <dt>Paths</dt><dd>choose the short path or the climb; the climb gives more glow</dd>
-          <dt>Two lanterns</dt><dd>tap the lantern that flared larger</dd>
-          <dt>Breathing</dt><dd>hold while the circle grows, let go while it shrinks (Space works too)</dd>
-          <dt>Adaptive</dt><dd>high pulse brings calm tasks, low pulse brings lively ones; eyes that keep closing bring a gentle wake-up in the morning and rest at night</dd>
-        </dl>
-        <button id="anchorBtn" class="primary quiet" type="button">The lanterns</button>
-        <button class="primary quiet" data-close="info">Close</button>
+      <div id="info" class="layer hidden" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+        <div class="scrim" data-close="info"></div>
+        <div class="sheet">
+          <div class="handle" aria-hidden="true"></div>
+          <div class="sheet-head"><h2 id="infoTitle" class="t-headline">How it works</h2><button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button></div>
+          <ul class="how">
+            <li><span class="tile lit" data-glyph="lantern"></span><span class="t-body">Pick the lantern that fits right now.</span></li>
+            <li><span class="tile"><span class="ms">touch_app</span></span><span class="t-body">Hold to kindle. Tap, hold or drag to guide the light.</span></li>
+            <li><span class="tile"><span class="ms">self_improvement</span></span><span class="t-body">Hold while the circle grows.</span></li>
+            <li><span class="tile"><span class="ms">wb_twilight</span></span><span class="t-body">About two minutes, then the sun comes up.</span></li>
+            <li><span class="tile"><span class="ms">lock</span></span><span class="t-body">Only numbers leave the phone.</span></li>
+          </ul>
+          <p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
+          <div class="sheet-actions"><button id="anchorBtn" class="btn text state" type="button">The lanterns</button><button class="btn tonal state" data-close="info" type="button">Got it</button></div>
+        </div>
       </div>
 
-      <div id="settings" class="card hidden">
-        <p class="lead">What Afferent may use</p>
-        <div class="toggles">
-          <label class="toggle"><span>Phone camera (eyes, head tilt)</span><input type="checkbox" data-sensor="phone_camera"><i></i></label>
-          <label class="toggle"><span>Pulse stone</span><input type="checkbox" data-sensor="pulse_stone"><i></i></label>
-          <label class="toggle"><span>Bedside light</span><input type="checkbox" data-sensor="bedside_light"><i></i></label>
-          <label class="toggle"><span>Bedside camera (stick figure)</span><input type="checkbox" data-sensor="bedside_camera"><i></i></label>
-          <label class="toggle"><span>Presence sensor</span><input type="checkbox" data-sensor="presence"><i></i></label>
-          <label class="toggle"><span>Phone movement</span><input type="checkbox" data-sensor="phone_motion"><i></i></label>
-        </div>
-        <p class="sub">Your clinic sees</p>
-        <div id="sharingSeg" class="seg" role="radiogroup" aria-label="Your clinic sees">
-          <button type="button" role="radio" data-v="summary">Summary</button>
-          <button type="button" role="radio" data-v="nothing_tonight">Not tonight</button>
-          <button type="button" role="radio" data-v="paused">Pause 7 days</button>
-        </div>
-        <div class="toggles">
-          <label class="toggle sep"><span>Sound</span><input type="checkbox" id="soundSw"><i></i></label>
-          <label class="toggle"><span>Quiet night (light at most 25%)</span><input type="checkbox" id="quietSw"><i></i></label>
-          <label class="toggle"><span>Check-in</span><input type="checkbox" id="checkinSw"><i></i></label>
-          <label class="toggle"><span>Reduced motion</span><input type="checkbox" id="motionSw"><i></i></label>
-        </div>
-        <p class="small">Only numbers leave the phone, never camera images.</p>
-        <details id="demoBox" class="demo-box">
-          <summary>Demo</summary>
-          <label class="toggle"><span>Simulated sensors</span><input type="checkbox" id="simSw"><i></i></label>
-          <form id="hubForm" class="hub-form"><label for="hubAddr" class="small">Hub address</label><input id="hubAddr" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000"><button class="chip" type="submit">Connect</button></form>
-          <p id="hubState" class="small">Hub: offline</p>
-        </details>
-        <button class="primary quiet" data-close="settings">Close</button>
+      <div id="settings" class="screen settings hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <header class="top-bar app-bar">
+          <button class="icon-btn state" data-close="settings" type="button" aria-label="Back"><span class="ms">arrow_back</span></button>
+          <h2 id="settingsTitle" class="title">Settings</h2>
+          <button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div id="settingsBody" class="settings-body"></div>
+      </div>
+
+      <div id="hubDialog" class="layer hidden" role="dialog" aria-modal="true" aria-labelledby="hubTitle">
+        <div class="scrim" data-close="hubDialog"></div>
+        <form id="hubForm" class="dialog">
+          <span class="ms" aria-hidden="true">router</span>
+          <h2 id="hubTitle" class="t-headline">Home hub</h2>
+          <div class="field"><input id="hubAddr" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000"><label for="hubAddr">Hub address</label><span class="support">Shown on the hub screen.</span></div>
+          <div class="actions"><button class="btn text small state" data-close="hubDialog" type="button">Cancel</button><button class="btn filled small state" type="submit">Connect</button></div>
+        </form>
       </div>
     </section>
 
     <aside id="panel">
-      <h2>Hub <span id="hubTag" class="tag">offline</span> <span id="profileTag" class="tag">live</span></h2>
+      <h2>Hub <span id="hubTag" class="tag">offline</span> <span id="profileTag" class="tag">today</span></h2>
       <h2>Bedside unit <span class="tag">simulated</span></h2>
       <div class="bedside">
         <div id="led"></div>
@@ -147,6 +135,9 @@
           <label class="small">dawn level <input id="knob" type="range" min="0" max="25" value="15"> <span id="knobVal">15%</span></label>
         </div>
       </div>
+
+      <h2>Session</h2>
+      <div id="devChips" class="btns"></div>
 
       <h2>Simulate vitals <span class="af-simulated">SIMULATED</span></h2>
       <label class="row">pulse <input id="pulseSlider" type="range" min="-15" max="30" step="1" value="0"> <span id="pulseSliderVal"></span></label>
@@ -165,7 +156,7 @@
       <pre id="gameVal">-</pre>
       <pre id="eyesVal"></pre>
       <canvas id="timeline"></canvas>
-      <div class="legend small"><span class="sw" style="background:#F2B544"></span>calm <span class="sw" style="background:#B9CAD6"></span>flow <span class="sw" style="background:#7FC8E8"></span>wake <span class="sw" style="background:#FFF3DC"></span>fatigue <span class="sw" style="background:#5E6873"></span>rest <span class="sw" style="background:#B79CFF"></span>measure</div>
+      <div class="legend small"><span class="sw" style="background:#C8D6BE"></span>calm <span class="sw" style="background:#9DB9CC"></span>flow <span class="sw" style="background:#8FC6E0"></span>wake <span class="sw" style="background:#FFF0D2"></span>fatigue <span class="sw" style="background:#6E6590"></span>rest <span class="sw" style="background:#B4A6CE"></span>measure</div>
 
       <h2>Events</h2>
       <ol id="events"></ol>
@@ -175,6 +166,9 @@
   </main>
 
   <script src="js/util.js"></script>
+  <script src="js/gui/lantern.js"></script>
+  <script src="js/gui/theme.js"></script>
+  <script src="js/gui/shell.js"></script>
   <script src="js/streak.js"></script>
   <script src="js/quote.js"></script>
   <script src="js/onboard.js"></script>

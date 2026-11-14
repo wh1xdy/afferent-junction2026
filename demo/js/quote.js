@@ -38,8 +38,7 @@
   const show = (q, night) => {
     el.querySelector('p').textContent = q.text;
     const cite = el.querySelector('cite');
-    cite.textContent = q.author || '';
-    cite.hidden = !q.author;
+    cite.textContent = q.author || 'Morning note';
     el.className = ['quote-line', size(q), night ? 'night' : ''].filter(Boolean).join(' ');
     el.dataset.id = q.id;
     void el.offsetWidth;
@@ -48,7 +47,7 @@
   };
 
   const mount = () => {
-    const end = document.getElementById('end');
+    const end = document.getElementById('endQuote') || document.getElementById('end');
     if (!end) return;
     el = document.createElement('figure');
     el.id = 'quote'; el.className = 'quote-line';
