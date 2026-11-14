@@ -8,6 +8,7 @@ import copy
 import json
 import socket
 import time
+from pathlib import Path
 
 import httpx
 import pytest
@@ -677,6 +678,17 @@ def test_pulse_stone_wording_is_plain_and_not_diagnostic():
     assert row["shares"] == "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."
     for word in ("hrv", "stress", "diagnos", "—"):
         assert word not in row["shares"].lower()
+
+
+def test_phone_camera_wording_names_the_pulse_estimate():
+    row = next(s for s in views.privacy_view(views.DEFAULT_PRIVACY)["sensors"] if s["id"] == "phone_camera")
+    assert row["label"] == "Phone camera"
+    assert row["shares"] == "Eye openness, blinks, head angle, a camera pulse estimate and how your face moves (smiling, how much it moves, looking away, brief movements by face region, breathing) as numbers. Never images."
+    for word in ("hrv", "stress", "diagnos", "heart rate", "—"):
+        assert word not in row["shares"].lower()
+    for name in ("contracts/fixtures/patient_view_anna.json", "demo/data/patient_view_anna.json"):
+        saved = json.loads((Path(__file__).resolve().parents[2] / name).read_text())
+        assert next(s for s in saved["privacy"]["sensors"] if s["id"] == "phone_camera")["shares"] == row["shares"], name
 
 
 @pytest.fixture()

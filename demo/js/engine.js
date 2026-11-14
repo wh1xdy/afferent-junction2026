@@ -67,7 +67,7 @@
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
-      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0),
+      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0), face: A.Record.faceTrack(),
 
       rec: {
         schema: 'afferent.session/3', session_id: uuid(), patient_id: A.config.patientId, device_id: A.config.deviceId, app_version: A.config.appVersion,
@@ -471,7 +471,7 @@
           head_pitch_deg: f?.tracked && f.head_pitch_deg != null ? r1(f.head_pitch_deg) : null, face_tracked: !!f?.tracked,
           arousal: r3(this.a), fatigue: r3(this.fat), ambient_light: f?.ambient_light == null ? null : r3(f.ambient_light),
           profile: this.profile, simulated: p.source === 'simulated' || this.eyesSource === 'simulated' || this.auto || this.profile !== 'live',
-          physio: A.Sensors.livePhysio(now), camera_pulse: A.Sensors.cameraPulse(now),
+          physio: A.Sensors.livePhysio(now),
         };
       },
 
@@ -633,6 +633,7 @@
         if (this.game) this.closeTask(A.now(), 'auto');
         if (!this.coreRec && status !== 'declined') this.coreRec = this.phase === 'fadein' ? null : this.buildCore(A.now());
         this.done = true; this.panel = null;
+        if (A.Sensors.faceTrack === this.face) A.Sensors.faceTrack = null;
         const doc = A.Record.session(this, status);
         const ride = this.T?.record();
         if (ride) doc.ride = ride;
@@ -644,6 +645,7 @@
         A.bus.emit('sessionEnd', doc);
       },
     };
+    A.Sensors.faceTrack = s.face;
     A.Skill?.begin(s);
     s.T = A.Traverse.create(s);
     return s;

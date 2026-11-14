@@ -7,7 +7,7 @@ WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MOOD_HEX = {1: "#34476E", 2: "#5A7CA6", 3: "#A9A79A", 4: "#E8B867", 5: "#FFCB5C"}
 
 SENSORS = [
-    ("phone_camera", "Phone camera", "Eye openness, blinks and head angle as numbers. Never images."),
+    ("phone_camera", "Phone camera", "Eye openness, blinks, head angle, a camera pulse estimate and how your face moves (smiling, how much it moves, looking away, brief movements by face region, breathing) as numbers. Never images."),
     ("pulse_stone", "Pulse stone",
      "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."),
     ("bedside_camera", "Bedside camera", "A stick figure while you play. Never images."),

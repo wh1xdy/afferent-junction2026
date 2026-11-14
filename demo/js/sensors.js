@@ -60,9 +60,17 @@
   const plug = A.plug = n => window.Capacitor?.Plugins?.[n] ?? window.Capacitor?.registerPlugin?.(n);
   const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
+  const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'];
+  const CAM_WHY = ['no_face', 'exposure_not_locked', 'too_dark', 'too_bright', 'moving', 'warming_up', 'weak_signal'];
+  const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
+  const FACE_REGIONS = ['brow', 'eye', 'cheek', 'nose', 'mouth', 'jaw'];
+  const FACE = { MIN_TRACKED_S: 30, SMILE_RISE: 0.04, WINDOW_S: 60, MICRO_MS: [40, 500], BREATHS: [4, 36], REGIONS: FACE_REGIONS };
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const unit = x => Number.isFinite(x) ? clamp(x, 0, 1) : null;
   const num = x => Number.isFinite(x) ? x : null;
+  const zeroUp = x => Number.isFinite(x) && x >= 0 ? x : null;
+  const count = x => Number.isInteger(x) && x >= 0 ? x : null;
+  const sum = xs => xs.reduce((a, b) => a + b, 0);
   const age = x => Math.round(x * 10) / 10;
   const NO_PULSE = { bpm: null, quality: 0, source: null };
   const NO_PHYSIO = {
@@ -73,16 +81,17 @@
   const Sensors = A.Sensors = {
     source: 'simulated', ready: true, last: null,
     enabled: { phone_camera: true, pulse_stone: true, simulator: true },
-    stone: null, rppg: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
+    stone: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
     pulseMode: null, droppedPulse: 0, droppedPhysio: 0, realAt: null,
     fingerLink: { state: 'unavailable', name: null }, fingerBle: null, fingerHub: null,
-    camPulse: null, light: null, plugin: null, listeners: [], stopping: null,
+    camLink: { state: 'unavailable' }, camPulse: null, droppedCam: 0, plugin: null, listeners: [], stopping: null,
+    FACE, faceState: 'unavailable', faceLog: [], faceMicros: [], faceTrack: null, droppedFace: 0,
 
     async start(source) {
       this.stop();
       await this.stopping;
       if (source === 'arkit' || source === 'vision') {
-        const name = source === 'vision' ? 'AfferentPulse' : 'AfferentEyes';
+        const name = source === 'vision' ? 'AfferentVision' : 'AfferentEyes';
         this.plugin = plug(name);
         if (!this.plugin) throw new Error(`${name} plugin is not available in this build`);
         await this.plugin.start();
@@ -107,8 +116,8 @@
     async startCamera() {
       const native = window.Capacitor?.isNativePlatform?.();
       if (!native || window.Capacitor.getPlatform() !== 'ios') return this.start('mediapipe');
-      try { return await this.start('vision'); } catch { this.stop(); }
-      return this.start('arkit');
+      try { return await this.start('arkit'); } catch { this.stop(); }
+      return this.start('vision');
     },
 
     stop() {
@@ -170,34 +179,54 @@
       else this.stone = null;
     },
 
-    setPulse(bpm, quality, source = 'rppg') { this.rppg = bpm ? { bpm, quality, source, at: A.now() } : null; },
+    setCameraLink(state) {
+      this.camLink = { state: state || 'unavailable' };
+      if (state !== 'on') this.camPulse = null;
+    },
 
     feedNativePulse(d) {
-      this.setPulse(d.bpm, d.quality ?? 0, 'rppg');
-      this.camPulse = { bpm: d.bpm ?? null, trust_score: d.trust?.score ?? null, trust_label: d.trust?.label ?? null, at: A.now() };
-      if (d.light) this.light = d.light;
+      if (!this.enabled.phone_camera || !d) return;
+      if (d.source !== 'rppg') { this.droppedCam++; return; }
+      const late = Number.isFinite(d.t_ms) ? Math.max(0, (Date.now() - d.t_ms) / 1000) : 0;
+      const score = Number.isFinite(d.trust?.score) ? d.trust.score : null, reason = d.trust?.reasons?.[0];
+      this.camPulse = {
+        bpm: score == null ? null : pos(d.bpm), trust_score: score, trust_label: CAM_LABELS.includes(d.trust?.label) ? d.trust.label : null,
+        face: typeof d.face === 'boolean' ? d.face : null, reason: typeof reason === 'string' ? reason : null, at: A.now() - late,
+        why: CAM_WHY.includes(d.reason) ? d.reason : null, warmup: Number.isFinite(d.warmup_s_left) && d.warmup_s_left >= 0 ? d.warmup_s_left : null,
+      };
+    },
+
+    cameraWhy(now) {
+      const c = this.camPulse;
+      if (!c || !this.enabled.phone_camera || now - c.at >= FRESH_S) return null;
+      return { reason: c.why, warmup_s_left: c.warmup };
     },
 
     cameraPulse(now) {
       const c = this.camPulse;
-      if (!c || !this.enabled.phone_camera || now - c.at >= FRESH_S) return null;
-      return { source: 'rppg', bpm: c.bpm, trust_score: c.trust_score, trust_label: c.trust_label, age_s: age(now - c.at) };
+      if (!c || !this.enabled.phone_camera || c.trust_score == null || now - c.at >= FRESH_S) return null;
+      const trusted = c.bpm != null && c.trust_score >= CAM_MIN_TRUST && c.trust_label !== 'unreliable';
+      return { source: 'rppg', bpm: trusted ? c.bpm : null, trust_score: c.trust_score, trust_label: c.trust_label, age_s: age(now - c.at) };
+    },
+
+    cameraState(now) {
+      const c = this.camPulse, fresh = !!c && now - c.at < FRESH_S, link = this.source === 'vision' ? 'on' : this.camLink.state;
+      return { link: link === 'unavailable' || this.enabled.phone_camera ? link : 'off', face: fresh ? c.face : null, reason: fresh ? c.reason : null };
     },
 
     pulse(now) {
       const fresh = x => x && now - x.at < FRESH_S && x.quality != null && x.quality >= MIN_QUALITY;
       const stone = this.enabled.pulse_stone && fresh(this.stone) ? this.stone : null;
-      const rppg = this.enabled.phone_camera && fresh(this.rppg) ? this.rppg : null;
-      const measured = stone && stone.source !== 'simulated' ? stone : rppg;
+      const measured = stone && stone.source !== 'simulated' ? stone : null;
       const sim = () => this.enabled.simulator ? { bpm: Sim.pulse(now), quality: 0.9, source: 'simulated' } : NO_PULSE;
       if (this.pulseMode === 'real') return measured || NO_PULSE;
       if (this.pulseMode === 'simulated') return stone && stone.source === 'simulated' ? stone : sim();
-      return stone || rppg || sim();
+      return stone || sim();
     },
 
     realProducer(now) {
       const recent = at => at != null && now - at < PRODUCER_S;
-      return this.fingerAttached(now) || (this.enabled.pulse_stone && recent(this.realAt)) || (this.enabled.phone_camera && !!this.rppg && recent(this.rppg.at));
+      return this.fingerAttached(now) || (this.enabled.pulse_stone && recent(this.realAt));
     },
 
     lockPulse(now) { return (this.pulseMode = this.realProducer(now) || !this.enabled.simulator ? 'real' : 'simulated'); },
@@ -273,6 +302,70 @@
       const f = this.fingerFrame(now), link = this.fingerLink.state;
       if (f) return f;
       return link === 'unavailable' && !this.fingerHub ? null : { ...NO_PHYSIO, finger_bpm: [null, null], link };
+    },
+
+    setFaceState(state) {
+      this.faceState = FACE_STATES.includes(state) ? state : 'unavailable';
+      if (!FACE_LIVE.includes(this.faceState)) { this.faceLog = []; this.faceMicros = []; }
+    },
+
+    faceOn() { return this.enabled.phone_camera && FACE_LIVE.includes(this.faceState); },
+
+    feedFace(d) {
+      if (!this.enabled.phone_camera || !d) return;
+      if (!this.faceOn()) { this.droppedFace++; return; }
+      const now = A.now(), tracked = d.tracked === true, v = (x, f) => tracked ? f(x) : null;
+      const [lo, hi] = FACE.BREATHS, br = v(d.breathing_per_min, pos), snr = v(d.breathing_snr, num);
+      const clear = br != null && snr != null && snr > 0 && br >= lo && br <= hi;
+      const f = {
+        t_ms: num(d.t_ms), tracked, smile: v(d.smile, unit), movement: v(d.movement, zeroUp), blinks: v(d.blinks, count), gaze_away: v(d.gaze_away, unit),
+        distance_cm: v(d.distance_cm, pos), breathing_per_min: clear ? br : null, breathing_snr: clear ? snr : null, at: now,
+      };
+      this.faceLog = this.faceLog.filter(x => now - x.at < FACE.WINDOW_S);
+      this.faceLog.push(f);
+      this.faceTrack?.second(f);
+    },
+
+    feedFaceMicro(d) {
+      if (!this.enabled.phone_camera || !d) return;
+      const [lo, hi] = FACE.MICRO_MS;
+      if (!this.faceOn() || !FACE_REGIONS.includes(d.region) || !(d.duration_ms >= lo && d.duration_ms <= hi)) { this.droppedFace++; return; }
+      const now = A.now(), m = { t_ms: num(d.t_ms), duration_ms: d.duration_ms, region: d.region, peak: unit(d.peak), at: now };
+      this.faceMicros = this.faceMicros.filter(x => now - x.at < FACE.WINDOW_S);
+      this.faceMicros.push(m);
+      this.faceTrack?.micro(m);
+    },
+
+    faceStats(rows, micros) {
+      const seen = rows.filter(r => r.tracked), n = seen.length, col = k => seen.map(r => r[k]).filter(x => x != null);
+      const enough = xs => xs.length >= FACE.MIN_TRACKED_S;
+      const smile = col('smile'), move = col('movement'), blinks = col('blinks'), away = col('gaze_away');
+      return {
+        seconds_tracked: n,
+        smile_share: enough(smile) ? smile.filter(x => x > FACE.SMILE_RISE).length / smile.length : null,
+        movement: enough(move) ? move : null,
+        blinks_per_min: enough(blinks) ? sum(blinks) / blinks.length * 60 : null,
+        gaze_away_share: enough(away) ? sum(away) / away.length : null,
+        micro: n ? {
+          count: micros.length, per_min: n >= FACE.MIN_TRACKED_S ? micros.length / n * 60 : null,
+          median_duration_ms: micros.length ? A.median(micros.map(m => m.duration_ms)) : null,
+          by_region: Object.fromEntries(FACE_REGIONS.map(r => [r, micros.filter(m => m.region === r).length])),
+        } : null,
+        breathing: col('breathing_per_min'),
+      };
+    },
+
+    faceLive(now) {
+      const state = this.faceState;
+      if (state === 'unavailable') return null;
+      if (!this.faceOn()) return { state: state === 'denied' ? 'denied' : 'off' };
+      const rows = this.faceLog.filter(x => now - x.at < FACE.WINDOW_S), last = rows[rows.length - 1], fresh = !!last && now - last.at < FRESH_S;
+      const st = this.faceStats(rows, this.faceMicros.filter(x => now - x.at < FACE.WINDOW_S));
+      return {
+        state, fresh, tracked: fresh && last.tracked, seconds_tracked: st.seconds_tracked, smile_share: st.smile_share,
+        movement: st.movement ? sum(st.movement) / st.movement.length : null, blinks_per_min: st.blinks_per_min, gaze_away_share: st.gaze_away_share,
+        micro: st.micro, breathing_per_min: fresh ? last.breathing_per_min : null, distance_cm: fresh ? last.distance_cm : null,
+      };
     },
   };
 })();

@@ -9,6 +9,8 @@ final class FacePulse {
     private var history: [Int] = []
     private var lastSample = 0.0
     private(set) var luma = 128.0, clipped = 0.0
+    /// frame time of the newest sample in the buffer: estimate() only describes the present while this is recent
+    private(set) var lastAppended = 0.0
 
     func reset() { samples.removeAll(); history.removeAll() }
 
@@ -66,11 +68,13 @@ final class FacePulse {
             all += s; nAll += n
             centers.append(nc > 0 ? CGPoint(x: cx / Double(nc), y: cy / Double(nc)) : .zero)
         }
+        // before the guard: a fully clipped face gives no sample, and that has to show as overexposed
+        if nPix > 0 { luma = lumaSum / Double(nPix); clipped = Double(nClip) / Double(nPix) }
         guard nAll > 50, centers.count == 3 else { return }
-        luma = lumaSum / Double(max(nPix, 1)); clipped = Double(nClip) / Double(max(nPix, 1))
         let d = hypot(Double(centers[1].x - centers[2].x), Double(centers[1].y - centers[2].y))
         samples.append(PulseSample(t: t, rgb: all / Double(nAll), cx: Double(centers[0].x), cy: Double(centers[0].y),
                                    d: max(d, 1), regions: regions))
+        lastAppended = t
         if samples.count > 400 { samples.removeFirst(samples.count - 400) }
     }
 

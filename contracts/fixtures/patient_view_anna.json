@@ -162,7 +162,7 @@
     "id": "phone_camera",
     "label": "Phone camera",
     "on": true,
-    "shares": "Eye openness, blinks and head angle as numbers. Never images."
+    "shares": "Eye openness, blinks, head angle, a camera pulse estimate and how your face moves (smiling, how much it moves, looking away, brief movements by face region, breathing) as numbers. Never images."
    },
    {
     "id": "pulse_stone",
