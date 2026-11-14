@@ -1,11 +1,14 @@
-"""Access control for the hub: two bearer tokens, two roles.
+"""Access control for the hub: one bearer token, and it is the patient's.
 
-  PATIENT    everything: ingest (POST /sessions, POST /phq9) and all reads
-  CLINICIAN  reads only: /summary, /report/*, /fhir, POST /ask
+The hub belongs to the patient. There is no second role: nobody else gets a token, a login or a
+view. What a doctor sees is what the patient hands over (the printed handover report, the FHIR file).
 
-Tokens come from AFFERENT_PATIENT_TOKEN / AFFERENT_CLINICIAN_TOKEN. A role without an env token
-gets a random one on first start, stored next to the database (file mode 600) and printed to the
-log that one time, so the owner can read it from the device logs.
+The token comes from AFFERENT_PATIENT_TOKEN. Without it the hub makes a random one on first start,
+stores it next to the database (file mode 600) and prints it to the log that one time, so the
+owner can read it from the device logs.
+
+A token file written by an older hub may still hold a "clinician" entry. It grants nothing any
+more: only the patient entry is read, and the old entry is dropped from the file.
 
 A browser opening a report with ?token=... gets an HttpOnly cookie and a redirect to the same URL
 without the token. The cookie does not hold the token: it is an HMAC of it, valid for the report
@@ -17,29 +20,32 @@ import json
 import os
 import secrets
 
-PATIENT, CLINICIAN = "patient", "clinician"
-ROLES = (PATIENT, CLINICIAN)
-ENV = {PATIENT: "AFFERENT_PATIENT_TOKEN", CLINICIAN: "AFFERENT_CLINICIAN_TOKEN"}
-CAN = {PATIENT: "read + write", CLINICIAN: "read only"}
+KEY = "patient"                         # the token's name in the token file
+ENV = "AFFERENT_PATIENT_TOKEN"
+RETIRED_ENV = "AFFERENT_CLINICIAN_TOKEN"
 COOKIE = "afferent_report"
 COOKIE_MAX_AGE = 12 * 3600
 MIN_LENGTH = 16
 
 
 def _read(path):
+    """(the stored patient token or None, whether the file holds anything else)"""
     try:
         if os.stat(path).st_mode & 0o077:
             os.chmod(path, 0o600)
         with open(path) as f:
             doc = json.load(f)
     except (OSError, ValueError):
-        return {}
+        return None, False
     if not isinstance(doc, dict):
-        return {}
-    return {r: doc[r] for r in ROLES if isinstance(doc.get(r), str) and len(doc[r]) >= MIN_LENGTH}
+        return None, False
+    token = doc.get(KEY)
+    if not isinstance(token, str) or len(token) < MIN_LENGTH:
+        token = None
+    return token, any(k != KEY for k in doc)
 
 
-def _write(path, doc):
+def _write(path, token):
     """atomically, never readable by others (the mode is set before any byte is written)"""
     tmp = f"{path}.{os.getpid()}.tmp"
     try:
@@ -47,7 +53,7 @@ def _write(path, doc):
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         try:
             os.fchmod(fd, 0o600)
-            os.write(fd, json.dumps(doc).encode())
+            os.write(fd, json.dumps({KEY: token}).encode())
             os.fsync(fd)
         finally:
             os.close(fd)
@@ -61,34 +67,30 @@ def _write(path, doc):
         return False
 
 
-def load_tokens(path, env=None, log=print):
-    """{role: token}. Env wins; otherwise the stored token; otherwise a new one, stored and logged once."""
+def load_token(path, env=None, log=print):
+    """The patient token. Env wins; otherwise the stored token; otherwise a new one, stored and logged once."""
     env = os.environ if env is None else env
-    tokens = {r: (env.get(ENV[r]) or "").strip() for r in ROLES}
-    source = {r: "env" for r in ROLES if tokens[r]}
-    missing = [r for r in ROLES if not tokens[r]]
-    if missing:
-        saved = _read(path)
-        new = [r for r in missing if r not in saved]
-        for r in new:
-            saved[r] = secrets.token_urlsafe(32)          # 256 bits
-        for r in missing:
-            tokens[r] = saved[r]
-            source[r] = "generated" if r in new else "file"
-        if new:
-            stored = _write(path, saved)
+    if (env.get(RETIRED_ENV) or "").strip():
+        log(f"auth: {RETIRED_ENV} is set but no longer used: the hub has no clinician access")
+    token = (env.get(ENV) or "").strip()
+    source = "env"
+    if not token:
+        token, leftovers = _read(path)
+        source = "file"
+        if not token:
+            token = secrets.token_urlsafe(32)             # 256 bits
+            source = "generated"
+            stored = _write(path, token)
             where = (f"stored in {path} (mode 600), shown only this once" if stored else
                      f"could NOT be stored in {path}: valid until restart only")
-            log(f"afferent-hub access tokens, {where}:")
-            for r in new:
-                log(f"  {r.upper():<9} ({CAN[r]}): {saved[r]}")
-    if tokens[PATIENT] == tokens[CLINICIAN]:
-        raise ValueError("patient and clinician tokens must differ (a shared token would let the clinician write)")
-    for r in ROLES:
-        if len(tokens[r]) < MIN_LENGTH:
-            log(f"auth: WARNING {ENV[r]} is shorter than {MIN_LENGTH} characters")
-    log("auth: " + ", ".join(f"{r} token: {source[r]}" for r in ROLES))
-    return tokens
+            log(f"afferent-hub access token, {where}:")
+            log(f"  PATIENT: {token}")
+        elif leftovers and _write(path, token):
+            log(f"auth: dropped the entries of an older hub from {path}; only the patient token is kept")
+    if len(token) < MIN_LENGTH:
+        log(f"auth: WARNING {ENV} is shorter than {MIN_LENGTH} characters")
+    log(f"auth: patient token: {source}")
+    return token
 
 
 def _same(a, b):
@@ -97,13 +99,9 @@ def _same(a, b):
                                hashlib.sha256(b.encode("utf-8", "replace")).digest())
 
 
-def role_for(presented, tokens):
-    """role of a presented bearer token, or None; always compares against both"""
-    role = None
-    for r in ROLES:
-        if presented and tokens.get(r) and _same(presented, tokens[r]):
-            role = r
-    return role
+def valid(presented, token):
+    """whether a presented bearer token is the patient token"""
+    return bool(presented and token) and _same(presented, token)
 
 
 def bearer(header):
@@ -114,22 +112,18 @@ def bearer(header):
     return value.strip() or None
 
 
-def session_value(role, tokens):
-    return hmac.new(tokens[role].encode("utf-8", "replace"), b"afferent report session", hashlib.sha256).hexdigest()
+def session_value(token):
+    return hmac.new(token.encode("utf-8", "replace"), b"afferent report session", hashlib.sha256).hexdigest()
 
 
-def role_for_session(value, tokens):
-    """role of a report cookie, or None"""
-    role = None
-    for r in ROLES:
-        if value and tokens.get(r) and _same(value, session_value(r, tokens)):
-            role = r
-    return role
+def valid_session(value, token):
+    """whether a report cookie was made from the patient token"""
+    return bool(value and token) and _same(value, session_value(token))
 
 
-def set_cookie(role, tokens):
+def set_cookie(token):
     """Set-Cookie value for the report pages. No Secure flag: the hub is plain HTTP on the mesh / a local
-    forward. Lax, not Strict: a link opened from a mail client must still work after the redirect, and the
-    cookie only ever opens the read-only report pages."""
-    return (f"{COOKIE}={session_value(role, tokens)}; HttpOnly; SameSite=Lax; Path=/report; "
+    forward. Lax, not Strict: a link the patient opens from another app must still work after the
+    redirect, and the cookie only ever opens the read-only report pages."""
+    return (f"{COOKIE}={session_value(token)}; HttpOnly; SameSite=Lax; Path=/report; "
             f"Max-Age={COOKIE_MAX_AGE}")

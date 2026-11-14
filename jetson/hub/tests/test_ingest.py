@@ -1,4 +1,4 @@
-"""Nothing a client writes, and nothing already stored, may take the clinician's reads down.
+"""Nothing a client writes, and nothing already stored, may take the patient's reads down.
 
 Three layers, each tested here through the real Handler (see test_auth.py):
   1. ingest   bad values are refused (400) or stored as missing, so they never reach a report
@@ -22,11 +22,12 @@ from http.server import ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app  # noqa: E402
+import grounding  # noqa: E402
 from store import Store  # noqa: E402
 from test_auth import READS, HubCase, Response, _Sock, call, rows  # noqa: E402
 from test_hub import DAY, NOW  # noqa: E402
 
-ALERT = b"PHQ-9 item 9 answered above 0"            # the item-9 box in the clinician report
+ALERT = b"PHQ-9 item 9 answered above 0"            # the item-9 box in the handover report
 ZEROS = [0] * 9
 
 
@@ -52,20 +53,18 @@ def strict(body):
 
 class ReadsCase(HubCase):
     def assertReadsWork(self):
-        """every clinician read answers, the 27/27 entry with item 9 = 3 from real_store() is still
-        there with its alert, and the JSON answers are strict JSON"""
+        """every read answers, the 27/27 entry with item 9 = 3 from real_store() is still there with
+        its alert (handover report) and its support lines (Your week), and the JSON answers are strict JSON"""
         for method, path in READS:
-            r = call(method, path, token=self.C)
+            r = call(method, path, token=self.P)
             self.assertEqual(r.status, 200, path)
-        page = call("GET", "/report/clinician", token=self.C).body
+        page = call("GET", "/report/handover", token=self.P).body
         self.assertIn(ALERT, page)
         self.assertIn(b"27/27", page)
-        summ = strict(call("GET", "/summary", token=self.C).body)
+        self.assertIn(b"handle this alone", call("GET", "/report/patient", token=self.P).body)
+        summ = strict(call("GET", "/summary", token=self.P).body)
         self.assertTrue(summ["phq9_item9_flag"])
-        strict(call("GET", "/fhir", token=self.C).body)
-        ask = call("POST", "/ask", token=self.C, body={"question": "Summarise this period"})
-        self.assertEqual(ask.status, 200)
-        self.assertIn("item 9", strict(ask.body)["safety"])
+        strict(call("GET", "/fhir", token=self.P).body)
         return summ
 
 
@@ -82,8 +81,6 @@ class BadWrites(ReadsCase):
             self.assertEqual((r.status, r.json()), (400, {"error": "invalid JSON"}), raw)
         r = send("POST", "/phq9", self.P, b'{"answers":[0,0,0,0,0,0,0,0,0],"ts":Infinity}')
         self.assertEqual(r.status, 400)
-        for raw in (b'{"question":"Summarise this period","days":1e999}', b'{"question":"Summarise this period","days":NaN}'):
-            self.assertEqual(send("POST", "/ask", self.C, raw).status, 400, raw)
         self.assertEqual(rows(app.store), before)
         self.assertReadsWork()
 
@@ -164,16 +161,15 @@ class BadWrites(ReadsCase):
         self.assertReadsWork()
 
     def test_days_must_be_a_number(self):
-        for days in ("abc", [1], {"d": 1}, None):
-            r = call("POST", "/ask", token=self.C, body={"question": "Summarise this period", "days": days})
-            self.assertEqual((r.status, r.json()), (400, {"error": "days must be a number"}), days)
-        for days in (7, "7", 7.9, 0, -3, 10 ** 30):                          # clamped to 1..90 as before
-            r = call("POST", "/ask", token=self.C, body={"question": "Summarise this period", "days": days})
-            self.assertEqual(r.status, 200, days)
-        for q in ("nan", "inf", "1e999", "", "%5B1%5D"):
-            self.assertEqual(call("GET", f"/summary?days={q}", token=self.C).status, 400, q[:10])
+        for method, path in READS:
+            for q in ("abc", "nan", "inf", "1e999", "7.9", "", "%5B1%5D"):
+                r = call(method, f"{path}?days={q}", token=self.P)
+                self.assertEqual((r.status, r.json()), (400, {"error": "days must be a number"}), (path, q))
+        for q, days in (("7", 7), ("0", 1), ("-3", 1), ("1" + "0" * 30, 90)):       # clamped to 1..90 as before
+            r = call("GET", f"/summary?days={q}", token=self.P)
+            self.assertEqual((r.status, r.json()["period"]["days"]), (200, days), q)
         # 5000 digits: clamped to 90 days, or refused where Python limits int() (3.11+); answered either way
-        self.assertIn(call("GET", f"/summary?days={'9' * 5000}", token=self.C).status, (200, 400))
+        self.assertIn(call("GET", f"/summary?days={'9' * 5000}", token=self.P).status, (200, 400))
 
 
 class StoredBefore(ReadsCase):
@@ -203,37 +199,38 @@ class StoredBefore(ReadsCase):
         self.assertIsNone(summ["behaviour"]["blinks_per_min"])
         self.assertIsNone(summ["behaviour"]["gaze_away_share"])
         self.assertEqual(summ["behaviour"]["micro_expressions_per_session"], 2)
-        page = call("GET", "/report/clinician", token=self.C).body
+        page = call("GET", "/report/handover", token=self.P).body
         self.assertIn(b"5 stored entries have a timestamp that cannot be read", page)
         self.assertIn(b"app sessions 3, PHQ-9 entries 2", page)
         self.assertIn(b"PHQ-9 item 9 is above 0 in 2 of those PHQ-9 entries", page)
         for days in (1, 90):
-            self.assertEqual(call("GET", f"/report/clinician?days={days}", token=self.C).status, 200)
+            self.assertEqual(call("GET", f"/report/handover?days={days}", token=self.P).status, 200)
 
     def test_item9_in_an_entry_without_a_readable_date_is_still_raised(self):
         """the only item 9 above 0 is in an entry that no period contains: nobody may miss it"""
         app.store.db.execute("DELETE FROM phq9 WHERE typeof(ts)='real' AND ts < 4102444800")       # drop the dated 27/27
         app.store.db.commit()
-        summ = strict(call("GET", "/summary", token=self.C).body)
+        summ = strict(call("GET", "/summary", token=self.P).body)
         self.assertEqual((summ["phq9"], summ["phq9_item9_flag"]), ([], False))
         self.assertEqual(summ["unreadable"]["phq9_item9"], 2)
-        page = call("GET", "/report/clinician", token=self.C).body
+        page = call("GET", "/report/handover", token=self.P).body
         self.assertNotIn(ALERT, page)
         self.assertIn(b'<div class="box alert"><b>5 stored entries have a timestamp that cannot be read</b>', page)
         self.assertIn(b"Please assess risk", page)
-        for question in ("Summarise this period", "How did the patient sleep?", "Does the patient have depression?"):
-            answer = call("POST", "/ask", token=self.C, body={"question": question}).json()
-            self.assertIn("item 9 is above 0 in 2 stored PHQ-9 entries whose date cannot be read", answer["safety"])
-            self.assertTrue(answer["answer"].startswith("Safety:"))
+        self.assertIn(b'<div class="box alert screen">You mentioned thoughts of hurting yourself', page)
+        # grounding.py is no longer behind a route, but the module is still used elsewhere: its note must hold too
+        self.assertIn("item 9 is above 0 in 2 stored PHQ-9 entries whose date cannot be read", grounding.safety_note(summ))
         self.assertIn(b"You don't have to handle this alone", call("GET", "/report/patient", token=self.P).body)
 
     def test_a_clean_store_reports_nothing_left_out(self):
         app.store.db.close()
         app.store = Store()
-        summ = strict(call("GET", "/summary", token=self.C).body)
+        summ = strict(call("GET", "/summary", token=self.P).body)
         self.assertEqual(summ["unreadable"], {"sessions": 0, "phq9": 0, "phq9_item9": 0})
-        self.assertNotIn(b"cannot be read", call("GET", "/report/clinician", token=self.C).body)
-        self.assertNotIn("safety", call("POST", "/ask", token=self.C, body={"question": "Summarise this period"}).json())
+        page = call("GET", "/report/handover", token=self.P).body
+        self.assertNotIn(b"cannot be read", page)
+        self.assertNotIn(b"handle this alone", page)
+        self.assertIsNone(grounding.safety_note(summ))
         self.assertNotIn(b"handle this alone", call("GET", "/report/patient", token=self.P).body)
 
 
@@ -294,8 +291,7 @@ class LastResort(HubCase):
     def test_failing_read_is_a_500_not_a_dropped_connection(self):
         app.store.summary = self.boom
         for method, path in READS:
-            r, log = self.logged(lambda: call(method, path + "?days=14&x=query-marker", token=self.C,
-                                               body={"question": "Summarise this period"}))
+            r, log = self.logged(lambda: call(method, path + "?days=14&x=query-marker", token=self.P))
             self.assertEqual(r.status, 500, path)
             self.assertNotIn(b"secret-detail", r.body)
             if path.startswith("/report/"):
@@ -305,7 +301,7 @@ class LastResort(HubCase):
                 self.assertEqual(r.json(), {"error": "internal error"})
             self.assertEqual(r.headers["Cache-Control"], "no-store")
             self.assertIn(f"{method} {path}: RuntimeError", log)
-            for secret in ("secret-detail", "query-marker", self.C):
+            for secret in ("secret-detail", "query-marker", self.P):
                 self.assertNotIn(secret, log)
 
     def test_failing_write_is_a_500(self):
@@ -321,17 +317,18 @@ class LastResort(HubCase):
     def test_internal_type_error_is_not_reported_as_bad_input(self):
         def broken(*_, **__):
             raise TypeError("unsupported operand: secret-detail")
-        app.store.summary = broken
-        r, _ = self.logged(lambda: call("POST", "/ask", token=self.C, body={"question": "Summarise this period"}))
-        self.assertEqual((r.status, r.json()), (500, {"error": "internal error"}))
+        app.store.summary = app.store.add_session = app.store.add_phq9 = broken
+        for method, path in (("GET", "/summary"), ("POST", "/sessions"), ("POST", "/phq9")):
+            r, _ = self.logged(lambda: call(method, path, token=self.P))
+            self.assertEqual((r.status, r.json()), (500, {"error": "internal error"}), path)
 
     def test_failure_before_the_token_check_gives_nothing_away(self):
-        saved = app.auth.role_for
-        app.auth.role_for = self.boom
+        saved = app.auth.valid
+        app.auth.valid = self.boom
         try:
-            r, _ = self.logged(lambda: call("GET", "/summary", token=self.C))
+            r, _ = self.logged(lambda: call("GET", "/summary", token=self.P))
         finally:
-            app.auth.role_for = saved
+            app.auth.valid = saved
         self.assertEqual((r.status, r.json()), (500, {"error": "internal error"}))
         self.assertNoRealData(r)
 
@@ -369,26 +366,27 @@ class OverTheWire(ReadsCase):
                               ("/phq9", b'{"answers":[0,0,0,0,0,0,0,0,1],"ts":' + ms + b"}")):
                 self.assertEqual(req("POST", path, self.P, raw)[0], 400, raw)
             self.assertEqual(req("POST", "/sessions", self.P, b'{"summary":{"smileShare":"0.4","seconds":60}}')[0], 201)
-            for path in ("/summary", "/report/clinician", "/report/patient", "/fhir"):
-                self.assertEqual(req("GET", path, self.C)[0], 200, path)
-            status, page = req("GET", "/report/clinician", self.C)
+            for path in ("/summary", "/report/handover", "/report/patient", "/fhir"):
+                self.assertEqual(req("GET", path, self.P)[0], 200, path)
+            status, page = req("GET", "/report/handover", self.P)
             self.assertIn(ALERT, page)
 
             def boom(*_, **__):
                 raise RuntimeError("secret-detail")
-            app.store.summary = boom
+            app.store.summary = app.store.add_session = boom
             with contextlib.redirect_stdout(io.StringIO()):
-                for path in ("/summary", "/report/clinician", "/fhir"):
-                    status, body = req("GET", path, self.C)
+                for path in ("/summary", "/report/handover", "/fhir"):
+                    status, body = req("GET", path, self.P)
                     self.assertEqual(status, 500, path)
                     self.assertNotIn(b"secret-detail", body)
-                status, body = req("POST", "/ask", self.C, json.dumps({"question": "Summarise", "pad": "x" * 2_000_000}).encode())
+                big = json.dumps({"frames": ["x" * 1000] * 2000}).encode()
+                status, body = req("POST", "/sessions", self.P, big)         # fails after the 2 MB body is read
                 self.assertEqual((status, json.loads(body)), (500, {"error": "internal error"}))
-                saved, app.auth.role_for = app.auth.role_for, boom            # fails before the 2 MB body is read
+                saved, app.auth.valid = app.auth.valid, boom                 # fails before the 2 MB body is read
                 try:
-                    status, body = req("POST", "/sessions", self.P, json.dumps({"frames": ["x" * 1000] * 2000}).encode())
+                    status, body = req("POST", "/sessions", self.P, big)
                 finally:
-                    app.auth.role_for = saved
+                    app.auth.valid = saved
                 self.assertEqual((status, json.loads(body)), (500, {"error": "internal error"}))
         finally:
             server.shutdown()

@@ -133,72 +133,87 @@ Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first bu
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
 6/min was recovered by both breathing sources.
 
-## Health-data hub (`jetson/hub`) — for the doctor, and the patient
+## Health-data hub (`jetson/hub`) — the patient's own
+
+**The hub never talks to a doctor.** It sends nothing to anyone, and nobody but the patient can read it:
+no clinician login, token, live view or chatbot. What a doctor sees is what the patient hands over in
+person — the printed handover report, or the FHIR file the patient downloaded.
 
 Local SQLite on the Jetson (persistent volume `afferent-data`); nothing leaves the hardware.
-Collects the finger readings from the UNO Q over Wendy Net (pulse, HRV, breathing — only while a
-finger is detected), takes expression sessions and PHQ-9 check-ins from the app, and serves:
+Collects the finger readings from the UNO Q over Wendy Net (pulse, HRV as RMSSD, breathing rate — only
+while a finger is detected, and not while the two clips are on two different people), takes expression
+sessions and PHQ-9 check-ins from the app, and shows the patient:
 
-- `GET /report/clinician?days=14` — printable report: PHQ-9 with item 9 flagged at the top, a short
-  written summary, data coverage, daily trends (resting pulse, HRV, breathing) with
-  last-7-vs-previous-7 days, facial behaviour averages, and how every number is computed. No diagnosis.
-- `GET /report/patient?days=7` — the same week in plain words, with support lines if item 9 > 0.
-- `GET /fhir?days=14` — FHIR R4 Bundle for a clinic's record system: daily resting heart rate (LOINC
+- `GET /report/handover?days=14` — **"Report for my doctor"**: the document the patient prints (or saves
+  as a PDF from the print dialog) and hands over. PHQ-9 with item 9 flagged at the top, a short written
+  summary, data coverage, daily trends (resting pulse, HRV, breathing rate) with last-7-vs-previous-7
+  days, facial behaviour averages, and how every number is computed. No diagnosis. It says when it was
+  generated, that it was "printed by the patient from their own device" and that the device sends
+  nothing. Print CSS, no scripts, nothing to click; hints for the patient show on screen only.
+- `GET /report/patient?days=7` — "Your week": the same period in plain words (numbers only, no reading of
+  what they mean), with support lines if item 9 > 0 and a link to the handover report.
+- `GET /fhir?days=14` — FHIR R4 Bundle as a **download** (`Content-Disposition: attachment`,
+  `afferent-fhir-YYYY-MM-DD.json`) the patient can hand to a clinic: daily resting heart rate (LOINC
   40443-4), respiratory rate (9279-1), HRV RMSSD (local code — no LOINC exists), PHQ-9 total (44261-6)
   with the nine items as components and an item-9 risk note. Pseudonymous Patient, Device = finger clip.
 - `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
 
-**Access tokens** — every route with patient data needs a token (`jetson/hub/auth.py`):
-
-| Token | May do |
-|---|---|
-| PATIENT | everything: `POST /sessions`, `POST /phq9`, and all reads |
-| CLINICIAN | reads only: `/summary`, `/report/*`, `/fhir`, `POST /ask` (a write gets 403) |
-
-On first start the hub generates both, stores them in the volume (`/data/hub-tokens.json`, mode 600) and
-prints them to its log that one time. To choose them yourself, deploy with
-`--env AFFERENT_PATIENT_TOKEN=… --env AFFERENT_CLINICIAN_TOKEN=…` (they must differ).
+**One access token, the patient's** — every route with patient data needs it (`jetson/hub/auth.py`).
+On first start the hub generates it, stores it in the volume (`/data/hub-tokens.json`, mode 600) and
+prints it to its log that one time. To choose it yourself, deploy with `--env AFFERENT_PATIENT_TOKEN=…`.
+There is no second role. A token file from an older hub that still has a `clinician` entry keeps working
+for the patient token; the clinician entry opens nothing and is dropped from the file at the next start.
+`AFFERENT_CLINICIAN_TOKEN` is ignored (one log line says so).
 
 ```sh
-wendy device logs afferent-hub --tail 200 --no-follow --device <jetson>    # the tokens, right after the first start
+wendy device logs afferent-hub --tail 200 --no-follow --device <jetson>    # the token, right after the first start
 wendy net forward 8090:18090 --device <jetson>
-curl -H "Authorization: Bearer $CLINICIAN" localhost:8090/summary
-open "http://localhost:8090/report/clinician?token=$CLINICIAN"             # browser: token → HttpOnly cookie → clean URL
+curl -H "Authorization: Bearer $PATIENT" localhost:8090/summary
+open "http://localhost:8090/report/handover?token=$PATIENT"                # browser: token → HttpOnly cookie → clean URL
+curl -H "Authorization: Bearer $PATIENT" -OJ localhost:8090/fhir           # saves afferent-fhir-<date>.json
 curl -H "Authorization: Bearer $PATIENT" -d '{"answers":[1,0,2,1,0,0,1,0,0]}' localhost:8090/phq9
 ```
 
 APIs take `Authorization: Bearer <token>`. Only the two HTML reports also take `?token=`: the hub answers
 with a cookie (12 h, report pages only, not the token itself) and redirects to the same URL without the
-token. Missing or wrong token → 401. `/health` answers `{"ok": true}` to anyone, details with a token.
+token. Missing or wrong token → 401. `/health` answers `{"ok": true}` to anyone, collector details with
+the token. The hub speaks plain HTTP, so keep it on the mesh / a `wendy net forward`.
+
 `?demo=1` (synthetic 14-day patient, built in memory per request) needs no token, is read-only and never
-opens the real database. The hub speaks plain HTTP, so keep it on the mesh / a `wendy net forward`.
+opens the real database. It is marked as simulated wherever it shows: a "SIMULATED DATA" box on both
+reports (printed too, and without the "printed by the patient" line), `"simulated": true` in `/summary`,
+`SIMULATED` in the FHIR file name and the HL7 test-data label `HTEST` on every resource in the bundle.
 
 **Input rules** — a write can never break the reads. `ts` (optional) is unix time in **seconds**, at most
 a day ahead of the hub's clock; milliseconds, strings and far-future times get a 400. `NaN`, `Infinity`
 and `1e999` are not JSON here (400). In a session, `summary` / `cameraPulse` / `breathing` must be objects
 and `events` a list of objects (400 otherwise); a single metric that is not a number is stored as missing.
 PHQ-9 answers are nine integers 0–3. Entries an older hub stored with an unreadable timestamp are left
-out of the numbers and counted in `summary.unreadable`; the clinician report says so, and item 9 above 0
+out of the numbers and counted in `summary.unreadable`; the handover report says so, and item 9 above 0
 in such an entry is still raised. Anything else that fails inside the hub is answered with a 500 and one
 log line (route, exception class, file:line — never the request's contents).
 
+**Collector** — every 5 s the hub reads the UNO Q's `/state` (`store_state()` in `app.py`). While
+`finger.two_hearts` is true (the two clips are on two different people, the Heart Duel party game) only
+the room temperature is stored: that pulse, HRV and breathing are not the patient's. The skipped polls are
+counted in `collector.skipped_two_people` (`/health` with the token). Firmware without the flag is stored
+as before.
+
 Tests: `cd jetson/hub && python3 -m unittest discover tests -v`.
 
-**Instant summary** — the summary box in the clinician report, and `POST /ask` for overview questions
-("summarise this period", "give me an overview"; answer `"mode": "template"`), is a fixed template, not the
-LLM: PHQ-9 first → latest with band and item 9, each 7-day trend with change and %, latest values where
-there is no trend yet, facial-behaviour averages, coverage. Every statement carries its fact label and
-the text passes the same check as LLM answers. No model call: about 2 ms on a laptop (not yet timed on the
-Jetson), where the LLM needed ~75 s and usually fell back to listing the facts.
+**Summary in the handover report** — a fixed template, not a language model: PHQ-9 first → latest with
+band and item 9, each 7-day trend with change and %, latest values where there is no trend yet,
+facial-behaviour averages, coverage. Every statement carries its fact label and the text passes the
+grounding check (every number must be in the fact it cites, direction words must agree with the numbers,
+no judgement words). About 2 ms on a laptop (not yet timed on the Jetson).
 
-**Doctor Q&A with a local LLM** — `POST /ask {"question": "..."}` for specific questions (llama.cpp + Qwen2.5-3B 4-bit, on the
-Jetson's CPU, inside the hub container). The model never sees the database: the hub picks the facts the
-question needs (labelled lines like `[T:hrv_rmssd]`), the model must cite them, and every number in
-the answer is checked against the facts its sentence cites. One corrective retry, then the facts are
-shown verbatim instead — an unsupported number never reaches the doctor unmarked. Deterministic rules:
-PHQ-9 item 9 > 0 is always shown first; "does the patient have depression?" gets "these data cannot
-diagnose" + the latest PHQ-9. `?demo=1` uses a synthetic 14-day patient (never stored).
-Speed: ~8–13 s per answer when the CPU is free, 37–64 s while `afferent-vision` runs both cameras.
+**No chatbot** — there is no `POST /ask` any more (404), and the container no longer starts `llama-server`:
+the image is `python:3.12-slim` + zeroconf and carries no model. That drops the Qwen2.5-3B file (2.10 GB)
+and the llama.cpp base image (292 MB compressed for arm64) from the image, and at run time the loaded
+model and the 4 of 6 CPU cores it was given. The new image has not been built or measured yet.
+`grounding.py` stays in the hub as a module: the report uses `summary_text()`, and its other public
+functions (`ask`, `check`, `build_facts`, `facts_text`, `direction_problem`, `safety_note`, `EVALUATIVE`)
+are unchanged for code that imports it, but nothing in the hub reaches `ask()`.
 
 ## Team access
 

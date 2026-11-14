@@ -1,4 +1,5 @@
-"""FHIR R4 export so a clinic's record system can import the monitoring data.
+"""FHIR R4 export: a file the patient downloads and can hand to a clinic, whose record system can
+import it. The hub sends it to no one.
 
 GET /fhir?days=14 -> a FHIR Bundle (type "collection") with:
   Patient       pseudonymous (no name/identifier is stored on the hub)
@@ -12,6 +13,9 @@ GET /fhir?days=14 -> a FHIR Bundle (type "collection") with:
 
 Codes for vital signs carry the "vital-signs" category. Not validated against the official HL7
 validator (offline hackathon environment) - checked structurally in tests/test_hub.py.
+
+A summary marked "simulated" (the ?demo=1 patient) gives a bundle in which every resource carries
+the HL7 security label HTEST (test health data), so it cannot pass as a real person's record.
 """
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -20,6 +24,8 @@ LOINC = "http://loinc.org"
 UCUM = "http://unitsofmeasure.org"
 LOCAL = "urn:afferent:codes"
 CAT = "http://terminology.hl7.org/CodeSystem/observation-category"
+TEST_DATA = {"security": [{"system": "http://terminology.hl7.org/CodeSystem/v3-ActReason", "code": "HTEST",
+                           "display": "test health data"}]}
 
 # PHQ-9 items, in questionnaire order
 PHQ9_ITEMS = [("44250-9", "Little interest or pleasure in doing things"),
@@ -56,8 +62,10 @@ def _entry(resource):
 def bundle(summary, patient_label="Patient", now=None):
     now = now or datetime.now(timezone.utc)
     pid, did = str(uuid.uuid4()), str(uuid.uuid4())
+    simulated = bool(summary.get("simulated"))
+    who = "simulated demo patient, not a real person" if simulated else "pseudonymous"
     patient = {"resourceType": "Patient", "id": pid,
-               "text": {"status": "generated", "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{patient_label} (pseudonymous)</div>"}}
+               "text": {"status": "generated", "div": f"<div xmlns=\"http://www.w3.org/1999/xhtml\">{patient_label} ({who})</div>"}}
     device = {"resourceType": "Device", "id": did,
               "deviceName": [{"name": "Afferent finger PulseSensor clip (Arduino UNO Q)", "type": "user-friendly-name"}]}
     entries = [_entry(patient), _entry(device)]
@@ -96,5 +104,9 @@ def bundle(summary, patient_label="Patient", now=None):
             obs["note"] = [{"text": "Item 9 (thoughts of being better off dead or of self-harm) answered above 0 - assess risk."}]
         entries.append(_entry(obs))
 
-    return {"resourceType": "Bundle", "id": str(uuid.uuid4()), "type": "collection",
-            "timestamp": now.isoformat(), "entry": entries}
+    out = {"resourceType": "Bundle", "id": str(uuid.uuid4()), "type": "collection",
+           "timestamp": now.isoformat(), "entry": entries}
+    if simulated:                       # on the bundle and on every resource: an importer may split them up
+        for resource in [out] + [e["resource"] for e in entries]:
+            resource["meta"] = TEST_DATA
+    return out

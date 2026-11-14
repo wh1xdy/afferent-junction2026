@@ -78,18 +78,62 @@ class Reports(unittest.TestCase):
                                         "gazeAwayShare": 0.2, "seconds": 60},
                             "cameraPulse": {"bpm": 71, "trust": 78}, "events": [{"duration": 0.3}]}, NOW - DAY)
 
-    def test_clinician_report_shows_flag_trends_and_coverage(self):
-        h = report.clinician(self.s.summary(14, NOW), "Patient A")
+    def test_handover_report_shows_flag_trends_and_coverage(self):
+        h = report.handover(self.s.summary(14, NOW), "Patient A", now=NOW)
         self.assertIn("item 9 answered above 0", h)
-        self.assertIn("HRV (RMSSD)", h)
+        for measure in ("Resting pulse", "HRV (RMSSD)", "Breathing rate"):
+            self.assertIn(f"<tr><td>{measure}</td>", h)
         self.assertIn("<svg", h)
         self.assertIn("14 / 14", h)                 # days with sensor data
         self.assertIn("not a diagnostic device", h)
 
+    def test_handover_report_is_the_patients_own_document(self):
+        h = report.handover(self.s.summary(14, NOW), "Patient A", now=NOW)
+        self.assertIn("<title>Report for my doctor</title>", h)
+        self.assertIn("<h1>Report for my doctor</h1>", h)
+        self.assertIn("Patient A · 2027-01-01 to 2027-01-15 (14 days) · generated 2027-01-15 08:00 UTC · "
+                      "printed by the patient from their own device", h)
+        self.assertIn("<b>Shared by the patient.</b>", h)
+        self.assertIn("The device sends nothing to anyone and gives no one else access to the data.", h)
+        self.assertNotIn("SIMULATED", h)
+        for word in ("clinician", "stress", "strain"):              # HRV is a number in ms, never "stress"
+            self.assertNotIn(word, h.lower())
+
+    def test_handover_report_prints_well_and_needs_no_interaction(self):
+        h = report.handover(self.s.summary(14, NOW), now=NOW)
+        css = h.split("<style>")[1].split("</style>")[0]
+        for rule in ("@page { margin:15mm }", "@media print", ".screen { display:none }", "break-inside:avoid",
+                     "print-color-adjust:exact"):
+            self.assertIn(rule, css)
+        for tag in ("<script", "<form", "<button", "<input", "<a ", "onclick"):
+            self.assertNotIn(tag, h)
+        # what is only for the patient at the screen stays off the paper; the item-9 box is printed
+        self.assertIn('<div class="box screen"><b>This is your report to hand over.</b>', h)
+        self.assertIn('<div class="box alert screen">You mentioned thoughts of hurting yourself.', h)
+        self.assertIn('<div class="box alert"><b class="flag">PHQ-9 item 9 answered above 0</b>', h)
+
+    def test_simulated_data_is_marked_in_both_reports_and_not_called_the_patients(self):
+        summ = {**self.s.summary(14, NOW), "simulated": True}
+        h = report.handover(summ, now=NOW)
+        self.assertIn('<div class="box alert"><b class="flag">SIMULATED DATA.</b>', h)
+        self.assertIn("generated 2027-01-15 08:00 UTC · simulated demo data", h)
+        self.assertNotIn("printed by the patient", h)
+        self.assertNotIn("Shared by the patient", h)
+        self.assertIn("item 9 answered above 0", h)
+        week = report.patient(summ)
+        self.assertIn("SIMULATED DATA.", week)
+        self.assertIn('<a href="handover?demo=1">', week)
+
     def test_patient_report_is_plain_and_has_support(self):
         h = report.patient(self.s.summary(14, NOW))
-        self.assertIn("lower than the week before", h)
+        self.assertIn("lower than the week before.", h)
+        self.assertIn("Your resting pulse was around", h)
+        self.assertIn("Your breathing rate was around", h)
         self.assertIn("90101", h)
+        self.assertIn('<a href="handover">Report for my doctor</a>', h)
+        self.assertNotIn("SIMULATED", h)
+        for word in ("stress", "strain", "illness", "sign of"):     # numbers only: no reading of what HRV means
+            self.assertNotIn(word, h.lower())
 
 
 class Grounding(unittest.TestCase):
@@ -187,7 +231,7 @@ class Grounding(unittest.TestCase):
         for k in range(100):
             s.add_reading("finger_bpm", 72, NOW - 3600 + k * 5)
             s.add_reading("hrv_rmssd", 45.5, NOW - 3600 + k * 5)
-        h = report.clinician(s.summary(7, NOW))
+        h = report.handover(s.summary(7, NOW))
         self.assertIn("72 BPM", h)
         self.assertIn("45.5 ms", h)
 
@@ -219,6 +263,20 @@ class FHIR(unittest.TestCase):
         self.assertEqual(len(phq[0]["component"]), 9)
         self.assertEqual(phq[0]["component"][8]["code"]["coding"][0]["code"], "44260-8")
         self.assertIn("assess risk", phq[0]["note"][0]["text"])
+        self.assertFalse(any("meta" in r for r in [b] + res))        # a real person's data carries no test label
+
+    def test_simulated_bundle_is_labelled_as_test_data_on_every_resource(self):
+        import fhir
+        s = Store()
+        fill(s, random.Random(6))
+        s.add_phq9([2, 2, 1, 2, 1, 1, 1, 0, 1], NOW - DAY)
+        b = fhir.bundle({**s.summary(14, NOW), "simulated": True})
+        res = [e["resource"] for e in b["entry"]]
+        self.assertEqual(len(res), 2 + 3 * 14 + 1)
+        for r in [b] + res:
+            self.assertEqual(r["meta"]["security"], [{"system": "http://terminology.hl7.org/CodeSystem/v3-ActReason",
+                                                      "code": "HTEST", "display": "test health data"}], r["resourceType"])
+        self.assertIn("simulated demo patient, not a real person", res[0]["text"]["div"])
 
 
 if __name__ == "__main__":

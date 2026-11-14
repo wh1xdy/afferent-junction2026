@@ -186,10 +186,10 @@ class SummaryInUse(unittest.TestCase):
         self.assertEqual(r["mode"], "rule")
         self.assertIn("cannot diagnose", r["answer"])
 
-    def test_clinician_report_always_has_the_summary_box(self):
+    def test_handover_report_always_has_the_summary_box(self):
         for st, days in ((demo.demo_store(NOW), 14), (Store(), 14), (single_day(), 7)):
             summ = st.summary(days, NOW)
-            h = report.clinician(summ)
+            h = report.handover(summ, now=NOW)
             self.assertIn("<b>Summary</b>", h)
             self.assertIn("without a language model", h)
             plain = re.sub(r"<[^>]+>", "", h).replace("&gt;", ">")

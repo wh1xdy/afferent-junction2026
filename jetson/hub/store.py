@@ -5,8 +5,8 @@ Nothing leaves the device. Three kinds of data:
   sessions   expression sessions from the phone app (summary metrics + raw JSON)
   phq9       PHQ-9 check-ins (answers, score, item 9)
 
-Aggregations are deterministic and documented, so a clinician can see exactly where a number
-comes from; the LLM layer only ever words these numbers.
+Aggregations are deterministic and documented, so whoever reads a report (the patient, or a doctor
+the patient hands it to) can see exactly where a number comes from.
 
 A stored value must never be able to break a report. So what comes in is checked (timestamp(),
 number(): refused, or kept as missing), and what is already stored is read defensively: rows with a
@@ -28,10 +28,11 @@ CREATE TABLE IF NOT EXISTS phq9 (id INTEGER PRIMARY KEY, ts REAL NOT NULL, answe
 
 PHQ9_BANDS = [(0, 4, "minimal"), (5, 9, "mild"), (10, 14, "moderate"), (15, 19, "moderately severe"), (20, 27, "severe")]
 
-# what a reading means and how it is summarised per day (shown in the clinician report)
+# what a reading is and how it is summarised per day (shown in the handover report). No interpretation:
+# HRV is a number in ms, never "stress".
 METRICS = {
     "finger_bpm": ("Resting pulse", "BPM", "10th percentile of finger-sensor pulse that day (a resting proxy)"),
-    "hrv_rmssd": ("HRV (RMSSD)", "ms", "median of 60-s RMSSD windows that day; lower = more physiological stress"),
+    "hrv_rmssd": ("HRV (RMSSD)", "ms", "median of 60-s RMSSD windows that day"),
     "breathing": ("Breathing rate", "/min", "median rate from the heart-rate rhythm that day"),
 }
 
@@ -214,7 +215,7 @@ class Store:
                 "change_pct": round((b - a) / a * 100) if a else None, "days": (len(prev), len(last))}
 
     def summary(self, days=14, now=None):
-        """everything a report needs, as plain data (also the LLM's only source)"""
+        """everything a report needs, as plain data"""
         now = now or time.time()
         since = now - days * 86400
         phq = self.phq9_list(since)

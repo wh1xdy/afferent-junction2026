@@ -1,29 +1,30 @@
-"""afferent-hub: local health-data hub on the Jetson.
+"""afferent-hub: the patient's own health-data hub on the Jetson.
 
 Collects the finger-sensor readings from the UNO Q (modulino-hub, found over Wendy Net mDNS),
 takes expression sessions and PHQ-9 check-ins from the phone app, stores everything in SQLite
-on the Jetson (persistent volume), and serves clinician / patient reports.
+on the Jetson (persistent volume), and shows it to the patient.
 
-  GET  /health                          {"ok": true}; collector / LLM details only with a valid token
-  GET  /summary?days=14                 all report numbers as JSON (also the LLM's only source)
-  GET  /report/clinician?days=14        printable HTML for the doctor, with the template summary
-  GET  /report/patient?days=7           plain-language HTML for the patient
-  GET  /fhir?days=14                    FHIR R4 Bundle (LOINC-coded vitals + PHQ-9) for a clinic record system
+The hub never talks to a doctor: it sends nothing, and nobody but the patient can read it. What a
+doctor gets is what the patient hands over: the printed handover report or the downloaded FHIR file.
+
+  GET  /health                          {"ok": true}; collector details only with the patient token
+  GET  /summary?days=14                 all report numbers as JSON
+  GET  /report/handover?days=14         "Report for my doctor": the patient prints or saves it and hands it over
+  GET  /report/patient?days=7           "Your week": plain-language HTML for the patient
+  GET  /fhir?days=14                    FHIR R4 Bundle (LOINC-coded vitals + PHQ-9), as a file the patient downloads
   POST /sessions                        body: exported expression session JSON (from the app)
   POST /phq9                            body: {"answers": [9 ints 0-3], "ts": optional unix time}
-  POST /ask                             body: {"question": "...", "days": 14} -> grounded answer for the clinician
-                                        (overview / summary requests: instant template, no LLM)
-  ?demo=1 on any read or /ask           synthetic 14-day patient (in memory), for demos; no token needed
+  ?demo=1 on any read                   synthetic 14-day patient (in memory), marked as simulated; no token needed
 
-Access (auth.py): `Authorization: Bearer <token>`. The PATIENT token may do everything, the CLINICIAN
-token only the reads (/summary, /report/*, /fhir, /ask). The HTML reports also take ?token=... once:
-the hub answers with an HttpOnly cookie and a redirect to the same URL without the token.
+Access (auth.py): `Authorization: Bearer <token>`, and there is one token: the patient's. The HTML
+reports also take ?token=... once: the hub answers with an HttpOnly cookie and a redirect to the
+same URL without the token.
 
 Input (store.py): `ts` is unix time in seconds, at most a day ahead of the hub's clock; NaN / Infinity
 are not accepted as JSON; a wrong shape is a 400. Should a request still fail inside the hub, the
 answer is a 500 (never a dropped connection) and one line in the log without the request's contents.
 
-The LLM (llama.cpp, Qwen2.5-3B, local) only ever sees facts computed here; see grounding.py.
+No language model runs here: the summary in the handover report is a fixed template (grounding.summary_text).
 """
 import json
 import os
@@ -31,6 +32,7 @@ import threading
 import time
 import traceback
 import urllib.request
+from datetime import datetime, timezone
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -38,16 +40,15 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import auth
 import demo
 import fhir
-import grounding
 import report
-from store import Invalid, Store, timestamp
+from store import Invalid, Store, day, timestamp
 
 PORT = int(os.environ.get("PORT", "8090"))
 DB = os.environ.get("AFFERENT_DB", "/data/afferent.db")
 TOKEN_FILE = os.environ.get("AFFERENT_TOKEN_FILE") or os.path.join(os.path.dirname(DB) or ".", "hub-tokens.json")
 POLL_S = 5.0
 store = None            # the real database; opened in main() (tests set their own)
-tokens = {}             # {role: token}, from auth.load_tokens() in main()
+token = ""              # the patient token, from auth.load_token() in main()
 collector = {"hub_url": None, "last_ok": None, "stored": 0, "error": None}
 
 
@@ -86,45 +87,45 @@ def collect(stopped):
             collector["error"] = str(e)
             continue
         collector.update(last_ok=time.time(), error=None)
-        now = time.time()
-        # only while a finger is actually being measured (sensors otherwise off / probing)
-        if (s.get("presence") or {}).get("mode") == "active":
-            f = s.get("finger") or {}
-            if f.get("bpm"):
-                store.add_reading("finger_bpm", f["bpm"], now)
-                collector["stored"] += 1
-            h = s.get("hrv") or {}
-            if h.get("rmssd_ms"):
-                store.add_reading("hrv_rmssd", h["rmssd_ms"], now)
-            b = s.get("breathing") or {}
-            if b.get("per_minute"):
-                store.add_reading("breathing", b["per_minute"], now)
-        c = s.get("climate") or {}
-        if c.get("celsius") is not None:
-            store.add_reading("room_celsius", c["celsius"], now)
+        store_state(s, time.time())
 
 
-def llm_status():
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:8081/health", timeout=2) as r:
-            return json.loads(r.read()).get("status", "?")
-    except Exception as e:
-        return f"down ({e.__class__.__name__})"
+def store_state(s, now, store=None):
+    """One /state document from the UNO Q -> readings in the store."""
+    store = store or globals()["store"]
+    f = s.get("finger") or {}
+    if f.get("two_hearts"):
+        # the two clips are on two different people (Heart Duel): not the patient's data
+        collector["skipped_two_people"] = collector.get("skipped_two_people", 0) + 1
+    # only while a finger is actually being measured (sensors otherwise off / probing)
+    elif (s.get("presence") or {}).get("mode") == "active":
+        if f.get("bpm"):
+            store.add_reading("finger_bpm", f["bpm"], now)
+            collector["stored"] += 1
+        h = s.get("hrv") or {}
+        if h.get("rmssd_ms"):
+            store.add_reading("hrv_rmssd", h["rmssd_ms"], now)
+        b = s.get("breathing") or {}
+        if b.get("per_minute"):
+            store.add_reading("breathing", b["per_minute"], now)
+    c = s.get("climate") or {}
+    if c.get("celsius") is not None:
+        store.add_reading("room_celsius", c["celsius"], now)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────
-READ, WRITE = "read", "write"
-ROUTES = {("GET", "/summary"): READ, ("GET", "/report/clinician"): READ, ("GET", "/report/patient"): READ,
-          ("GET", "/fhir"): READ, ("POST", "/ask"): READ,
+READ, WRITE = "read", "write"            # every route needs the patient token; the demo patient can only be read
+ROUTES = {("GET", "/summary"): READ, ("GET", "/report/handover"): READ, ("GET", "/report/patient"): READ,
+          ("GET", "/fhir"): READ,
           ("POST", "/sessions"): WRITE, ("POST", "/phq9"): WRITE}
-REPORTS = ("/report/clinician", "/report/patient")      # HTML pages: ?token= and the cookie work here only
+REPORTS = ("/report/handover", "/report/patient")       # HTML pages: ?token= and the cookie work here only
 DRAIN_MAX = 8 << 20
 AHEAD_S = 86400         # how far ahead of the hub's clock a client's `ts` may be (phone clocks drift a little)
 
 DENIED_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Afferent</title></head>
 <body style="font:15px/1.45 -apple-system,system-ui,sans-serif;max-width:520px;margin:48px auto;padding:0 16px">
-<h1 style="font-size:20px">Access token needed</h1><p>{reason}. Open this report with the link that includes your
-access token, or ask the owner of the device for one.</p></body></html>"""
+<h1 style="font-size:20px">Access token needed</h1><p>{reason}. This report opens only for the patient:
+use the link that includes your own access token.</p></body></html>"""
 ERROR_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Afferent</title></head>
 <body style="font:15px/1.45 -apple-system,system-ui,sans-serif;max-width:520px;margin:48px auto;padding:0 16px">
 <h1 style="font-size:20px">The report could not be built</h1><p>The hub failed while reading the stored data.
@@ -153,7 +154,7 @@ def parse_body(raw):
 
 
 def window(value):
-    """`days` from a query string or a JSON body, clamped to 1..90"""
+    """`days` from a query string, clamped to 1..90"""
     try:
         return max(1, min(90, int(value)))
     except (TypeError, ValueError, OverflowError):
@@ -200,19 +201,19 @@ class Handler(BaseHTTPRequestHandler):
             left -= len(chunk)
 
     def _credentials(self, cookie_ok):
-        """(role or None, whether anything was presented). Bearer header on every route; the report
-        cookie on the HTML reports only, so a browser can never be made to write with it."""
+        """(is this the patient, whether anything was presented). Bearer header on every route; the
+        report cookie on the HTML reports only, so a browser can never be made to write with it."""
         header = self.headers.get("Authorization")
         if header:
-            return auth.role_for(auth.bearer(header), tokens), True
+            return auth.valid(auth.bearer(header), token), True
         if cookie_ok:
             try:
                 morsel = SimpleCookie(self.headers.get("Cookie") or "").get(auth.COOKIE)
             except CookieError:
                 morsel = None
             if morsel:
-                return auth.role_for_session(morsel.value, tokens), True
-        return None, False
+                return auth.valid_session(morsel.value, token), True
+        return False, False
 
     def _handle(self, method):
         """One request. Whatever goes wrong inside the hub, the client gets an answer: a failure
@@ -243,7 +244,7 @@ class Handler(BaseHTTPRequestHandler):
         path, q = url.path, parse_qs(url.query, keep_blank_values=True)
         if method == "GET" and path == "/health":
             if self._credentials(False)[0]:
-                return self._send(200, {"ok": True, "collector": collector, "llm": llm_status()})
+                return self._send(200, {"ok": True, "collector": collector})
             return self._send(200, {"ok": True})
         need = ROUTES.get((method, path))
         if need is None:
@@ -251,24 +252,21 @@ class Handler(BaseHTTPRequestHandler):
         html = path in REPORTS
         if html and "token" in q:
             # a link opened in a browser: swap the token for a cookie and drop it from the address bar
-            role = auth.role_for(q["token"][0], tokens) if len(q["token"]) == 1 else None
-            if not role:
+            if len(q["token"]) != 1 or not auth.valid(q["token"][0], token):
                 return self._deny(401, "invalid token", html=True)
             rest = urlencode([(k, v) for k, vs in q.items() if k != "token" for v in vs])
             return self._send(303, b"", "text/plain", [("Location", path + ("?" + rest if rest else "")),
-                                                        ("Set-Cookie", auth.set_cookie(role, tokens))])
+                                                        ("Set-Cookie", auth.set_cookie(token))])
         # One decision per request: a demo request gets the synthetic store and nothing else;
-        # every other request needs a valid token before it gets the real one.
+        # every other request needs the patient token before it gets the real one.
         if q.get("demo") == ["1"]:
             if need == WRITE:
                 return self._deny(400, "demo mode is read-only")
             st = demo.demo_store()
         else:
-            role, presented = self._credentials(cookie_ok=html)
-            if role is None:
+            patient, presented = self._credentials(cookie_ok=html)
+            if not patient:
                 return self._deny(401, "invalid token" if presented else "token required", html)
-            if need == WRITE and role != auth.PATIENT:
-                return self._deny(403, "the clinician token is read-only")
             st = store
         try:
             return self._get(path, st, q) if method == "GET" else self._post(path, st)
@@ -281,15 +279,21 @@ class Handler(BaseHTTPRequestHandler):
             days = window(q.get("days", ["14"])[0])
         except Invalid as e:
             return self._send(400, {"error": str(e)})
-        summ = st.summary(days)
+        now = time.time()
+        summ = st.summary(days, now)
+        summ["simulated"] = st is not store             # the demo patient is marked wherever it is shown
         if path == "/summary":
             return self._send(200, summ)
-        if path == "/report/clinician":
-            return self._send(200, report.clinician(summ), "text/html")
+        if path == "/report/handover":
+            return self._send(200, report.handover(summ, now=now), "text/html")
         if path == "/report/patient":
             return self._send(200, report.patient(summ), "text/html")
         if path == "/fhir":
-            return self._send(200, json.dumps(fhir.bundle(summ), indent=1), "application/fhir+json")
+            # a file the patient downloads and hands over; the hub itself sends it nowhere
+            name = f"afferent-fhir-{'SIMULATED-' if summ['simulated'] else ''}{day(now)}.json"
+            bundle = fhir.bundle(summ, now=datetime.fromtimestamp(now, timezone.utc))
+            return self._send(200, json.dumps(bundle, indent=1), "application/fhir+json",
+                              [("Content-Disposition", f'attachment; filename="{name}"')])
 
     def _post(self, path, st):
         try:
@@ -305,23 +309,12 @@ class Handler(BaseHTTPRequestHandler):
         # Only a refused input (Invalid) is a 400 with its message. Any other exception is the hub's
         # own failure: it goes up to _handle() and becomes a 500 without the exception text.
         try:
-            if path in ("/sessions", "/phq9"):
-                ts = timestamp(body.get("ts"), latest=time.time() + AHEAD_S)
-                if path == "/sessions":
-                    return self._send(201, {"id": st.add_session(body, ts)})
-                return self._send(201, {"id": st.add_phq9(body.get("answers"), ts)})
-            q = str(body.get("question", "")).strip()
-            if not q:
-                return self._send(400, {"error": "question required"})
-            days = window(body.get("days", 14))
+            ts = timestamp(body.get("ts"), latest=time.time() + AHEAD_S)
+            if path == "/sessions":
+                return self._send(201, {"id": st.add_session(body, ts)})
+            return self._send(201, {"id": st.add_phq9(body.get("answers"), ts)})
         except Invalid as e:
             return self._send(400, {"error": str(e)})
-        summ = st.summary(days)
-        try:
-            answer = grounding.ask(q[:500], summ)
-        except OSError as e:                                 # the local LLM is not answering
-            return self._send(503, {"error": f"local LLM unavailable ({e.__class__.__name__})"})
-        self._send(200, answer)
 
     def do_GET(self):
         self._handle("GET")
@@ -334,8 +327,8 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    global store, tokens
-    tokens = auth.load_tokens(TOKEN_FILE, log=lambda line: print(line, flush=True))
+    global store, token
+    token = auth.load_token(TOKEN_FILE, log=lambda line: print(line, flush=True))
     store = Store(DB)
     stopped = threading.Event()
     threading.Thread(target=discover, args=(stopped,), daemon=True).start()
