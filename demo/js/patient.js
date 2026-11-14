@@ -280,7 +280,7 @@
     const y = t => `${(Math.max(0, Math.min(1, (t - a) / (b - a))) * 100).toFixed(1)}%`;
     $('roomSim').hidden = !r.simulated;
     $('roomLead').textContent = `About ${r.temp_c_night.toFixed(1)} °C on a typical night this week${r.humidity_pct != null ? `, humidity around ${r.humidity_pct} %` : ''}.`;
-    $('roomNote').textContent = `${plural(r.nights, 'night')} measured. The band is ${lo} to ${hi} °C, the cool bedroom sleep research points to.`;
+    $('roomNote').textContent = `${plural(r.nights, 'night')} with a reading. The band is ${lo} to ${hi} °C, the cool bedroom sleep research points to.`;
     const list = $('roomNights');
     list.style.setProperty('--lo', y(lo));
     list.style.setProperty('--hi', y(hi));

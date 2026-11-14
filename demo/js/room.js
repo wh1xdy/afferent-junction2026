@@ -28,8 +28,8 @@
   const rows = now => {
     const r = S.roomFrame(now);
     if (!r) return A.Hub?.connected ? [{ icon: 'home', label: 'Room', value: null, lines: ['No reading from the bedside unit right now'] }] : [];
-    const unit = r.humidity == null ? 'degrees Celsius' : `degrees Celsius · ${pct(r.humidity)} humidity`;
-    return [{ icon: 'home', label: 'Room', value: c1(r.celsius), lines: [unit, r.source === 'simulated' ? 'Simulated' : 'Bedside unit, through the home hub'] }];
+    const lines = ['degrees Celsius', r.humidity == null ? null : `Humidity ${pct(r.humidity)}`, r.source === 'simulated' ? 'Simulated' : 'Bedside unit, via the home hub'];
+    return [{ icon: 'home', label: 'Room', value: c1(r.celsius), lines: lines.filter(Boolean) }];
   };
 
   const render = () => {
