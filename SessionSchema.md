@@ -63,7 +63,7 @@ Fork and Two lanterns are skipped (never replaced) when the director is in rest 
 | `baseline_pulse_bpm` | Personal baseline the director used (from `config`) |
 | `rest.pulse_bpm`, `rest.pulse_quality` | Median pulse over the 6 s rest |
 | `rest.blink_rate_per_min`, `rest.blink_count`, `rest.blink_quality` | Spontaneous blinks (closures 50 to 500 ms) during rest only, because blinks are not used as input but taps during tasks change blinking |
-| `rest.eye_openness`, `rest.eye_quality`, `rest.eyes_tracked_ratio` | Median `1 - mean(blink_l, blink_r)` |
+| `rest.eye_openness`, `rest.eye_quality`, `rest.eyes_tracked_ratio` | Median `1 - mean(blink_l, blink_r)`. In a session written by the phone app, `rest.blink_quality` and `rest.eye_quality` are both `rest.eyes_tracked_ratio`, the share of rest frames in which the face was tracked: the camera gives no confidence figure of its own, and none is made up. Both are null when no eye frame was read |
 | `rest.head_pitch_deg`, `rest.head_pitch_quality` | Median head pitch in camera space, positive is chin up (posture proxy) |
 | `rest.ambient_light` | 0 dark to 1 bright |
 | `mood_start`, `mood_start_ms` | Start lantern 1 to 5 (null if skipped), decision time |
@@ -122,7 +122,7 @@ Counts: `rich_correct` (rich larger, tapped rich), `rich_incorrect` (rich larger
 
 ### vitals, context
 
-`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` (the pulse the game used; same enum as `signal.pulse_source`). `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level` (the last level the game sent to the hub for the bedside light, one small LED; null when nothing was sent because the switch is off or no hub is connected).
+`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` (the pulse the game used; same enum as `signal.pulse_source`). `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level` (the last level the game sent to the hub for the bedside light, one small LED; null when no level was sent in the session. A level is sent only while the light switch is on and a hub is connected, and a later call that is not sent leaves the value as it was. The number says what left the phone, not what the LED showed: the hub may run a simulated bedside unit, and it ignores the level for a patient who is not bound to the bedside unit or whose light switch is off on the hub. The phone cannot see which of these holds, so the field has no entry in `simulated_fields`).
 
 #### Sensor blocks in vitals (Decisions I53)
 

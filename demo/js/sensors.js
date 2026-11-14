@@ -61,7 +61,8 @@
   // Patient switches. `presence` is bed presence and no bed sensor exists (Alex A9): it is never on, whatever was saved or the hub sends.
   const SWITCHES = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false };
   A.switches = (...changes) => Object.assign({}, SWITCHES, ...changes, { presence: false });
-  const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
+  // Live pulse labels. The stored-row label of the old pulse sensor (Decisions I11) is not one: no such part exists here.
+  const PULSE_SOURCES = ['finger_ppg', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const unit = x => Number.isFinite(x) ? clamp(x, 0, 1) : null;

@@ -6,7 +6,7 @@
   const sw = attrs => `<span class="switch"><input type="checkbox" role="switch" ${attrs}><span class="track"></span><span class="thumb"><span class="ms">check</span></span></span>`;
 
   const lead = r => r.glyph ? `<span class="lead-glyph" aria-hidden="true">${r.glyph}</span>` : r.icon ? `<span class="ms" aria-hidden="true">${r.icon}</span>` : '';
-  const text = r => `<span class="txt"><span class="hl">${r.label}</span>${r.sup != null ? `<span class="sup"${r.supId ? ` id="${r.supId}"` : ''}>${r.sup}</span>` : ''}</span>`;
+  const text = r => `<span class="txt"><span class="hl">${r.label}</span>${r.sup != null ? `<span class="sup"${r.supId ? ` id="${r.supId}"` : ''}>${r.sup}</span>` : ''}${r.liveId ? `<span class="sup" id="${r.liveId}"></span>` : ''}</span>`;
   const row = r => {
     if (r.html) return r.html;
     const two = r.sup != null ? ' two' : '';
@@ -24,7 +24,7 @@
   const GROUPS = [
     { title: 'Sensors', hint: 'Only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
-      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', supId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
       { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },

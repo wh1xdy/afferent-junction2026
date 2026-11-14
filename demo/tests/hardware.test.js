@@ -24,7 +24,18 @@ const settings = () => {
   ctx.window = ctx;
   vm.createContext(ctx);
   for (const f of ['util.js', 'gui/lantern.js', 'gui/shell.js']) vm.runInContext(read(JS, f), ctx, { filename: f });
-  return plain(ctx.A.Shell.groups);
+  return { groups: plain(ctx.A.Shell.groups), row: r => ctx.A.Shell.row(r) };
+};
+// The sub-lines of a rendered Settings row, as [id, text] in the order they are shown.
+const subLines = html => [...html.matchAll(/<span class="sup"(?: id="(\w+)")?>([^<]*)<\/span>/g)].map(m => [m[1] ?? null, m[2]]);
+// vitals.js on a page that has only the elements in `els`; returns its once-a-second tick.
+const vitalsPage = els => {
+  const { A, ctx } = load();
+  let tick = null;
+  ctx.document = { getElementById: id => els[id] ?? null, addEventListener: () => {} };
+  ctx.addEventListener = (ev, fn) => { if (ev === 'load') tick = fn; };
+  vm.runInContext(read(JS, 'vitals.js'), ctx, { filename: 'vitals.js' });
+  return { A, tick };
 };
 
 // Text a person can read: string literals of a script, or the text of a page.
@@ -75,17 +86,59 @@ const tests = {
     assert.deepStrictEqual([level(false, false), level(true, false), level(false, true), level(true, true)], [null, null, null, 15]);
   },
 
+  'c2: the recorded light level is the last one that was sent: a later call that is not sent does not erase it'() {
+    const after = lose => {
+      const { A, tick } = load();
+      A.config.sensors.bedside_light = true;
+      A.Hub = { connected: true };
+      const s = start(A);
+      run(A, tick, s, 2);
+      s.light('#FFC98A', 8, 0, 'mode');
+      s.light('#FFC98A', 15, 0, 'mode');
+      lose(A);
+      s.light('#FFC98A', 40, 0, 'dawn');
+      return finish(A, s).context.bedside_light_level;
+    };
+    assert.strictEqual(after(A => { A.Hub.connected = false; }), 15, 'the hub dropped');
+    assert.strictEqual(after(A => { A.config.sensors.bedside_light = false; }), 15, 'the switch was turned off');
+    assert.strictEqual(after(() => {}), 40);
+    const doc = read(ROOT, 'SessionSchema.md');
+    assert.ok(doc.includes('`bedside_light_level` (the last level the game sent to the hub for the bedside light, one small LED; null when no level was sent in the session.'), 'SessionSchema.md');
+    assert.ok(doc.includes('the hub may run a simulated bedside unit'), 'SessionSchema.md does not say the hub may simulate the unit');
+  },
+
   'd: Settings has no bed presence row and says what the light and the pulse stone are'() {
-    const groups = settings(), sensors = groups.find(g => g.title === 'Sensors');
+    const { groups, row } = settings(), sensors = groups.find(g => g.title === 'Sensors');
     const id = r => /data-sensor="(\w+)"/.exec(r.sw)?.[1];
     assert.deepStrictEqual(sensors.rows.map(id), ['phone_camera', 'pulse_stone', 'bedside_light', 'bedside_camera', 'phone_motion']);
     const by = Object.fromEntries(sensors.rows.map(r => [id(r), r]));
-    assert.deepStrictEqual([by.pulse_stone.label, by.pulse_stone.sup], ['Pulse stone', 'Two finger clips']);
-    assert.deepStrictEqual([by.bedside_light.label, by.bedside_light.sup], ['Bedside light', 'One small LED on the bedside unit, set through the home hub']);
+    assert.strictEqual(by.pulse_stone.label, 'Pulse stone');
+    assert.strictEqual(by.bedside_light.label, 'Bedside light');
+    assert.deepStrictEqual(subLines(row(by.bedside_light)), [[null, 'One small LED on the bedside unit, set through the home hub']]);
     const dim = groups.flatMap(g => g.rows).find(r => r.sw === 'id="quietSw"');
     assert.strictEqual(dim.sup, 'At night: dimmer colours, bedside LED at most 25%');
     const page = read(DEMO, 'index.html');
     assert.strictEqual(page.includes('data-sensor="presence"'), false);
+  },
+
+  'd2: the Pulse stone row still says "Two finger clips" once the page fills in the sensor state'() {
+    const { groups, row } = settings();
+    const stone = groups.find(g => g.title === 'Sensors').rows.find(r => r.sw === 'data-sensor="pulse_stone"');
+    const lines = subLines(row(stone));
+    assert.deepStrictEqual(lines, [[null, 'Two finger clips'], ['fingerState', '']], 'the hardware line has no id, so nothing rewrites it');
+    const els = { fingerState: { textContent: lines[1][1] } };
+    const { A, tick } = vitalsPage(els);
+    const shown = () => { tick(); return lines.map(([id, text]) => id ? els[id].textContent : text); };
+    assert.deepStrictEqual(shown(), ['Two finger clips', 'No finger sensor on this device']);
+    A.Sensors.setFingerLink('scanning');
+    assert.deepStrictEqual(shown(), ['Two finger clips', 'Looking for the finger sensor']);
+    A.Sensors.setFingerLink('unauthorized');
+    assert.deepStrictEqual(shown(), ['Two finger clips', 'Bluetooth is off for Afferent in Settings']);
+    A.Sensors.setFingerLink('connected', 'Afferent Finger');
+    A.Sensors.feedFingerBle({ kind: 'hrm', bpm: 72, t_ms: Date.now() });
+    assert.deepStrictEqual(shown(), ['Two finger clips', 'Measuring']);
+    A.Sensors.enabled.pulse_stone = false;
+    assert.deepStrictEqual(shown(), ['Two finger clips', 'Switched off']);
   },
 
   'e: the finger sensor text tells the patient there are two clips'() {
@@ -171,6 +224,44 @@ const tests = {
     assert.deepStrictEqual([frame.tracked, frame.eye_openness, frame.quality], [true, 0.9, null]);
     S.native = null;
     assert.strictEqual(S.read(A.now(), 0.05).quality, null);
+  },
+
+  'j2: the blink quality of a camera session is the measured share of tracked rest frames, not that share times a constant'() {
+    const rest = track => {
+      const { A, tick } = load(), S = A.Sensors;
+      S.enabled.simulator = false;
+      if (track) S.source = 'arkit';
+      const s = A.startSession({ clock: 'morning', input: 'touch', profile: 'live' });
+      let i = 0;
+      run(A, tick, s, 9, () => { if (track) { S.native = { blink_l: 0.1, blink_r: 0.1, openness: 0.9, tracked: i++ % 4 !== 0, pitch_deg: -5, ambient: 0.3 }; S.nativeAt = A.now(); } });
+      const doc = finish(A, s);
+      assert.ok(!doc.simulated_fields.some(x => /eye|blink/.test(x)), doc.simulated_fields.join());
+      return doc.core.rest;
+    };
+    const r = rest(true);
+    assert.ok(r.eyes_tracked_ratio > 0.7 && r.eyes_tracked_ratio < 0.8, `three of four frames tracked, got ${r.eyes_tracked_ratio}`);
+    assert.deepStrictEqual([r.blink_quality, r.eye_quality], [r.eyes_tracked_ratio, r.eyes_tracked_ratio]);
+    const none = rest(false);
+    assert.deepStrictEqual([none.blink_quality, none.eye_quality, none.blink_rate_per_min], [null, null, null], 'no camera, no quality');
+    assert.strictEqual(/_quality:[^,\n]*\d\s*\*/.test(read(JS, 'engine.js')), false, 'engine.js scales a quality by a constant');
+    assert.ok(read(ROOT, 'SessionSchema.md').includes('`rest.blink_quality` and `rest.eye_quality` are both `rest.eyes_tracked_ratio`'), 'SessionSchema.md');
+  },
+
+  'j3: ky039 is not a live source: no hardware here is a KY-039, so a pulse with that label is dropped, not shown or recorded'() {
+    const { A, tick } = load({ vitals: true }), S = A.Sensors;
+    S.enabled.simulator = false;
+    S.feedPulse({ bpm: 72, quality: 0.9, contact: true, source: 'ky039' });
+    assert.deepStrictEqual([S.stone, S.droppedPulse, S.realProducer(A.now())], [null, 1, false]);
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: null, quality: null, source: null });
+    assert.deepStrictEqual(plain(A.Vitals.model(A.now()).rows[0]), { icon: 'ecg_heart', label: 'Pulse', value: null, lines: ['No reading right now'] });
+    const s = start(A);
+    run(A, tick, s, 4, null, () => S.feedPulse({ bpm: 72, quality: 0.9, contact: true, source: 'ky039' }));
+    const doc = finish(A, s);
+    assert.deepStrictEqual([doc.signal.pulse_source, doc.vitals?.pulse_source ?? null], [null, null]);
+    assert.strictEqual(JSON.stringify(doc).includes('ky039'), false);
+    S.feedPulse({ bpm: 72, quality: 0.9, contact: true, source: 'finger_ppg' });
+    assert.deepStrictEqual([S.stone.bpm, S.stone.source], [72, 'finger_ppg'], 'the finger sensor label still passes');
+    for (const f of ['sensors.js', 'vitals.js', 'main.js', 'finger.js', 'record.js', 'engine.js']) assert.strictEqual(read(JS, f).includes('ky039'), false, `${f} still knows ky039 as a current source`);
   },
 
   'k: no script on the sensor path gives a missing quality a default number or forces a sensor name'() {

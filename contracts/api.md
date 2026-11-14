@@ -281,7 +281,7 @@ The hub also accepts the v2 form of `session_end` (document spread at top level)
 
 `phase` is one of `fadein`, `rest`, `checkin`, `rt`, `walk`, `game`, `dawn`, `end`, `asleep`.
 
-`pulse_bpm`, `pulse_quality` and `pulse_source` describe the pulse the game uses (`ky039`, `finger_ppg`, `rppg`, `simulated` or `null`). `physio` and `camera_pulse` carry the sensor readings themselves, whether or not the game uses them; both are `null` when the phone has no such reading (section 3.5 has every field and the rules):
+`pulse_bpm`, `pulse_quality` and `pulse_source` describe the pulse the game uses (`finger_ppg`, `rppg`, `simulated` or `null`). `physio` and `camera_pulse` carry the sensor readings themselves, whether or not the game uses them; both are `null` when the phone has no such reading (section 3.5 has every field and the rules):
 
 ```json
 {"physio": {"source": "finger_ppg", "transport": "ble", "simulated": false,
@@ -301,7 +301,7 @@ Hub to phone:
 | `config` | see below | after `hello`, after every `session_end` ack |
 | `ack` | `session_id`, `ok`, `duplicate`, `day_index`, `error` | after `session_end` |
 | `ack` | `checkin_id`, `ok`, `duplicate`, `error` | after `checkin` (`ok: false` with `error` on a schema error or unknown patient) |
-| `pulse` | `bpm`, `quality` (0 to 1), `contact`, `source` (`ky039`, `finger_ppg`, `simulated`) | 1 Hz from the bedside unit (only when it really has a pulse or `AFFERENT_SIM_PULSE=1`). A `pulse` without one of these three sources is dropped by the phone, never relabelled |
+| `pulse` | `bpm`, `quality` (0 to 1), `contact`, `source` (`ky039`, `finger_ppg`, `simulated`) | 1 Hz from the bedside unit (only when it really has a pulse or `AFFERENT_SIM_PULSE=1`). The phone takes `finger_ppg` and `simulated`. Any other `pulse` is dropped by the phone, never relabelled: that includes `ky039`, which the hub's serial source still stamps and which is a label for stored rows only (Decisions I11; no hardware here is a KY-039) |
 | `physio` | the physio object (section 3.5) | 1 Hz from the bedside unit when the source provides it (`unoq_http`); not sent while the patient's `pulse_stone` switch is off |
 | `knob` | `level` (0 to 100) or `press: true` | knob events |
 | `profile` | `profile` (`good_day`, `bad_day`, `live`) | `POST /api/demo/profile` |

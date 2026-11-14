@@ -46,7 +46,7 @@ const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
   };
   run('engine.js');
   if (vitals) run('vitals.js');
-  return { A: ctx.A, tick: dt => { clock += dt; }, plugin };
+  return { A: ctx.A, ctx, tick: dt => { clock += dt; }, plugin };
 };
 
 // Advance a session in 50 ms steps; `each` runs before every step, `second` once per whole simulated second.

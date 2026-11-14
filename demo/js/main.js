@@ -378,7 +378,7 @@
   function panel(s, now) {
     const p = S.pulse(now);
     $('pulseVal').textContent = s && p.bpm != null ? p.bpm.toFixed(0) : '--';
-    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'face (rPPG)', simulated: 'SIMULATED' }[p.source] || 'none';
+    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', rppg: 'face (rPPG)', simulated: 'SIMULATED' }[p.source] || 'none';
     for (const [id, key] of Object.entries(sliders)) { const el = $(id); if (!el.dataset.active) el.value = A.Sim[key]; }
     $('pulseSliderVal').textContent = (A.Sim.offset >= 0 ? '+' : '') + A.Sim.offset.toFixed(0) + ' bpm';
     $('drowsySliderVal').textContent = A.Sim.drowsy.toFixed(2);

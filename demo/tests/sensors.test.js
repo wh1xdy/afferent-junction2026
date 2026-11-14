@@ -37,8 +37,9 @@ const tests = {
     S.feedPulse({ bpm: 72, contact: true, source: 'finger_ppg' });
     assert.strictEqual(S.stone.quality, null);
     assert.strictEqual(S.pulse(A.now()).bpm, null);
+    S.feedPulse({ bpm: 72, quality: 0.8, contact: true, source: 'finger_ppg' });
     S.feedPulse({ bpm: 72, quality: 0.8, contact: true, source: 'ky039' });
-    assert.strictEqual(S.pulse(A.now()).source, 'ky039');
+    assert.deepStrictEqual([S.stone, S.droppedPulse], [null, 3], 'the stored-row label ky039 is not a live source (Decisions I11)');
   },
 
   'b: a value older than 3 s is not returned'() {
@@ -166,9 +167,9 @@ const tests = {
     assert.ok(!doc.simulated_fields.some(f => f === 'vitals' || /finger|breathing|hrv|series/.test(f)), doc.simulated_fields.join());
   },
 
-  'g2: a hub pulse stone (ky039) locks the session to real; with the simulator off a session is real even without a producer'() {
+  'g2: a hub pulse stone (finger_ppg) locks the session to real; with the simulator off a session is real even without a producer'() {
     let { A, tick } = load(), S = A.Sensors;
-    S.feedPulse({ bpm: null, quality: 0, contact: false, source: 'ky039' });
+    S.feedPulse({ bpm: null, quality: 0, contact: false, source: 'finger_ppg' });
     assert.strictEqual(S.lockPulse(A.now()), 'real', 'a real stone without a finger on it is still a real producer');
     S.unlockPulse(); tick(11);
     assert.strictEqual(S.lockPulse(A.now()), 'simulated', 'a producer that went silent no longer counts');
@@ -176,9 +177,9 @@ const tests = {
     S.feedPulse({ bpm: 70, quality: 0.9, contact: true, source: 'simulated' });
     assert.strictEqual(S.lockPulse(A.now()), 'simulated');
     assert.strictEqual(S.pulse(A.now()).source, 'simulated');
-    S.feedPulse({ bpm: 71, quality: 0.9, contact: true, source: 'ky039' });
+    S.feedPulse({ bpm: 71, quality: 0.9, contact: true, source: 'finger_ppg' });
     S.feedPulse({ bpm: 90, quality: 0.9, contact: true, source: 'simulated' });
-    assert.strictEqual(S.stone.source, 'ky039', 'a simulated frame never replaces a fresh real one');
+    assert.strictEqual(S.stone.source, 'finger_ppg', 'a simulated frame never replaces a fresh real one');
     S.unlockPulse();
     S.enabled.simulator = false;
     assert.strictEqual(S.lockPulse(A.now() + 60), 'real');

@@ -11,10 +11,10 @@
   };
   const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in each of the two clips to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
-  const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', rppg: 'Camera', simulated: SIM };
+  const SOURCE = { finger_ppg: 'Finger sensor', rppg: 'Camera', simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
   const NO_QUALITY = 'This sensor version does not report signal quality yet, so the game does not use this pulse.';
-  const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
+  const CHIP = { finger_ppg: 'finger sensor', rppg: 'camera' };
 
   const sensorLines = ph => {
     if (!S.enabled.pulse_stone) return ['Switched off'];
