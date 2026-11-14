@@ -1,0 +1,5 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+websockets>=14
+google-auth>=2.35
+requests>=2.32

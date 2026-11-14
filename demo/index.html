@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/checkin.css">
   <link rel="stylesheet" href="css/streak.css">
   <link rel="stylesheet" href="css/gui/shell.css">
+  <link rel="stylesheet" href="css/voice.css">
   <link rel="stylesheet" href="css/tasks/reaction.css">
   <link rel="stylesheet" href="css/tasks/fork.css">
   <link rel="stylesheet" href="css/tasks/lanterns.css">
@@ -49,6 +50,7 @@
         <header class="top-bar">
           <button class="icon-btn state" data-open="settings" type="button" aria-label="Settings"><span class="ms">settings</span></button>
           <button class="icon-btn state" data-open="info" type="button" aria-label="How it works"><span class="ms">info</span></button>
+          <button class="icon-btn state" data-open="voice" type="button" aria-label="Talk with the voice companion"><span class="ms">chat_bubble</span></button>
           <button id="signalsBtn" class="icon-btn state" data-open="signals" type="button" aria-label="Your signals"><span class="ms">ecg_heart</span></button>
           <button id="camBtn" class="privacy state" data-open="settings" type="button" aria-label="Camera on. Open settings" hidden><span class="ms fill">videocam</span></button>
           <span class="sp"></span>
@@ -117,7 +119,7 @@
             <li><span class="tile"><span class="ms">touch_app</span></span><span class="t-body">Hold to kindle. Tap, hold or drag to guide the light.</span></li>
             <li><span class="tile"><span class="ms">self_improvement</span></span><span class="t-body">Hold while the circle grows.</span></li>
             <li><span class="tile"><span class="ms">wb_twilight</span></span><span class="t-body">About two minutes, then the sun comes up.</span></li>
-            <li><span class="tile"><span class="ms">lock</span></span><span class="t-body">Only numbers leave the phone.</span></li>
+            <li><span class="tile"><span class="ms">lock</span></span><span class="t-body">Only numbers leave the phone. If you use Talk, your voice goes to Google while you speak.</span></li>
           </ul>
           <p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
           <div class="sheet-actions"><button id="anchorBtn" class="btn text state" type="button">The lanterns</button><button class="btn tonal state" data-close="info" type="button">Got it</button></div>
@@ -142,6 +144,35 @@
           <button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
         </header>
         <div id="settingsBody" class="settings-body"></div>
+      </div>
+
+      <div id="voice" class="screen voice hidden" role="dialog" aria-modal="true" aria-labelledby="voiceTitle" data-state="idle">
+        <header class="top-bar app-bar">
+          <button class="icon-btn state" data-close="voice" type="button" aria-label="Back"><span class="ms">arrow_back</span></button>
+          <h2 id="voiceTitle" class="title">Talk</h2>
+          <button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div class="voice-intro">
+          <span class="tile lit voice-tile" data-glyph="lantern" aria-hidden="true"></span>
+          <h3 class="t-headline">Say what is on your mind.</h3>
+          <ul class="how voice-how">
+            <li><span class="tile"><span class="ms">wifi</span></span><span class="t-body">While you talk, your voice goes to Google Gemini so it can answer.</span></li>
+            <li><span class="tile"><span class="ms">lock</span></span><span class="t-body">The written conversation stays on this phone.</span></li>
+            <li><span class="tile"><span class="ms">support</span></span><span class="t-body">Not a therapist and not an emergency service.</span></li>
+          </ul>
+        </div>
+        <ol id="voiceLog" class="voice-log" aria-live="polite" aria-label="Conversation"></ol>
+        <form id="voiceKeyForm" class="voice-key hidden">
+          <div class="field"><input id="voiceUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://afferent-voice-….run.app" required><label for="voiceUrl">Relay address</label></div>
+          <div class="field"><input id="voiceCode" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required><label for="voiceCode">Access code</label></div>
+          <button class="btn filled small state" type="submit">Save and start</button>
+        </form>
+        <div class="voice-dock">
+          <span id="voiceOrb" class="voice-lantern" aria-hidden="true"><span class="voice-halo"></span><span class="voice-core"></span></span>
+          <p id="voiceStatus" class="voice-status t-label" role="status"></p>
+          <button id="voiceStart" class="btn filled block state" type="button">Start talking</button>
+          <button id="voiceEnd" class="btn tonal block state hidden" type="button">End conversation</button>
+        </div>
       </div>
 
       <div id="hubDialog" class="layer hidden" role="dialog" aria-modal="true" aria-labelledby="hubTitle">
@@ -238,6 +269,8 @@
   <script src="js/engine.js"></script>
   <script src="js/perf.js"></script>
   <script src="js/checkin.js"></script>
+  <script src="js/voice-config.js"></script>
+  <script src="js/voice.js"></script>
   <script src="js/vitals.js"></script>
   <script src="js/main.js"></script>
   <script src="js/splash.js"></script>
