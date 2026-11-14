@@ -37,7 +37,10 @@ Built-in metrics:
 | `env.temperature_c` | sample | °C | −20 … 60 |
 | `env.humidity_pct` | sample | %RH | 0 … 100 |
 | `env.co2_ppm` | sample | ppm | 250 … 10000 |
-| `vitals.heart_rate_bpm` | sample | bpm | 30 … 220 |
+| `vitals.heart_rate_bpm` | sample | bpm | 30 … 220 (contact sensors: finger clip, strap, watch) |
+| `vitals.heart_rate_camera_bpm` | sample | bpm | 30 … 220 (contact-free camera rPPG) |
+| `vitals.hrv_rmssd_ms` | sample | ms | 1 … 300 (heart-rate variability, RMSSD) |
+| `vitals.breathing_rate_per_min` | sample | /min | 3 … 60 |
 | `posture.trunk_inclination_deg` | sample | deg | −90 … 90 (trunk vs vertical, 0 = upright) |
 | `posture.head_trunk_angle_deg` | sample | deg | 0 … 180 (head vs trunk, 0 = head stacked on the trunk) |
 | `presence.home` | interval | | |
@@ -49,13 +52,19 @@ Rules that keep the statistics clean:
 - **Unknown metric → rejected.** A typo in a producer never creates a silent new series.
   New sensors are registered once: `POST /api/v1/metrics`.
 - **Out-of-range value → rejected** (sensor fault, not a measurement), as are NaN,
-  timestamps more than `MAX_FUTURE_S` in the future (wrong clock) and older than the raw
-  retention window. A batch is never rejected as a whole: the response lists each bad item
-  with its reason, the rest is stored.
-- **`source` tells sensors apart**, e.g. `modulino-hub/finger1`, `modulino-hub/finger2`,
-  `afferent-vision/rppg`. Daily aggregates exist per source and pooled (`source=*`).
+  malformed fields (a list as `metric`, an infinite `ts` …), timestamps outside 1970–2100,
+  more than `MAX_FUTURE_S` in the future (wrong clock) or older than the raw retention
+  window. A batch is never rejected as a whole: the response lists each bad item with its
+  reason, the rest is stored, and `accepted` is the number of rows actually written.
+- **`source` tells sensors apart**, e.g. `modulino-hub` and `polar-h10` for
+  `vitals.heart_rate_bpm`. Daily aggregates exist per source and pooled (`source=*`);
+  every read that pools several sources lists them in `sources_pooled` and adds a
+  `warning`. Measurements with a different error profile get their own metric instead of a
+  source (the camera estimate is `vitals.heart_rate_camera_bpm`, not a heart-rate source).
 - **Idempotent writes.** A sample is keyed by `(metric, source, ts)` and an interval by
   `(source, kind, id)`: re-sending after a timeout overwrites instead of duplicating.
+  Within one batch, two samples with the same key are one row (the later wins, the earlier
+  is listed in `rejected`): always send `ts` when batching.
   An interval is opened by sending it without `end`, and closed by re-sending the same `id`
   with its `end` (`id` defaults to the start time).
 - **Time.** Stored as epoch ms (UTC), like `posture-analysis`. Days are local calendar days
@@ -72,8 +81,9 @@ recomputed automatically when late data arrives for a past day. Intervals are ke
 (Python, curl, JavaScript, Swift): [API.md](API.md).** Machine-readable:
 `GET /api/v1/openapi.json` (OpenAPI 3.0). Quick reference below.
 
-All `/api/*` routes require `Authorization: Bearer <API_TOKEN>` when `API_TOKEN` is set.
-`/health` is always open. Responses are JSON; `time` fields are ISO strings in `TZ_NAME`.
+All `/api/*` routes require `Authorization: Bearer <API_TOKEN>`. The service refuses to
+start without `API_TOKEN` unless `ALLOW_NO_AUTH=1` (local development only). `/health` is
+always open. Responses are JSON; `time` fields are ISO strings in `TZ_NAME`.
 
 ### Write
 
@@ -115,7 +125,7 @@ seconds, a minute median of an angle), not raw waveforms: the 45 Hz PPG stays on
 | `GET /api/v1/daily` | `metric`, `source` (*), `from` (-30d), `to` (today) | samples: daily stats + `hours_covered`; intervals: `minutes`, `occurrences`, `share_of_day`, mean/max value |
 | `GET /api/v1/stats` | `metric`, `source`, `from` (-7d), `to`, `min_quality` | full descriptive stats + trend of daily medians; for intervals: stats of minutes and occurrences per day |
 | `GET /api/v1/trend` | `metric`, `source`, `from` (-30d), `to`, `stat` (median / minutes), `min_hours` (0) | Mann–Kendall test + Theil–Sen slope per day, with the daily values used |
-| `GET /api/v1/baseline` | `metric`, `source`, `day` (today), `days` (14), `stat`, `min_hours` (4), `z` (2) | that day vs the previous N days: robust z-score and `verdict` (within / above / below usual range) |
+| `GET /api/v1/baseline` | `metric`, `source`, `day` (today), `days` (14), `stat`, `min_hours` (per metric), `z` (2) | that day vs the previous N days: robust z-score and `verdict` (within / above / below usual range) |
 | `GET /api/v1/profile` | `metric`, `source`, `from` (-14d), `to` | mean per local hour of day (circadian profile) |
 | `GET /api/v1/correlation` | `a`, `b`, `source_a`, `source_b`, `from` (-7d), `to`, `bucket` (1h) | Pearson and Spearman on bucket means, with p-values |
 | `GET /api/v1/events` | `kind`, `source`, `from` (-7d), `to`, `limit` | intervals overlapping the range, with `ongoing` and `duration_min` |
@@ -133,7 +143,7 @@ curl "$DM/api/v1/daily?metric=presence.home&from=-14d"            # time at home
 curl "$DM/api/v1/daily?metric=presence.guest_visit&from=-30d"     # visits and guest minutes per day
 curl "$DM/api/v1/trend?metric=presence.outing&stat=minutes&from=-60d"
 curl "$DM/api/v1/baseline?metric=posture.head_trunk_angle_deg&source=posture/default/standing-profile&days=14"
-curl "$DM/api/v1/series?metric=vitals.heart_rate_bpm&source=modulino-hub/finger1&bucket=1m&from=-2h"
+curl "$DM/api/v1/series?metric=vitals.heart_rate_bpm&source=modulino-hub&bucket=1m&from=-2h"
 curl "$DM/api/v1/correlation?a=env.co2_ppm&b=vitals.heart_rate_bpm&from=-14d"
 curl "$DM/api/v1/profile?metric=vitals.heart_rate_bpm&from=-28d"
 ```
@@ -143,13 +153,23 @@ curl "$DM/api/v1/profile?metric=vitals.heart_rate_bpm&from=-28d"
 - **Daily stats** use percentiles (median, p10/p90), robust to the outliers camera and
   finger sensors produce. `hours_covered` (0–24) says how much of the day was actually
   observed: a median from 2 hours is not comparable with one from 14.
-  `baseline` ignores days below `min_hours` (default 4).
+  `baseline` ignores days with fewer observed hours than `min_hours`, whose default is
+  per metric: 4 for environment and presence, 1 for posture, 0 for spot-check vitals
+  (a 10-minute finger session is a valid day).
 - **Trend**: Mann–Kendall (non-parametric, no normality assumption, tie-corrected) on one
   value per day, plus the Theil–Sen slope (median of pairwise slopes, robust to outlier
   days). `p < 0.05` → `increasing` / `decreasing`. Needs ≥ 4 days; meaningful from ~10.
 - **Baseline**: `z = (value − median of previous N days) / (1.4826 × MAD)`. |z| ≥ 2 →
-  above / below usual range. Needs ≥ 5 baseline days. Today is a partial day: compare
-  intervals (minutes at home) on complete days with `day=-1d`.
+  above / below usual range. Needs ≥ 5 baseline days. A history with no variation at all
+  (`flat: true`, `z: null`) still counts: any value different from it is above / below.
+  Today is a partial day: compare intervals (minutes at home) on complete days with
+  `day=-1d`.
+- **Clocks**: a producer clock more than `MAX_FUTURE_S` ahead is rejected with a reason; a
+  slow clock cannot be rejected (old data is legitimate), so it is made visible instead:
+  every POST response carries `server_time`, the client reports its `clock_skew_s` in
+  `status()` and logs a warning beyond 60 s, and `GET /latest` shows `lag_s` (receipt −
+  measurement time) per source. A few seconds is normal batching; a large steady lag is a
+  slow clock. Check NTP (`timedatectl`) on every board.
 - **Intervals**: minutes are the union of intervals clipped to the day (overlaps are not
   counted twice; an ongoing interval runs until now). Days before a kind was first ever
   reported are absent, not zeros. A day with the presence app down looks like a day with
@@ -175,9 +195,9 @@ installed; `DATA_MANAGER_URL=off` disables it. `DATA_MANAGER_TOKEN` carries the 
 | Producer (planned) | What | Metric / source | Rate |
 |---|---|---|---|
 | `uno-q/modulino-hub` | Thermo | `env.temperature_c`, `env.humidity_pct` / `modulino-hub` | mean over 60 s |
-| | finger PulseSensors, locked beats only | `vitals.heart_rate_bpm` / `modulino-hub/finger1`, `…/finger2`; `quality` = autocorrelation quality | median over 10 s |
+| | **fused** finger reading (only while a finger is on the clip), HRV, breathing | `vitals.heart_rate_bpm`, `vitals.hrv_rmssd_ms`, `vitals.breathing_rate_per_min` / `modulino-hub` | per reading |
 | `jetson/presence` | home periods, outings, guest visits (`datasync.py`) | `presence.home`, `presence.outing`, `presence.guest_visit` (value = peak guests) / `afferent-presence` | on change |
-| `jetson/vision` | fused camera pulse, trust score ≥ `RPPG_MIN_TRUST` (40) | `vitals.heart_rate_bpm` / `afferent-vision/rppg`; `quality` = trust / 100 | every 10 s, new readings only |
+| `jetson/vision` | fused camera pulse, trust score ≥ `RPPG_MIN_TRUST` (40) | `vitals.heart_rate_camera_bpm` / `afferent-vision`; `quality` = trust / 100 | every 10 s, new readings only |
 | `posture-analysis/posture` | minute medians per context, **standing / walking only** (`afferent/datasink.py`), **opt-in** | `posture.trunk_inclination_deg`, `posture.head_trunk_angle_deg` / `posture/<site>/<activity>-<orientation>`; p10/p90/n in `meta` | per minute |
 | CO2 sensor | not built yet | `env.co2_ppm` | every 30–60 s |
 
@@ -209,9 +229,14 @@ One source per (room, activity, orientation), so daily aggregates never mix cont
 
 ```sh
 cd jetson/data_manager
-TZ_NAME=Europe/Paris API_TOKEN=$(openssl rand -hex 16) wendy run --device "$JETSON" --detach --yes
+export API_TOKEN=$(openssl rand -hex 16)
+echo "API_TOKEN=$API_TOKEN"    # keep it (password manager): producers need it as DATA_MANAGER_TOKEN
+TZ_NAME=Europe/Paris wendy run --device "$JETSON" --detach --yes
 wendy --device "$JETSON" device logs --app afferent-data-manager --tail 20 --no-follow
 ```
+
+Without `API_TOKEN` the app exits at start with `API_TOKEN is not set …` (on purpose: this is
+health data). `ALLOW_NO_AUTH=1` opens it, for local development only.
 
 Expect `data manager on :8100 (db=/data/data_manager.db, tz=…)` and `advertising
 data-manager._http._tcp.local.`. The DB lives on the persistent volume
@@ -235,10 +260,11 @@ confirmed on the device.
 | `DATA_DIR` | /data | SQLite file `data_manager.db` |
 | `TZ_NAME` | UTC | IANA zone of the home, defines "a day" |
 | `RAW_RETENTION_DAYS` | 180 | raw samples older than this are pruned hourly (daily rows stay); 0 = keep forever |
-| `API_TOKEN` | – | bearer token for every `/api` route (strongly recommended: this is health data) |
+| `API_TOKEN` | – | **required** bearer token for every `/api` route; ≥ 16 random characters |
+| `ALLOW_NO_AUTH` | – | `1` = start without a token, API open to anyone on the network (local development only) |
 | `MAX_FUTURE_S` | 300 | reject timestamps further in the future (producer clock skew) |
 | `ROLLUP_INTERVAL_S` | 300 | background daily rollup period |
-| `MDNS` | 1 | advertise `_http._tcp` with TXT `role=data-manager` |
+| `MDNS` | 1 | advertise `_http._tcp` with TXT `role=data-manager`, `auth=1` |
 
 Back up by copying `/data/data_manager.db` (SQLite in WAL mode: use
 `sqlite3 data_manager.db ".backup backup.db"` for a consistent copy while it runs).
@@ -247,10 +273,10 @@ Back up by copying `/data/data_manager.db` (SQLite in WAL mode: use
 
 ```sh
 cd jetson/data_manager
-DATA_DIR=./data TZ_NAME=Europe/Paris MDNS=0 python3 app.py
+DATA_DIR=./data TZ_NAME=Europe/Paris MDNS=0 ALLOW_NO_AUTH=1 python3 app.py
 python3 tools/simulate.py --url http://localhost:8100 --days 21 --withdrawal 5   # synthetic history
 curl "localhost:8100/api/v1/trend?metric=posture.trunk_inclination_deg&from=-21d"
-python3 -m unittest discover -s tests -v                                        # 30 tests
+python3 -m unittest discover -s tests -v                                        # 48 tests
 ```
 
 Measured on a laptop: a 200-sample batch is stored in ~2 ms; `/daily` ~2 ms, `/stats`
@@ -258,6 +284,8 @@ over 7 days (~50 k rows) ~30 ms.
 
 ## Privacy
 
-This database holds health-related data about identifiable people at home. Set
-`API_TOKEN`, keep the port on Wendy Net (never expose it to the internet), and treat
-backups like medical records. There is no video, no images and no face data here.
+This database holds health-related data about identifiable people at home. The API is
+closed by default (`API_TOKEN` required), keep the port on Wendy Net (never expose it to
+the internet), and treat backups like medical records. Producers that hold the token should
+pin `DATA_MANAGER_URL` rather than rely on mDNS: the client takes the first advert it sees
+and never switches away from a working server, but any host on the mesh can advertise. There is no video, no images and no face data here.
