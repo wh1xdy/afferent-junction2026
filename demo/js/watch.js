@@ -141,7 +141,7 @@
     onReading(d) { if (d?.kind === 'hr') S.feedWatch(d); },
 
     // One line for Settings: what the watch does right now.
-    stateText(now = A.now()) {
+    stateText(at = null) {
       if (!this.available()) return 'Needs the Afferent app on a phone';
       if (!chosen) return 'Off. Choose a device below';
       if (!chosen.on) return `Off. ${chosen.name} is remembered`;
@@ -150,6 +150,7 @@
       if (st === 'unsupported') return 'No Bluetooth on this phone';
       if (st === 'off') return 'Bluetooth is off';
       if (st !== 'connected') return `Looking for ${chosen.name}`;
+      const now = at ?? (typeof A.now === 'function' ? A.now() : 0);   // the clock (main.js) comes after this script
       const w = S.watchFrame(now), clips = S.fingerFrame(now)?.pulse_bpm != null;
       if (!w) return `${chosen.name} connected. Waiting for a pulse`;
       if (w.contact === false) return `${chosen.name} connected. Not on the skin`;
