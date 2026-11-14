@@ -192,7 +192,8 @@ const tests = {
       'the hub relays a frame without a quality value': [{ hub: true }, t => t.S.feedFingerHub(hubFrame({ quality: null }))],
       'the hub relays heartbeats that are 45 s old': [{ hub: true }, t => t.S.feedFingerHub(hubFrame({ age_s: 45 }))],
       'pulse stone switched off': [{ clips: true, config: { sensors: { bedside_light: false, pulse_stone: false, phone_camera: true } } }, t => { t.S.enabled.pulse_stone = false; real(t); }],
-      'clips connected after the session started on the simulator': [{}, (t, i) => { if (i === 0) connect(t.A); real(t); }],
+      // The live heartbeat (heartbeat.js) does show clips put on late, as display only; it is left out of both runs here.
+      'clips connected after the session started on the simulator': [{ heartbeat: false }, (t, i) => { if (i === 0) connect(t.A); real(t); }],
     };
     for (const [name, [opts, feed]] of Object.entries(cases)) {
       const without = film({ ...opts, overlay: true, breathing: false }, feed), now = film({ ...opts, overlay: true }, feed);

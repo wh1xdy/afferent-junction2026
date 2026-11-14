@@ -143,24 +143,115 @@ const tests = {
     assert.ok(H.st.sim);
   },
 
-  'f: a session that started on the simulator keeps later clips out, as breathing.js does; the camera still counts'() {
-    const t = load(), { A, tick } = t, H = A.Heartbeat;
+  'f: a session that started on the simulator: the fire takes up clips put on later, the record stays simulated'() {
+    const t = load(), { A, tick, ctx } = t, H = A.Heartbeat, S = A.Sensors, rings = [];
+    ctx.A.World = { hooks: { heartRing: a => rings.push(a) } };
     const s = A.session = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
-    assert.strictEqual(A.Sensors.pulseMode, 'simulated');
+    assert.strictEqual(S.pulseMode, 'simulated');
+    run(A, tick, s, 6);
+    assert.deepStrictEqual([H.st.lubs, A.Biofeedback.beat], [0, false], 'a simulated pulse in a live session: no beat');
     connect(A);
-    run(A, tick, s, 8, null, () => clips(A));
-    assert.deepStrictEqual([H.st.lubs, A.Biofeedback.beat], [0, false], 'clips put on later do not count in this session');
-    run(A, tick, s, 8, null, () => { clips(A); cam(A); });
-    assert.ok(H.st.lubs >= 7 && A.Biofeedback.beat, 'the camera pulse is not locked');
+    let first = null, i = 0;
+    run(A, tick, s, 10, () => { i++; if (first === null && H.st.lubs) first = i; }, () => clips(A));
+    assert.ok(first <= 2 && H.st.lubs >= 11 && A.Biofeedback.beat, `clips put on mid-session: the fire takes them up at once (frame ${first}, ${H.st.lubs} beats)`);
+    assert.deepStrictEqual(rings, [1], 'with the connect moment');
+    run(A, tick, s, 4, () => assert.strictEqual(S.pulse(A.now()).source, 'simulated'), () => clips(A));
+    let doc = null;
+    A.bus.on('sessionEnd', d => { doc = d; });
+    s.finish('partial');
+    doc = plain(doc);
+    assert.deepStrictEqual(Object.keys(s.sig.pulseSources), ['simulated'], 'the game pulse stays simulated to the end: never mixed');
+    assert.deepStrictEqual([doc.signal.pulse_source, doc.signal.pulse_from_ms, doc.vitals.pulse_source, doc.simulated], ['simulated', null, 'simulated', true]);
+    for (const f of ['signal.pulse_source', 'tasks.pulse', 'pre_post.pulse', 'vitals.pulse_mean_bpm']) assert.ok(doc.simulated_fields.includes(f), f);
+    assert.strictEqual(doc.vitals.finger.source, 'finger_ppg', 'the finger block keeps what the clips measured, under its own source, as before');
 
+    // The vibration follows the same rules there: a real pulse in a calm moment.
+    const v = load(), calls = [];
+    v.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { beat: async o => calls.push(o) } } };
+    v.A.Sensors.pulseMode = 'simulated';
+    connect(v.A);
+    steps(v, 6, { s: calm(), second: () => clips(v.A) });
+    assert.ok(calls.length >= 6, `felt: ${calls.length}`);
+  },
+
+  'n: a session that started with no pulse at all takes up the clips when they come, and the record says from when'() {
+    const t = load(), { A, tick, ctx } = t, H = A.Heartbeat, S = A.Sensors, rings = [];
+    ctx.A.World = { hooks: { heartRing: a => rings.push(a) } };
+    S.enabled.simulator = false;
+    const s = A.session = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
+    assert.strictEqual(S.pulseMode, 'real', 'the simulator is off: a session without a pulse source is a real one waiting for a reading');
+    run(A, tick, s, 8);
+    assert.deepStrictEqual([H.st.lubs, A.Biofeedback.beat, S.pulse(A.now()).bpm], [0, false, null], 'nothing to show, nothing guessed');
+    connect(A);
+    const at = A.now();
+    run(A, tick, s, 12, null, () => clips(A, {}, 66));
+    assert.ok(H.st.lubs >= 12 && A.Biofeedback.beat, 'the fire takes up the clips');
+    assert.deepStrictEqual(rings, [1]);
+    let doc = null;
+    A.bus.on('sessionEnd', d => { doc = d; });
+    s.finish('partial');
+    doc = plain(doc);
+    assert.deepStrictEqual(Object.keys(s.sig.pulseSources), ['finger_ppg'], 'the session pulse is the real one from then on');
+    assert.strictEqual(doc.signal.pulse_source, 'finger_ppg');
+    assert.ok(Math.abs(doc.signal.pulse_from_ms - (at - s.t0) * 1000) <= 100, `the record says when: ${doc.signal.pulse_from_ms} ms, clips at ${Math.round((at - s.t0) * 1000)}`);
+    assert.strictEqual(doc.vitals.pulse_mean_bpm, 66);
+    assert.ok(!doc.simulated_fields.some(f => /pulse/.test(f)), doc.simulated_fields.join());
+
+    // Clips on from the start: the first reading is near the start of the session.
     const r = load();
-    connect(r.A);
+    r.A.Sensors.enabled.simulator = false;
+    connect(r.A); clips(r.A);
     const s2 = r.A.session = r.A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
-    assert.strictEqual(r.A.Sensors.pulseMode, 'real');
-    run(r.A, r.tick, s2, 4);
-    assert.strictEqual(r.A.Heartbeat.st.lubs, 0, 'clips connected, no finger yet');
-    run(r.A, r.tick, s2, 8, null, () => clips(r.A));
-    assert.ok(r.A.Heartbeat.st.lubs >= 8, 'a finger in the clips mid-session: the fire takes up the pulse');
+    run(r.A, r.tick, s2, 5, null, () => clips(r.A));
+    assert.ok(s2.sig.pulseFromMs <= 2100, `from the end of the fade-in: ${s2.sig.pulseFromMs}`);
+    const schema = JSON.parse(fs.readFileSync(path.join(JS, '..', '..', 'contracts', 'session.v3.schema.json'), 'utf8'));
+    assert.deepStrictEqual(schema.$defs.signal.properties.pulse_from_ms.type, ['integer', 'null'], 'the contract knows the field');
+  },
+
+  'o: clips off and back on: no beat while they are off, the fire picks the pulse up again when they are back'() {
+    const t = load(), { A, ctx } = t, H = A.Heartbeat, rings = [];
+    ctx.A.World = { hooks: { heartRing: a => rings.push(a) } };
+    connect(A);
+    steps(t, 6, { second: () => clips(A) });
+    assert.ok(A.Biofeedback.beat && rings.length === 1);
+    // The finger leaves the clip: the sensor says so at once (presence idle).
+    clips(A, { presence: 'idle' }, 0);
+    let after = H.st.lubs, peak = 0;
+    steps(t, 1, { second: () => clips(A, { presence: 'idle' }, 0) });
+    assert.strictEqual(A.Biofeedback.beat, false);
+    steps(t, 5, { second: () => clips(A, { presence: 'idle' }, 0), each: () => { peak = Math.max(peak, H.st.beat); } });
+    assert.ok(H.st.lubs === after && peak < 0.005, `no beat while they are off (${H.st.lubs - after} beats, peak ${peak})`);
+    assert.strictEqual(H.st.bpm, null);
+    let first = null;
+    steps(t, 5, { second: () => clips(A, {}, 64), each: (r, V, i) => { if (r.lub && first === null) first = i; } });
+    assert.ok(first === 0 && Math.abs(H.st.lubs - after - 6) <= 1, `back on: at once, at the new pulse (${H.st.lubs - after} beats)`);
+    assert.deepStrictEqual(rings, [1, 1], 'with the connect moment again');
+
+    // The notifications stop (clips unplugged): the reading is stale after 3 s and the beat stops within a second.
+    after = H.st.lubs;
+    steps(t, 3.1);
+    assert.strictEqual(A.Biofeedback.beat, false);
+    const stale = H.st.lubs;
+    steps(t, 4, { each: () => { peak = H.st.beat; } });
+    assert.ok(H.st.lubs === stale && peak < 0.005, 'no beat while there is no reading');
+    // A short gap of one or two missed notifications is not a new connection.
+    steps(t, 4, { second: () => clips(A) });
+    assert.deepStrictEqual(rings, [1, 1, 1]);
+    steps(t, 2, { second: () => clips(A, { presence: 'idle' }, 0) });
+    assert.strictEqual(A.Biofeedback.beat, false, 'a real two-second dropout');
+    steps(t, 4, { second: () => clips(A) });
+    assert.ok(A.Biofeedback.beat);
+    assert.deepStrictEqual(rings, [1, 1, 1], 'a dropout under 3 s picks up again without replaying the connect moment');
+  },
+
+  'p: the camera pulse becoming trusted mid-session is taken up the same way'() {
+    const t = load(), { A, tick, ctx } = t, H = A.Heartbeat, rings = [];
+    ctx.A.World = { hooks: { heartRing: a => rings.push(a) } };
+    const s = A.session = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
+    run(A, tick, s, 5, null, () => cam(A, { trust: { score: 25, label: 'unreliable', reasons: [] } }));
+    assert.deepStrictEqual([H.st.lubs, A.Biofeedback.beat], [0, false], 'not trusted yet');
+    run(A, tick, s, 6, null, () => cam(A));
+    assert.ok(H.st.lubs >= 6 && A.Biofeedback.beat && rings.length === 1);
   },
 
   'g: the calm glow follows the breathing pace and RMSSD relative to this session\'s own start, never a fixed number'() {

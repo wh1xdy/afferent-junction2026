@@ -1,9 +1,13 @@
 // The fire follows the body. Logic only: world.js and the breathing task draw what this leaves in the visual state.
 // Live heartbeat: the lantern flame and the light around it beat at a real pulse, from the finger clips through the gate
 // of breathing.js (live, not simulated, a finger in the clip, quality 0.3 or more) or from a trusted camera pulse with a
-// quality of 0.3 or more. The first beats after a pulse appears come with one soft wave of light from the lantern.
-// Without a real pulse the flame only breathes slowly and never beats on a guess. In a simulation (a Developer day profile
-// or the autoplay story) the simulated pulse may move the flame, but it never counts as a reading here.
+// quality of 0.3 or more. The fire takes up a pulse whenever one appears, also mid-session (clips put on late, back on
+// after a pause, or the camera pulse becoming trusted): the first beats are stronger and one ring of light leaves the
+// lantern. When the reading goes, the beat stops within a second. Without a real pulse the flame only breathes slowly and
+// never beats on a guess. In a simulation (a Developer day profile or the autoplay story) the simulated pulse may move the
+// flame, but it never counts as a reading here.
+// The display follows the body even in a session whose pulse is locked to the simulator; the record never does (engine.js
+// keeps such a session simulated to its end, one source per session).
 // Calm response: in calm mode and in the breathing task the aurora and the lantern glow grow as the measured breathing
 // pace nears the guide and as RMSSD rises above this session's own start value, never against a fixed number, and the
 // flame steadies as the pulse falls below the session's start. The finger sensor's breathing value covers its last 40 s,
@@ -11,7 +15,7 @@
 // A soft heartbeat vibration (Settings, "Heartbeat touch") plays with a real pulse in calm moments only.
 (() => {
   const { clamp, ema, median } = A;
-  const MIN_QUALITY = 0.3, GUIDE = 6, LOST_S = 8, START_N = 5, GREET_S = 5, SWELL_S = 2.6, OTHER_HAP_S = 0.3;
+  const MIN_QUALITY = 0.3, GUIDE = 6, LOST_S = 3, START_N = 5, GREET_S = 5, SWELL_S = 2.6, OTHER_HAP_S = 0.3;
   const RATE_TAU = 8, RMSSD_TAU = 8, PULSE_TAU = 6, GLOW_TAU = 2.5, HRV_SPAN = 0.3, SETTLE_SPAN = 6, BREATHE_S = 10;
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
@@ -28,9 +32,9 @@
   const calmMoment = s => !!s && !s.done && (s.phase === 'walk' || s.phase === 'game')
     && (s.game?.id === 'breath' || s.gameMode === 'calm' || (s.phase === 'walk' && s.mode === 'calm'));
 
-  // The finger frame, as breathing.js reads it: a session locked to the simulator keeps real clips out to its end.
+  // The finger frame through the gate of breathing.js. Display only, so it is read whatever the session's pulse lock.
   const finger = now => {
-    const B = A.Breathing, f = B ? B.current(now) : null, r = f ? B.reading(f) : null;
+    const B = A.Breathing, f = B ? A.Sensors.fingerFrame(now) : null, r = f ? B.reading(f) : null;
     return r ? { rate: r.rate, pulse: plausible(r.pulse) ? r.pulse : null, rmssd: pos(f.rmssd_ms) } : null;
   };
   const camera = now => {
@@ -39,7 +43,7 @@
   };
 
   const st = {
-    s: undefined, bpm: null, phase: 0, lubAt: -9, amp: 0, real: false, sim: false, lastRealAt: -Infinity, greetAt: -Infinity, ring: false,
+    s: undefined, bpm: null, phase: 0, lubAt: -9, amp: 0, real: false, sim: false, lastRealAt: -Infinity, greetAt: -Infinity, ring: false, had: false,
     rate: null, rmssd: null, pulse: null, starts: { rmssd: [], pulse: [] }, rmssd0: null, pulse0: null, next: -Infinity,
     level: null, glow: 0, settle: 0, k: 0, beat: 0, breathe: 0, swell: 0, lubs: 0, otherHapAt: -9, own: false,
   };
@@ -81,12 +85,14 @@
       }
       st.real = real != null; st.sim = real == null && sim != null;
 
+      // A pulse that appears, or comes back, beats at once. While there is none no new beat starts; the last one fades.
       let lub = false;
-      if (bpm != null && st.bpm == null) st.phase = 1;
+      if (bpm != null && !st.had) st.phase = 1;
+      st.had = bpm != null;
       if (bpm != null) st.bpm = st.bpm == null ? bpm : ema(st.bpm, bpm, dt, 1.5);
-      st.amp = ema(st.amp, bpm != null ? 1 : 0, dt, bpm != null ? 0.35 : 1.2);
+      st.amp = ema(st.amp, bpm != null ? 1 : 0, dt, bpm != null ? 0.35 : 0.4);
       if (bpm == null && st.amp < 0.005) { st.amp = 0; st.bpm = null; }
-      if (st.bpm != null) {
+      if (bpm != null) {
         st.phase += dt * st.bpm / 60;
         if (st.phase >= 1) { st.phase -= Math.floor(st.phase); lub = true; st.lubAt = now; st.lubs++; }
       }

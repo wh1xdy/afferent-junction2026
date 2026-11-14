@@ -65,7 +65,7 @@
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
-      sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
+      sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [], pulseFromMs: null },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
       playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0), face: A.Record.faceTrack(),
 
@@ -468,6 +468,8 @@
         if (f?.tracked) sig.tracked++;
         if (f?.ambient_light != null && sig.frames % 15 === 0) sig.ambient.push(f.ambient_light);
         if (p.bpm != null) {
+          // A session that started without a pulse takes up the real one when it appears and records when that was.
+          if (p.source !== 'simulated' && sig.pulseFromMs === null) sig.pulseFromMs = this.tm(now);
           sig.pulseSources[p.source] = (sig.pulseSources[p.source] || 0) + 1;
           if (sig.frames % 6 === 0) { sig.pulse.push(p.bpm); sig.pulseQ.push(p.quality); }
         }
