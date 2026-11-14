@@ -113,7 +113,7 @@
     }
     const d = path(vals.map((_, i) => i), vals, x, y, o.connect);
     g.push(`<path d="${d}" fill="none" stroke="${line}" stroke-width="${o.connect ? 1.5 : 2.25}" stroke-linejoin="round" stroke-linecap="round"/>`);
-    if (o.connect) vals.forEach((v, i) => v != null && g.push(`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" fill="${line}"/>`));
+    if (o.connect || o.dots) vals.forEach((v, i) => v != null && g.push(`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.5" fill="${line}"/>`));
     const li = lastIndex(vals);
     if (vals[li] != null) {
       g.push(`<circle class="last-ring" cx="${x(li).toFixed(1)}" cy="${y(vals[li]).toFixed(1)}" r="9" fill="${line}" opacity="0.14"/>`);

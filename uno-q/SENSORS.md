@@ -34,13 +34,16 @@ repository sends 6 bytes; the first four are unchanged, so a client that reads o
 | 0 | finger 1 BPM | 1–255, **0 = no reading** |
 | 1 | finger 2 BPM | 1–255, **0 = no reading** |
 | 2 | breaths/min | 1–255, **0 = no reading** |
-| 3 | HRV RMSSD, ms (rounded) | 1–255, **0 = no reading** |
+| 3 | HRV RMSSD, ms (rounded) | 1–254, **0 = no reading**, **255 = above 254 ms** |
 | 4 | `quality_pct` = fused rhythm quality × 100 (the same number as `finger.quality` in `/state`) | 0–100, **255 = not available** (no finger, or sensors still warming up) |
 | 5 | `presence_code` (`presence.mode` in `/state`) | 1 idle · 2 probing · 3 active · 0 unknown |
 
 - A client tells the versions apart by the length: 4 bytes = v1 (no quality, no presence),
   6 bytes = v2. Below 30 % (`quality_pct < 30`) the pulse is unreliable even if a BPM is present;
   with a v1 payload the quality is unknown, not good.
+- **RMSSD above 254 ms** does not fit in the byte. `255` is a marker for that, not a reading of
+  255 ms: a client shows no value (`hrv.rmssd_ms` in `/state` has the number). The phone app, its
+  iOS parser and Heart Duel treat `255` this way, also with firmware that still clamps to 255.
 - **Keepalive:** `AFF1` is notified at least every 2 s, also while idle and while nothing
   changes. A client can therefore tell "link alive, no finger" (notifications keep coming,
   presence idle) from "link lost" (no notification for a few seconds).
@@ -53,6 +56,10 @@ repository sends 6 bytes; the first four are unchanged, so a client that reads o
 - Capacitor plugin for the game app: `ios/App/App/AfferentFinger.swift` (connects only to a
   peripheral named `Afferent Finger`, subscribes without reading, so every value it reports is a
   fresh notification).
+- Android twin with the same JavaScript interface:
+  `android/app/src/main/java/fi/junction/afferent/AfferentFingerPlugin.kt` (rules in
+  `AfferentFingerLink.kt`, bytes in `AfferentFingerParser.kt`). Its logic is unit-tested on the
+  build machine; it has not been run on a phone or against the board yet.
 
 ## HTTP (Wendy Net, port 18080 on the mesh; 8080 inside the container)
 
@@ -68,7 +75,7 @@ repository sends 6 bytes; the first four are unchanged, so a client that reads o
 | `breathing.snr` | dB | > 0 = clear; values are only set when > 0 |
 | `hrv.rmssd_ms` | float | HRV: RMSSD of successive beat intervals over the last 60 s, in ms |
 | `hrv.sdnn_ms`, `hrv.mean_bpm` | float, int | SDNN and mean pulse over the same window |
-| `hrv.vs_baseline` | float | RMSSD relative to this person's own median (after ≥ 2 min), e.g. `-0.3` = 30 % below |
+| `hrv.vs_baseline` | float | RMSSD relative to the sensor's running median of its last 10 min of readings (after ≥ 2 min), e.g. `-0.3` = 30 % below. Not per person: the sensor does not know who wears the clip |
 | `presence.mode` | str | `idle` (LEDs off) · `probing` (checking for a finger) · `active` (measuring) |
 | `climate.celsius`, `climate.humidity` | float | Modulino Thermo |
 | `knob.position`, `knob.pressed` | int, bool | Modulino Knob |
@@ -87,7 +94,7 @@ Other endpoints: `GET /ppg?ch=0|1` (raw 30–70 s signal, debugging) · `POST /b
   `breathing.channel`, `hrv.rmssd_ms`, `hrv.sdnn_ms`, `hrv.mean_bpm`, `hrv.channel` and
   `hrv.vs_baseline` become `null` (`hrv.pairs` = 0) and `finger.fingers` becomes `[null, null]`.
   Before, they kept the last numbers for as long as nobody wore the clip. `hrv.baseline_rmssd_ms`
-  (the personal median) is kept.
+  (the sensor's running median, not per person) is kept.
 
 ## Sounds (in the repository, not yet deployed to the board)
 

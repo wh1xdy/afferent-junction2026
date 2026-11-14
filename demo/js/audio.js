@@ -1,5 +1,5 @@
 (() => {
-  const D = [146.83, 164.81, 185.0, 220.0, 246.94, 293.66, 329.63, 369.99, 440.0, 493.88, 587.33];
+  const D = [146.83, 164.81, 196.0, 220.0, 293.66, 329.63, 392.0, 440.0, 587.33, 659.26, 783.99];
 
   const Au = A.Audio = {
     ctx: null, master: null, lp: null, on: true, voices: {}, nextBeat: 0, beat: 0,
@@ -34,6 +34,7 @@
       const g = this.master.gain, t = this.ctx.currentTime;
       g.cancelScheduledValues(t); g.setValueAtTime(0, t);
       g.linearRampToValueAtTime(this.on ? level : 0, t + 3);
+      Object.values(this.voices).forEach(v => v.stop());
       this.voices = {}; this.nextBeat = t + 0.5; this.beat = 0;
     },
 
@@ -75,7 +76,7 @@
     pad(on) {
       if (!this.ctx || !!this.voices.pad === on) return;
       if (!on) { this.voices.pad.stop(); delete this.voices.pad; return; }
-      this.voices.pad = this.drone([146.83, 220.0, 293.66, 369.99], 0.0, 900);
+      this.voices.pad = this.drone([146.83, 220.0, 293.66, 440.0], 0.0, 900);
     },
 
     padLevel(x) { this.voices.pad?.level(0.015 + 0.05 * x); },
@@ -113,9 +114,9 @@
 
     dawnPhrase() {
       if (!this.ctx) return;
-      [5, 7, 8, 10, 9, 7, 8, 5].forEach((n, k) => this.piano(n, 0.2, k * 0.32));
-      [0, 3, 5].forEach(n => this.piano(n, 0.12, 0));
-      [2, 4, 7].forEach(n => this.piano(n, 0.12, 1.3));
+      [4, 6, 7, 8, 7, 6, 7, 4].forEach((n, k) => this.piano(n, 0.2, k * 0.32));
+      [0, 3, 4].forEach(n => this.piano(n, 0.12, 0));
+      [2, 3, 6].forEach(n => this.piano(n, 0.12, 1.3));
     },
 
     tick(tempo, density, arps) {
@@ -125,7 +126,7 @@
       this.nextBeat = t + 60 / tempo;
       this.beat++;
       if (Math.random() < density) {
-        const n = 5 + Math.floor(Math.random() * 5);
+        const n = 4 + Math.floor(Math.random() * 4);
         this.piano(n, 0.16);
         if (arps && Math.random() < 0.6) this.piano(n + 2, 0.1, 60 / tempo / 2);
       }

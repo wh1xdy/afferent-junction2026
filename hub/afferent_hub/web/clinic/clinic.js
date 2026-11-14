@@ -41,7 +41,6 @@
     if (kind === 'summary') return getJSON(FX + 'summary_example.json');
     if (kind === 'detail') {
       const d = await getJSON(FX + 'daily_example.json');
-      // the Signals section shows the sensor blocks of the example session (all labelled simulated); nothing current in fixture mode
       const s = await getJSON(FX + 'session_finger_example.json').catch(() => null);
       const sessions = s ? [{ session_id: s.session_id, day_index: s.day_index, started_iso: s.started_iso, status: s.status, profile: s.profile, simulated: s.simulated,
         duration_ms: s.duration_ms, vitals: s.vitals, pulse_source: s.signal?.pulse_source ?? null, simulated_fields: s.simulated_fields || [] }] : [];
@@ -152,27 +151,21 @@
     }).catch(() => {});
   }
 
-  const flashRow = (id) => view.querySelector(`.prow[data-id="${CSS.escape(id)}"]`)?.classList.add('flash');
-
-  // Signals section only: redrawn on sensor messages and once a second (ages, staleness), never the whole detail.
-  function refreshSignals() {
-    if (S.route?.name !== 'patients') return;
-    const el = $('#signals');
-    if (!el) return;
-    const id = selectedId();
-    const body = el.dataset.id === id ? V.signalsBody(S, id) : '';
-    if (el.sigBody === body) return;
-    el.sigBody = body;
-    el.hidden = !body;
-    el.innerHTML = body;
+  function refreshAnalytics(id) {
+    if (S.fixtures || !S.analytics[id]) return;
+    api('analytics', id).then((a) => {
+      S.analytics[id] = a;
+      if (S.route.name === 'patients' && selectedId() === id) renderDetail();
+    }).catch(() => {});
   }
-  setInterval(refreshSignals, 1000);
+
+  const flashRow = (id) => view.querySelector(`.prow[data-id="${CSS.escape(id)}"]`)?.classList.add('flash');
 
   function onAnalytics(m) {
     const id = m.patient_id;
     const prevRow = S.list?.patients.find((p) => p.id === id);
     const prevState = prevRow?.state ?? S.analytics[id]?.state;
-    if (m.analytics) S.analytics[id] = m.analytics;
+    refreshAnalytics(id);
     if (m.row && S.list) {
       const i = S.list.patients.findIndex((p) => p.id === id);
       if (i >= 0) S.list.patients[i] = { ...m.row, flags: m.row.flags ?? S.list.patients[i].flags };
@@ -208,21 +201,6 @@
       case 'daily_added':
       case 'checkin_added':
         refreshDetail(m.patient_id);
-        break;
-      case 'live':
-        // the phone's live_metrics, relayed at 2 Hz: keep the sensor objects and when they arrived
-        S.live[m.patient_id] = { ...(S.live[m.patient_id] || {}), physio: m.physio ?? null, camera: m.camera_pulse ?? null, at: Date.now(), via: 'phone' };
-        if (selectedId() === m.patient_id) refreshSignals();
-        break;
-      case 'bedside_state':
-        // carries the last physio of the bedside source; its age still counts from the last `physio` message
-        S.bedside = { ...m, physio: m.physio !== undefined ? m.physio : S.bedside?.physio ?? null };
-        refreshSignals();
-        break;
-      case 'physio':
-        S.bedside = { ...(S.bedside || {}), physio: m };
-        S.bedsideAt = Date.now();
-        refreshSignals();
         break;
       case 'analytics_updated':
         onAnalytics(m);
@@ -301,15 +279,6 @@
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => S.ui.theme === 'system' && setTheme('system'));
 
-  async function sendProfile(profile, label) {
-    closeMenu();
-    if (S.fixtures) return toast('Fixture mode: no phone connected');
-    try {
-      const r = await post('/api/demo/profile', { profile, patient_id: 'anna' });
-      toast(r.sent_to ? `Profile <b>&nbsp;${C.esc(label)}&nbsp;</b> sent to Anna's phone` : 'No phone connected for Anna');
-    } catch { toast('Could not reach the hub'); }
-  }
-
   document.addEventListener('click', async (e) => {
     const f = e.target.closest('[data-feature]');
     if (f && S.route.name === 'patients') {
@@ -327,8 +296,6 @@
     }
     const th = e.target.closest('[data-theme-set]');
     if (th) return setTheme(th.dataset.themeSet);
-    const pr = e.target.closest('[data-profile]');
-    if (pr) return sendProfile(pr.dataset.profile, pr.textContent.trim());
     const a = e.target.closest('[data-action]');
     if (!a) {
       if (!e.target.closest('.menu-wrap')) closeMenu();

@@ -7,9 +7,11 @@
   <title>Your mornings</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="design/tokens.css" id="tokens">
+  <link rel="stylesheet" href="css/gui/craft.css">
   <link rel="stylesheet" href="css/checkin.css">
   <link rel="stylesheet" href="css/patient.css">
   <link rel="stylesheet" href="css/qrshow.css">
+  <link rel="stylesheet" href="css/qrexport.css">
 </head>
 <body class="ll-kevat" data-tab="today">
   <header id="hero" aria-hidden="true">
@@ -90,6 +92,11 @@
             <span class="lt">Show to my doctor</span>
             <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
           </button></li>
+          <li><a href="#share" class="li">
+            <svg class="lic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5v-11m0 0l-3.8 3.8M12 4.5l3.8 3.8"/><path d="M5 15.5v4h14v-4"/></svg>
+            <span class="lt">Share dashboard</span>
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
+          </a></li>
         </ul>
         <ul id="qrLog" class="qr-log" hidden></ul>
         <div id="sharing" class="seg" role="radiogroup" aria-labelledby="clinicH">
@@ -120,11 +127,52 @@
         <p>Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
       </footer>
     </section>
+
+    <section class="panel" id="p-share" data-panel="share" aria-labelledby="shareH" hidden>
+      <h1 id="shareH" class="display">Share your dashboard</h1>
+      <p class="lead">Your indicators, packed into one page a nearby screen can open.</p>
+
+      <section class="card" id="qeStatusCard">
+        <div class="qe-line" id="qeHubRow">
+          <svg class="qe-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h16v9H4z"/><path d="M8 9.5V7a4 4 0 0 1 8 0v2.5"/><path d="M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01"/></svg>
+          <span class="qe-txt" id="qeHub">…</span>
+        </div>
+        <div class="qe-line">
+          <svg class="qe-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5A8 8 0 0 0 6.6 6.4L4.5 8.5M4.5 4.5v4h4M4 12.5a8 8 0 0 0 13.4 5.1l2.1-2.1M19.5 19.5v-4h-4"/></svg>
+          <span class="qe-txt" id="qeStamp">…</span>
+        </div>
+        <p class="qe-state" id="qeState" role="status"></p>
+      </section>
+
+      <section class="card" id="qeCode" hidden>
+        <h2 class="title">Scan from the other device</h2>
+        <div class="qe-grid">
+          <figure class="qe-fig" id="qeWifi" hidden>
+            <canvas id="qeWifiQr" aria-label="Wi-Fi join code"></canvas>
+            <figcaption>Join Wi-Fi<br><span class="qe-net" id="qeWifiTxt"></span></figcaption>
+          </figure>
+          <figure class="qe-fig">
+            <canvas id="qeUrlQr" aria-label="Dashboard link code"></canvas>
+            <figcaption>Open dashboard<br><a id="qeUrl" class="qe-net" href="#" target="_blank" rel="noopener"></a></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="card">
+        <button type="button" class="qe-btn filled" id="qeBump">Update data now</button>
+        <div class="qe-actions">
+          <a class="qe-btn text" id="qeSave" href="#">Save file</a>
+          <button type="button" class="qe-btn text" id="qeShare" hidden>Share</button>
+        </div>
+        <p class="qe-note">The file holds your indicators only: lanterns, trends, check-in totals, safety levels. No name, no camera images, no pulse traces.</p>
+      </section>
+    </section>
   </main>
 
   <nav id="nav" aria-label="Your mornings">
     <a href="#today" data-tab="today"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M4.5 10.5L12 4.5l7.5 6v9h-5v-5.5h-5V19.5h-5z"/></svg></span><span class="nl">Today</span></a>
     <a href="#week" data-tab="week"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M9.2 5.5v13M14.8 5.5v13"/></svg></span><span class="nl">Week</span></a>
+    <a href="#share" data-tab="share"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5v-11m0 0l-3.8 3.8M12 4.5l3.8 3.8"/><path d="M5 15.5v4h14v-4"/></svg></span><span class="nl">Share</span></a>
     <a href="#settings" data-tab="settings"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.5h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6V10.5L4.2 8.9l1.7-2.9 2.3.8 1.6-.9z"/><circle cx="12" cy="12" r="2.6"/></svg></span><span class="nl">Settings</span></a>
   </nav>
 
@@ -140,6 +188,8 @@
   <script src="vendor/qr/noble-p256.js"></script>
   <script src="js/qrpayload.js"></script>
   <script src="js/qrshow.js"></script>
+  <script src="js/dashboard_gen.js"></script>
+  <script src="js/qrexport.js"></script>
   <script src="js/patient.js"></script>
 </body>
 </html>

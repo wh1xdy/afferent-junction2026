@@ -1,12 +1,16 @@
 import asyncio
+import copy
 import json
 import uuid
 from pathlib import Path
 
+from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
 
 from afferent_hub.bedside.protocol import format_line, parse_line
 from afferent_hub.bedside.simulator import BedsideSimulator
+from afferent_hub.main import create_app
+from afferent_hub.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 FIX = ROOT / "contracts" / "fixtures"
@@ -74,10 +78,12 @@ def test_post_session_updates_analytics_and_daily(client):
         body = r.json()
         assert body["ok"] and not body["duplicate"] and body["day_index"] == 56
         added = recv_until(clinic, "session_added")
-        assert added["session_id"] == s["session_id"] and added["rt_median_ms"] == 620
+        assert added == {"type": "session_added", "patient_id": "anna", "session_id": s["session_id"],
+                         "day_index": 56, "status": s["status"]}
         upd = recv_until(clinic, "analytics_updated")
         assert upd["patient_id"] == "anna" and upd["row"]["id"] == "anna"
-        assert upd["analytics"]["now_day"] == 56
+        assert set(upd) == {"type", "patient_id", "row"}
+    assert client.get("/api/patients/anna/analytics").json()["now_day"] == 56
     again = client.post("/api/sessions", json=s).json()
     assert again["duplicate"] is True
     after = client.get("/api/patients/anna").json()
@@ -146,8 +152,10 @@ def test_websocket_relay(client):
         bedside.send_json({"type": "ping"})
         recv_until(bedside, "pong")
         state = client.get("/api/bedside/state").json()
-        assert state["pulse"]["bpm"] == 71.5 and state["thermo"]["temp_c"] == 20.5 and state["knob"]["level"] == 40
+        assert state["thermo"]["temp_c"] == 20.5 and state["knob"]["level"] == 40
         assert state["presence"]["in_bed"] is True
+        assert "pulse" not in state and "physio" not in state
+        assert client.app.state.hub.bedside.state["pulse"]["bpm"] == 71.5
 
         doc = new_session(session_id=sid)
         app.send_json({"type": "session_end", "session": doc})
@@ -337,6 +345,49 @@ def test_privacy(client):
     assert client.get("/api/patients/anna").json()["privacy"]["sharing"] == "paused"
     assert client.post("/api/patients/anna/privacy", json={"sensor": "nope", "on": True}).status_code == 400
 
+def test_no_bed_sensor_is_claimed(client):
+    privacy = client.get("/api/patients/anna").json()["privacy"]
+    assert privacy["sensors"]["presence"] is False
+    assert client.post("/api/patients/anna/privacy", json={"sensor": "presence", "on": True}).status_code == 400
+    assert client.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+    view = client.get("/api/patients/anna/patient-view").json()
+    rows = {s["id"]: s for s in view["privacy"]["sensors"]}
+    assert "presence" not in rows
+    assert rows["bedside_light"]["shares"] == "Nothing. It is one small LED on the bedside unit and only receives colours."
+    shown = [t for s in rows.values() for t in (s["label"], s["shares"])] + view["clinic_sees"]
+    for text in shown:
+        low = text.lower().replace("no bed sensor", "")
+        for claim in ("bed sensor", "bed presence", "time in bed", "lamp", "room"):
+            assert claim not in low, text
+    fixture = load("patient_view_anna.json")
+    assert view["privacy"]["sensors"] == fixture["privacy"]["sensors"] and view["clinic_sees"] == fixture["clinic_sees"]
+
+def test_bed_presence_stored_on_stays_off(tmp_path):
+    settings = dict(db=str(tmp_path / "t.db"), bedside="ws", validation=False)
+    with TestClient(create_app(Settings(**settings))) as c:
+        old = copy.deepcopy(c.app.state.hub.store.privacy("anna"))
+        old["sensors"]["presence"] = True
+        c.app.state.hub.store.put_privacy("anna", old)
+    with TestClient(create_app(Settings(**settings))) as c:
+        assert c.app.state.hub.store.privacy("anna")["sensors"]["presence"] is True
+        assert c.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+        with c.websocket_connect("/ws/app?patient=anna") as app:
+            app.send_json({"type": "hello", "device_id": "t", "app_version": "t", "patient_id": "anna", "role": "game"})
+            assert recv_until(app, "config")["privacy"]["sensors"]["presence"] is False
+            r = c.post("/api/patients/anna/privacy", json={"sensor": "phone_camera", "on": False})
+            assert r.status_code == 200 and r.json()["sensors"]["presence"] is False
+            assert recv_until(app, "privacy")["privacy"]["sensors"]["presence"] is False
+        assert c.app.state.hub.store.privacy("anna")["sensors"]["presence"] is False, "the next change writes it back"
+        assert c.post("/api/patients/anna/privacy", json={"sensor": "presence", "on": True}).status_code == 400
+        assert c.get("/api/patients/anna").json()["privacy"]["sensors"]["presence"] is False
+
+def test_no_example_or_seeded_session_has_bed_presence_on(client):
+    for name in ("session_example.json", "session_finger_example.json"):
+        assert load(name)["sensors"]["presence"] is False, name
+    store = client.app.state.hub.store
+    switches = [s["sensors"] for p in store.patients() for s in store.sessions(p["id"]) if "sensors" in s]
+    assert switches and all(sw["presence"] is False for sw in switches)
+
 def test_patient_view_is_gentle(client):
     pv = client.get("/api/patients/anna/patient-view").json()
     assert pv["simulated"] is True and len(pv["week"]) == 7 and pv["week"][-1]["today"]
@@ -486,3 +537,14 @@ def test_bedside_camera(client):
         assert recv_until(bedside, "camera")["on"] is False
         assert client.post("/api/bedside/camera", json={"on": True}).json()["camera_on"] is True
         assert recv_until(bedside, "camera")["on"] is True
+
+def test_export_publish_roundtrip(client):
+    assert client.get("/api/export/dashboard").status_code == 404
+    html = "<!doctype html><title>anna</title><p>dashboard</p>"
+    r = client.post("/api/export/publish", json={"patient_id": "anna", "html": html})
+    assert r.status_code == 200 and r.json()["url"] == "/api/export/dashboard"
+    page = client.get("/api/export/dashboard")
+    assert page.status_code == 200 and "text/html" in page.headers["content-type"]
+    assert page.text == html
+    assert client.post("/api/export/publish", json={"patient_id": "anna"}).status_code == 400
+    assert client.post("/api/export/publish", json=[]).status_code == 400

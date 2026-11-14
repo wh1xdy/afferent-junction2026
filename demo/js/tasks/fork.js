@@ -314,7 +314,7 @@
         }
         pv.stretchAt = T;
         hap('medium');
-        sfx('fork_choose', { piano: [5, 0.12] });
+        sfx('fork_choose', { piano: [4, 0.12] });
         const b = A.session?.box?.();
         if (b && !rm()) J.fx.burst(b.x + b.w * 0.5, b.y + b.h * 0.86, 6, C.silver200, 55, { g: 140, life: 0.45, add: false, size: [1.8, 1], alpha: [0.7, 0] });
         return;
@@ -342,7 +342,7 @@
         const s = sideOf(r, r.path === 'none' ? 'easy' : r.path), hard = r.path === 'hard', m = d.got;
         const b = A.session?.box?.();
         if (b) { const [u, v] = cairnSpot(s, hard), H = CAIRN_H * b.h; J.bloom(b.x + b.w * u, b.y + b.h * v - H * 0.9, 18 * 2.5, C.glow, 0.5, 0.2, 0.6); }
-        sfx('fork_bowl', { got: m, piano: [7 + m, 0.16] });
+        sfx('fork_bowl', { got: m, piano: [6 + m, 0.16] });
         const delay = r.path === 'none' ? 0.65 : 0.15;
         pv.orbs = Array.from({ length: m }, (_, k) => ({ k, m, s, hard, launch: T + delay + k * 0.14, landed: false }));
         if (r.path === 'none') for (const o of pv.orbs) o.launch = T + delay;

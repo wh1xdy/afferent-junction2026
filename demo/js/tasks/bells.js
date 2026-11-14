@@ -4,8 +4,8 @@
   const E = J.ease, R = Math.random, ID = 'bells', ROUNDS = 3, COLS = 0.72, TAU = 6.283;
   const BELL = [
     { tint: C.amber, note: 3, hap: 'heavy', art: 0 },
-    { tint: C.ice, note: 5, hap: 'medium', art: 1 },
-    { tint: C.green, note: 8, hap: 'light', art: 2 },
+    { tint: C.ice, note: 4, hap: 'medium', art: 1 },
+    { tint: C.green, note: 7, hap: 'light', art: 2 },
   ];
   const DEEP = { tint: C.violet300, note: 0, hap: 'heavy', art: 0 };
   const TOWER = { lamp: 0.29, w0: 0.37, w1: 0.775, cx: 0.507, shaft: 0.16 };

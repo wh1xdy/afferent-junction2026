@@ -1,3 +1,48 @@
+# Hardware — bill of materials (low estimate)
+
+Low-end BOM for the full setup: one Jetson node (vision + data manager) and one
+UNO Q sensor node (climate + pulse). Prices checked 2026-11-14; cheapest
+legitimate listing kept, high estimates ignored.
+
+## Jetson node
+
+| Item | Low price | Source |
+|---|---:|---|
+| Jetson Orin Nano **8 GB** Super Dev Kit (67 TOPS, PSU + Wi-Fi included) | **$249** MSRP (~€235) / **€333** TTC in the EU | [Seeed Studio](https://relshop.seeedstudio.com/NVIDIAr-Jetson-Orintm-Nano-Developer-Kit-p-5617.html) · [reichelt](https://www.reichelt.com/fr/fr/shop/produit/kit_nvidia_jetson_orin_nano_super_dev_67_tops_8_go_ddr5-395185) |
+| microSD 128 GB (the dev kit has no eMMC) | ~€12 | generic A2 card |
+| Logitech **C920** (cam1: YOLO + rPPG) | ~€60 | [comparateur-gamer.fr](https://www.comparateur-gamer.fr/webcam?marque=LOGITECH) — Logitech lists €69.99, street ~€59 |
+| Arduino USB Camera (cam2, 720p — second rPPG view, optional) | **$34 / €35** | [Arduino Store](https://store.arduino.cc/products/usb-camera) · [store-usa](https://store-usa.arduino.cc/products/usb-camera) |
+
+Subtotal: **~€340–450** (Jetson at MSRP, without cam2) — **~€470–540** with EU
+street pricing and the second camera.
+
+## UNO Q sensor node (`uno-q/modulino-hub`)
+
+| Item | Low price | Source |
+|---|---:|---|
+| Arduino **UNO Q 2 GB** (Dragonwing MPU + STM32U585) | **$59** | [Arduino Store US](https://store-usa.arduino.cc/products/uno-q) — raised from $44 in July 2026 ([pricing notice](https://blog.arduino.cc/2026/06/26/a-heads-up-on-the-arduino-uno-q-board-pricing-straight-from-marcello-majonchi/)) |
+| Modulino **Thermo** (temperature + humidity, Qwiic) | **€9.00** / $8.30 | [Arduino Store](https://store.arduino.cc/products/modulino-thermo) |
+| Modulino **Knob** (rotary + push, Qwiic) | **€9.00** / $8.99 | [Arduino Store](https://store.arduino.cc/products/modulino-knob) · [Micro Center](https://www.microcenter.com/product/707363/arduino-modulino-knob) |
+| Modulino **Buzzer** (Qwiic) | **€7.30** / $6.50 | [Arduino Store](https://store-usa.arduino.cc/products/modulino-buzzer) |
+| 2× **PulseSensor** green-LED clones (A1, A2 — SparkFun SEN-11574 compatible) | ~€6 for both | clones ~€3; official SEN-11574 is [$29.95 each](https://www.sparkfun.com/pulse-sensor.html) |
+| KY-016 RGB LED module | ~€2 | generic |
+| Jumper wires + USB-C cable | ~€4 | generic |
+
+Subtotal: **~€95–105** (UNO Q ≈ €60 street, clone pulse sensors) —
+**~€150** with genuine SparkFun PulseSensors.
+
+## Total (low estimate)
+
+| Configuration | Total |
+|---|---:|
+| Minimal working setup (1 camera, clone sensors, Jetson at MSRP) | **~€440** |
+| Full setup as wired today (cam1 + cam2, EU street prices) | **~€560–640** |
+
+Not included: 3D-printed fingertip mounts (filament < €1, STL files below),
+tripod/mount for the C920 (~€10–15 if needed), shipping.
+
+---
+
 # PulseSensor fingertip mount
 
 For the PulseSensor (SparkFun SEN-11574 / green-LED clones): Ø 15.875 mm, 3.175 mm thick

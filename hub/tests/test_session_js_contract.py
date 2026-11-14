@@ -50,3 +50,30 @@ def test_js_recorder_session_matches_schema():
     for name in doc["simulated_fields"]:
         assert not name.startswith("vitals"), name
         assert "pulse" not in name.lower(), name
+
+
+def test_js_breath_task_matches_schema():
+    """demo/tests/emit_breath_task.js prints {task}: one breathing task recorded by the real game code while
+    finger_ppg readings arrive. Its tasks[].extra.breathing must validate and must be labelled finger_ppg."""
+    emitter = ROOT / "demo" / "tests" / "emit_breath_task.js"
+    if not emitter.exists():
+        pytest.skip("demo/tests/emit_breath_task.js is not in this tree (phone track)")
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    run = subprocess.run(["node", "demo/tests/emit_breath_task.js"], cwd=ROOT, capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, run.stderr[-2000:]
+    task = json.loads(run.stdout)["task"]
+    assert task is not None and task["id"] == "breath"
+
+    doc = json.loads((CONTRACTS / "fixtures" / "session_example.json").read_text())
+    doc["tasks"] = [task]
+    schema = json.loads((CONTRACTS / "session.v3.schema.json").read_text())
+    assert [f"{e.json_path}: {e.message}" for e in Draft202012Validator(schema).iter_errors(doc)] == []
+
+    b = task["extra"]["breathing"]
+    assert b["source"] == "finger_ppg" and b["method"] == "pulse_rhythm"
+    assert b["guide_per_min"] == 6
+    assert 5 <= b["rate_per_min"]["samples"] <= b["seconds"]
+    assert b["rate_per_min"]["mean"] == 9
+    # readings ran through the whole task, so both ends of it have a pulse
+    assert (b["pulse_start_bpm"], b["pulse_end_bpm"]) == (72, 72)

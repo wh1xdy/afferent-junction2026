@@ -75,6 +75,7 @@ class Hub:
         self.bedside = Bedside(make_source(settings), self._to_bound_app, self._to_devices,
                                pulse_allowed=self._pulse_allowed)
         self.bedside.patient_id = settings.bound_patient
+        self._export: dict | None = None
 
     def _pulse_allowed(self) -> bool:
         return bool(self.privacy(self.settings.bound_patient).get("sensors", {}).get("pulse_stone", True))
@@ -125,7 +126,10 @@ class Hub:
         return p
 
     def privacy(self, pid: str) -> dict:
-        return self.store.privacy(pid) or copy.deepcopy(views.DEFAULT_PRIVACY)
+        privacy = self.store.privacy(pid) or copy.deepcopy(views.DEFAULT_PRIVACY)
+        # `presence` is bed presence and no bed sensor exists: a row stored before that stays off too.
+        privacy.setdefault("sensors", {})["presence"] = False
+        return privacy
 
     def seed(self, seed: int) -> list[str]:
         roster = modules.fn["demo_roster"](seed=seed)
@@ -266,9 +270,20 @@ class Hub:
         return qr.build(p, self.privacy(pid), self.store.sessions(pid), self.daily(pid), self.analytics(pid),
                         self.store.checkins(pid), self.store.flags(pid))
 
+    def export_publish(self, body: dict) -> dict:
+        html, pid = body.get("html"), body.get("patient_id")
+        if not isinstance(html, str) or not html.strip() or len(html) > 8_000_000:
+            raise HubError(400, "bad_export", "Body needs an html string (<= 8 MB)")
+        self._export = {"html": html, "patient_id": pid, "served_iso": views.now_iso()}
+        return {"ok": True, "url": "/api/export/dashboard", "bytes": len(html)}
+
+    def export_dashboard(self) -> str:
+        if not self._export:
+            raise HubError(404, "no_export", "No dashboard has been published yet")
+        return self._export["html"]
+
     async def broadcast_analytics(self, pid: str, analytics: dict):
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics),
-                              "analytics": analytics})
+        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics)})
 
     def _today_daily(self, pid: str, day: int, session: dict) -> dict:
         rec = self.store.daily_day(pid, day)
