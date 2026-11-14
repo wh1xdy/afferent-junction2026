@@ -52,3 +52,43 @@ platform-only for a non-target platform, or out of scope (vendored code).
 
 ### 6. `jetson/hub` auth on Windows — Low — Won't fix
 - `os.fchmod` does not exist on Windows; the service is Linux/Jetson-only.
+
+## Area audits (parallel agents, merged here)
+
+Full root cause / fix / verification per bug: `docs/bugburn/{app-core,games,hub,devices,native}.md`.
+
+| # | Bug | Area | Severity | Status |
+|---|-----|------|----------|--------|
+| 7 | Voice companion of any patient got the bound patient's home facts (`service.py voice_context`) | hub | Critical | Fixed |
+| 8 | `SIM=1` presence wrote simulated home/away periods to the real data manager | jetson/presence | Critical | Fixed |
+| 9 | Processing a video file pushed its posture minutes as live measurements | posture-analysis | Critical | Fixed |
+| 10 | Check-in: item 9 > 0 + screener all "no" ended on "Thank you" with no helplines | app (checkin.js) | High | Fixed |
+| 11 | Check-in: item 9 at 2–3 + screener stopped early showed support, not crisis screen | app (checkin.js) | High | Fixed |
+| 12 | App sockets without a patient got every patient's broadcasts (`ws/manager.py`) | hub | High | Fixed |
+| 13 | iOS `AfferentEyes.start` resolved with camera permission denied (no touch fallback) | iOS | High | Fixed (static only, no Xcode) |
+| 14 | Talk requests made while the hub is unreachable were dropped (`hub.js`) | app | Medium | Fixed |
+| 15 | Dashboard export could not reach the paired hub (`qrexport.js`) | app | Medium | Fixed |
+| 16 | Vihta tapping run cut short after a late first tap; taps/s under-reported | games | Medium | Fixed |
+| 17 | owls/runes/faces/swans/signpost closed before a slow player's last trials | games | Medium | Fixed |
+| 18 | Bio-music: a stalled tick threw on every tick and stopped `Music.tick` | games | Medium | Fixed |
+| 19 | UTC talk-request stamps read as local in the doctor's QR (`qr.py`) | hub | Medium | Fixed |
+| 20 | STM32 clock reset/wrap stalled finger probing and mixed buffers | uno-q | Medium | Fixed |
+| 21 | Data manager client dropped batches / thread died on a non-object 200 reply | devices (4 copies) | Medium | Fixed |
+| 22 | Home interval close lost across a presence restart | jetson/presence | Medium | Fixed |
+| 23 | iOS finger link stuck "connected" when notifications were refused | iOS | Medium | Fixed (static only) |
+| 24 | iOS haptics handlers wrote main-queue players from Core Haptics' queue | iOS | Medium | Fixed (static only) |
+| 25 | iOS prototype app treated stored/errored BLE values as fresh | iOS prototype | Medium | Fixed (static only) |
+| 26 | Vendored hub copy of the data manager client still dies on a non-dict JSON reply | hub/team (vendored) | Medium | **Open** (needs manifest re-pin) |
+
+## Open / unproven (from the audits, not fixed)
+
+Candidates the agents flagged but could not prove or left as design questions; each needs a decision before it is
+called a bug: hub `handle_app` trusts the message's `patient_id` (no per-patient auth); `set_pause` read outside the
+per-patient lock; `refresh_room` uses today's UTC offset for nights across DST; replayed sessions without a day index land
+on today; voice-relay has no rate limit on access-code attempts; iOS has no timeout for an unanswered `setNotifyValue`.
+Lows (dates west of UTC, stay.js rest timer, `normHub` adding :8000 to https, frame-clock RT in Lanterns/Fork, etc.) are in the area logs.
+
+## Final verification
+
+See the PR description for the final run of every suite. The final re-audit was a review of the merged diff, not a second
+full sweep (budget); it does **not** establish that no Medium bugs remain: #26 and the candidates above are still open.
