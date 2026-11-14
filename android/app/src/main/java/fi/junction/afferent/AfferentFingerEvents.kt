@@ -26,7 +26,7 @@ object AfferentFingerEvents {
 
     /**
      * AFF1 notification: {kind: "aff1", finger_bpm: [f1, f2], breathing_per_min, rmssd_ms,
-     * quality, presence, payload_len, t_ms}
+     * quality, presence, two_hearts, payload_len, t_ms}
      */
     fun aff1(r: FingerAff1, tMs: Long): JSObject =
         JSObject()
@@ -36,6 +36,7 @@ object AfferentFingerEvents {
             .put("rmssd_ms", js(r.rmssd))
             .put("quality", js(r.quality))
             .put("presence", js(r.presence))
+            .put("two_hearts", js(r.twoHearts))
             .put("payload_len", r.length)
             .put("t_ms", tMs)
 

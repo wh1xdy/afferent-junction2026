@@ -13,7 +13,7 @@ import CoreBluetooth
 ///   event "reading": {kind: 'hrm', bpm, t_ms}                         2A37 notification with a pulse
 ///                    {kind: 'aff1', finger_bpm: [Int|null, Int|null], breathing_per_min: Int|null,
 ///                     rmssd_ms: Int|null, quality: 0..1|null, presence: 'idle'|'probing'|'active'|null,
-///                     payload_len: Int, t_ms}                          AFF1 notification
+///                     two_hearts: Bool|null, payload_len: Int, t_ms}   AFF1 notification
 ///   t_ms = wall clock (ms since 1970) when the notification arrived on the phone.
 ///
 /// Rules this plugin keeps (byte formats: uno-q/SENSORS.md, parsing: AfferentFingerParser.swift):

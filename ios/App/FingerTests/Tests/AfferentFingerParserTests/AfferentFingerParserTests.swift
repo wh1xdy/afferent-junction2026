@@ -44,7 +44,7 @@ final class AfferentFingerParserTests: XCTestCase {
     func testAff1V1FourBytes() {
         let r = AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0x2E]))
         XCTAssertEqual(r, FingerAff1(finger1: 71, finger2: 73, breathing: 6, rmssd: 46,
-                                     quality: nil, presence: nil, length: 4))
+                                     quality: nil, presence: nil, twoHearts: nil, length: 4))
     }
 
     func testAff1V2SixBytes() {
@@ -55,7 +55,23 @@ final class AfferentFingerParserTests: XCTestCase {
         XCTAssertEqual(r?.rmssd, 46)
         XCTAssertEqual(r?.quality ?? -1, 0.62, accuracy: 1e-9)
         XCTAssertEqual(r?.presence, "active")
+        XCTAssertNil(r?.twoHearts, "a v2 board does not say whether two people wear the clips")
         XCTAssertEqual(r?.length, 6)
+    }
+
+    func testAff1V3SevenBytesTwoHearts() {
+        let r = AfferentFingerParser.aff1(data([0x40, 0x5C, 0x00, 0x00, 0x29, 0x03, 0x01]))
+        XCTAssertEqual(r, FingerAff1(finger1: 64, finger2: 92, breathing: nil, rmssd: nil,
+                                     quality: 0.41, presence: "active", twoHearts: true, length: 7))
+        let one = AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0x2E, 0x3E, 0x03, 0x00]))
+        XCTAssertEqual(one?.twoHearts, false)
+        XCTAssertEqual(one?.presence, "active")
+    }
+
+    func testAff1TwoHeartsIsBitZeroOnly() {
+        // other bits are reserved: they never set the flag
+        XCTAssertEqual(AfferentFingerParser.aff1(data([0, 0, 0, 0, 255, 1, 0xFE]))?.twoHearts, false)
+        XCTAssertEqual(AfferentFingerParser.aff1(data([0, 0, 0, 0, 255, 1, 0x03]))?.twoHearts, true)
     }
 
     func testAff1RmssdAboveTheByteIsNoReading() {
@@ -110,13 +126,13 @@ final class AfferentFingerParserTests: XCTestCase {
     func testAff1IdleNoReadings() {
         let r = AfferentFingerParser.aff1(data([0x00, 0x00, 0x00, 0x00, 0xFF, 0x01]))
         XCTAssertEqual(r, FingerAff1(finger1: nil, finger2: nil, breathing: nil, rmssd: nil,
-                                     quality: nil, presence: "idle", length: 6))
+                                     quality: nil, presence: "idle", twoHearts: nil, length: 6))
     }
 
     func testAff1TwoBytesFingersOnly() {
         let r = AfferentFingerParser.aff1(data([0x47, 0x49]))
         XCTAssertEqual(r, FingerAff1(finger1: 71, finger2: 73, breathing: nil, rmssd: nil,
-                                     quality: nil, presence: nil, length: 2))
+                                     quality: nil, presence: nil, twoHearts: nil, length: 2))
     }
 
     func testAff1FiveBytesHasQualityButNoPresence() {
@@ -138,6 +154,9 @@ final class AfferentFingerParserTests: XCTestCase {
         XCTAssertEqual(r?.finger1, 71)
         XCTAssertEqual(r?.presence, "active")
         XCTAssertEqual(r?.length, 7)
+        let longer = AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0x2E, 0x3E, 0x03, 0x00, 0x99]))
+        XCTAssertEqual(longer?.twoHearts, false)
+        XCTAssertEqual(longer?.length, 8)
     }
 
     func testAff1OnASlice() {
@@ -178,10 +197,18 @@ final class AfferentFingerParserTests: XCTestCase {
         let r = try XCTUnwrap(AfferentFingerParser.aff1(data([0x47, 0x49, 0x06, 0x2E, 0x32, 0x03])))
         let e = AfferentFingerParser.aff1Event(r, tMs: 1_000)
         XCTAssertEqual(Set(e.keys), ["kind", "finger_bpm", "breathing_per_min", "rmssd_ms",
-                                     "quality", "presence", "payload_len", "t_ms"])
+                                     "quality", "presence", "two_hearts", "payload_len", "t_ms"])
         XCTAssertEqual(try json(e),
                        #"{"breathing_per_min":6,"finger_bpm":[71,73],"kind":"aff1","payload_len":6,"#
-                       + #""presence":"active","quality":0.5,"rmssd_ms":46,"t_ms":1000}"#)
+                       + #""presence":"active","quality":0.5,"rmssd_ms":46,"t_ms":1000,"two_hearts":null}"#)
+    }
+
+    func testAff1EventV3TwoHearts() throws {
+        let r = try XCTUnwrap(AfferentFingerParser.aff1(data([0x40, 0x5C, 0x00, 0x00, 0x32, 0x03, 0x01])))
+        let e = AfferentFingerParser.aff1Event(r, tMs: 1_000)
+        XCTAssertEqual(try json(e),
+                       #"{"breathing_per_min":null,"finger_bpm":[64,92],"kind":"aff1","payload_len":7,"#
+                       + #""presence":"active","quality":0.5,"rmssd_ms":null,"t_ms":1000,"two_hearts":true}"#)
     }
 
     func testAff1EventUsesNullForMissingValues() throws {
@@ -190,8 +217,9 @@ final class AfferentFingerParserTests: XCTestCase {
         let e = AfferentFingerParser.aff1Event(r, tMs: 1_000)
         XCTAssertEqual(try json(e),
                        #"{"breathing_per_min":null,"finger_bpm":[71,null],"kind":"aff1","payload_len":4,"#
-                       + #""presence":null,"quality":null,"rmssd_ms":null,"t_ms":1000}"#)
+                       + #""presence":null,"quality":null,"rmssd_ms":null,"t_ms":1000,"two_hearts":null}"#)
         XCTAssertTrue(e["quality"] is NSNull)
         XCTAssertTrue(e["presence"] is NSNull)
+        XCTAssertTrue(e["two_hearts"] is NSNull)
     }
 }
