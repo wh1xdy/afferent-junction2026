@@ -10,6 +10,11 @@ on the Jetson (persistent volume), and serves clinician / patient reports.
   GET  /report/patient?days=7           plain-language HTML for the patient
   POST /sessions                        body: exported expression session JSON (from the app)
   POST /phq9                            body: {"answers": [9 ints 0-3], "ts": optional unix time}
+  POST /ask                             body: {"question": "...", "days": 14} -> grounded answer for the clinician
+  GET  /report/clinician?narrative=1    adds a local-LLM summary (only if it passes the fact check)
+  ?demo=1 on any GET/ask                synthetic 14-day patient (in memory), for demos
+
+The LLM (llama.cpp, Qwen2.5-3B, local) only ever sees facts computed here; see grounding.py.
 """
 import json
 import os
@@ -20,6 +25,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import demo
+import grounding
 import report
 from store import Store
 
@@ -83,6 +90,14 @@ def collect(stopped):
             store.add_reading("room_celsius", c["celsius"], now)
 
 
+def llm_status():
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8081/health", timeout=2) as r:
+            return json.loads(r.read()).get("status", "?")
+    except Exception as e:
+        return f"down ({e.__class__.__name__})"
+
+
 # ── HTTP ─────────────────────────────────────────────────────────────────
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, body, ctype="application/json"):
@@ -93,6 +108,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(data)
 
+    def _store(self):
+        """?demo=1 -> synthetic 14-day patient (in memory), for demos without real history"""
+        q = parse_qs(urlparse(self.path).query)
+        return demo.demo_store() if q.get("demo", ["0"])[0] == "1" else store
+
     def _days(self, default):
         q = parse_qs(urlparse(self.path).query)
         return max(1, min(90, int(q.get("days", [default])[0])))
@@ -100,13 +120,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/health":
-            return self._send(200, {"ok": True, "collector": collector})
+            return self._send(200, {"ok": True, "collector": collector, "llm": llm_status()})
         if path == "/summary":
-            return self._send(200, store.summary(self._days(14)))
+            return self._send(200, self._store().summary(self._days(14)))
         if path == "/report/clinician":
-            return self._send(200, report.clinician(store.summary(self._days(14))), "text/html")
+            summ = self._store().summary(self._days(14))
+            narrative = None
+            if parse_qs(urlparse(self.path).query).get("narrative", ["0"])[0] == "1":
+                try:
+                    r = grounding.ask(grounding.NARRATIVE_Q, summ)
+                    if r["mode"] == "llm" and r["grounded"]:
+                        narrative = r["answer"].split("\n\n", 1)[-1]     # safety banner is in the report already
+                except Exception as e:
+                    print(f"narrative failed: {e}", flush=True)
+            return self._send(200, report.clinician(summ, narrative=narrative), "text/html")
         if path == "/report/patient":
-            return self._send(200, report.patient(store.summary(self._days(7))), "text/html")
+            return self._send(200, report.patient(self._store().summary(self._days(14))), "text/html")
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -120,6 +149,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(201, {"id": store.add_session(body, body.get("ts"))})
             if path == "/phq9":
                 return self._send(201, {"id": store.add_phq9(body.get("answers", []), body.get("ts"))})
+            if path == "/ask":
+                q = str(body.get("question", "")).strip()
+                if not q:
+                    return self._send(400, {"error": "question required"})
+                days = max(1, min(90, int(body.get("days", 14))))
+                return self._send(200, grounding.ask(q[:500], self._store().summary(days)))
         except ValueError as e:
             return self._send(400, {"error": str(e)})
         self._send(404, {"error": "not found"})

@@ -146,8 +146,16 @@ finger is detected), takes expression sessions and PHQ-9 check-ins from the app,
 - `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
 
 From a laptop: `wendy net forward 8090:18090 --device <jetson>` → `http://localhost:8090/report/clinician`.
-Tests: `cd jetson/hub && python3 -m unittest discover tests`. Next: a local LLM answering the
-doctor's questions *from these numbers only* (grounded, with sources).
+Tests: `cd jetson/hub && python3 -m unittest discover tests`.
+
+**Doctor Q&A with a local LLM** — `POST /ask {"question": "..."}` (llama.cpp + Qwen2.5-3B 4-bit, on the
+Jetson's CPU, inside the hub container). The model never sees the database: the hub picks the facts the
+question needs (labelled lines like `[T:hrv_rmssd]`), the model must cite them, and every number in
+the answer is checked against the facts its sentence cites. One corrective retry, then the facts are
+shown verbatim instead — an unsupported number never reaches the doctor unmarked. Deterministic rules:
+PHQ-9 item 9 > 0 is always shown first; "does the patient have depression?" gets "these data cannot
+diagnose" + the latest PHQ-9. `?demo=1` uses a synthetic 14-day patient (never stored).
+Speed: ~8–13 s per answer when the CPU is free, 37–64 s while `afferent-vision` runs both cameras.
 
 ## Team access
 
