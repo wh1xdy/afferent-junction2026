@@ -4,7 +4,70 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0D182A">
-  <style>html, body { background: #0D182A; }</style>
+  <style>html, body { background: #0D182A; }
+    /* The loading screen (#loader, js/loader.js): the launch navy with a warm ember where the fire will be, breathing
+       4 s in and 6 s out, a few faint stars and a hint of aurora. It stays only while the art, the fonts and the first
+       painted frame of the world are on their way, with no minimum time, then crossfades into the world.
+       Only opacity and transform move, so it costs no repaint while the app loads under it. */
+    #loader { position: absolute; inset: 0; z-index: 40; overflow: hidden; contain: strict; pointer-events: auto; background: var(--af-kaamos-surface, #0D182A);
+      transition: opacity 520ms var(--af-ease-in-out, cubic-bezier(0.65, 0, 0.35, 1)); }
+    #loader.out { opacity: 0; pointer-events: none; }
+    #loader i { position: absolute; display: block; pointer-events: none; }
+    #loader .ld-sky { inset: 0 0 50% 0; animation: ldIn 1600ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) both; }
+    #loader .ld-aurora { inset: 6% -20% 0 -20%; opacity: 0.85; background:
+      radial-gradient(48% 16% at 36% 44%, rgba(95, 227, 161, 0.11), transparent 70%),
+      radial-gradient(40% 12% at 64% 38%, rgba(79, 195, 217, 0.09), transparent 70%),
+      radial-gradient(70% 26% at 50% 50%, rgba(180, 166, 206, 0.06), transparent 72%);
+      animation: ldDrift 22s var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite alternate; }
+    #loader .ld-stars { inset: 0; background:
+      radial-gradient(1.3px 1.3px at 14% 22%, rgba(232, 238, 245, 0.75), transparent),
+      radial-gradient(1px 1px at 31% 9%, rgba(232, 238, 245, 0.55), transparent),
+      radial-gradient(1.2px 1.2px at 47% 31%, rgba(232, 238, 245, 0.5), transparent),
+      radial-gradient(1px 1px at 62% 14%, rgba(232, 238, 245, 0.6), transparent),
+      radial-gradient(1.4px 1.4px at 79% 27%, rgba(255, 240, 210, 0.7), transparent),
+      radial-gradient(1px 1px at 88% 8%, rgba(232, 238, 245, 0.5), transparent),
+      radial-gradient(1px 1px at 22% 44%, rgba(232, 238, 245, 0.35), transparent),
+      radial-gradient(1.1px 1.1px at 71% 46%, rgba(232, 238, 245, 0.4), transparent);
+      animation: ldTwinkle 9s var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite alternate; }
+    #loader .ld-fire { left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 165px); width: 0; height: 0;
+      animation: ldIn 700ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) both;
+      transition: transform 520ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)); }
+    #loader .ld-glow, #loader .ld-core { left: -140px; top: -140px; width: 280px; height: 280px; border-radius: 50%; will-change: transform, opacity;
+      animation: ldBreath calc(var(--af-breath-in, 4000ms) + var(--af-breath-out, 6000ms)) var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite; }
+    #loader .ld-glow { background: radial-gradient(circle,
+      color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 32%, transparent) 0,
+      color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 24%, transparent) 7%,
+      color-mix(in srgb, var(--af-light-ember, #FFB54A) 15%, transparent) 16%,
+      color-mix(in srgb, var(--af-light-ember, #FFB54A) 8.5%, transparent) 26%,
+      color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 4.5%, transparent) 37%,
+      color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 2%, transparent) 49%,
+      color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 0.6%, transparent) 60%,
+      transparent 70%); }
+    /* a still grain over it all, like the world's, so the soft gradients don't band on a dark screen */
+    #loader::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.05;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 -0.2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+    #loader .ld-core { left: -22px; top: -22px; width: 44px; height: 44px; animation-name: ldEmber; background: radial-gradient(circle,
+      var(--af-lantern-flame, #FFE3A6) 0, color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 70%, transparent) 22%,
+      color-mix(in srgb, var(--af-light-ember, #FFB54A) 22%, transparent) 52%, transparent 72%); }
+    #loader.out .ld-fire { transform: scale(1.18); }
+    @keyframes ldIn { from { opacity: 0; } }
+    @keyframes ldBreath { 0%, 100% { opacity: 0.62; transform: scale(0.84); } 40% { opacity: 1; transform: scale(1); } }
+    @keyframes ldEmber { 0%, 100% { opacity: 0.78; transform: scale(0.9); } 40% { opacity: 1; transform: scale(1); } }
+    @keyframes ldTwinkle { from { opacity: 0.55; } to { opacity: 1; } }
+    @keyframes ldDrift { from { transform: translateX(-3%); opacity: 0.6; } to { transform: translateX(3%); opacity: 1; } }
+    /* Reduced motion (the app's setting, else the system's; set before the first paint below): a still glow, plain fades */
+    .af-still #loader .ld-glow, .af-still #loader .ld-core, .af-still #loader .ld-stars, .af-still #loader .ld-aurora { animation: none; }
+    .af-still #loader.out .ld-fire { transform: none; }
+  </style>
+  <script>
+    // Before the first paint, so the loading screen never starts to move for someone who asked for less motion:
+    // the same rule as A.config.reducedMotion in main.js, the saved setting or else the system's.
+    (function () {
+      var still = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+      try { var s = JSON.parse(localStorage.getItem('afferent.settings')); if (s && typeof s.reducedMotion === 'boolean') still = s.reducedMotion; } catch (e) {}
+      if (still) document.documentElement.classList.add('af-still');
+    })();
+  </script>
   <title>afferent</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="design/tokens.css">
@@ -38,6 +101,7 @@
 <body>
   <main id="app">
     <section id="phone">
+      <div id="loader" aria-hidden="true"><i class="ld-sky"><i class="ld-aurora"></i><i class="ld-stars"></i></i><i class="ld-fire"><i class="ld-glow"></i><i class="ld-core"></i></i></div>
       <canvas id="game"></canvas>
 
       <button id="closeBtn" class="icon-btn play-close state hidden" type="button" aria-label="End session"><span class="ms">close</span></button>
@@ -240,6 +304,7 @@
   </main>
 
   <script src="js/util.js"></script>
+  <script src="js/loader.js"></script>
   <script src="js/haptics.js"></script>
   <script src="js/gui/lantern.js"></script>
   <script src="js/gui/theme.js"></script>
