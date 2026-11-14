@@ -210,7 +210,7 @@
  ],
  "crisis": {
   "title": "If today is heavy, you do not have to carry it alone.",
-  "text": "Afferent is not an emergency service and is not watched around the clock. Your clinic sees a note on the next working day.",
+  "text": "If you need someone now, call 112 or a helpline below. Afferent is not an emergency service and is not watched around the clock.",
   "contacts": [
    {
     "label": "Emergency",
@@ -218,12 +218,17 @@
     "tel": "112"
    },
    {
-    "label": "MIELI Crisis Helpline (24 h)",
+    "label": "MIELI Crisis Helpline, in Finnish, 24 h",
     "number": "09 2525 0111",
     "tel": "+358925250111"
    },
    {
-    "label": "Your clinic (demo placeholder)",
+    "label": "Medical Helpline, 24 h",
+    "number": "116117",
+    "tel": "116117"
+   },
+   {
+    "label": "Your clinic, office hours (demo placeholder)",
     "number": "09 000 0000",
     "tel": "+35890000000"
    }

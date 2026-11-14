@@ -81,6 +81,11 @@ async def post_session(request: Request, body=Body(...)):
     return await hub(request).ingest_session(_obj(body))
 
 
+@router.post("/checkins")
+async def post_checkin(request: Request, body=Body(...)):
+    return await hub(request).ingest_checkin(_obj(body))
+
+
 @router.post("/daily")
 async def post_daily(request: Request, body=Body(...)):
     return await hub(request).ingest_daily(_obj(body))

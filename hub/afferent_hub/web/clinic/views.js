@@ -52,7 +52,7 @@
     const L = S.list;
     if (!L) return `<section class="page"><div class="loading">Loading patients</div></section>`;
     const flagged = (r) => ((r.flags || []).length ? 1 : 0);
-    const rows = [...L.patients].sort((a, b) => flagged(b) - flagged(a) || V.stateRank(a.state) - V.stateRank(b.state) || (b.composite ?? -9) - (a.composite ?? -9));
+    const rows = [...L.patients].sort((a, b) => C.flagRank(a.flags) - C.flagRank(b.flags) || V.stateRank(a.state) - V.stateRank(b.state) || (b.composite ?? -9) - (a.composite ?? -9));
     const needsCall = (r) => flagged(r) || r.state === 'booster' || r.state === 'check_in';
     const counts = { booster: 0, check_in: 0, watch: 0, stable: 0 };
     rows.forEach((r) => (counts[r.state] = (counts[r.state] || 0) + 1));
@@ -129,7 +129,7 @@
     }
     const name = D?.patient?.display_name || row?.display_name || id;
     const simOn = A.simulated || row?.simulated;
-    const flags = row?.flags || [];
+    const flags = C.sortFlags(row?.flags);
     const comp = A.composite, cu = A.cusum, cm = A.completeness;
     const tms = D?.patient?.tms_end_date;
     const sensors = D?.privacy?.sensors || {};
@@ -139,9 +139,14 @@
     const thr = cu.thresholds || A.params?.thresholds || {};
     const nextThr = { stable: ['watch', thr.watch], watch: ['check_in', thr.check_in], check_in: ['booster', thr.booster], booster: ['booster', thr.booster] }[A.state] || [];
 
-    const flagBanner = flags.length ? `<div class="flag-banner" role="alert">
-        <div><b>${esc(name)} ${C.flagText(flags[0].type, 'banner')}${new Set(flags.map((f) => f.session_id || f.t_iso)).size > 1 ? ` (${new Set(flags.map((f) => f.session_id || f.t_iso)).size} notes)` : ''}, ${dateShort(flags[0].t_iso)} at ${timeOf(flags[0].t_iso)}.</b>
-        <span>The app showed the fixed card with Emergency 112, MIELI Crisis Helpline 09 2525 0111 and the clinic number. Afferent is not watched around the clock.</span></div>
+    const f0 = flags[0];
+    const notes = new Set(flags.map((f) => f.checkin_id || f.session_id || f.t_iso)).size;
+    const shown = f0?.source === 'checkin'
+      ? `The app showed the ${f0.screen === 'crisis' ? 'crisis screen (call 112 now first)' : f0.screen === 'thank_you' ? 'thank-you screen' : 'support screen'} with 112, MIELI Crisis Helpline 09 2525 0111, Medical Helpline 116117 and the clinic number.`
+      : 'The app showed the fixed card with Emergency 112, MIELI Crisis Helpline 09 2525 0111, Medical Helpline 116117 and the clinic number.';
+    const flagBanner = f0 ? `<div class="flag-banner" role="alert" data-flag="${esc(f0.type)}">
+        <div><b>${esc(name)} ${C.flagText(f0.type, 'banner')}${f0.label ? ` (${esc(f0.label)})` : ''}${notes > 1 ? ` (${notes} notes)` : ''}, ${dateShort(f0.t_iso)} at ${timeOf(f0.t_iso)}.</b>
+        <span>${shown} Afferent is not watched around the clock.</span></div>
         <button class="btn" data-action="clear-flags" data-id="${esc(id)}">Mark as seen</button></div>` : '';
 
     const head = `<div class="p-head">
@@ -178,13 +183,14 @@
     const live = card('c-live', title('Live', 'Phone game and bedside', `<span class="live-status" id="live-status"></span>`), `<div id="live-body"></div>`);
     const helps = V.helps(A, name);
     const summary = V.summary(S.summary[id]);
+    const phq = V.phq(D, simOn);
     const sessions = V.sessions(A, D);
     const everyday = V.everyday(D, A);
 
     return `<section class="page detail" data-id="${esc(id)}">${flagBanner}${head}
       <div class="grid">
         ${timelineCard}${live}
-        ${contribCard}${helps}${summary}
+        ${phq}${contribCard}${helps}${summary}
         ${sessions}${everyday}
       </div>
       <p class="footnote">Numbers are computed on the hub from derived values only; no camera frames are stored or sent. Afferent suggests; the clinician decides.</p>
@@ -323,6 +329,44 @@
          <div><b class="af-num">${signed(ps.mood_delta_median, 1)}</b><span class="muted">median mood change</span></div>
        </div>
        <table class="pp"><thead><tr><th>Session</th><th>Status</th><th>Pulse</th><th>Posture</th><th>Eyes</th><th>Mood</th></tr></thead><tbody>${rowsHtml || '<tr><td colspan="6" class="muted">No sessions in the last 7 days.</td></tr>'}</tbody></table>`);
+  };
+
+  const BAND = { minimal: 'Minimal', mild: 'Mild', moderate: 'Moderate', moderately_severe: 'Moderately severe', severe: 'Severe' };
+  const TIER = { high: 'High', moderate: 'Moderate', incomplete: 'Incomplete', low: 'Low', none: 'None', not_answered: 'Stopped before the safety item' };
+
+  V.phq = function (D, simOn) {
+    const P = D?.phq;
+    const head = title('PHQ-9 check-in', 'Every 14 days · severity bands, not diagnoses', sim(simOn));
+    if (!P) return card('c-phq', head, '<p class="muted">Loading.</p>');
+    const docs = [...(D.checkins || [])].sort((a, b) => String(b.started_iso || '').localeCompare(String(a.started_iso || ''))).slice(0, 5);
+    if (!P.history.length && !docs.length) return card('c-phq', head, '<p class="muted">No check-in yet.</p>');
+    const recent = P.history.slice(-12);
+    const pad = 12 - recent.length;
+    const vals = [...Array(pad).fill(null), ...recent.map((h) => h.total)];
+    const bars = recent.length ? `<div class="phq-bars">${C.bars(vals, { w: 240, h: 36, min: 0, max: 27, ref: 10, title: (i, v) => `${dateShort(recent[i - pad].date)}: ${v}` })}</div>` : '';
+    const rows = docs.map((c) => {
+      const p = c.phq9 || {}, sf = c.safety || {};
+      const label = sf.tier === 'moderate' && sf.source === 'item9_fallback' ? 'C-SSRS not asked; tier from item 9'
+        : sf.tier === 'moderate' && c.cssrs?.c6_repeat ? 'known lifetime behaviour, unchanged since last check-in' : '';
+      const flagged = ['high', 'moderate', 'incomplete', 'low'].includes(sf.tier);
+      return `<tr>
+        <td><b>${dateShort(c.started_iso)}</b>${c.early ? '<span class="muted">early</span>' : ''}</td>
+        <td class="af-num">${p.total == null ? '<span class="muted">incomplete</span>' : `${p.total}<small> / 27</small>`}</td>
+        <td class="af-num">${p.phq8_total == null ? '-' : p.phq8_total}</td>
+        <td>${p.band ? BAND[p.band] || esc(p.band) : '-'}</td>
+        <td class="phq-safety" data-tier="${esc(sf.tier)}">${flagged ? `<b>${esc(TIER[sf.tier])}</b>` : `<span class="muted">${esc(TIER[sf.tier] || sf.tier || '-')}</span>`}${label ? `<small>${esc(label)}</small>` : ''}</td>
+      </tr>`;
+    }).join('');
+    const foot = P.overdue ? `<span class="phq-overdue">Overdue · last completed ${P.days_since} days ago</span>`
+      : P.days_since != null ? `<span class="muted">Last completed ${P.days_since === 0 ? 'today' : P.days_since === 1 ? 'yesterday' : P.days_since + ' days ago'}</span>` : '<span class="muted">No completed check-in yet</span>';
+    return card('c-phq', head,
+      `<div class="phq-top">
+         <div><b class="af-num">${P.total ?? '-'}<small> / 27</small></b><span class="muted">PHQ-9${P.band ? ' · ' + (BAND[P.band] || esc(P.band)) : ''}</span></div>
+         <div><b class="af-num">${P.phq8_total ?? '-'}<small> / 24</small></b><span class="muted">PHQ-8</span></div>
+         ${bars}
+       </div>
+       <table class="pp phq-table"><thead><tr><th>Started</th><th>PHQ-9</th><th>PHQ-8</th><th>Band</th><th>Safety</th></tr></thead><tbody>${rows}</tbody></table>`,
+      foot);
   };
 
   const EVERYDAY = [

@@ -10,7 +10,8 @@ CREATE INDEX IF NOT EXISTS sessions_patient ON sessions (patient_id, day_index);
 CREATE TABLE IF NOT EXISTS daily (patient_id TEXT NOT NULL, day_index INTEGER NOT NULL, json TEXT NOT NULL, PRIMARY KEY (patient_id, day_index));
 CREATE TABLE IF NOT EXISTS privacy (patient_id TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS flags (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT NOT NULL, json TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS checkins (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT NOT NULL, json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS checkins (checkin_id TEXT PRIMARY KEY, patient_id TEXT NOT NULL, started_iso TEXT, json TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS checkins_patient ON checkins (patient_id, started_iso);
 CREATE TABLE IF NOT EXISTS analytics_cache (patient_id TEXT PRIMARY KEY, json TEXT NOT NULL);
 """
 
@@ -25,6 +26,9 @@ class Store:
         self._lock = threading.RLock()
         self._db = sqlite3.connect(self.path, check_same_thread=False)
         self._db.execute("PRAGMA journal_mode=WAL")
+        cols = [r[1] for r in self._db.execute("PRAGMA table_info(checkins)").fetchall()]
+        if cols and "checkin_id" not in cols:
+            self._db.execute("DROP TABLE checkins")
         self._db.executescript(SCHEMA)
         self._db.commit()
 
@@ -118,10 +122,17 @@ class Store:
         self._write("DELETE FROM flags WHERE patient_id = ?", (pid,))
 
     def checkins(self, pid: str) -> list[dict]:
-        return self._rows("SELECT json FROM checkins WHERE patient_id = ? ORDER BY id DESC", (pid,))
+        return self._rows("SELECT json FROM checkins WHERE patient_id = ? ORDER BY started_iso DESC, rowid DESC", (pid,))
 
-    def add_checkin(self, pid: str, checkin: dict):
-        self._write("INSERT INTO checkins (patient_id, json) VALUES (?, ?)", (pid, json.dumps(checkin)))
+    def checkin(self, checkin_id: str) -> dict | None:
+        return self._one("SELECT json FROM checkins WHERE checkin_id = ?", (checkin_id,))
+
+    def add_checkin(self, doc: dict) -> bool:
+        cur = self._write(
+            "INSERT OR IGNORE INTO checkins VALUES (?, ?, ?, ?)",
+            (doc["checkin_id"], doc["patient_id"], doc.get("started_iso"), json.dumps(doc)),
+        )
+        return cur.rowcount == 1
 
     def analytics(self, pid: str) -> dict | None:
         return self._one("SELECT json FROM analytics_cache WHERE patient_id = ?", (pid,))

@@ -40,16 +40,27 @@ CLINIC_SEES = [
     "Never camera images, sound or messages",
 ]
 
+CRISIS_FOOTER = "Afferent is not an emergency service and is not watched around the clock."
+CLINIC_CONTACT = {"name": "Your clinic", "number": "09 000 0000", "hours": "office hours"}
 CRISIS = {
     "title": "If today is heavy, you do not have to carry it alone.",
-    "text": "Afferent is not an emergency service and is not watched around the clock. "
-            "Your clinic sees a note on the next working day.",
+    "text": "If you need someone now, call 112 or a helpline below. " + CRISIS_FOOTER,
     "contacts": [
         {"label": "Emergency", "number": "112", "tel": "112"},
-        {"label": "MIELI Crisis Helpline (24 h)", "number": "09 2525 0111", "tel": "+358925250111"},
-        {"label": "Your clinic (demo placeholder)", "number": "09 000 0000", "tel": "+35890000000"},
+        {"label": "MIELI Crisis Helpline, in Finnish, 24 h", "number": "09 2525 0111", "tel": "+358925250111"},
+        {"label": "Medical Helpline, 24 h", "number": "116117", "tel": "116117"},
+        {"label": "Your clinic, office hours (demo placeholder)", "number": "09 000 0000", "tel": "+35890000000"},
     ],
 }
+
+CHECKIN_DEFAULTS = {"enabled": True, "cadence_days": 14, "always_ask_cssrs": False, "cssrs_licensed": False,
+                    "protocol_signed": False, "early_request": False, "reminder_local_time": "12:00",
+                    "language": "en"}
+CHECKIN_OVERDUE_DAYS = 17
+SAFETY_FLAGS = {"high": "safety_high", "moderate": "safety_moderate", "incomplete": "safety_incomplete",
+                "low": "safety_low"}
+FLAG_RANK = {"safety_high": 0, "safety_moderate": 1, "safety_incomplete": 2, "safety_low": 3, "talk_request": 4}
+SAFETY_KEYS = ("phq9_9", "cssrs", "safety", "checkins", "phq")
 
 
 def now_iso() -> str:
@@ -148,7 +159,81 @@ def config_message(patient: dict, analytics: dict, task_weights: dict, privacy: 
         "measurement_slots": {"fork": 1, "lanterns": 3},
         "dawn_level": dawn_level, "night_hours": [21, 6],
         "privacy": privacy, "server_time_iso": now_iso(),
+        "checkin": checkin_config(patient), "clinic_contact": clinic_contact(patient),
     }
+
+
+def checkin_config(patient: dict) -> dict:
+    over = patient.get("checkin") if isinstance(patient.get("checkin"), dict) else {}
+    return {k: over.get(k, v) for k, v in CHECKIN_DEFAULTS.items()}
+
+
+def clinic_contact(patient: dict) -> dict:
+    over = patient.get("clinic_contact") if isinstance(patient.get("clinic_contact"), dict) else {}
+    return {k: over.get(k) or v for k, v in CLINIC_CONTACT.items()}
+
+
+def safety_flag(doc: dict) -> dict | None:
+    safety = doc.get("safety") or {}
+    ftype = SAFETY_FLAGS.get(safety.get("tier"))
+    if not ftype:
+        return None
+    label = None
+    if ftype == "safety_moderate":
+        if safety.get("source") == "item9_fallback":
+            label = "C-SSRS not asked; tier from item 9"
+        elif (doc.get("cssrs") or {}).get("c6_repeat"):
+            label = "known lifetime behaviour, unchanged since last check-in"
+    t_iso = doc.get("completed_iso") or doc.get("stopped_iso") or doc.get("started_iso") or now_iso()
+    return {"type": ftype, "t_iso": t_iso, "source": "checkin", "checkin_id": doc.get("checkin_id"),
+            "screen": safety.get("screen"), **({"label": label} if label else {})}
+
+
+def sort_flags(flags: list[dict]) -> list[dict]:
+    newest = sorted(flags, key=lambda f: f.get("t_iso") or "", reverse=True)
+    return sorted(newest, key=lambda f: FLAG_RANK.get(f.get("type"), 9))
+
+
+def phq_block(patient: dict, checkins: list[dict], nd: int) -> dict:
+    history = []
+    for c in sorted(checkins, key=lambda c: c.get("started_iso") or ""):
+        phq = c.get("phq9") or {}
+        if phq.get("total") is None:
+            continue
+        iso = c.get("completed_iso") or c.get("started_iso")
+        history.append({"checkin_id": c.get("checkin_id"), "date": (iso or "")[:10] or None, "completed_iso": iso,
+                        "day_index": c.get("day_index"), "total": phq["total"], "phq8_total": phq.get("phq8_total"),
+                        "band": phq.get("band"), "early": bool(c.get("early"))})
+    last = history[-1] if history else None
+    since = nd - last["day_index"] if last and last.get("day_index") is not None else None
+    started = sorted(checkins, key=lambda c: c.get("started_iso") or "")
+    latest = started[-1] if started else None
+    return {
+        "total": last["total"] if last else None, "phq8_total": last["phq8_total"] if last else None,
+        "band": last["band"] if last else None, "date": last["date"] if last else None,
+        "checkin_id": last["checkin_id"] if last else None, "history": history,
+        "days_since": since, "overdue": since is not None and since >= CHECKIN_OVERDUE_DAYS,
+        "last_attempt": {"checkin_id": latest.get("checkin_id"), "status": latest.get("status"),
+                         "started_iso": latest.get("started_iso"),
+                         "safety_tier": (latest.get("safety") or {}).get("tier")} if latest else None,
+    }
+
+
+def crisis_card(patient: dict) -> dict:
+    cc = patient.get("clinic_contact") if isinstance(patient.get("clinic_contact"), dict) else {}
+    if not cc.get("name") or not cc.get("number"):
+        return CRISIS
+    c = clinic_contact(patient)
+    tel = "".join(ch for ch in c["number"] if ch.isdigit() or ch == "+")
+    return {**CRISIS, "contacts": CRISIS["contacts"][:3] + [{"label": f"{c['name']}, {c['hours']}", "number": c["number"], "tel": tel}]}
+
+
+def strip_safety(obj):
+    if isinstance(obj, dict):
+        return {k: strip_safety(v) for k, v in obj.items() if k not in SAFETY_KEYS}
+    if isinstance(obj, list):
+        return [strip_safety(v) for v in obj]
+    return obj
 
 
 def _confidence(p_best, n):
@@ -328,5 +413,5 @@ def patient_view(patient: dict, privacy: dict, sessions: list[dict], daily: list
         "today": today, "week": week, "mornings_lit": st["mornings_lit"], "streak": st["streak"],
         "freezes": st["freezes"], "pause": current_pause(patient, nd),
         "what_helped": what_helped(analytics),
-        "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": CRISIS,
+        "privacy": privacy_view(privacy), "clinic_sees": CLINIC_SEES, "crisis": crisis_card(patient),
     }

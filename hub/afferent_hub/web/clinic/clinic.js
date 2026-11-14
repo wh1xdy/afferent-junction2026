@@ -253,18 +253,19 @@
         S.pose[m.patient_id] = { ...m, at: Date.now() };
         if (S.route.name === 'detail' && S.route.id === m.patient_id) renderLive(m.patient_id);
         break;
-      case 'talk_request':
-      case 'low_mood_twice':
       case 'crisis_flag': {
         const row = S.list?.patients.find((p) => p.id === m.patient_id);
         if (row) {
-          const type = m.type !== 'crisis_flag' ? m.type : m.flag_type || ({ mood: 'low_mood_twice', weekly_checkin: 'weekly_checkin' }[m.source] || 'talk_request');
-          row.flags = [{ type, t_iso: m.t_iso, source: m.source }, ...(row.flags || [])];
+          const type = m.flag_type || 'talk_request';
+          row.flags = C.sortFlags([{ type, t_iso: m.t_iso, source: m.source, label: m.label, checkin_id: m.checkin_id, screen: m.screen }, ...(row.flags || [])]);
           render({ keepScroll: true });
-          toast(`<b>${C.esc(row.display_name)}</b> ${C.flagText(type, 'toast')}`, 'booster');
+          toast(`<b>${C.esc(row.display_name)}</b> ${C.flagText(type, 'toast')}${m.label ? ` (${C.esc(m.label)})` : ''}`, 'booster');
         }
         break;
       }
+      case 'checkin_added':
+        refreshDetail(m.patient_id);
+        break;
       case 'privacy':
         if (S.detail[m.patient_id]) { S.detail[m.patient_id].privacy = m.privacy; if (S.route.name === 'detail' && S.route.id === m.patient_id) render({ keepScroll: true }); }
         break;

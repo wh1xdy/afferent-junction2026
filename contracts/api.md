@@ -77,22 +77,29 @@ Patient list sorted by need: state severity (`booster` > `check_in` > `watch` > 
 
 - `sparkline`: composite for the last 14 days (`null` gaps allowed).
 - `live_now`: true while a session for that patient is running on `/ws/app`.
-- `flags`: `[{"type": "talk_request" | "low_mood_twice" | "weekly_checkin", "t_iso": "...", "source": "talk_button" | "mood" | "weekly_checkin"}]`, newest first, cleared by the clinician (`POST /api/patients/{id}/flags/clear`).
+- `flags`: `[{"type": "safety_high" | "safety_moderate" | "safety_incomplete" | "safety_low" | "talk_request", "t_iso": "...", "source": "checkin" | "talk_button" | "mood", "checkin_id": "...", "screen": "support" | "crisis", "label": "..."}]`, sorted `safety_high`, `safety_moderate`, `safety_incomplete`, `safety_low`, `talk_request`, newest first within a type, cleared by the clinician (`POST /api/patients/{id}/flags/clear`). `checkin_id` and `screen` only on safety flags. `label` only on `safety_moderate`: "C-SSRS not asked; tier from item 9" (`safety.source = item9_fallback`) or "known lifetime behaviour, unchanged since last check-in" (`cssrs.c6_repeat`). The dashboard list sorts flagged patients first in the same order.
 
 ### GET /api/patients/{id}
 
 ```json
 {
   "patient": {"id": "anna", "display_name": "Anna", "kind": "relapse", "simulated": true, "tms_end_date": "2026-09-20", "now_day": 56,
-              "clinic_contact": {"label": "Your clinic (demo placeholder)", "number": "09 000 0000"}},
+              "clinic_contact": {"name": "Your clinic", "number": "09 000 0000", "hours": "office hours"}},
   "privacy": {"sharing": "summary", "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": true, "phone_presence": true, "phone_motion": true}},
   "latest_session": {"...": "full session v3 document"},
   "sessions": [{"session_id": "...", "day_index": 56, "started_iso": "...", "status": "completed", "profile": "live", "simulated": true,
                 "duration_ms": 109800, "rt_median_ms": 437, "mood_start": 2, "mood_end": 3, "pre_post": {"...": "as in the session"}}],
   "daily": [{"...": "daily v1 records, oldest first"}],
-  "checkins": [{"t_iso": "...", "day_index": 56, "answers": {"interest": 1, "down": 1, "self_harm": 0}, "phq2": 2, "self_harm": 0}]
+  "checkins": [{"...": "afferent.checkin/1 documents, newest first, plus day_index and received_iso"}],
+  "phq": {"total": 12, "phq8_total": 11, "band": "moderate", "date": "2026-11-15", "checkin_id": "...",
+          "history": [{"checkin_id": "...", "date": "2026-11-15", "completed_iso": "...", "day_index": 56,
+                       "total": 12, "phq8_total": 11, "band": "moderate", "early": false}],
+          "days_since": 0, "overdue": false,
+          "last_attempt": {"checkin_id": "...", "status": "completed", "started_iso": "...", "safety_tier": "none"}}
 }
 ```
+
+`phq` holds the latest completed check-in (`total`, `phq8_total`, `band`, all null before the first) and `history`, completed check-ins only, oldest first. Incomplete check-ins give no total. `overdue` is true 17 days or more after the last completed one. `last_attempt` is the newest check-in of any status. The dashboard detail shows it as the "PHQ-9 check-in" card (totals, PHQ-8, band, history bars, the last 5 check-ins with their safety tier).
 
 `sessions` is compact and oldest first, all of them (56 days is small). `GET /api/sessions/{session_id}` returns one full session document.
 
@@ -141,6 +148,10 @@ Body: a session v3 document (`afferent.session/3`). The phone normally sends it 
 {"ok": true, "duplicate": false, "session_id": "b7d0a0e6-...", "patient_id": "anna", "day_index": 56,
  "state": "booster", "composite": 2.45, "composite_before": 2.41}
 ```
+
+### POST /api/checkins
+
+Body: an `afferent.checkin/1` document (`contracts/checkin.v1.schema.json`). HTTP fallback of the `checkin` WebSocket message, same handling: 422 on schema errors, 404 for an unknown patient, idempotent on `checkin_id`. Response `{"ok": true, "duplicate": false, "checkin_id": "...", "patient_id": "anna", "safety_flag": "safety_low" | null}`.
 
 ### POST /api/daily
 
@@ -193,8 +204,10 @@ Clinic data export, one action and one zip (Apple Health "Export All Health Data
 | `sessions.ndjson` | Every full session v3 document, one per line, `simulated` kept |
 | `daily.csv` | Every daily v1 record flattened to dotted columns, including `streak_protection`, `pause_source`, `pause_until`, `streak_len`, `freezes_held`, `repair_active`, `reminder_h` and `simulated`; lists joined with `;` |
 | `features.csv` | Per day: `simulated`, every composite feature as `<key>.value`, `<key>.z`, `<key>.ewma_z`, plus `composite`, `cusum`, `state`, `completeness` |
-| `checkins.ndjson` | Weekly check-ins |
-| `codebook.csv` | `file`, `column`, `description`, `unit` for every column, from the daily schema and the feature table |
+| `checkins.ndjson` | Every `afferent.checkin/1` document, oldest first, with `day_index` and `received_iso`: PHQ-9 items and totals, C-SSRS answers (`not_asked` where the skip logic skipped an item), `c6_repeat`, the safety tier, item 9, the screen shown, timestamps |
+| `checkins.csv` | The same check-ins flattened to dotted columns (`phq9.items.phq9_1`, `cssrs.items.c1`, `safety.tier`, ...) |
+| `checkin.v1.schema.json` | The check-in schema |
+| `codebook.csv` | `file`, `column`, `description`, `unit` for every column, from the daily schema, the check-in schema and the feature table |
 | `SessionSchema.md` | The session field reference |
 
 The dashboard patient detail has an "Export data" button that downloads it.
@@ -229,8 +242,10 @@ Phone to hub:
 | `session_end` | `session`: the full session v3 document | session over (any status, including declined) |
 | `privacy` | `patient_id`, `sensor` or `sharing`, `on` | patient changes a switch |
 | `pause` | `patient_id`, `until` (`YYYY-MM-DD` or null to end), optional `from` | patient sets or ends a streak pause in Settings or from the "Pause 7 days" notification action |
-| `crisis` | `patient_id`, `source` (`talk_button`, `mood`, `weekly_checkin`), `t_iso` | the fixed crisis card was opened; the hub stores a flag of type `talk_request`, `low_mood_twice` or `weekly_checkin` |
-| `weekly_checkin` | `patient_id`, `answers` (`interest`, `down`, `self_harm`, each 0 to 3), `phq2`, `self_harm`, `t_iso` | daytime weekly check-in answered; the hub stores it (`checkins` in `GET /api/patients/{id}`) and, when `self_harm > 0`, adds a `weekly_checkin` flag (the follow-up `crisis` with the same source within 60 s is merged into it) |
+| `crisis` | `patient_id`, `source` (`talk_button`, `mood`), `session_id` (optional), `t_iso` | the support card was opened; the hub stores a `talk_request` flag whatever the source (a low lantern is a low-mood marker, never a safety flag) |
+| `checkin` | `patient_id`, `checkin`: one `afferent.checkin/1` document (`contracts/checkin.v1.schema.json`) | a check-in attempt ended (completed, stopped, or recovered after the app was closed); resent from the outbox `afferent.checkin.outbox` until acked |
+
+`checkin` handling: the hub validates the document, drops a repeat `checkin_id` (ack with `duplicate: true`), stores it in its own `checkins` table and raises one flag from `safety.tier`: `high` to `safety_high`, `moderate` to `safety_moderate`, `incomplete` to `safety_incomplete`, `low` to `safety_low`; `none` and `not_answered` raise nothing (`not_answered` shows in the export as "check-in stopped before the safety item"). Safety flags ignore `sharing = paused`: safety answers always reach the hub while the check-in is on. `phq9_9`, `cssrs` and `safety` never reach Gemma or the summary template (`summary_numbers`, `weekly_summary`); the hub strips them before the summary call. The old `weekly_checkin` message and the `low_mood_twice` and `weekly_checkin` flag types are gone; the hub ignores `weekly_checkin`.
 
 The hub also accepts the v2 form of `session_end` (document spread at top level) by removing `type`.
 
@@ -253,6 +268,7 @@ Hub to phone:
 |---|---|---|
 | `config` | see below | after `hello`, after every `session_end` ack |
 | `ack` | `session_id`, `ok`, `duplicate`, `day_index`, `error` | after `session_end` |
+| `ack` | `checkin_id`, `ok`, `duplicate`, `error` | after `checkin` (`ok: false` with `error` on a schema error or unknown patient) |
 | `pulse` | `bpm`, `quality` (0 to 1), `contact`, `source` (`ky039`, `simulated`) | 1 Hz from the bedside unit (only when it really has a pulse or `AFFERENT_SIM_PULSE=1`) |
 | `knob` | `level` (0 to 100) or `press: true` | knob events |
 | `profile` | `profile` (`good_day`, `bad_day`, `live`) | `POST /api/demo/profile` |
@@ -272,8 +288,13 @@ Hub to phone:
  "measurement_slots": {"fork": 1, "lanterns": 3},
  "dawn_level": 15, "night_hours": [21, 6],
  "privacy": {"sharing": "summary", "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": false, "bedside_light": true, "presence": true, "phone_presence": true, "phone_motion": true}},
- "server_time_iso": "2026-11-15T07:41:00+02:00"}
+ "server_time_iso": "2026-11-15T07:41:00+02:00",
+ "checkin": {"enabled": true, "cadence_days": 14, "always_ask_cssrs": false, "cssrs_licensed": false,
+             "protocol_signed": false, "early_request": false, "reminder_local_time": "12:00", "language": "en"},
+ "clinic_contact": {"name": "Your clinic", "number": "09 000 0000", "hours": "office hours"}}
 ```
+
+`checkin` comes from the patient record's `checkin` object (set at discharge), each field falling back to the default shown. `cssrs_licensed` stays false until the written C-SSRS licence confirmation; `protocol_signed` switches the app's "next working day" wording; `early_request` is a clinician-requested early check-in (at least 7 days after the last one). `clinic_contact` comes from the patient record's `clinic_contact` (`name`, `number`, `hours`), with the placeholder above as the fallback.
 
 The director picks the task for a slot with probability proportional to `task_weights[mode][id]` among the tasks allowed in that mode, excluding the previous task id when another one has weight > 0. Without config it uses uniform weights and `baseline_pulse_bpm = 68`.
 
@@ -291,7 +312,8 @@ Hub to dashboard:
 | `analytics_updated` | `patient_id`, `row` (one `patients[]` row), `analytics` (full analytics object) | after recompute |
 | `bedside_state` | the `GET /api/bedside/state` object | on every change, max 4 Hz |
 | `pose` | `patient_id`, `keypoints`, `trunk_angle_deg`, `quality`, `simulated` | relayed from `/ws/bedside` (stick figure) |
-| `crisis_flag` | `patient_id`, `type`, `source`, `t_iso` | phone `crisis` or the low-mood rule |
+| `crisis_flag` | `patient_id`, `flag_type`, `source`, `t_iso`, plus `checkin_id`, `screen`, `label` on safety flags | phone `crisis` or a check-in with a safety tier |
+| `checkin_added` | `patient_id`, `checkin_id`, `status`, `phq9_total` | a new check-in was stored (the dashboard refetches the detail) |
 | `privacy` | `patient_id`, `privacy` | change |
 | `pause` | `patient_id`, `pause` (`{"source", "until"}` or null) | streak pause change |
 | `demo_reset` | none | reset |
@@ -473,7 +495,7 @@ Shape: `fixtures/validation_example.json`. For each seed: one relapse patient (o
 
 ### 6.1 SQLite (hub agent)
 
-Tables: `patients(id primary key, json)`, `sessions(session_id primary key, patient_id, day_index, started_iso, json)`, `daily(patient_id, day_index, json, primary key(patient_id, day_index))`, `privacy(patient_id primary key, json)`, `flags(id integer primary key, patient_id, json)`, `analytics_cache(patient_id primary key, json)`. Store the documents as JSON text; no other schema is needed tonight.
+Tables: `patients(id primary key, json)`, `sessions(session_id primary key, patient_id, day_index, started_iso, json)`, `daily(patient_id, day_index, json, primary key(patient_id, day_index))`, `privacy(patient_id primary key, json)`, `flags(id integer primary key, patient_id, json)`, `checkins(checkin_id primary key, patient_id, started_iso, json)`, `analytics_cache(patient_id primary key, json)`. An older `checkins` table without `checkin_id` (weekly check-in era) is dropped on start. Store the documents as JSON text; no other schema is needed tonight.
 
 ### 6.2 Demo roster
 
@@ -481,13 +503,25 @@ Seeded from `demo_roster(seed=AFFERENT_SEED)`. The live phone always plays as `a
 
 ## 7. Fixed texts (never generated)
 
-Crisis card (`patient_view.crisis`, also hard-coded in the game for offline use):
+All safety text is fixed and human-written; no AI text anywhere in this flow (design/questions.md section 5).
 
-- Title: "If today is heavy, you do not have to carry it alone."
-- Text: "Afferent is not an emergency service and is not watched around the clock. Your clinic sees a note on the next working day."
-- Contacts: Emergency 112; MIELI Crisis Helpline (24 h) 09 2525 0111; Your clinic (demo placeholder) 09 000 0000.
+Contacts, tap-to-call, in this order, each labelled with language and hours:
 
-Crisis triggers (conservative, self-report only): the patient taps "Talk to someone" (start screen, end screen, patient view), or the mood check-in is 1 at both start and end of the same session (the card is offered, not forced). Both send `crisis` to the hub, which adds a flag for the clinic. Pulse, eyes, tasks or missed days never trigger it.
+1. Emergency, 112
+2. MIELI Crisis Helpline, in Finnish, 24 h, 09 2525 0111
+3. Medical Helpline, 24 h, 116117
+4. Your clinic, office hours, from `clinic_contact` in `config` (placeholder 09 000 0000 until filled)
+
+Check-in screens:
+
+- Thank-you screen: "Thank you." [Close]
+- Support screen: title "If today is heavy, you do not have to carry it alone."; line "Your clinic will see your answers. If you need someone now, call 112 or a helpline below." ("will see your answers on the next working day" only once `protocol_signed` is true); the four contacts; footer "Afferent is not an emergency service and is not watched around the clock."; [Close].
+- Crisis screen: the support screen with one fixed line above the title, "If you might act on these thoughts, call 112 now."; 112 first and visually primary. It never promises a call.
+- Stopped before item 9: "Saved."
+
+Support card (`patient_view.crisis`, the Talk icon): title "If today is heavy, you do not have to carry it alone."; text "If you need someone now, call 112 or a helpline below. Afferent is not an emergency service and is not watched around the clock."; the four contacts above (the clinic entry from the patient's `clinic_contact` when it is set).
+
+Safety flags come only from the check-in's `safety.tier` (self-report). The Talk icon sends `crisis` and adds a `talk_request` flag. A lantern at 1 is a low-mood marker and an offer, never a safety flag. Pulse, eyes, tasks or missed days never raise a flag.
 
 ## 8. Front-end interfaces (demo/)
 

@@ -108,7 +108,7 @@ def test_post_session_updates_analytics_and_daily(client):
     assert list(v.iter_errors(today[0])) == []
     row = next(p for p in client.get("/api/patients").json()["patients"] if p["id"] == "anna")
     assert row["last_session_day"] == 56
-    assert any(f["type"] == "low_mood_twice" for f in row["flags"])
+    assert not any(f["type"] == "low_mood_twice" for f in row["flags"])
     assert client.post("/api/patients/anna/flags/clear").json() == {"ok": True}
     row = next(p for p in client.get("/api/patients").json()["patients"] if p["id"] == "anna")
     assert row["flags"] == []
@@ -197,32 +197,65 @@ def test_websocket_relay(client):
                        "t_iso": "2026-11-15T07:50:00+02:00"})
         assert recv_until(clinic, "crisis_flag")["flag_type"] == "talk_request"
 
-        app.send_json({"type": "crisis", "patient_id": "anna", "source": "weekly_checkin",
-                       "t_iso": "2026-11-15T07:52:00+02:00"})
-        assert recv_until(clinic, "crisis_flag")["flag_type"] == "weekly_checkin"
-
         r = client.post("/api/demo/profile", json={"profile": "bad_day", "patient_id": "anna"})
         assert r.json()["sent_to"] == 1
         assert recv_until(app, "profile")["profile"] == "bad_day"
 
 
-def test_weekly_checkin_flag(client):
+def checkin_doc(item9, tier, source, total, **over):
+    items = {f"phq9_{i}": 1 for i in range(1, 9)} | {"phq9_9": item9}
+    doc = {"schema": "afferent.checkin/1", "checkin_id": str(uuid.uuid4()), "patient_id": "anna",
+           "device_id": "inst-1", "app_version": "0.3.0", "started_iso": "2026-11-15T12:00:00+02:00",
+           "completed_iso": "2026-11-15T12:02:00+02:00", "status": "completed", "trigger": "schedule", "early": False,
+           "language": "en", "phq9": {"items": items, "total": total, "phq8_total": 8, "band": "moderate"},
+           "cssrs": {"asked": False, "reason": "not_licensed", "items": {}, "tier": None, "c6_repeat": False},
+           "safety": {"tier": tier, "item9": item9, "source": source, "screen": "crisis", "shared": True}}
+    return doc | over
+
+
+def test_checkin_flags_ack_and_firewall(client, monkeypatch):
+    first = checkin_doc(2, "moderate", "item9_fallback", 10)
+    second = checkin_doc(0, "none", "item9_fallback", 8, started_iso="2026-11-16T12:00:00+02:00",
+                         completed_iso="2026-11-16T12:02:00+02:00")
     with client.websocket_connect("/ws/clinic") as clinic, client.websocket_connect("/ws/app?patient=anna") as app:
         assert clinic.receive_json()["type"] == "hello"
-        app.send_json({"type": "weekly_checkin", "patient_id": "anna", "answers": {"interest": 1, "down": 2, "self_harm": 0},
-                       "phq2": 3, "self_harm": 0, "t_iso": "2026-11-15T14:00:00+02:00"})
-        app.send_json({"type": "weekly_checkin", "patient_id": "anna", "answers": {"interest": 1, "down": 1, "self_harm": 1},
-                       "phq2": 2, "self_harm": 1, "t_iso": "2026-11-15T14:05:00+02:00"})
+        app.send_json({"type": "hello", "patient_id": "anna"})
+        cfg = recv_until(app, "config")
+        assert set(cfg["checkin"]) >= {"enabled", "cadence_days", "always_ask_cssrs", "cssrs_licensed",
+                                       "protocol_signed", "early_request"}
+        assert cfg["checkin"]["cadence_days"] == 14 and set(cfg["clinic_contact"]) == {"name", "number", "hours"}
+        for doc in (first, first, second):
+            app.send_json({"type": "checkin", "patient_id": "anna", "checkin": doc})
+        acks = [recv_until(app, "ack") for _ in range(3)]
+        assert [(a["checkin_id"], a["ok"], a["duplicate"]) for a in acks] == [
+            (first["checkin_id"], True, False), (first["checkin_id"], True, True), (second["checkin_id"], True, False)]
         flag = recv_until(clinic, "crisis_flag")
-        assert flag["flag_type"] == "weekly_checkin" and flag["source"] == "weekly_checkin"
-        app.send_json({"type": "crisis", "patient_id": "anna", "source": "weekly_checkin",
-                       "t_iso": "2026-11-15T14:05:01+02:00"})
+        assert flag["flag_type"] == "safety_moderate" and flag["label"] == "C-SSRS not asked; tier from item 9"
+        app.send_json({"type": "checkin", "checkin": {"checkin_id": "x"}})
+        assert recv_until(app, "ack")["ok"] is False
+        app.send_json({"type": "weekly_checkin", "patient_id": "anna", "answers": {"self_harm": 3}})
         app.send_json({"type": "ping"})
         recv_until(app, "pong")
-    rows = client.get("/api/patients").json()["patients"]
-    assert [f["type"] for f in next(p for p in rows if p["id"] == "anna")["flags"]] == ["weekly_checkin"]
-    checkins = client.get("/api/patients/anna").json()["checkins"]
-    assert [c["phq2"] for c in checkins] == [2, 3] and checkins[0]["self_harm"] == 1
+    row = next(p for p in client.get("/api/patients").json()["patients"] if p["id"] == "anna")
+    assert [f["type"] for f in row["flags"]] == ["safety_moderate"]
+    d = client.get("/api/patients/anna").json()
+    assert len(d["checkins"]) == 2
+    assert (d["phq"]["total"], d["phq"]["phq8_total"], d["phq"]["band"]) == (8, 8, "moderate")
+    assert [h["total"] for h in d["phq"]["history"]] == [10, 8]
+
+    seen = []
+    from afferent_hub import modules
+    real = modules.fn["weekly_summary"]
+    monkeypatch.setitem(modules.fn, "weekly_summary", lambda a, p: seen.append((a, p)) or real(a, p))
+    client.get("/api/patients/anna/summary?refresh=1")
+    text = json.dumps(seen)
+    assert seen and not any(k in text for k in ('"phq9_9"', '"cssrs"', '"safety"'))
+
+    import io, zipfile
+    z = zipfile.ZipFile(io.BytesIO(client.get("/api/patients/anna/export").content))
+    lines = z.read("checkins.ndjson").decode().splitlines()
+    assert [json.loads(x)["checkin_id"] for x in lines] == [first["checkin_id"], second["checkin_id"]]
+    assert "safety.tier" in z.read("checkins.csv").decode().splitlines()[0]
 
 
 def run_streak(statuses, declined=(), pauses=None):

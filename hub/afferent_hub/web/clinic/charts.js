@@ -13,11 +13,16 @@
   C.esc = esc;
 
   const FLAG_TEXT = {
-    low_mood_twice: { chip: 'Dimmest lantern twice', toast: 'chose the dimmest lantern twice', banner: 'chose the dimmest mood lantern at the start and end of a session' },
-    weekly_checkin: { chip: 'Weekly check-in, item 3', toast: 'answered above “Not at all” on the self-harm item of the weekly check-in', banner: 'answered above “Not at all” on the self-harm item of the weekly check-in' },
+    safety_high: { chip: 'Safety high', toast: 'check-in safety tier high', banner: 'had safety tier high at the check-in' },
+    safety_moderate: { chip: 'Safety moderate', toast: 'check-in safety tier moderate', banner: 'had safety tier moderate at the check-in' },
+    safety_incomplete: { chip: 'Safety incomplete', toast: 'stopped the safety questions after item 9', banner: 'stopped the safety questions after a positive item 9' },
+    safety_low: { chip: 'Safety low', toast: 'check-in safety tier low', banner: 'had safety tier low at the check-in' },
     talk_request: { chip: 'Asked to talk', toast: 'tapped “Talk to someone”', banner: 'tapped “Talk to someone”' },
   };
+  const FLAG_RANK = { safety_high: 0, safety_moderate: 1, safety_incomplete: 2, safety_low: 3, talk_request: 4 };
   C.flagText = (type, where) => (FLAG_TEXT[type] || FLAG_TEXT.talk_request)[where];
+  C.flagRank = (flags) => Math.min(9, ...(flags || []).map((f) => FLAG_RANK[f.type] ?? 9));
+  C.sortFlags = (flags) => [...(flags || [])].sort((a, b) => (FLAG_RANK[a.type] ?? 9) - (FLAG_RANK[b.type] ?? 9) || String(b.t_iso || '').localeCompare(String(a.t_iso || '')));
 
   const scale = (d0, d1, r0, r1) => {
     const f = (v) => r0 + ((v - d0) / (d1 - d0 || 1)) * (r1 - r0);
