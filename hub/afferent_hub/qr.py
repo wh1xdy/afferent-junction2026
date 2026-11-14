@@ -19,12 +19,19 @@ VITAL_SOURCES = ("finger_ppg", "simulated")
 MIN_VITAL_QUALITY = 0.3
 MIN_VITAL_SAMPLES = 10
 
-def _minute(iso: str | None) -> int | None:
+def _local(iso: str | None) -> dt.datetime | None:
+    """The local wall-clock time of a stamp. The app stamps local time with its offset, which is kept as
+    written; a UTC stamp (`...Z`, as a page's toISOString() writes) says nothing about the person's
+    clock, so it is read on the hub's local clock, the one day_index counts by."""
     try:
-        t = dt.datetime.fromisoformat(iso)
+        t = dt.datetime.fromisoformat(iso.replace("Z", "+00:00") if isinstance(iso, str) else iso)
     except (TypeError, ValueError):
         return None
-    return t.hour * 60 + t.minute
+    return t.astimezone() if t.utcoffset() == dt.timedelta(0) else t
+
+def _minute(iso: str | None) -> int | None:
+    t = _local(iso)
+    return None if t is None else t.hour * 60 + t.minute
 
 def _named(session: dict, block: str) -> bool:
     name = f"vitals.{block}"
@@ -129,10 +136,10 @@ def _talk(patient: dict, flags: list[dict], lo: int, hi: int) -> tuple[list[dict
     for f in flags:
         if f.get("type") != "talk_request" or not f.get("t_iso"):
             continue
-        try:
-            day = views.day_index(patient, f["t_iso"][:10])
-        except ValueError:
+        t = _local(f["t_iso"])
+        if t is None:
             continue
+        day = views.day_index(patient, t.date().isoformat())
         if lo <= day <= hi:
             out.append({"day": day, "minute": _minute(f["t_iso"]), "_t": f["t_iso"]})
     out.sort(key=lambda e: e["_t"], reverse=True)
