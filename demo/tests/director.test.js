@@ -70,7 +70,7 @@ const tests = {
     const s = A.startSession({ clock: 'night', input: 'auto', stage: false, profile: 'bad_day' });
     let first = null;
     A.bus.on('game', g => { if (!first) first = g; });
-    run(A, tick, s, 60);
+    run(A, tick, s, 60, () => { A.Sim.drowsy = 1; });
     assert.strictEqual(s.transitions[0].to, 'rest', JSON.stringify(s.transitions[0]));
     assert.ok(s.tasks.some(t => t.id === 'fork' && t.completed_by === 'skipped' && t.skip_reason === 'rest_mode'), JSON.stringify(s.tasks.map(t => [t.id, t.completed_by])));
     assert.notStrictEqual(first?.id, 'fork');
