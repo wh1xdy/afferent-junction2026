@@ -29,10 +29,10 @@
   const nowS = () => Date.now() / 1000;
 
   const cap = window.Capacitor;
-  const native = !!(cap?.isNativePlatform?.() && cap.getPlatform?.() === 'ios');
+  const native = !!cap?.isNativePlatform?.();   // iOS and Android: the same AfferentPresence plugin
   const sim = !native && q.get('presence') === 'sim';
-  // The iOS bridge has no registerPlugin unless @capacitor/core is bundled (this app loads plain
-  // scripts); a plugin registered in Swift is at Capacitor.Plugins.<jsName>. Same lookup as A.plug.
+  // The native bridge has no registerPlugin unless @capacitor/core is bundled (this app loads plain
+  // scripts); a plugin registered in Swift or Kotlin is at Capacitor.Plugins.<jsName>. Same lookup as A.plug.
   const plugin = native ? (cap.Plugins?.AfferentPresence ?? cap.registerPlugin?.('AfferentPresence') ?? null) : null;
   const available = !!plugin || sim;
 
@@ -203,7 +203,7 @@
   const rememberWifi = () => {
     const vis = radio?.lanDevices || [];
     if (!radio?.wifi) return A.Shell?.toast?.('Join your home Wi-Fi first.');
-    if (radio.lan === 'denied') return A.Shell?.toast?.('Local Network is off for Afferent in iPhone Settings.');
+    if (radio.lan === 'denied') return A.Shell?.toast?.('Local Network is off for Afferent in the phone\'s Settings.');
     if (!vis.length) return A.Shell?.toast?.('No TV, speaker or printer answered on this Wi-Fi yet. Try again in a minute.');
     st.wifiLearned = [...vis]; save(); render();
     A.Shell?.toast?.(`Home Wi-Fi saved (${vis.length} home device${vis.length === 1 ? '' : 's'}).`);
@@ -230,12 +230,12 @@
 
   // ── settings UI ───────────────────────────────────────────────────────
   const statusText = () => {
-    if (!available) return 'Needs the iPhone app';
+    if (!available) return 'Needs the phone app';
     if (!st.on) return 'Off';
     if (vetoed()) return 'Paused by your privacy settings';
     const pre = sim ? 'SIMULATED · ' : '';
     if (radio?.error) return pre + 'Not working: ' + radio.error;
-    if (radio?.authorization === 'denied' || radio?.authorization === 'restricted') return 'Bluetooth not allowed (iPhone Settings › Afferent)';
+    if (radio?.authorization === 'denied' || radio?.authorization === 'restricted') return 'Bluetooth not allowed (phone Settings › Afferent)';
     if (radio?.bluetooth === 'poweredOff') return 'Bluetooth is off';
     if (!lastTickAt) return pre + 'Looking around…';
     const why = { ble: 'bedside unit nearby', wifi: 'home Wi-Fi', hub: 'hub', activity: 'bedside unit used' };

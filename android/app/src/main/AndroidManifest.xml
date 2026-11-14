@@ -42,4 +42,19 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+
+    <!-- AfferentPresence (Settings > Home and visitors): unfiltered Bluetooth LE scan while the
+         app is open. Android 12+: BLUETOOTH_SCAN only. neverForLocation tells Android that scan
+         results are not used to work out where the phone is; in return no location permission
+         is asked and the Location switch may be off (Android then withholds iBeacon and
+         Eddystone adverts). Without that flag the plugin asks for fine + coarse location on
+         Android 12+ as well: then drop maxSdkVersion below and add ACCESS_COARSE_LOCATION.
+         Android 7 to 11: scans need fine location and the Location switch.
+         Wi-Fi state uses ACCESS_NETWORK_STATE and Bonjour (NsdManager) uses INTERNET, both above. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <!-- end AfferentPresence -->
 </manifest>

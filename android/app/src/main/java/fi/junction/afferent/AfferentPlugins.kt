@@ -17,5 +17,7 @@ import com.getcapacitor.Plugin
  */
 object AfferentPlugins {
     @JvmField
-    val all: List<Class<out Plugin>> = listOf()
+    val all: List<Class<out Plugin>> = listOf(
+        AfferentPresencePlugin::class.java,
+    )
 }
