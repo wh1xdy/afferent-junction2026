@@ -20,33 +20,35 @@
     IVd: { root: 0, bass: null, pad: [-12, -7, 2, 9] },
   };
 
-  // Stressed (calm): slow and low, a rocking pulse on the beat, a pad that opens over one bar and closes over the next.
+  // Stressed (calm): slow and low, a rocking pulse on the beat over a soft low root, a pad that opens over one bar and
+  // closes over the next.
   // Energised (bright): an eighth-note arpeggio and a bass on the beat, brighter, not louder. Tired by day (lift): a rising
   // arpeggio and a pad that opens over the first minute. Tired at night (drone): three low notes, near silence.
   const VOICES = {
     calm: {
-      db: 0, wet: 0.5, chords: ['I', 'IV', 'vi', 'V'], bars: 2,
-      pad: { db: -27, lp: [520, 1150], attack: 3, bass: 0.8 },
-      pulse: { db: -22, lp: 950, attack: 0.035, tau: 0.6, h2: 0.12, pattern: 'rock' },
+      db: 3, wet: 0.5, dip: -3, chords: ['I', 'IV', 'vi', 'V'], bars: 2,
+      pad: { db: -27, lp: [800, 1900], attack: 3, bass: 1, air: 0.3 },
+      pulse: { db: -22, lp: 1700, attack: 0.035, tau: 0.6, h2: 0.16, h3: 0.05, pattern: 'rock' },
+      bass: { db: -21, lp: 320, attack: 0.06, tau: 0.9, h2: 0.25, wave: 'sine', half: true },
       melody: { db: -28, p: 0.5, lo: 6, hi: 11, attack: 0.1, tau: 1.4 },
     },
     bright: {
-      db: -1, wet: 0.3, chords: ['I', 'V', 'vi', 'IV'], bars: 2,
-      pad: { db: -30, lp: [1100, 1900], attack: 1.6, bass: 0.5 },
-      pulse: { db: -25, lp: 2500, attack: 0.008, tau: 0.34, h2: 0.2, pattern: 'arp' },
+      db: 4.5, wet: 0.3, dip: -3, chords: ['I', 'V', 'vi', 'IV'], bars: 2,
+      pad: { db: -30, lp: [1500, 2800], attack: 1.6, bass: 0.6, air: 0.3 },
+      pulse: { db: -25, lp: 3600, attack: 0.008, tau: 0.34, h2: 0.2, h3: 0.05, pattern: 'arp' },
       bass: { db: -22, lp: 480, attack: 0.012, tau: 0.45, h2: 0.45 },
       melody: { db: -29, p: 0.35, lo: 9, hi: 14, attack: 0.03, tau: 0.9 },
     },
     lift: {
-      db: -1, wet: 0.42, chords: ['I', 'vi', 'IV', 'V'], bars: 2, rise: 40,
-      pad: { db: -28, lp: [700, 1300], attack: 2.2, bass: 0.6 },
-      pulse: { db: -24, lp: 2800, attack: 0.012, tau: 0.6, h2: 0.16, h3: 0.04, pattern: 'rise' },
+      db: 3, wet: 0.42, dip: -3, chords: ['I', 'vi', 'IV', 'V'], bars: 2, rise: 40,
+      pad: { db: -28, lp: [1000, 2000], attack: 2.2, bass: 0.8, air: 0.3 },
+      pulse: { db: -24, lp: 3800, attack: 0.012, tau: 0.6, h2: 0.16, h3: 0.04, pattern: 'rise' },
       bass: { db: -23, lp: 420, attack: 0.02, tau: 0.8, h2: 0.4, half: true },
       melody: { db: -28, p: 0.6, lo: 8, hi: 13, attack: 0.05, tau: 1.2, up: true },
     },
     drone: {
-      db: -12, wet: 0.6, chords: ['Id', 'IVd'], bars: 4, swell: 0.3,
-      pad: { db: -21, lp: [340, 480], attack: 6, bass: 0 },
+      db: -14.5, wet: 0.6, chords: ['Id', 'IVd'], bars: 4, swell: 0.3,
+      pad: { db: -21, lp: [420, 650], attack: 6, bass: 0 },
     },
   };
   // At night everything is quieter and darker, with fewer high notes.
@@ -69,12 +71,15 @@
     const lp = f => { const n = ctx.createBiquadFilter(); n.type = 'lowpass'; n.frequency.value = f; n.Q.value = 0.5; return n; };
     const pan = (bus, x) => { const n = ctx.createStereoPanner(); n.pan.value = x; n.connect(bus); return n; };
     const vox = g(1), send = g(0), padBus = g(1), padLP = lp(800), padAmp = g(1), pluckLP = lp(1500), bassLP = lp(500);
+    // A gentle dip where the low pulse and the pad pile up (about 280 Hz), so it does not sound boxy next to the beds.
+    const dip = ctx.createBiquadFilter();
+    dip.type = 'peaking'; dip.frequency.value = 280; dip.Q.value = 0.8; dip.gain.value = 0;
     padBus.connect(padLP); padLP.connect(padAmp); padAmp.connect(vox);
     pluckLP.connect(vox); bassLP.connect(vox);
     const padL = pan(padBus, -0.3), padR = pan(padBus, 0.3);
-    vox.connect(o.out);
+    vox.connect(dip); dip.connect(o.out);
     const verb = A.Audio?.makeReverb?.call({ ctx });
-    if (verb) { vox.connect(send); send.connect(verb); verb.connect(o.out); }
+    if (verb) { dip.connect(send); send.connect(verb); verb.connect(o.out); }
 
     const S = {
       bpm: o.bpm, next: o.at, k: 0, t0: o.at, beats: [], srcs: [], pad: [], name: null, v: null, want: o.voice, night: !!o.night,
@@ -114,7 +119,8 @@
     };
 
     // The pad: each chord fades in over `attack` while the one before it fades out under it. Every tone is a triangle a
-    // little left and a sine a little right, six cents apart, so the two beat slowly against each other.
+    // little left and a sine a little right, six cents apart, so the two beat slowly against each other; the upper
+    // tones also have a soft sine an octave up (air), so the pad is not dull next to the recorded beds.
     const chordOn = (t, name, L) => {
       const v = S.v, c = CHORDS[name];
       for (const x of S.pad) {
@@ -140,6 +146,18 @@
           done(os, end);
           x.envs.push(env); x.oscs.push(os);
         }
+        if (v.pad.air && n >= 12) {
+          const os = ctx.createOscillator(), env = g(0);
+          os.type = 'sine'; os.frequency.value = hz(n + 12);
+          env.gain.setValueAtTime(0, t);
+          env.gain.linearRampToValueAtTime(DB(v.pad.db) * w * v.pad.air, t + attack);
+          os.connect(env); env.connect(padBus);
+          os.start(t);
+          if (end != null) os.stop(end);
+          os.onended = () => { try { env.disconnect(); } catch {} };
+          done(os, end);
+          x.envs.push(env); x.oscs.push(os);
+        }
         S.pad.push(x);
       }
     };
@@ -150,6 +168,7 @@
       const dark = v.dark || 1;
       ease(vox.gain, DB(v.db), t, 1.5);
       ease(send.gain, v.wet, t, 1.5);
+      ease(dip.gain, v.dip ?? 0, t, 1.5);
       if (v.pulse) ease(pluckLP.frequency, v.pulse.lp * dark, t, 1);
       if (v.bass) ease(bassLP.frequency, v.bass.lp, t, 1);
       S.chordBar = -99;
