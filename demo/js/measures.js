@@ -212,14 +212,15 @@
         const pick = (type, n) => { const idx = larger.map((x, i) => x === type ? i : -1).filter(i => i >= 0).sort(() => R() - 0.5); return new Set(idx.slice(0, n)); };
         const sched = { rich: pick('rich', 3), lean: pick('lean', 1) };
         const bias = { good_day: 0.15, live: 0.08, bad_day: -0.15 }[profile()] ?? 0.08;
+        const richSide = R() < 0.5 ? 'left' : 'right';
         return base('lanterns', 60, {
-          kind: 'measurement', larger, sched, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
+          kind: 'measurement', larger, sched, richSide, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
           next(now) {
             this.i++;
             if (this.i >= 12 || this.missedRun >= 3) { finish(this, now); this.tr = null; this.i = 12; return; }
             const L = this.larger[this.i];
             if (this.sched[L].has(this.i)) this.pending[L]++;
-            this.tr = { L, richSide: R() < 0.5 ? 'left' : 'right', t: 0, phase: 'ready', resp: null, autoAt: null };
+            this.tr = { L, richSide, t: 0, phase: 'ready', resp: null, autoAt: null };
           },
           update(dt, now) {
             if (!this.tr && this.i < 12) this.next(now);
@@ -269,7 +270,7 @@
           draw(ctx, b, now) {
             const tr = this.tr, X = u => b.x + u * b.w, Y = v => b.y + v * b.h, s0 = Math.min(b.w * 0.2, b.h * 0.3);
             for (const side of ['left', 'right']) {
-              const rich = tr ? (tr.richSide === side) : side === 'left', c = rich ? WARM : SILVER;
+              const rich = (tr ? tr.richSide : richSide) === side, c = rich ? WARM : SILVER;
               let scale = 1, a = 0.5;
               if (tr) {
                 const isLarger = (tr.L === 'rich') === rich;
@@ -281,7 +282,7 @@
                 }
                 if (tr.phase === 'fb') {
                   const ft = tr.t - tr.fbT, chosen = tr.resp === side;
-                  a = chosen ? (tr.rewarded ? 1.25 - 0.3 * ease(ft / 0.75) : 0.85 - 0.3 * ease(ft / 0.4)) : 0.35;
+                  a = chosen ? (tr.rewarded ? 1.25 - 0.3 * ease(ft / 0.75) : 1 - 0.3 * ease(ft / 0.4)) : 0.6 - 0.4 * ease(ft / 0.15);
                 }
               }
               lantern(ctx, X(side === 'left' ? 0.3 : 0.7), Y(0.47), s0 * scale, c, a, now, side === 'left' ? 1 : 4);
