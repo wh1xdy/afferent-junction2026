@@ -152,6 +152,18 @@ const tests = {
     assert.strictEqual(t.A.Presence.sessionContext().home, null);
   },
 
+  async 'finger plugin hook: a connected unit that stops advertising still counts as in range'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');
+    await t.steps(1);
+    t.radio.devices = [];                       // connected: no more adverts
+    for (let i = 0; i < 10; i++) { t.A.Presence.unitSeen(); await t.steps(1); }
+    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+    assert.strictEqual(t.A.Presence.status().presence.reason, 'seen: ble');
+  },
+
   async 'home Wi-Fi fingerprint: remembered devices visible -> home without the unit'() {
     const t = load();
     t.radio.status = { ...t.radio.status, lanDevices: ['aa11', 'bb22', 'cc33'] };

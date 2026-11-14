@@ -215,6 +215,10 @@
     save(); render();
   };
   const activity = () => { if (running) presence.activity(nowS()); };
+  // For the finger plugin: a live notification from the bedside unit proves it is in range.
+  // Whether the unit keeps advertising while a phone is connected is untested (BlueZ may stop),
+  // so a connected unit must report here or presence could see it vanish.
+  const unitSeen = () => { if (running) { unitAt = nowS(); st.unitKnown = true; } };
 
   const sessionContext = () => {
     if (!active() || !running || stretchStart === null) return { home: null, visitors_present: null, simulated: false };
@@ -269,7 +273,7 @@
     if (!body || !A.Shell?.group) return;
     const html = A.Shell.group({
       id: 'presenceGroup', title: 'Home and visitors',
-      hint: 'Off unless you turn it on, and only while Afferent is open. Your phone looks for your bedside unit, your home Wi-Fi and other phones nearby. Only "at home" and a visitor count go with your session; nobody is identified. Turning it off deletes what it learned.',
+      hint: 'Off unless you turn it on, and only while Afferent is open. Your phone looks for your bedside unit, your home Wi-Fi and other phones nearby. Only whether you are home and how many visitors go with your session; nobody is identified. Turning it off deletes what it learned.',
       rows: [
         { icon: 'sensors', label: 'Bluetooth and Wi-Fi', sup: '', supId: 'presenceState', sw: 'id="presenceSw"' },
         { icon: 'wifi', label: 'This Wi-Fi is home', sup: '', supId: 'presenceWifi', attrs: 'id="presenceWifiBtn"' },
@@ -317,7 +321,7 @@
   A.Presence = {
     available, native, sim: sim ? simWorld : null,
     get on() { return st.on; },
-    enable, disable, calibrate, rememberWifi, setProfile, activity, sessionContext,
+    enable, disable, calibrate, rememberWifi, setProfile, activity, unitSeen, sessionContext,
     status: () => ({ on: st.on, running, profile: st.profile, radio, events: lastEvents, presence: presence.status(nowS()), guests: { ...guests.status(nowS()), nearby_devices: guests.nearby_devices(nowS()) } }),
     ticksJsonl: () => ticks.map(r => JSON.stringify(r)).join('\n'),
   };
