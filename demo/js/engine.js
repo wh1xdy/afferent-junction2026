@@ -45,6 +45,7 @@
     const baseline = cfg?.baseline_pulse_bpm ?? A.config.baselinePulse;
     Sim.reset(profile, t0); Eyes.reset();
     Sim.rest = baseline;
+    A.Sensors.lockPulse(t0);
     const auto = opts.input === 'auto';
     if (auto && profile === 'live') Sim.offset = 20;
     const V = opts.visual || A.makeVisual(profile);
@@ -60,7 +61,7 @@
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
       sig: { pulse: [], pulseQ: [], pulseSources: {}, frames: 0, tracked: 0, ambient: [] },
       modeSeconds: { calm: 0, flow: 0, wake: 0, fatigue: 0, rest: 0 }, transitions: [], perclosSum: 0, perclosN: 0, closedRun: 0, played: new Set(),
-      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S,
+      playSamples: [], tweens: [], playS: opts.stage ? 60 : PLAY_S, physio: A.Record.physioTrack(t0),
 
       rec: {
         schema: 'afferent.session/3', session_id: uuid(), patient_id: A.config.patientId, device_id: A.config.deviceId, app_version: A.config.appVersion,
@@ -392,6 +393,7 @@
           while (this.playSamples.length && this.playSamples[0][0] < now - 6) this.playSamples.shift();
         }
         this.track?.frame(now, dt, f, p, Eyes.closed, this.restPitch);
+        if (now >= this.physio.next) this.physio.frame(now, A.Sensors.fingerFrame(now), A.Sensors.cameraPulse(now));
       },
 
       endWindow() {
@@ -410,6 +412,7 @@
           head_pitch_deg: f?.tracked && f.head_pitch_deg != null ? r1(f.head_pitch_deg) : null, face_tracked: !!f?.tracked,
           arousal: r3(this.a), fatigue: r3(this.fat), ambient_light: f?.ambient_light == null ? null : r3(f.ambient_light),
           profile: this.profile, simulated: p.source === 'simulated' || this.eyesSource === 'simulated' || this.auto || this.profile !== 'live',
+          physio: A.Sensors.livePhysio(now), camera_pulse: A.Sensors.cameraPulse(now),
         };
       },
 
@@ -552,6 +555,7 @@
         if (!this.coreRec && status !== 'declined') this.coreRec = this.phase === 'fadein' ? null : this.buildCore(A.now());
         this.done = true; this.panel = null;
         const doc = A.Record.session(this, status);
+        A.Sensors.unlockPulse();
         if (status !== 'completed') Au.fadeOut(2);
         Au.pad(false); Au.crackle(false);
         this.ws({ type: 'session_end', session: doc });
