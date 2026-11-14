@@ -409,7 +409,7 @@
             "integer",
             "null"
           ],
-          "description": "ms from flash onset to tap. Negative for a tap before onset. null when no tap within 1500 ms."
+          "description": "ms from flash onset to tap. null when no tap within 1500 ms. A tap before onset or within 150 ms of it is a false start: it restarts the foreperiod and is not a trial."
         },
         "outcome": {
           "enum": [
@@ -418,7 +418,7 @@
             "miss",
             "anticipation"
           ],
-          "description": "anticipation: rt < 150 (incl. before onset); hit: 150 to 1000; lapse: 1000 to 1500; miss: no tap within 1500 (also counted as a lapse)"
+          "description": "anticipation: not produced since false starts were introduced (a tap before onset or within 150 ms of it restarts the foreperiod and counts in core.rt.anticipations), kept for older sessions; hit: 150 to 1000; lapse: 1000 to 1500; miss: no tap within 1500 (also counted as a lapse)"
         },
         "modality": {
           "enum": [
@@ -537,7 +537,8 @@
               "description": "lapse + miss outcomes"
             },
             "anticipations": {
-              "type": "integer"
+              "type": "integer",
+              "description": "false starts (taps before onset or within 150 ms of it) plus anticipation outcomes from older sessions"
             },
             "hits": {
               "type": "integer"
