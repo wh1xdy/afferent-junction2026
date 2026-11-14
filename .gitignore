@@ -12,6 +12,7 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 jetson/presence/data/
+jetson/data_manager/data/
 node_modules/
 graphify-out/
 art/raw/
