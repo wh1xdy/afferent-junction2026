@@ -569,7 +569,7 @@ class Sink:
         self.devices.append(msg)
 
     def bedside(self, source, **kw):
-        return Bedside(source, self.to_app, self.to_clinic, self.to_devices, **kw)
+        return Bedside(source, self.to_app, self.to_devices, **kw)
 
 
 def test_make_source_and_true_labels():
@@ -581,7 +581,7 @@ def test_make_source_and_true_labels():
     assert state["source"] == "unoq_http" and state["simulated"] is False and state["physio"] is None
 
 
-def test_controller_relays_physio_to_app_and_clinic():
+def test_controller_relays_physio_to_the_app_only():
     async def run():
         sink = Sink()
         b = sink.bedside(make_source(Settings(bedside="off")))
@@ -592,13 +592,13 @@ def test_controller_relays_physio_to_app_and_clinic():
         return sink, b.snapshot(), one(events, "physio")
 
     sink, snap, physio = asyncio.run(run())
-    assert one(sink.app, "physio") == physio == one(sink.clinic, "physio")       # extra keys are dropped
+    assert one(sink.app, "physio") == physio                                     # extra keys are dropped
+    assert sink.clinic == []                                # nothing live goes to the clinic
     assert snap["physio"] == {k: v for k, v in physio.items() if k != "type"}
     assert one(sink.app, "pulse") == {"type": "pulse", "bpm": 72, "quality": 0.62, "contact": True,
                                       "source": "finger_ppg"}
     assert snap["pulse"]["source"] == "finger_ppg" and snap["simulated"] is False
-    states = by_type(sink.clinic, "bedside_state")
-    assert states and states[-1]["physio"]["rmssd_ms"] == 51.3
+    assert snap["physio"]["rmssd_ms"] == 51.3
 
 
 def test_simulator_can_never_relay_physio_as_measured():
@@ -609,7 +609,7 @@ def test_simulator_can_never_relay_physio_as_measured():
         return sink, b.state
 
     sink, state = asyncio.run(run())
-    assert state["simulated"] is True and one(sink.clinic, "physio")["simulated"] is True
+    assert state["simulated"] is True and one(sink.app, "physio")["simulated"] is True
 
 
 def test_pulse_stone_off_drops_pulse_and_physio():
@@ -632,9 +632,7 @@ def test_pulse_stone_off_drops_pulse_and_physio():
     assert snap["pulse"] == {"bpm": None, "quality": 0, "contact": False, "source": None}
     assert snap["physio"] is None
     assert not [m for m in sink.app + sink.clinic if m["type"] in ("pulse", "physio")]
-    assert one(sink.app, "thermo")["temp_c"] == 24.59                   # only the pulse sensor is gated
-    states = by_type(sink.clinic, "bedside_state")
-    assert states and states[-1]["physio"] is None and states[-1]["pulse"]["bpm"] is None
+    assert snap["thermo"]["temp_c"] == 24.59                            # only the pulse sensor is gated
 
 
 def test_adapter_and_controller_end_to_end():
@@ -705,7 +703,7 @@ def wait_for(cond, timeout=3.0):
         time.sleep(0.01)
 
 
-def test_physio_from_a_device_reaches_app_and_clinic(client):
+def test_physio_from_a_device_reaches_the_app_and_never_the_clinic(client):
     physio = one(map_state(synthetic_active(), new_mem(), 0.0), "physio")
     with client.websocket_connect("/ws/clinic") as clinic, \
             client.websocket_connect("/ws/bedside") as bedside, \
@@ -713,7 +711,6 @@ def test_physio_from_a_device_reaches_app_and_clinic(client):
         assert clinic.receive_json()["type"] == "hello"
         bedside.send_json({"type": "hello", "device": "unoq", "fw": "test"})
         bedside.send_json(physio)
-        assert recv_until(clinic, "physio") == physio
         assert recv_until(app, "physio") == physio
         state = client.get("/api/bedside/state").json()
         assert state["physio"]["rmssd_ms"] == 51.3 and state["physio"]["source"] == "finger_ppg"
@@ -741,20 +738,27 @@ def test_physio_from_a_device_reaches_app_and_clinic(client):
         bedside.send_json(physio)
         bedside.send_json({"type": "pulse", "bpm": 72, "quality": 0.62, "contact": True, "source": "finger_ppg"})
         bedside.send_json({"type": "thermo", "temp_c": 20.5, "humidity_pct": 33})
-        seen = []
-        for _ in range(50):
-            msg = clinic.receive_json()
-            seen.append(msg["type"])
-            if msg["type"] == "thermo":
-                break
-        assert "thermo" in seen and "physio" not in seen and "pulse" not in seen
+        wait_for(lambda: client.get("/api/bedside/state").json()["thermo"]["temp_c"] == 20.5)
         assert client.get("/api/bedside/state").json()["physio"] is None
 
         r = client.post("/api/patients/anna/privacy", json={"sensor": "pulse_stone", "on": True})
         assert r.json()["sensors"]["pulse_stone"] is True
         wait_for(lambda: Switch.calls == [False, True])
         bedside.send_json(physio)
-        assert recv_until(clinic, "physio")["pulse_bpm"] == 72
+        seen = []
+        while not seen or seen[-1]["type"] != "physio":
+            seen.append(app.receive_json())
+        assert seen[-1]["pulse_bpm"] == 72
+        # while the switch was off the app got neither of the two readings sent then
+        assert not [m for m in seen[:-1] if m["type"] in ("physio", "pulse")], [m["type"] for m in seen]
+
+        # the clinic socket saw both privacy changes and nothing from the sensors in between
+        seen, switches = [], 0
+        while switches < 2:
+            msg = clinic.receive_json()
+            seen.append(msg["type"])
+            switches += msg["type"] == "privacy"
+        assert not {"physio", "pulse", "thermo", "bedside_state"} & set(seen), seen
 
 
 def test_other_patients_switch_does_not_touch_the_bound_device(client):
@@ -776,7 +780,6 @@ def test_other_patients_switch_does_not_touch_the_bound_device(client):
     assert r.status_code == 200
     time.sleep(0.1)
     assert Switch.calls == []
-    with client.websocket_connect("/ws/clinic") as clinic, client.websocket_connect("/ws/bedside") as bedside:
-        clinic.receive_json()
+    with client.websocket_connect("/ws/bedside") as bedside:
         bedside.send_json({"type": "pulse", "bpm": 70, "quality": 0.8, "contact": True, "source": "finger_ppg"})
-        assert recv_until(clinic, "pulse")["bpm"] == 70
+        wait_for(lambda: client.get("/api/bedside/state").json()["pulse"]["bpm"] == 70)

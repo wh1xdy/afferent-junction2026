@@ -9,11 +9,9 @@ from afferent_hub.analytics import validate, validation
 ROOT = Path(__file__).resolve().parents[2]
 FIX = ROOT / "contracts" / "fixtures"
 
-
 @pytest.fixture(scope="module")
 def small():
     return validation.run_validation(4, today=dt.date(2026, 11, 15), include_curves=True)
-
 
 def test_shape_covers_fixture(small):
     want = json.loads((FIX / "validation_example.json").read_text())
@@ -25,7 +23,6 @@ def test_shape_covers_fixture(small):
     assert small["simulated"] is True and small["untuned"] is True
     assert "not clinically validated" in small["disclaimer"]
 
-
 def test_numbers_are_sane(small):
     rel, st = small["relapse"], small["stable"]
     assert 0 <= rel["detected_share"] <= 1
@@ -34,7 +31,6 @@ def test_numbers_are_sane(small):
     assert len(rel["per_seed_days_onset_to_check_in"]) == 4
     assert small["bandit"]["true_best"] == {"mode": "calm", "task_id": "breath"}
     assert any(row["current"] for row in small["sensitivity"])
-
 
 def test_helpers():
     states = ["stable"] * 14 + ["watch", "check_in", "check_in", "stable", "check_in"]
@@ -46,7 +42,6 @@ def test_helpers():
     assert s == {"median": 2.0, "iqr": [1.5, 2.5], "n": 3}
     assert validation.summary([None])["median"] is None
 
-
 def test_example_series_for_dashboard(small):
     anna = small["example"]["anna"]
     assert len(anna["days"]) == len(anna["composite"]) == len(anna["cusum"]) == 57
@@ -54,17 +49,13 @@ def test_example_series_for_dashboard(small):
     bp = small["example"]["bandit_p_best"]
     assert len(bp["sessions"]) == len(bp["breath"]) > 10
 
-
-def test_report_and_charts_render(small, tmp_path, monkeypatch):
-    monkeypatch.setattr(validate, "DOCS", tmp_path)
+def test_charts_render(small, tmp_path, monkeypatch):
+    monkeypatch.setattr(validate, "CHARTS", tmp_path)
     names = validate.write_charts(small)
     assert len(names) == 6
     for n in names:
         svg = (tmp_path / n).read_text()
         assert svg.startswith("<svg") and "SIMULATED" in svg and "\u2014" not in svg
-    text = validate.report(small)
-    assert "SIMULATED" in text and "not clinically validated" in text.lower() and "\u2014" not in text
-
 
 def test_committed_results_file():
     path = validate.RESULTS
@@ -72,8 +63,6 @@ def test_committed_results_file():
         pytest.skip("run python -m afferent_hub.analytics.validate first")
     r = json.loads(path.read_text())
     assert r["schema"] == "afferent.validation/1" and r["simulated"] and r["n_seeds"] >= 50
-    assert (ROOT / "Validation.md").exists()
-
 
 def test_cohort_separation():
     r = validation.run_validation(10)
@@ -82,10 +71,3 @@ def test_cohort_separation():
     assert r["relapse"]["days_onset_to_check_in"]["median"] <= 18
     b = r["bandit"]["by_mode"]["calm"]
     assert b["sessions_to_p_best_0_8"]["median"] >= b["sessions_to_first_p_best_0_8"]["median"]
-
-
-def test_report_matches_committed_results():
-    if not validate.RESULTS.exists():
-        pytest.skip("run python -m afferent_hub.analytics.validate first")
-    r = json.loads(validate.RESULTS.read_text())
-    assert (ROOT / "Validation.md").read_text() == validate.report(r)

@@ -11,12 +11,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .api.routes import router as api_router
 from .service import VERSION, Hub, HubError
 from .settings import HUB, ROOT, Settings
+from .team_adapters import Team
+from .team_adapters.routes import router as team_router
 from .ws.routes import router as ws_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 CLINIC = HUB / "afferent_hub" / "web" / "clinic"
-
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
@@ -24,9 +25,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.hub = Hub(settings)
+        app.state.team = Team(settings)
         await app.state.hub.start()
         yield
         await app.state.hub.stop()
+        app.state.team.close()
 
     app = FastAPI(title="Afferent hub", version=VERSION, lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -45,19 +48,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"error": code, "detail": str(e.detail)}, status_code=e.status_code)
 
     app.include_router(api_router)
+    app.include_router(team_router)
     app.include_router(ws_router)
 
     @app.get("/", include_in_schema=False)
     async def root():
         return RedirectResponse("/clinic/")
 
-    CLINIC.mkdir(parents=True, exist_ok=True)
     app.mount("/app/design", StaticFiles(directory=ROOT / "design"), name="app-design")
     app.mount("/app", StaticFiles(directory=ROOT / "demo", html=True), name="app")
-    app.mount("/design", StaticFiles(directory=ROOT / "design"), name="design")
     app.mount("/contracts", StaticFiles(directory=ROOT / "contracts"), name="contracts")
     app.mount("/clinic", StaticFiles(directory=CLINIC, html=True), name="clinic")
     return app
-
 
 app = create_app()

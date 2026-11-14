@@ -1,0 +1,6 @@
+# Global pip constraints for the training image (applied via PIP_CONSTRAINT).
+# mmcv 2.1.0 / mmdet 3.2.0 / mmpose 1.3.2 wheels were built against NumPy 1.x;
+# NumPy 2 breaks their compiled extensions, so cap it everywhere.
+numpy==1.26.4
+opencv-python==4.10.0.84
+opencv-python-headless==4.10.0.84

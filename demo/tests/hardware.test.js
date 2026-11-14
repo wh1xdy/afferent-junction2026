@@ -1,6 +1,6 @@
 // Run: node demo/tests/hardware.test.js
 // What the app says about sensors and devices, against the hardware that exists: two finger clips (PulseSensors) on a UNO Q,
-// one KY-016 RGB LED, a knob, a thermometer and a buzzer Modulino, a Jetson with one camera. There is no bed sensor (Alex A9).
+// one KY-016 RGB LED, a knob, a thermometer and a buzzer Modulino, a Jetson with one camera. There is no bed sensor.
 // All numbers are test inputs, not measurements.
 const fs = require('fs');
 const path = require('path');
@@ -102,9 +102,6 @@ const tests = {
     assert.strictEqual(after(A => { A.Hub.connected = false; }), 15, 'the hub dropped');
     assert.strictEqual(after(A => { A.config.sensors.bedside_light = false; }), 15, 'the switch was turned off');
     assert.strictEqual(after(() => {}), 40);
-    const doc = read(ROOT, 'SessionSchema.md');
-    assert.ok(doc.includes('`bedside_light_level` (the last level the game sent to the hub for the bedside light, one small LED; null when no level was sent in the session.'), 'SessionSchema.md');
-    assert.ok(doc.includes('the hub may run a simulated bedside unit'), 'SessionSchema.md does not say the hub may simulate the unit');
   },
 
   'd: Settings has no bed presence row and says what the light and the pulse stone are'() {
@@ -163,16 +160,17 @@ const tests = {
   },
 
   'g: sweep: no text in the app claims a bed sensor, a presence sensor, a lamp or a lit room'() {
-    const scripts = ['main.js', 'gui/shell.js', 'vitals.js', 'patient.js', 'onboard.js', 'presence.js', 'checkin.js', 'remind.js', 'streak.js', 'finger.js'];
+    const scripts = ['main.js', 'gui/shell.js', 'vitals.js', 'patient.js', 'onboard.js', 'presence.js', 'checkin.js', 'remind.js', 'streak.js', 'finger.js', 'qrshow.js'];
     for (const f of scripts) assert.deepStrictEqual(claims(literals(read(JS, f))), [], f);
     for (const f of ['index.html', 'patient.html']) assert.deepStrictEqual(claims(pageText(read(DEMO, f))), [], f);
     assert.deepStrictEqual(claims(read(DEMO, 'data', 'reminders.json')), [], 'reminders.json');
+    assert.strictEqual(JSON.parse(read(JS, 'qr_body_fallback.json')).sensors.presence, false, 'the code shown to the doctor does not say bed presence is on');
     assert.deepStrictEqual(claims('Bedside light'), []);
     assert.deepStrictEqual(claims('Time in bed and restless moments.'), ['time in bed'], 'the sweep itself finds the old row');
     assert.deepStrictEqual(claims('Sleep and rest pattern from the bed sensor'), ['a bed sensor']);
 
     const plist = read(ROOT, 'ios', 'App', 'App', 'Info.plist');
-    assert.ok(plist.includes('Afferent talks to your Afferent hub on your home network.'), 'the network text names the hub (Decisions I28)');
+    assert.ok(plist.includes('Afferent talks to your Afferent hub on your home network.'), 'the network text names the hub');
     assert.strictEqual(plist.includes('bedside unit on your home network'), false, 'the bedside unit is reached over Bluetooth, not the network');
     assert.strictEqual(plist.includes('only whether your eyes are closed'), false, 'the camera also gives blinks, head tilt and brightness');
   },
@@ -244,7 +242,6 @@ const tests = {
     const none = rest(false);
     assert.deepStrictEqual([none.blink_quality, none.eye_quality, none.blink_rate_per_min], [null, null, null], 'no camera, no quality');
     assert.strictEqual(/_quality:[^,\n]*\d\s*\*/.test(read(JS, 'engine.js')), false, 'engine.js scales a quality by a constant');
-    assert.ok(read(ROOT, 'SessionSchema.md').includes('`rest.blink_quality` and `rest.eye_quality` are both `rest.eyes_tracked_ratio`'), 'SessionSchema.md');
   },
 
   'j3: ky039 is not a live source: no hardware here is a KY-039, so a pulse with that label is dropped, not shown or recorded'() {

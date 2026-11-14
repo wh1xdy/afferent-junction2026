@@ -1,7 +1,7 @@
 {
  "name": "afferent-concept-regen",
  "version": "concept-final-1",
- "about": "Assets from art/plan.json that must change to match design/concept.md (Layers of Light). Valid plan for art/generate.py: style, isolated, suffixes and assets are read by it. Always pass --only; draft first (--draft writes art/raw/draft/), then finals with --force because the names already exist. task_assets is not read by the generator: it is the hand-off for the minigame workflow that owns art/tasks_plan.json. no_generation lists assets handled by copy or vector export; never pass their names to --only.",
+ "about": "Assets from art/plan.json that must change to match the Layers of Light concept. Valid plan for art/generate.py: style, isolated, suffixes and assets are read by it. Always pass --only; draft first (--draft writes art/raw/draft/), then finals with --force because the names already exist. task_assets is not read by the generator: it is the hand-off for the minigame workflow that owns art/tasks_plan.json. no_generation lists assets handled by copy or vector export; never pass their names to --only.",
  "workflow": {
   "draft": "python3 art/generate.py --plan design/concept/final/regen.json --draft --jobs 6 --only <names>",
   "final": "python3 art/generate.py --plan design/concept/final/regen.json --force --jobs 6 --only <accepted names>",

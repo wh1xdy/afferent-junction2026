@@ -16,15 +16,12 @@ CELL_FLOOR_MS = 20.0
 MIN_COVARIATE_OBS = 5
 MIN_COVARIATE_RANGE = 0.1
 
-
 def number(v) -> float | None:
     return float(v) if isinstance(v, Real) and not isinstance(v, bool) else None
-
 
 def usable(median, n) -> bool:
     m, k = number(median), number(n)
     return m is not None and m > 0 and k is not None and k >= MIN_CELL_N
-
 
 def task_cells(task: dict) -> list[tuple[str, float, float]]:
     rt = get(task, "extra", "rt")
@@ -40,27 +37,22 @@ def task_cells(task: dict) -> list[tuple[str, float, float]]:
         return [(f"{tid}:all", float(rt["median_ms"]), float(rt["n"]))]
     return []
 
-
 def difficulty(task: dict) -> float | None:
     return number(get(task, "extra", "dda", "d_mean"))
-
 
 def day_tasks(session: dict | None) -> list[dict]:
     if session is None:
         return []
     return [t for t in session.get("tasks") or [] if isinstance(t, dict) and isinstance(get(t, "extra", "rt"), dict)]
 
-
 def weighted(runs: list[tuple], i: int) -> float | None:
     pairs = [(r[i], r[1]) for r in runs if r[i] is not None]
     total = sum(k for _, k in pairs)
     return sum(v * k for v, k in pairs) / total if total else None
 
-
 def theil_sen(xs: list[float], ys: list[float]) -> float | None:
     slopes = [(ys[j] - ys[i]) / (xs[j] - xs[i]) for i, j in combinations(range(len(xs)), 2) if abs(xs[j] - xs[i]) > 1e-9]
     return stats.median(slopes)
-
 
 def adjust(x: list, c: list, last_day: int) -> tuple[list, float | None]:
     base = [d for d in range(last_day + 1) if x[d] is not None and c[d] is not None]
@@ -72,7 +64,6 @@ def adjust(x: list, c: list, last_day: int) -> tuple[list, float | None]:
         return x, None
     c0 = stats.median(cs)
     return [None if v is None else v - slope * ((c[d] if c[d] is not None else c0) - c0) for d, v in enumerate(x)], slope
-
 
 def extract(main: list, now_day: int, params: dict) -> dict:
     n = now_day + 1
@@ -119,7 +110,6 @@ def extract(main: list, now_day: int, params: dict) -> dict:
     n_cells = [len(z) if z else None for z in zs]
     return {"values": {"game_rt_norm": norm, "game_rt_median": raw}, "n_cells": n_cells, "n_tasks": n_tasks,
             "n_trials": n_trials, "dda_d_mean": dda, "cells": summary}
-
 
 def blocks(main: list, now_day: int, params: dict) -> list[dict]:
     ex = extract(main, now_day, params)

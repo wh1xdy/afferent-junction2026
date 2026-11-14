@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="design/tokens.css" id="tokens">
   <link rel="stylesheet" href="css/checkin.css">
   <link rel="stylesheet" href="css/patient.css">
+  <link rel="stylesheet" href="css/qrshow.css">
 </head>
 <body class="ll-kevat" data-tab="today">
   <header id="hero" aria-hidden="true">
@@ -22,6 +23,9 @@
     </a>
     <span id="barTitle" class="bar-title" aria-hidden="true"></span>
     <span id="sim" class="sim" hidden>Simulated</span>
+    <button class="ib tonal" id="qrTop" type="button" aria-label="Show to my doctor">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2.5v2.5M20 14v.01M14 20h.01M17 20h3v-3M17 17h.01"/></svg>
+    </button>
     <button class="ib tonal" id="talkTop" type="button" aria-label="Talk to someone">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6"/><path d="M6 6l3.45 3.45M18 6l-3.45 3.45M6 18l3.45-3.45M18 18l-3.45-3.45"/></svg>
     </button>
@@ -72,6 +76,14 @@
 
       <section class="block" aria-labelledby="clinicH">
         <h2 id="clinicH" class="subhead">Export to your clinic</h2>
+        <ul class="group qr-group">
+          <li><button type="button" id="qrRow" class="li">
+            <svg class="lic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h2.5v2.5M20 14v.01M14 20h.01M17 20h3v-3M17 17h.01"/></svg>
+            <span class="lt">Show to my doctor</span>
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
+          </button></li>
+        </ul>
+        <ul id="qrLog" class="qr-log" hidden></ul>
         <div id="sharing" class="seg" role="radiogroup" aria-labelledby="clinicH">
           <button type="button" role="radio" data-v="summary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Summary</button>
           <button type="button" role="radio" data-v="nothing_tonight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Skip today</button>
@@ -113,6 +125,13 @@
   <script src="js/world.js"></script>
   <script src="js/streak.js"></script>
   <script src="js/checkin.js"></script>
+  <section id="qrPrint" aria-hidden="true"></section>
+
+  <script src="vendor/qr/qrcode.js"></script>
+  <script src="vendor/qr/fflate.js"></script>
+  <script src="vendor/qr/noble-p256.js"></script>
+  <script src="js/qrpayload.js"></script>
+  <script src="js/qrshow.js"></script>
   <script src="js/patient.js"></script>
 </body>
 </html>

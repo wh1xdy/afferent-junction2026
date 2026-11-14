@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Awaitable, Callable
 
+from ..views import now_iso
+
 log = logging.getLogger("afferent.bedside")
 
 TOKENS = Path(__file__).resolve().parents[3] / "design" / "tokens.json"
@@ -24,15 +26,10 @@ DEFAULT_TOKENS = {
 
 Send = Callable[[dict], Awaitable[None]]
 
-# The `physio` object shared by the hub HTTP adapter, the phone and the clinic view (one shape).
 PHYSIO_KEYS = ("source", "transport", "simulated", "pulse_bpm", "quality", "quality_reported", "contact",
                "finger_bpm", "finger_sources", "breathing_per_min", "breathing_snr_db", "rmssd_ms", "sdnn_ms",
                "rmssd_baseline_ms", "rmssd_vs_baseline", "presence", "age_s")
 EMPTY_PULSE = {"bpm": None, "quality": 0, "contact": False, "source": None}
-
-
-def now_iso() -> str:
-    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def load_tokens() -> dict:
@@ -41,7 +38,6 @@ def load_tokens() -> dict:
     except Exception:
         return DEFAULT_TOKENS
 
-
 def schedule_light(schedule: list[dict], hour: float) -> dict:
     for slot in schedule:
         a, b = slot["from_h"], slot["to_h"]
@@ -49,24 +45,20 @@ def schedule_light(schedule: list[dict], hour: float) -> dict:
             return slot
     return {"rgb": "#000000", "level": 0, "label": "off"}
 
-
 class Bedside:
-    def __init__(self, source, to_app: Send, to_clinic: Send, to_devices: Send, clock=None, pulse_allowed=None):
+    def __init__(self, source, to_app: Send, to_devices: Send, clock=None, pulse_allowed=None):
         self.source = source
         self.pulse_allowed: Callable[[], bool] | None = pulse_allowed
         self.to_app = to_app
-        self.to_clinic = to_clinic
         self.to_devices = to_devices
         self.clock = clock or (lambda: dt.datetime.now().astimezone())
         self.tokens = load_tokens()
         self.ws_devices = 0
         self.patient_id: str | None = None
-        self.device: str | None = None
-        self.fw: str | None = None
         self.session_active = False
         self.asleep_until: dt.datetime | None = None
         self.dawn_level = 15
-        self.counters = {"knob_uses": 0, "light_on_s": 0.0, "temps": []}
+        self.counters = {"knob_uses": 0, "temps": []}
         self.state = {
             "source": source.name, "connected": False, "simulated": source.name == "simulator",
             "updated_iso": now_iso(),
@@ -80,10 +72,7 @@ class Bedside:
         }
         self._resting_light = dict(self.state["light"])
         self._overlay: asyncio.Task | None = None
-        self._last_push = 0.0
-        self._push_pending = False
         self._loop_task: asyncio.Task | None = None
-        self._last_light_t = time.monotonic()
         self._app_hold = 0.0
 
     def snapshot(self) -> dict:
@@ -109,12 +98,11 @@ class Bedside:
         self.asleep_until = None
         self._app_hold = 0.0
         self.dawn_level = 15
-        self.counters = {"knob_uses": 0, "light_on_s": 0.0, "temps": []}
+        self.counters = {"knob_uses": 0, "temps": []}
         self.state["knob"] = {"level": self.dawn_level, "last_press_iso": None}
         self.state["presence"]["motion_events_tonight"] = 0
         await self.set_camera(False)
         await self.apply_idle()
-        await self.push_state()
 
     async def replace_source(self, source):
         await self.source.stop()
@@ -130,22 +118,6 @@ class Bedside:
             log.warning("bedside send failed: %s", e)
         await self.to_devices(msg)
 
-    async def push_state(self):
-        now = time.monotonic()
-        if now - self._last_push >= 0.25:
-            self._last_push = now
-            await self.to_clinic({"type": "bedside_state", **self.snapshot()})
-        elif not self._push_pending:
-            self._push_pending = True
-
-            async def later():
-                await asyncio.sleep(0.25)
-                self._push_pending = False
-                self._last_push = time.monotonic()
-                await self.to_clinic({"type": "bedside_state", **self.snapshot()})
-
-            asyncio.create_task(later())
-
     async def on_event(self, msg: dict):
         t = msg.get("type")
         s = self.state
@@ -155,24 +127,19 @@ class Bedside:
             return
         s["updated_iso"] = now_iso()
         if t == "hello":
-            self.device, self.fw = msg.get("device"), msg.get("fw")
             s["connected"] = True
         elif t == "status":
             s["connected"] = bool(msg.get("connected"))
         elif t == "pulse":
             s["pulse"] = {"bpm": msg.get("bpm"), "quality": msg.get("quality", 0), "contact": bool(msg.get("contact")),
                           "source": msg.get("source")}
-            out = {"type": "pulse", **s["pulse"]}
-            await self.to_app(out)
-            await self.to_clinic(out)
+            await self.to_app({"type": "pulse", **s["pulse"]})
         elif t == "physio":
             p = {k: msg.get(k) for k in PHYSIO_KEYS}
             if s["simulated"]:
                 p["simulated"] = True
             s["physio"] = p
-            out = {"type": "physio", **p}
-            await self.to_app(out)
-            await self.to_clinic(out)
+            await self.to_app({"type": "physio", **p})
         elif t == "knob":
             await self._knob(msg)
         elif t == "presence":
@@ -185,24 +152,12 @@ class Bedside:
             p["in_bed"] = in_bed
             if msg.get("motion"):
                 p["motion_events_tonight"] += 1
-            out = {"type": "presence", "in_bed": in_bed, "motion": bool(msg.get("motion")),
-                   "motion_events_tonight": p["motion_events_tonight"]}
-            await self.to_app(out)
-            await self.to_clinic(out)
             if not self.session_active:
                 await self.apply_idle()
         elif t == "thermo":
             s["thermo"] = {"temp_c": msg.get("temp_c"), "humidity_pct": msg.get("humidity_pct")}
             if msg.get("temp_c") is not None:
                 self.counters["temps"] = (self.counters["temps"] + [msg["temp_c"]])[-1440:]
-            await self.to_app({"type": "thermo", **s["thermo"]})
-            await self.to_clinic({"type": "thermo", **s["thermo"]})
-        elif t == "pose":
-            await self.to_clinic(msg)
-            return
-        else:
-            return
-        await self.push_state()
 
     async def clear_pulse(self):
         s = self.state
@@ -210,7 +165,6 @@ class Bedside:
             return
         s["pulse"], s["physio"] = dict(EMPTY_PULSE), None
         s["updated_iso"] = now_iso()
-        await self.push_state()
 
     async def _knob(self, msg: dict):
         s = self.state
@@ -220,7 +174,6 @@ class Bedside:
             self.counters["knob_uses"] += 1
             await self._send_device({"type": "camera", "on": s["camera_on"]})
             await self.to_app({"type": "knob", "press": True})
-            await self.to_clinic({"type": "knob", "press": True, "camera_on": s["camera_on"]})
             self._run_overlay(self._blink())
         elif msg.get("level") is not None:
             level = max(0, min(100, int(msg["level"])))
@@ -230,7 +183,6 @@ class Bedside:
             self.dawn_level = level
             self.counters["knob_uses"] += 1
             await self.to_app({"type": "knob", "level": level})
-            await self.to_clinic({"type": "knob", "level": level})
             self._run_overlay(self._knob_feedback(level))
 
     def _run_overlay(self, coro):
@@ -242,13 +194,11 @@ class Bedside:
         light = {"rgb": rgb, "level": level, "fade_ms": fade_ms, "reason": reason}
         self.state["light"] = light
         await self._send_device({"type": "light", **light})
-        await self.push_state()
 
     async def _restore(self):
         light = dict(self._resting_light)
         self.state["light"] = light
         await self._send_device({"type": "light", **{**light, "fade_ms": 600}})
-        await self.push_state()
 
     async def _knob_feedback(self, level):
         fb = self.tokens["knob_feedback"]
@@ -265,32 +215,22 @@ class Bedside:
             await asyncio.sleep(b.get("pulse_ms", 150) / 1000)
         await self._restore()
 
-    async def set_light(self, rgb: str, level: int, fade_ms: int = 2000, reason: str = "manual", hold_s: float = 0):
+    async def set_light(self, rgb: str, level: int, fade_ms: int, reason: str, hold_s: float = 0):
         if hold_s:
             self._app_hold = time.monotonic() + hold_s
         light = {"rgb": rgb, "level": max(0, min(100, int(level))), "fade_ms": max(0, min(60000, int(fade_ms))),
                  "reason": reason}
-        self._account_light()
         self._resting_light = light
         if self._overlay and not self._overlay.done():
-            return light
+            return
         self.state["light"] = dict(light)
         self.state["updated_iso"] = now_iso()
         await self._send_device({"type": "light", **light})
-        await self.push_state()
-        return light
-
-    def _account_light(self):
-        now = time.monotonic()
-        if (self.state["light"].get("level") or 0) > 0:
-            self.counters["light_on_s"] += now - self._last_light_t
-        self._last_light_t = now
 
     async def set_camera(self, on: bool):
         if self.state["camera_on"] != on:
             self.state["camera_on"] = on
             await self._send_device({"type": "camera", "on": on})
-            await self.push_state()
 
     def set_session_active(self, active: bool):
         self.session_active = active
@@ -329,7 +269,6 @@ class Bedside:
         while True:
             await asyncio.sleep(30)
             try:
-                self._account_light()
                 await self.apply_idle()
             except asyncio.CancelledError:
                 raise

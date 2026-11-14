@@ -43,6 +43,9 @@
     onReading(d) {
       if (!d) return;
       if (typeof d.t_ms === 'number' && Date.now() - d.t_ms > MAX_AGE_MS) return;
+      // A live notification proves the bedside unit is in range, even if it stops advertising
+      // while connected (Home and visitors, presence.js; a no-op while that is off).
+      A.Presence?.unitSeen?.();
       S.feedFingerBle(d);
     },
   };

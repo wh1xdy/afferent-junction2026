@@ -430,13 +430,16 @@
 
   V.exports = function (S) {
     const L = S.list;
-    if (!L) return '<section class="page"><div class="loading">Loading</div></section>';
+    const scanned = V.scanned ? V.scanned(S) : '';
+    if (!L) return `<section class="page"><div class="page-inner"><h1 class="page-title">Exports and codes</h1>${scanned}<div class="loading">Loading</div></div></section>`;
     const rows = V.sorted(L).map((r) => `<div class="xrow"><span><b>${esc(r.display_name)}</b><small>${r.sessions_7d ?? '-'} of 7 mornings this week · ${pct(r.completeness)} data</small></span>
       <span class="xmeta muted">Last session ${relDay(r.last_session_iso, L.date)}</span>
       <a class="btn outlined small" href="/api/patients/${encodeURIComponent(r.id)}/export" download>${icon('download')}Export</a></div>`).join('');
     return `<section class="page"><div class="page-inner">
-      <h1 class="page-title">Exports</h1>
-      <p class="page-sub">One export a day from each home hub ${info('Each zip holds sessions, daily records, features, check-ins and a codebook, as CSV and NDJSON.')}</p>
+      <h1 class="page-title">Exports and codes</h1>
+      ${scanned}
+      <div class="sect-h codes-h"><h2>Export runs</h2>${info('Each zip holds sessions, daily records, features, check-ins and a codebook, as CSV and NDJSON.')}</div>
+      <p class="page-sub">One export a day from each home hub</p>
       <div class="exports">${rows}</div>
     </div></section>`;
   };

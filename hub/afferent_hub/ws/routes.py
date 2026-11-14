@@ -9,7 +9,6 @@ from .manager import Client
 log = logging.getLogger("afferent.ws")
 router = APIRouter()
 
-
 async def _loop(ws: WebSocket, client: Client, handle):
     hub = ws.app.state.hub
     try:
@@ -32,7 +31,6 @@ async def _loop(ws: WebSocket, client: Client, handle):
     finally:
         hub.rooms.remove(client)
 
-
 @router.websocket("/ws/app")
 async def ws_app(ws: WebSocket):
     await ws.accept()
@@ -44,7 +42,6 @@ async def ws_app(ws: WebSocket):
     finally:
         await hub.app_closed(client)
 
-
 @router.websocket("/ws/clinic")
 async def ws_clinic(ws: WebSocket):
     await ws.accept()
@@ -53,14 +50,12 @@ async def ws_clinic(ws: WebSocket):
     hub.rooms.add(client)
     lst = hub.patients_list()
     await hub.rooms.send(client, {"type": "hello", "now_day": lst["now_day"], "patients": lst["patients"]})
-    await hub.rooms.send(client, {"type": "bedside_state", **hub.bedside.snapshot()})
 
     async def handle(c, msg):
         if msg.get("type") == "ping":
             await hub.rooms.send(c, {"type": "pong"})
 
     await _loop(ws, client, handle)
-
 
 @router.websocket("/ws/bedside")
 async def ws_bedside(ws: WebSocket):
@@ -73,4 +68,3 @@ async def ws_bedside(ws: WebSocket):
         await _loop(ws, client, hub.handle_bedside)
     finally:
         hub.bedside.ws_devices -= 1
-        await hub.bedside.push_state()

@@ -538,6 +538,13 @@
             "valid": {
               "type": "boolean",
               "description": "5 trials and at least 3 taps with rt >= 150"
+            },
+            "stimulus": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Presentation version of the reaction stimulus, name/version: flare/0 (lantern flare, until v3 minigames), bite/1 (Bite float). Absent or null means flare/0. Pool RT baselines within one stimulus only"
             }
           }
         }
@@ -1382,7 +1389,7 @@
           ]
         },
         "rmssd_vs_baseline": {
-          "description": "RMSSD relative to the wearer's own median on the sensor, as a fraction (-0.3 is 30% below); null over Bluetooth (the HTTP path only)",
+          "description": "RMSSD relative to the sensor's running median of its last 10 minutes of readings (at least 2 minutes of them; kept on the sensor, not per person), as a fraction (-0.3 is 30% below); null over Bluetooth (the HTTP path only)",
           "oneOf": [
             {
               "$ref": "#/$defs/stat"

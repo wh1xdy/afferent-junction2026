@@ -39,7 +39,7 @@ const tests = {
     assert.strictEqual(S.pulse(A.now()).bpm, null);
     S.feedPulse({ bpm: 72, quality: 0.8, contact: true, source: 'finger_ppg' });
     S.feedPulse({ bpm: 72, quality: 0.8, contact: true, source: 'ky039' });
-    assert.deepStrictEqual([S.stone, S.droppedPulse], [null, 3], 'the stored-row label ky039 is not a live source (Decisions I11)');
+    assert.deepStrictEqual([S.stone, S.droppedPulse], [null, 3], 'the stored-row label ky039 is not a live source');
   },
 
   'b: a value older than 3 s is not returned'() {
@@ -393,6 +393,21 @@ const tests = {
     assert.strictEqual(V.chip(s, { bpm: null, source: null }), 'no reading');
     assert.strictEqual(V.chip({ ...s, gameMode: 'measure' }, { bpm: 72, source: 'finger_ppg' }), null);
     for (const phase of ['rest', 'checkin', 'rt', 'end']) assert.strictEqual(V.chip({ ...s, phase }, { bpm: 72, source: 'finger_ppg' }), null);
+  },
+
+  'o: a fresh finger notification tells Home and visitors the bedside unit is in range; a stale one does not'() {
+    const { A } = load({ finger: true }), F = A.Finger;
+    let seen = 0;
+    A.Presence = { unitSeen: () => { seen++; } };
+    connect(A);
+    F.onReading(hrm());
+    F.onReading(aff6());
+    assert.strictEqual(seen, 2);
+    F.onReading({ ...hrm(), t_ms: Date.now() - 5000 });
+    assert.strictEqual(seen, 2, 'a notification older than 3 s is dropped before the hook');
+    delete A.Presence;
+    F.onReading(hrm());   // presence.js not loaded: no error
+    assert.strictEqual(A.Sensors.fingerBle.pulse_bpm, 72);
   },
 };
 

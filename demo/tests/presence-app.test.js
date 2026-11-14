@@ -9,7 +9,10 @@ const assert = require('assert');
 const JS = path.join(__dirname, '..', 'js');
 const T0 = Date.UTC(2026, 10, 14, 9, 0, 0) / 1000;
 
-function load({ native = true, search = '', savedSettings = null } = {}) {
+// bridge: 'core' = @capacitor/core is loaded (registerPlugin exists); 'ios' = the bridge the app really
+// has (plain scripts, no @capacitor/core): no registerPlugin, plugins at Capacitor.Plugins; 'none' = native
+// build without the plugin.
+function load({ native = true, search = '', savedSettings = null, bridge = 'core' } = {}) {
   let clock = T0;
   const timers = [];
   const storage = new Map();
@@ -37,7 +40,11 @@ function load({ native = true, search = '', savedSettings = null } = {}) {
     addEventListener: (t, f) => (winListeners[t] = winListeners[t] || []).push(f),
     crypto: { randomUUID: () => 'x' },
   };
-  if (native) ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', registerPlugin: () => plugin };
+  if (native) {
+    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios' };
+    if (bridge === 'core') ctx.Capacitor.registerPlugin = () => plugin;
+    else ctx.Capacitor.Plugins = bridge === 'ios' ? { AfferentPresence: plugin } : {};
+  }
   ctx.window = ctx;
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(JS, 'util.js'), 'utf8'), ctx);
@@ -78,6 +85,24 @@ const tests = {
     assert.strictEqual(t.A.Presence.available, false);
     await t.A.Presence.enable();
     assert.strictEqual(t.A.Presence.on, false);
+  },
+
+  async 'iOS bridge without registerPlugin: the plugin is found at Capacitor.Plugins and starts'() {
+    const t = load({ bridge: 'ios' });
+    assert.strictEqual(t.A.Presence.available, true);
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    assert.strictEqual(JSON.stringify(t.calls[0]), '["start",{"lan":true}]');
+    await t.steps(1);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+  },
+
+  async 'native build without the plugin: unavailable, loads without an error and never starts'() {
+    const t = load({ bridge: 'none' });
+    assert.strictEqual(t.A.Presence.available, false);
+    await t.A.Presence.enable();
+    assert.strictEqual(t.A.Presence.on, false);
+    assert.strictEqual(t.calls.length, 0);
   },
 
   async 'bedside unit in range -> home in the session; calibrated; a guest phone becomes 1 visitor'() {
@@ -162,6 +187,21 @@ const tests = {
     for (let i = 0; i < 10; i++) { t.A.Presence.unitSeen(); await t.steps(1); }
     assert.strictEqual(t.A.Presence.status().presence.state, 'home');
     assert.strictEqual(t.A.Presence.status().presence.reason, 'seen: ble');
+  },
+
+  async 'finger sensor connected but silent (no finger on the clip, no adverts): the unit still counts as in range'() {
+    const t = load();
+    t.radio.devices = [UNIT];
+    await t.A.Presence.enable();
+    t.A.Presence.setProfile('demo');
+    await t.steps(1);
+    t.radio.devices = [];
+    t.A.Sensors = { fingerLink: { state: 'connected', name: 'Afferent Finger' } };
+    await t.steps(10);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+    t.A.Sensors.fingerLink = { state: 'scanning', name: null };   // link lost: the normal rule applies again
+    await t.steps(10);
+    assert.strictEqual(t.A.Presence.status().presence.state, 'away');
   },
 
   async 'home Wi-Fi fingerprint: remembered devices visible -> home without the unit'() {

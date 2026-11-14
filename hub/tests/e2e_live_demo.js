@@ -1,16 +1,3 @@
-/*
-  End-to-end live demo test (headless Chrome via playwright-core).
-
-  1. Start the hub:   ./start.sh --reset
-  2. Run the test:    NODE_PATH=<dir with node_modules/playwright-core> node hub/tests/e2e_live_demo.js
-     Options (env):   HUB=http://localhost:8000  CLOCK=morning|night  TIMEOUT_S=240  SHOTS=<dir for screenshots>
-
-  It opens the clinic dashboard and the game (autoplay, ?input=auto) side by side, lets one session
-  play to the end and checks: the session reached the hub as Anna's newest session, the dashboard
-  updated live without a reload, the bedside light changed at dawn, and neither page threw an error.
-  Exit code 0 on pass, 1 on fail. The session stays in the database; reset with
-  curl -X POST localhost:8000/api/demo/reset
-*/
 const { chromium } = require('playwright-core');
 
 const HUB = (process.env.HUB || 'http://localhost:8000').replace(/\/$/, '');
@@ -48,6 +35,11 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   await clinic.evaluate(() => { window.__noReload = true; });
   const rowBefore = await clinic.evaluate((id) => JSON.parse(JSON.stringify(C.state.list.patients.find((p) => p.id === id))), PATIENT);
 
+  const bedsideLights = [];
+  const bedside = new WebSocket(HUB.replace(/^http/, 'ws') + '/ws/bedside');
+  bedside.onmessage = (e) => { const m = parse({ payload: e.data }); if (m && m.type === 'light') bedsideLights.push({ t: Date.now(), ...m }); };
+  await new Promise((r) => { bedside.onopen = r; bedside.onerror = r; });
+
   const app = await browser.newPage({ viewport: { width: 430, height: 900 } });
   watch(app, 'app');
   const appSent = [], appRecv = [];
@@ -58,7 +50,15 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   await app.goto(`${HUB}/app/?input=auto&patient=${PATIENT}${CLOCK}`, { waitUntil: 'load' });
   await app.waitForSelector('#begin', { state: 'visible', timeout: 15000 });
   await app.waitForTimeout(1000);
-  await app.click('#begin');
+  // A first launch shows the lantern anchor card over the start screen (demo/js/checkin.js); the
+  // patient taps "Got it" once. Without this the card intercepts the tap on Begin.
+  const gotIt = app.locator('#checkin:not(.hidden) button', { hasText: 'Got it' });
+  if (await gotIt.count()) {
+    await gotIt.first().click();
+    await app.waitForSelector('#checkin', { state: 'hidden', timeout: 5000 });
+  }
+  // Begin is "Hold to kindle" (demo/js/gui/shell.js, 900 ms): press and hold like a patient does.
+  await app.click('#begin', { delay: 1300 });
   const t0 = Date.now();
 
   let shotAt = 0;
@@ -95,7 +95,6 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   const forPatient = (m) => !m.patient_id || m.patient_id === PATIENT;
   const seen = new Set(types(clinicMsgs, forPatient));
   check('dashboard got session_started', seen.has('session_started'));
-  check('dashboard got live metrics', clinicMsgs.some((x) => x.m.type === 'live' && forPatient(x.m)), `${clinicMsgs.filter((x) => x.m.type === 'live').length} live`);
   check('dashboard got session_added', seen.has('session_added'));
   check('dashboard got analytics_updated', clinicMsgs.some((x) => x.m.type === 'analytics_updated' && x.m.patient_id === PATIENT));
 
@@ -110,16 +109,26 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
     `composite ${rowBefore.composite} -> ${state.row.composite}, last session ${rowBefore.last_session_iso} -> ${state.row.last_session_iso}, live_now ${state.row.live_now}`);
 
   const dawnSent = appSent.find((s) => s.m.type === 'light' && s.m.reason === 'dawn');
-  const bedsideLights = clinicMsgs.filter((x) => x.m.type === 'bedside_state' && x.m.light).map((x) => ({ t: x.t, ...x.m.light }));
   const atDawn = dawnSent && bedsideLights.find((l) => l.t >= dawnSent.t - 200 && l.reason === 'dawn');
   const bedsideAfter = await getJSON('/api/bedside/state');
   check('game sent dawn light', dawnSent, dawnSent ? JSON.stringify(dawnSent.m) : 'no light with reason dawn');
   check('bedside light changed at dawn', atDawn && (atDawn.rgb !== bedsideBefore.light.rgb || atDawn.level !== bedsideBefore.light.level),
     atDawn ? `${bedsideBefore.light.rgb}/${bedsideBefore.light.level} -> ${atDawn.rgb}/${atDawn.level} (${atDawn.reason}); now ${bedsideAfter.light.rgb}/${bedsideAfter.light.level} (${bedsideAfter.light.reason})` : `bedside lights seen: ${bedsideLights.map((l) => l.reason + ':' + l.level).join(' ')}`);
 
+  // Decisions I5 and I53: with no finger sensor and no camera, the whole pulse of the run is the
+  // simulator's and says so; no finger block appears and the relayed live data has no physio.
+  const doc = sentEnd && sentEnd.m.session;
+  const lives = clinicMsgs.filter((x) => x.m.type === 'live' && forPatient(x.m));
+  const simOk = doc && doc.signal && doc.signal.pulse_source === 'simulated' && doc.simulated === true
+    && (doc.simulated_fields || []).includes('vitals') && !(doc.vitals && doc.vitals.finger)
+    && lives.length > 0 && lives.every((x) => x.m.physio == null && x.m.pulse_source !== 'finger_ppg');
+  check('simulated run stays labelled simulated, no finger data', simOk,
+    doc ? `pulse_source ${doc.signal && doc.signal.pulse_source}, simulated_fields has vitals ${(doc.simulated_fields || []).includes('vitals')}, finger ${JSON.stringify(doc.vitals && doc.vitals.finger)}` : 'no session');
+
   check('no errors in clinic page', errors.clinic.length === 0, errors.clinic.slice(0, 5).join(' | '));
   check('no errors in app page', errors.app.length === 0, errors.app.slice(0, 5).join(' | '));
 
+  bedside.close();
   await browser.close();
   for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? '  (' + r.detail + ')' : ''}`);
   const failed = results.filter((r) => !r.ok).length;

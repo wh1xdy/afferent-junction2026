@@ -13,7 +13,6 @@ FIRST_DAY = 14
 START = dt.date(2026, 9, 21)
 MOOD_INDEX = 1
 
-
 def summary(values) -> dict:
     xs = [v for v in values if v is not None]
     if not xs:
@@ -21,19 +20,16 @@ def summary(values) -> dict:
     q1, med, q3 = np.percentile(xs, [25, 50, 75])
     return {"median": stats.rnd(med, 1), "iqr": [stats.rnd(q1, 1), stats.rnd(q3, 1)], "n": len(xs)}
 
-
-def daily_states(p: dict, params: dict = PARAMS) -> tuple[list[str], dict]:
+def daily_states(p: dict) -> tuple[list[str], dict]:
     states = ["stable"] * DAYS
     last = None
     for d in range(FIRST_DAY, DAYS):
-        last = score(p["sessions"], p["daily"], d, params)
+        last = score(p["sessions"], p["daily"], d)
         states[d] = last["states"][d]
     return states, last
 
-
 def first_at_least(states, level, start=0):
     return next((d for d in range(start, len(states)) if SEVERITY[states[d]] >= SEVERITY[level]), None)
-
 
 def episodes(states, level, start=FIRST_DAY):
     n, inside = 0, False
@@ -44,20 +40,16 @@ def episodes(states, level, start=FIRST_DAY):
         inside = on
     return n
 
-
 def cusum_states(series, k, thresholds, start=FIRST_DAY):
     cus = stats.cusum(series, k, start)
     return ["stable" if d < start else stats.state_for(cus[d], thresholds) for d in range(len(series))]
-
 
 def mood_only_series(sc: dict, clip: float) -> list:
     e = sc["features"][MOOD_INDEX]["ewma"]
     return [None if v is None else max(-clip, min(clip, v)) for v in e]
 
-
 def p_best_trace(sessions: list[dict], mode: str, arm: str) -> list[float]:
     return p_best_traces(sessions, mode)[arm]
-
 
 def p_best_traces(sessions: list[dict], mode: str) -> dict[str, list[float]]:
     ids = bandit.MODE_ARMS[mode]
@@ -73,10 +65,8 @@ def p_best_traces(sessions: list[dict], mode: str) -> dict[str, list[float]]:
         out.append([float(x) for x in p])
     return {a: [row[i] for row in out] for i, a in enumerate(ids)}
 
-
 def first_crossing(trace: list[float], target: float) -> int | None:
     return next((i + 1 for i, v in enumerate(trace) if v >= target), None)
-
 
 def stays_from(trace: list[float], target: float) -> int | None:
     if not trace or trace[-1] < target:
@@ -86,12 +76,10 @@ def stays_from(trace: list[float], target: float) -> int | None:
         i -= 1
     return i + 1
 
-
 def arm_choice_share(sessions: list[dict], mode: str, arm: str, lo: int, hi: int) -> float | None:
     picks = [t["id"] == arm for s in sessions if lo <= (s.get("day_index") or 0) < hi and s.get("status") in bandit.PLAYED
              for t in s.get("tasks") or [] if t.get("kind") == "adaptive" and t.get("mode") == mode]
     return sum(picks) / len(picks) if picks else None
-
 
 def run_patients(n_seeds: int):
     from ..synthetic import generate_patient
@@ -104,8 +92,7 @@ def run_patients(n_seeds: int):
             rows.append({"kind": kind, "seed": base + i, "p": p, "states": states, "score": sc})
     return rows
 
-
-def detection(rows, params: dict = PARAMS) -> dict:
+def detection(rows) -> dict:
     rel = [r for r in rows if r["kind"] == "relapse"]
     out = {}
     for level in ("watch", "check_in", "booster"):
@@ -114,7 +101,7 @@ def detection(rows, params: dict = PARAMS) -> dict:
     detected = [first_at_least(r["states"], "check_in", ONSET) for r in rel]
     mood_days = []
     for r in rel:
-        ms = cusum_states(mood_only_series(r["score"], params["z_clip"]), params["cusum_k"], params["thresholds"])
+        ms = cusum_states(mood_only_series(r["score"], PARAMS["z_clip"]), PARAMS["cusum_k"], PARAMS["thresholds"])
         mood_days.append(first_at_least(ms, "check_in", ONSET))
     leads = [m - d for d, m in zip(detected, mood_days) if d is not None and m is not None]
     pre = [first_at_least(r["states"][:ONSET], "check_in", FIRST_DAY) is not None for r in rel]
@@ -132,14 +119,13 @@ def detection(rows, params: dict = PARAMS) -> dict:
     })
     return out
 
-
-def false_alarms(rows, params: dict = PARAMS) -> dict:
+def false_alarms(rows) -> dict:
     st = [r for r in rows if r["kind"] == "stable"]
     patient_days = len(st) * (DAYS - FIRST_DAY)
     ci = sum(episodes(r["states"], "check_in") for r in st)
     mood_ci = 0
     for r in st:
-        ms = cusum_states(mood_only_series(r["score"], params["z_clip"]), params["cusum_k"], params["thresholds"])
+        ms = cusum_states(mood_only_series(r["score"], PARAMS["z_clip"]), PARAMS["cusum_k"], PARAMS["thresholds"])
         mood_ci += episodes(ms, "check_in")
     return {"patients": len(st), "patient_days": patient_days, "false_check_in_episodes": ci,
             "false_alarms_per_patient_month": stats.rnd(ci / (patient_days / 30), 3),
@@ -149,7 +135,6 @@ def false_alarms(rows, params: dict = PARAMS) -> dict:
                 sum(first_at_least(r["states"], "check_in", FIRST_DAY) is not None for r in st) / len(st), 2),
             "mood_only_false_check_in_episodes": mood_ci,
             "rough_patch_note": "about half of the stable controls get a short simulated rough patch (4 to 8 days)"}
-
 
 def bandit_metrics(rows) -> dict:
     out = {"true_best": {"mode": "calm", "task_id": "breath"}, "target_p_best": bandit.BEST_TARGET}
@@ -189,13 +174,11 @@ def bandit_metrics(rows) -> dict:
     out["patients"] = len(rows)
     return out
 
-
 MOOD_K_SWEEP = (0.25, 0.35, 0.5, 0.75, 1.0)
 
-
-def matched_mood_only_at(series, target_episodes: int, k: float, params: dict) -> dict:
+def matched_mood_only_at(series, target_episodes: int, k: float) -> dict:
     for h in np.arange(1.0, 30.01, 0.5):
-        th = {**params["thresholds"], "watch": min(params["thresholds"]["watch"], float(h)), "check_in": float(h)}
+        th = {**PARAMS["thresholds"], "watch": min(PARAMS["thresholds"]["watch"], float(h)), "check_in": float(h)}
         fa = sum(episodes(cusum_states(s, k, th), "check_in") for kind, s in series if kind == "stable")
         if fa <= target_episodes:
             days = [first_at_least(cusum_states(s, k, th), "check_in", ONSET) for kind, s in series if kind == "relapse"]
@@ -205,22 +188,20 @@ def matched_mood_only_at(series, target_episodes: int, k: float, params: dict) -
     return {"k": k, "check_in_threshold": None, "false_check_in_episodes": None, "days_onset_to_flag": summary([]),
             "detected_share": 0.0}
 
-
-def matched_mood_only(rows, target_episodes: int, params: dict = PARAMS) -> dict:
-    series = [(r["kind"], mood_only_series(r["score"], params["z_clip"])) for r in rows]
-    sweep = [matched_mood_only_at(series, target_episodes, k, params) for k in MOOD_K_SWEEP]
-    same = next(x for x in sweep if x["k"] == params["cusum_k"])
+def matched_mood_only(rows, target_episodes: int) -> dict:
+    series = [(r["kind"], mood_only_series(r["score"], PARAMS["z_clip"])) for r in rows]
+    sweep = [matched_mood_only_at(series, target_episodes, k) for k in MOOD_K_SWEEP]
+    same = next(x for x in sweep if x["k"] == PARAMS["cusum_k"])
     reached = [x for x in sweep if x["days_onset_to_flag"]["median"] is not None]
     best = min(reached, key=lambda x: (x["days_onset_to_flag"]["median"], -x["detected_share"])) if reached else same
     return {**same, "rule": "mood feature alone, composite k, threshold raised until false alarms match",
             "best_k": best, "k_sweep": sweep}
 
-
-def sensitivity(rows, params: dict = PARAMS) -> list[dict]:
+def sensitivity(rows) -> list[dict]:
     table = []
     for k in (0.25, 0.35, 0.5):
         for check_in in (2.0, 3.0, 4.0):
-            th = {**params["thresholds"], "check_in": check_in, "watch": min(params["thresholds"]["watch"], check_in)}
+            th = {**PARAMS["thresholds"], "check_in": check_in, "watch": min(PARAMS["thresholds"]["watch"], check_in)}
             leads, fa, days = [], 0, 0
             for r in rows:
                 states = cusum_states(r["score"]["composite"][:DAYS], k, th)
@@ -234,9 +215,8 @@ def sensitivity(rows, params: dict = PARAMS) -> list[dict]:
             table.append({"k": k, "check_in": check_in, "days_onset_to_check_in": summary(leads),
                           "detected_share": stats.rnd(sum(x is not None for x in leads) / n_rel, 2),
                           "false_alarms_per_patient_month": stats.rnd(fa / (days / 30), 3) if days else None,
-                          "current": k == params["cusum_k"] and check_in == params["thresholds"]["check_in"]})
+                          "current": k == PARAMS["cusum_k"] and check_in == PARAMS["thresholds"]["check_in"]})
     return table
-
 
 def example(roster_seed: int, today: dt.date | None) -> dict:
     from ..synthetic import demo_roster
@@ -253,7 +233,6 @@ def example(roster_seed: int, today: dt.date | None) -> dict:
     out["bandit_p_best"] = {"patient": "anna", "mode": "calm", "sessions": list(range(1, len(trace) + 1)),
                             "breath": [stats.rnd(v, 2) for v in trace]}
     return out
-
 
 def curves(rows) -> dict:
     rel = [r for r in rows if r["kind"] == "relapse"]
@@ -272,7 +251,6 @@ def curves(rows) -> dict:
             "relapse_cusum": band(rel, "cusum"), "stable_cusum": band(st, "cusum"),
             "bandit_sessions": list(range(1, n + 1)),
             "bandit_p_best": {k: [stats.rnd(v, 2) for v in q[i]] for i, k in enumerate(("p25", "median", "p75"))}}
-
 
 def run_validation(n_seeds: int = 50, *, roster_seed: int = 7, today: dt.date | None = None,
                    generated_iso: str | None = None, include_curves: bool = False) -> dict:

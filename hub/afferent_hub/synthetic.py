@@ -34,18 +34,14 @@ ROSTER = [("anna", "Anna", "relapse", 28, "morning", 113), ("mikko", "Mikko", "s
           ("juha", "Juha", "relapse", 43, "morning", 148), ("leena", "Leena", "stable", None, "night", 0),
           ("sofia", "Sofia", "stable", None, "morning", 0), ("eero", "Eero", "stable", None, "morning", 1)]
 
-
 def phi(x: float) -> float:
     return 0.5 * (1 + math.erf(x / math.sqrt(2)))
-
 
 def sigmoid(x: float) -> float:
     return 1 / (1 + math.exp(-x))
 
-
 def r1(x, nd=1):
     return None if x is None else round(float(x), nd) + 0.0
-
 
 def persona(rng, kind: str, clock: str) -> dict:
     return {
@@ -61,7 +57,6 @@ def persona(rng, kind: str, clock: str) -> dict:
         "reminder_h": 7.5 if clock == "morning" else 21.0,
     }
 
-
 def severity_curve(rng, kind: str, days: int, onset: int) -> np.ndarray:
     d = np.arange(days)
     if kind == "relapse":
@@ -76,12 +71,10 @@ def severity_curve(rng, kind: str, days: int, onset: int) -> np.ndarray:
                 sev[start + i] = peak * math.sin(math.pi * (i + 0.5) / length)
     return sev
 
-
 def arm_rates(rng) -> dict:
     rates = {k: float(np.clip(v + rng.normal(0, 0.04), 0.2, 0.9)) for k, v in ARM_RATES.items()}
     rates["calm/loyly"] = min(rates["calm/loyly"], rates["calm/breath"] - 0.2)
     return rates
-
 
 def best_arms(rates: dict) -> dict:
     best = {}
@@ -90,10 +83,8 @@ def best_arms(rates: dict) -> dict:
         best[mode] = max(cand, key=cand.get)
     return best
 
-
 def overlap(intervals, h):
     return sum(max(0.0, min(b, h + 1) - max(a, h)) for a, b in intervals)
-
 
 def iso_at(date: dt.date, hour: float) -> str:
     h = int(hour)
@@ -103,7 +94,6 @@ def iso_at(date: dt.date, hour: float) -> str:
     day = date + dt.timedelta(days=h // 24)
     t = dt.datetime(day.year, day.month, day.day, h % 24, m, tzinfo=TZ)
     return t.isoformat()
-
 
 def rt_block(rng, mu: float, sev: float) -> dict:
     trials = []
@@ -131,7 +121,6 @@ def rt_block(rng, mu: float, sev: float) -> dict:
             "anticipations": sum(t["outcome"] == "anticipation" for t in trials),
             "hits": sum(t["outcome"] == "hit" for t in trials), "valid": len(trials) == 5 and len(taps) >= 3}
 
-
 def fork_block(rng, p: dict, sev: float, g: float) -> dict:
     rewards = [2, 3] if rng.random() < 0.5 else [3, 2]
     choices = []
@@ -151,7 +140,6 @@ def fork_block(rng, p: dict, sev: float, g: float) -> dict:
     slope = hbr["3"] - hbr["2"] if hbr["2"] is not None and hbr["3"] is not None else None
     return {"choices": choices, "hard_prop": r1(hard_prop, 3), "hard_by_reward": hbr, "reward_slope": slope,
             "easy_task": {"lights": 3}, "hard_task": {"lights": 8}}
-
 
 def lanterns_block(rng, p: dict, sev: float, g: float) -> dict:
     larger = ["rich"] * 6 + ["lean"] * 6
@@ -186,7 +174,6 @@ def lanterns_block(rng, p: dict, sev: float, g: float) -> dict:
             "rewards_lean": sum(t["rewarded"] and t["larger"] == "lean" for t in trials),
             "valid": sum(t["response"] is not None for t in trials) >= 10}
 
-
 def task_rt(rng, tid: str, n_trials: int, scale: float, d: float, sev: float) -> dict:
     kind, base, slope, sigma, _ = GAME_RT[tid]
     mu = base * scale * (1 + slope * (d - 0.55)) * math.exp(rng.normal(0, 0.05))
@@ -209,7 +196,6 @@ def task_rt(rng, tid: str, n_trials: int, scale: float, d: float, sev: float) ->
     return {"n": len(taps), "median_ms": med, "iqr_ms": iqr, "lapses": lapses, "anticipations": antic,
             "by_kind": {kind: {"n": len(taps), "median_ms": med}}}
 
-
 def add_task_extra(rng, session: dict, p: dict, sev: float) -> None:
     scale = (p["rt"] / 405) ** 0.7 * (p["rt_mu"] / p["rt"]) ** 0.6
     for task in session["tasks"]:
@@ -228,7 +214,6 @@ def add_task_extra(rng, session: dict, p: dict, sev: float) -> None:
         if extra:
             task["extra"] = extra
 
-
 def pick_task(rng, mode: str, weights: dict, prev: str | None) -> tuple[str, float]:
     ids = TASKS_BY_MODE[mode]
     w = {i: weights.get(mode, {}).get(i, 1 / len(ids)) for i in ids}
@@ -239,17 +224,16 @@ def pick_task(rng, mode: str, weights: dict, prev: str | None) -> tuple[str, flo
     k = keys[int(rng.choice(len(keys), p=probs / probs.sum()))]
     return k, weights.get(mode, {}).get(k)
 
-
 def bandit_weights(arm_counts: dict) -> dict:
     out = {"flow": {a: 0.5 for a in bandit.FLOW}}
-    for mode, ids in bandit.MODE_ARMS.items():
+    for mode in bandit.MODE_ARMS:
+        ids = TASKS_BY_MODE[mode]
         alpha = [1 + arm_counts[(mode, a)][0] for a in ids]
         beta = [1 + arm_counts[(mode, a)][1] for a in ids]
         p, _ = bandit.p_best_from_counts(alpha, beta, draws=2000)
         raw = np.maximum(p, bandit.WEIGHT_FLOOR)
         out[mode] = {a: round(float(v), 3) for a, v in zip(ids, raw / raw.sum())}
     return out
-
 
 def make_task(rng, tid, slot, kind, mode, dmode, t_ms, pulse_now, pulse_q, face_ok, p, sev, g, rates, weight):
     lo, hi = DURATION_S[tid]
@@ -309,7 +293,6 @@ def make_task(rng, tid, slot, kind, mode, dmode, t_ms, pulse_now, pulse_q, face_
         task["skip_reason"] = "patient"
     return task, (end if not skipped else start) + float(rng.normal(0, 0.8)), dur
 
-
 def skipped_measure(tid, slot, dmode, t_ms):
     return {"id": tid, "slot": slot, "kind": "measurement", "mode": "measure", "director_mode": dmode,
             "intensity": None, "weight_used": None, "t_start_ms": int(t_ms), "duration_ms": 0,
@@ -318,7 +301,6 @@ def skipped_measure(tid, slot, dmode, t_ms):
                       "time_to_target_s": None, "recovery_slope_bpm_per_min": None, "quality": None},
             "helped": None, "skip_reason": "rest_mode"}
 
-
 def draw_mode(rng, night: bool, sev: float) -> str:
     if night:
         modes, probs = ["calm", "flow", "rest"], [0.45, 0.2, 0.35]
@@ -326,7 +308,6 @@ def draw_mode(rng, night: bool, sev: float) -> str:
         f = 0.16 + 0.1 * sev
         modes, probs = ["calm", "flow", "wake", "fatigue"], [0.4, 0.2, 0.4 - f, f]
     return str(rng.choice(modes, p=np.asarray(probs) / sum(probs)))
-
 
 def make_session(rng, pid, day, date, p, sev, g, mood_latent, morning_pulse, rates, weights, prev_sessions):
     weekend = date.weekday() >= 5
@@ -443,13 +424,11 @@ def make_session(rng, pid, day, date, p, sev, g, mood_latent, morning_pulse, rat
                     "bedside_light_level": int(rng.choice([5, 8, 15]))},
     }, adaptive
 
-
 def declined_session(pid, day, date, hour):
     return {"schema": "afferent.session/3", "session_id": f"sim-{pid}-d{day}", "patient_id": pid,
             "device_id": f"sim-{pid}", "started_iso": iso_at(date, hour), "local_hour": round(hour, 2),
             "day_index": day, "status": "declined", "profile": "live", "simulated": True,
             "simulated_fields": ["*"], "sharing": "summary"}
-
 
 def nights(rng, p, sev, start_date, days):
     out = []
@@ -463,7 +442,6 @@ def nights(rng, p, sev, start_date, days):
         wake = max(wake, onset + 4.0)
         out.append((onset, wake))
     return out
-
 
 def daily_record(rng, pid, day, date, p, sev, night, next_night, dawn_min):
     weekend = date.weekday() >= 5
@@ -516,7 +494,6 @@ def daily_record(rng, pid, day, date, p, sev, night, next_night, dawn_min):
         "played": False, "declined": False, "missed": False, "session_time_h": None, "session_ids": [],
         "reminder_h": p["reminder_h"],
     }, mp_true
-
 
 def generate_patient(kind: Literal["relapse", "stable"], days: int = 56, seed: int = 0, *,
                      patient_id: str | None = None, display_name: str | None = None,
@@ -575,7 +552,6 @@ def generate_patient(kind: Literal["relapse", "stable"], days: int = 56, seed: i
              "best_arm": best_arms(rates), "arm_rates": {k: round(v, 3) for k, v in rates.items()},
              "dawn_light_next_day_mood": 0.25, "simulated": True}
     return {"patient": patient, "sessions": sessions, "daily": daily, "truth": truth}
-
 
 def demo_roster(seed: int = 7, today: dt.date | None = None) -> list[dict]:
     today = today or dt.date.today()
