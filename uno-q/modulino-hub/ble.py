@@ -6,13 +6,16 @@ pulse live:
   0x2A37 Heart Rate Measurement  notify/read  [flags=0x00 (uint8 BPM, no contact bits), bpm]
   0x2A38 Body Sensor Location    read         0x03 = finger
 The standard service carries the fused reading of both sensors. Each sensor is on a custom service:
-  AFF0 / AFF1  notify/read  v2, 6 bytes:
-      [bpm finger 1, bpm finger 2, breaths/min, RMSSD ms, quality %, presence code]
+  AFF0 / AFF1  notify/read  v3, 7 bytes:
+      [bpm finger 1, bpm finger 2, breaths/min, RMSSD ms, quality %, presence code, flags]
       bytes 0..3: 0 = no reading (unchanged from the 4-byte v1, so old clients keep working)
       byte 3:     RMSSD 1..254 ms; 255 = above 254 ms, which one byte cannot carry. It is a
                   marker, not a reading of 255 ms: a client shows "no reading" (/state has the number)
       byte 4:     fused rhythm quality * 100 (0..100), 255 = not available
       byte 5:     1 idle, 2 probing, 3 active, 0 unknown
+      byte 6:     flags. Bit 0 (FLAG_TWO_HEARTS): the two clips are on two different people
+                  (/state finger.two_hearts, Heart Duel); the fused pulse, HRV and breathing are
+                  then not one person's. Other bits are 0. A 6-byte v2 client ignores the byte.
   breaths/min comes from the heart-rate rhythm (respiratory sinus arrhythmia)
   AFF1 is notified at least every 2 s (keepalive), also while idle, so a client can tell
   "link alive, no finger" from "link lost". 2A37 is notified only while there is a fused pulse.
@@ -34,6 +37,8 @@ AFF_BOTH = "0000aff1-0000-1000-8000-00805f9b34fb"
 PRESENCE_CODE = {'idle': 1, 'probing': 2, 'active': 3}      # AFF1 byte 5; 0 = unknown
 QUALITY_NA = 255                                            # AFF1 byte 4 when there is no quality
 RMSSD_OVER = 255                                            # AFF1 byte 3: RMSSD above 254 ms, not a reading
+FLAG_TWO_HEARTS = 0x01                                      # AFF1 byte 6 bit 0: two people on the clips
+EMPTY_AFF1 = bytearray([0, 0, 0, 0, QUALITY_NA, 0, 0])      # nothing measured, nobody on the clips
 
 
 def _u8(v):
@@ -54,15 +59,16 @@ def rmssd_byte(rmssd_ms):
     return RMSSD_OVER if v > 254 else max(0, v)
 
 
-def pack_aff1(bpm, breath, rmssd, quality, mode) -> bytearray:
-    """AFF1 v2 payload. bpm = [finger 1, finger 2]; quality 0..1 or None; mode = presence mode."""
+def pack_aff1(bpm, breath, rmssd, quality, mode, two_hearts=False) -> bytearray:
+    """AFF1 v3 payload. bpm = [finger 1, finger 2]; quality 0..1 or None; mode = presence mode;
+    two_hearts = the clips are on two people (only an explicit True sets the flag)."""
     fingers = list(bpm or [])[:2] + [0, 0]
     try:
         q = QUALITY_NA if quality is None else max(0, min(100, int(round(float(quality) * 100))))
     except (TypeError, ValueError):
         q = QUALITY_NA
     return bytearray([_u8(fingers[0]), _u8(fingers[1]), _u8(breath), rmssd_byte(rmssd),
-                      q, PRESENCE_CODE.get(mode, 0)])
+                      q, PRESENCE_CODE.get(mode, 0), FLAG_TWO_HEARTS if two_hearts is True else 0])
 
 
 class HeartRateBroadcaster:
@@ -75,6 +81,7 @@ class HeartRateBroadcaster:
         self._rmssd = 0
         self._quality = None          # fused rhythm quality 0..1, None = not available
         self._mode = None             # presence mode: idle / probing / active
+        self._two = False             # two people on the clips (AFF1 byte 6 bit 0)
         self._sent = None             # last AFF1 payload handed to _push
         if start:                     # start=False: offline tests (no thread, no Bluetooth)
             threading.Thread(target=self._run, daemon=True).start()
@@ -100,7 +107,7 @@ class HeartRateBroadcaster:
                                             bytearray([3]), GATTAttributePermissions.readable)
         await server.add_new_service(AFF_SVC)
         await server.add_new_characteristic(AFF_SVC, AFF_BOTH, P.notify | P.read,
-                                            bytearray([0, 0, 0, 0, 255, 0]),
+                                            bytearray(EMPTY_AFF1),
                                             GATTAttributePermissions.readable)
         # bless (BlueZ backend) marks only the first service primary; secondary services are not
         # returned by a normal service discovery, so iOS/macOS never saw AFF0 (verified with a
@@ -137,17 +144,17 @@ class HeartRateBroadcaster:
             self._rmssd = v
             self._notify()
 
-    def update_status(self, quality, mode, keepalive=False):
-        """Fused quality (0..1 or None) and presence mode -> AFF1 bytes 4..5.
+    def update_status(self, quality, mode, keepalive=False, two_hearts=False):
+        """Fused quality (0..1 or None), presence mode and two people on the clips -> AFF1 bytes 4..6.
         Notifies when the packed payload changed, or always with keepalive=True (the hub sets it
         every other second, so a client sees a notification at least every 2 s, also while idle)."""
-        self._quality, self._mode = quality, mode
+        self._quality, self._mode, self._two = quality, mode, two_hearts is True
         if keepalive or bytes(self._payload()) != self._sent:
             self._notify()
 
     def clear_readings(self):
-        """Finger gone: zero finger 1, finger 2, breathing and RMSSD (quality and presence stay
-        as they are) and notify. Before this, AFF1 kept the last per-finger numbers after the
+        """Finger gone: zero finger 1, finger 2, breathing and RMSSD (quality, presence and the
+        flags stay as they are; the next status update sets them) and notify. Before this, AFF1 kept the last per-finger numbers after the
         finger left."""
         self._bpm = [0, 0]
         self._breath = 0
@@ -155,7 +162,7 @@ class HeartRateBroadcaster:
         self._notify(hrm_reset=True)
 
     def _payload(self) -> bytearray:
-        return pack_aff1(self._bpm, self._breath, self._rmssd, self._quality, self._mode)
+        return pack_aff1(self._bpm, self._breath, self._rmssd, self._quality, self._mode, self._two)
 
     def _notify(self, hrm=None, hrm_reset=False):
         both = self._payload()
