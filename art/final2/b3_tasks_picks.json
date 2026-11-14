@@ -1,0 +1,117 @@
+[
+ {
+  "name": "task_beacon_lighthouse",
+  "pick": "v2",
+  "why": "Plain white day-mark with no bands, dark lamp room and gallery rail, laminated ply edges on the snow rocks read clearly."
+ },
+ {
+  "name": "task_bells_tower",
+  "pick": "v3",
+  "why": "Cleanest ply cladding and louvred belfry, snow ledges carry the laminated ply lines, five dark windows ready for code lighting."
+ },
+ {
+  "name": "task_bells_trio",
+  "pick": "v2",
+  "why": "Three clearly separated neutral bells with laminated rim bands and ply yokes, even light for the colour tint."
+ },
+ {
+  "name": "task_lanterns_lantern",
+  "pick": "v1",
+  "why": "Four slender bars and empty pale glass give the flame a clear chamber; laminated band matches the Keeper lantern family."
+ },
+ {
+  "name": "task_loyly_kiuas",
+  "pick": "wide_v2",
+  "why": "Regenerated wide (art/plan_b3_retry.json) because all plan variants came out nearly square and would draw 1.5x taller; this one is 1.61 wide like the current 1.51, firebox door near x 0.3, y 0.65 for the code embers."
+ },
+ {
+  "name": "task_fireflies_jar",
+  "pick": "v2",
+  "why": "Glass has the most legible flat highlights over the dark backdrop, laminated birch lid and wire clasp are crisp."
+ },
+ {
+  "name": "task_fork_cairn",
+  "pick": "v3",
+  "why": "Gently leaning five-stone column with the clearest felt cord and laminated snow edges, strongest silhouette at prop size."
+ },
+ {
+  "name": "task_lanterns_pier_rope",
+  "pick": "v3",
+  "why": "Smoothest single catenary with wrapped rope ends on both posts and a laminated deck edge."
+ },
+ {
+  "name": "task_loyly_bucket",
+  "pick": "v2",
+  "why": "Laminated rim and hoops are the most refined, ice water reads just over the rim."
+ },
+ {
+  "name": "task_loyly_ladle",
+  "pick": "v2",
+  "why": "Deepest bowl at the left with soft value modelling and laminated rim, most readable as a ladle at small size."
+ },
+ {
+  "name": "task_reaction_light_fish",
+  "pick": "v1",
+  "why": "Plumpest, calmest char facing right with veneer fins; best friendly silhouette for the Bite glow."
+ },
+ {
+  "name": "task_shutters_facade",
+  "pick": "v2",
+  "why": "Every window has closed pale shutters as the task needs, muted ply, frost and ceiling green walls, laminated snow roofs, transparent above the roofs."
+ },
+ {
+  "name": "task_threads_loom_frame",
+  "pick": "v2",
+  "why": "Band about 8 percent wide with visible ply layers, empty opening, gentler shadow than v3."
+ },
+ {
+  "name": "task_beacon_boat",
+  "pick": "v1",
+  "why": "Raised prow to the right, laminated gunwale, white wheelhouse with dark window, no warm stripes."
+ },
+ {
+  "name": "task_beacon_ferry",
+  "pick": "v3",
+  "why": "Cleanest superstructure, no life ring or red, frost funnel and ply rubbing strake read at a glance."
+ },
+ {
+  "name": "task_beacon_pier_lanterns",
+  "pick": "v1",
+  "why": "Five evenly spaced unlit lanterns, both ends cut at identical heights so the seam matches."
+ },
+ {
+  "name": "task_fireflies_reeds",
+  "pick": "v3",
+  "why": "Fullest reed tufts with ply seed heads framing a clear ice band; drawn once in code so tiling is not needed."
+ },
+ {
+  "name": "task_fork_waymarker_sheet",
+  "pick": "v3",
+  "why": "Markers centred in equal halves, cold and warm versions differ only by the felted ply band as specified."
+ },
+ {
+  "name": "task_reaction_splash_sheet",
+  "pick": "v2",
+  "why": "Four equal columns on one baseline with the clearest ring, crown, peak and fall sequence."
+ },
+ {
+  "name": "task_shutters_dawn_view",
+  "pick": "v2",
+  "why": "Honey sun with a soft reflection column, laminated snow fells and the calmest lilac-to-apricot sky."
+ },
+ {
+  "name": "task_stars_sky",
+  "pick": "v3",
+  "why": "Smoothest gradient with the least pink at the horizon, faint stars only, spruce fringe low."
+ },
+ {
+  "name": "task_beacon_sea",
+  "pick": "v2",
+  "why": "Layered veneer swells with the strongest depth toward the bottom and a near-perfect left-right seam."
+ },
+ {
+  "name": "task_fireflies_firefly_sheet",
+  "pick": "v3",
+  "why": "Readable up, level, down, level wingbeat in four equal columns with a visible honey tail."
+ }
+]

@@ -1,0 +1,12 @@
+[
+  {"name": "figure_stand", "variant": "v3", "why": "Mitten forward at hip with the lantern hanging clear at the right edge, matching the FIGS.stand hand anchor; edge-on hood crescent, unlit lantern, identity matches the approved Keeper."},
+  {"name": "figure_walk", "variant": "v2", "why": "Clearest stride of the three with both boots readable and the lantern swinging forward; same cloak, hood and hem stripes as the stand pick."},
+  {"name": "figure_ride", "variant": "v3", "why": "Most compact forward lean on parallel skis with the lantern held out ahead like the concept ride plate; reads as motion at thumbnail size."},
+  {"name": "figure_crouch", "variant": "v2", "why": "Tucked hold pose with single clean ski pair (v1 doubles the skis), lantern low and forward, hood stays edge-on."},
+  {"name": "figure_sit", "variant": "v1", "why": "Calm seated mass with the lantern set down beside the boots; widest crescent-free hood profile and best felt texture."},
+  {"name": "lighthouse", "variant": "v3", "why": "Most slender tower, closest to the current proportions and lamp height; dark unlit lantern room, plain white shaft, snowy granite base with laminated edge."},
+  {"name": "sauna_hut", "variant": "v3", "why": "Chunky log ends, birch ply door and bench, laminated snow-roof edge and stove pipe; no lit window, no coral, closest to the props-sheet language."},
+  {"name": "birch_cluster", "variant": "v3", "why": "Clear tall/medium/short trunk hierarchy keeps the silhouette readable at 32 px; a few golden leaves as in the concept birch, laminated snow mound."},
+  {"name": "pier_boat", "variant": "v2", "why": "Deck edge shows the laminated ply layers, round posts and a birch ply rowing boat with ply-edge gunwale at the right end; footprint matches the current asset."},
+  {"name": "boathouse", "variant": "v2", "why": "Aspect closest to the current file (about 1.4:1), laminated gable trim under a soft snow roof, dark kaamos-blue doors; no lit openings."}
+]

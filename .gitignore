@@ -42,3 +42,9 @@ posture-analysis/posture/recordings/*
 !posture-analysis/posture/models/custom/*.json
 !posture-analysis/posture/data/.gitkeep
 !posture-analysis/posture/recordings/.gitkeep
+art/experiments/
+art/final/
+art/v5review/
+art/final2/raw/
+art/final2/hires/
+art/final2/sheets/

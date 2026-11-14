@@ -1,0 +1,20 @@
+[
+ {"name": "fg_branch", "pick": "fg_branch_v2", "why": "Fullest bough with the clearest snow layering; reads as a clean shape when darkened."},
+ {"name": "fg_reeds", "pick": "fg_reeds_v3", "why": "Most readable silhouettes, birch-ply stems give warmth, no purple blades muddying it."},
+ {"name": "fg_rocks", "pick": "fg_rocks_v1", "why": "Best spacing of the three stones and cleanest laminated snow caps, closest to the current footprint."},
+ {"name": "ground_forest", "pick": "ground_forest_v3", "why": "Seam heights match exactly (588/588), calm swells, sparse spruce and birch sprigs."},
+ {"name": "ground_harbour", "pick": "ground_harbour_v1", "why": "Exact seam (597/597), single snow-capped bollard reads as harbour without clutter."},
+ {"name": "ground_lake", "pick": "ground_lake_v2", "why": "Exact seam, clearest ice surface with hairline cracks and gentle swell."},
+ {"name": "ground_sauna", "pick": "ground_sauna_v1", "why": "Exact seam, best-read woodpile and stumps, bottom fully opaque (v3 was 236)."},
+ {"name": "ground_shore", "pick": "ground_shore_v2", "why": "Exact seam, balanced grass tufts and stones, cleanest lamination."},
+ {"name": "far_islands", "pick": "far_islands_v2", "why": "Seam within 1 px, lowest and calmest silhouette so it sits behind the hills."},
+ {"name": "far_mountains", "pick": "far_mountains_v1", "why": "Only variant with an exact seam (782/782); soft lilac ridges stay far."},
+ {"name": "mid_hills_spruce", "pick": "mid_hills_spruce_v3", "why": "Exact seam (633/633) and the clearest depth layering; v1 has a floating hill fragment."},
+ {"name": "mid_birch_grove", "pick": "mid_birch_grove_v3", "why": "Clean transparent background (v2 baked in fog), ground seam within 8 px, airy rhythm."},
+ {"name": "sky_aurora", "pick": "sky_aurora_v2", "why": "Three laminated ribbons with the brightest middle band, closest to the Layers of Light concept."},
+ {"name": "sky_dawn_cloud_1", "pick": "sky_dawn_cloud_1_v2", "why": "Fullest cumulus mass with clear lamination, reads at small size."},
+ {"name": "sky_dawn_cloud_2", "pick": "sky_dawn_cloud_2_v3", "why": "Two stacked lenticular layers, best proportion and taper."},
+ {"name": "sky_dawn_cloud_3", "pick": "sky_dawn_cloud_3_v3", "why": "Most even chain of small wisps, distinct from clouds 1 and 2."},
+ {"name": "fog_band", "pick": "fog_band_v2", "why": "Thinnest and most translucent band (v1 and v3 are near-opaque slabs); staged without alpha clamp.", "clamp": false},
+ {"name": "fog_band_b", "pick": "fog_band_b_v1", "why": "Flat, mostly translucent band that contrasts with the wavier fog_band; staged without alpha clamp.", "clamp": false}
+]

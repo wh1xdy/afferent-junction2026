@@ -1,0 +1,93 @@
+{
+ "version": 1,
+ "note": "Retry pass for pure light and FX task sprites; the scene style in tasks_plan.json made the model paint island dioramas.",
+ "style": "Soft hand-painted light effect sprite for a calm, wordless 2D mobile game set in a Nordic winter night. Gouache and watercolour softness, feathered edges, no outlines, no 3D render look, no lens flare. Palette: snow #E8EEF5, silver #B9CAD6, ice #7FC8E8, amber #D98E2B, gold #FFD27A, flame cream #FFF1D6, aurora green #8FE3B0. Only the single light element described, alone, centred, on a fully transparent background. Absolutely no landscape, no island, no houses, no trees, no water, no ground, no scenery, no objects. No text, no letters, no numbers, no symbols, no logos, no watermark.",
+ "isolated": "Isolated light element on a fully transparent background, nothing else in the image.",
+ "backdrop": "Isolated light element on a fully transparent background, nothing else in the image.",
+ "assets": [
+  {
+   "name": "task_breath_mote",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "One tiny soft round speck of warm white light in the exact centre, about one tenth of the image wide, with a faint round halo fading smoothly to transparent, like a snow crystal catching lantern light. Most of the image is empty."
+  },
+  {
+   "name": "task_breath_ring",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A single thin circular ring of pale gold light painted with one watercolour brush stroke, slightly uneven brush edge, faint soft inner glow, the centre completely empty and transparent. Nothing inside the ring and nothing outside it."
+  },
+  {
+   "name": "task_breath_frost_glints",
+   "size": "1536x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A wide horizontal scatter of tiny cold-white frost glints and very thin pale silver twig tips, like frost sparkles along the ends of bare birch twigs, arranged in a low band across the middle of the image. Only small sparkles and hairline twig tips, no trunks, no snow ground, nothing else."
+  },
+  {
+   "name": "task_bells_lamp_glow",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A soft round warm golden lamp glow in the centre with a gentle starburst halo of faint thin rays, fading smoothly to fully transparent well before the image edges. No lamp, no lantern, no post, no object, only the glow."
+  },
+  {
+   "name": "task_bells_comet",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A single small glowing spark with a pale gold core near the top centre and a short soft tapering trail of light falling below it, so the spark points straight up. Tall and narrow, centred horizontally, empty transparent space on the left and right."
+  },
+  {
+   "name": "task_fireflies_light_column",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A soft vertical column of pale green-white light rising from a narrow base at the bottom centre and widening upwards, fading to fully transparent at the top and at both side edges, faint soft streaks inside. Only the column of light."
+  },
+  {
+   "name": "task_shutters_sunburst",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "Soft wide radiating rays of warm gold and cream light spreading from a bright centre point in all directions, gentle feathered edges, fading smoothly to fully transparent before the image edges, no hard lines. Only the rays of light."
+  },
+  {
+   "name": "task_stars_star",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A single soft star glow in the exact centre: a small white-silver core fading to transparent, four thin straight diffraction spikes (up, down, left, right), gentle watercolour bloom. Nothing else."
+  },
+  {
+   "name": "task_threads_aurora_strand",
+   "size": "1536x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "One thin flowing horizontal ribbon of northern light crossing the full width of the image through the middle, gently waving, soft feathered edges, pure white luminous core fading outwards, so it can be tinted in code. Only the ribbon of light."
+  },
+  {
+   "name": "task_loyly_steam_puff",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A single soft round puff of pale white steam in watercolour, centred, wispy feathered edges that fade gradually to fully transparent, translucent, no hard outline, no tail, not a cloud shape, not a speech bubble."
+  },
+  {
+   "name": "task_stars_swan_line_b",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "One continuous thin glowing gold brush line drawing of a whooper swan in flight seen from the side facing left, neck stretched forward, wings lowered in a downbeat, outline only with no fill and no shading inside, hairline thin strokes like a constellation figure on an old hand-drawn star chart, minimal, centred."
+  },
+  {
+   "name": "task_loyly_panel_fog",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "medium",
+   "prompt": "A soft translucent veil of warm condensation fog, faint flame-cream colour, with tiny scattered water droplets. It is most opaque along the top edge and fades gradually and smoothly to fully transparent by the lower half, with no visible edge or border anywhere; the fade is a smooth gradient. Even texture across the full width, tileable left to right. Only the fog."
+  }
+ ]
+}

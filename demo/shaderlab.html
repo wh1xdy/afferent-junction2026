@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shader lab</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg: #0b1424; --panel: #111c2e; --line: #26334b; --text: #e8eeff; --muted: #9db0cf; --sun: #f2c230; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position: sticky; top: 0; z-index: 10; background: rgba(11, 20, 36, 0.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+  header h1 { font-size: 14px; font-weight: 600; margin: 0 8px 0 0; letter-spacing: 0.02em; }
+  label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  input[type=range] { width: 110px; accent-color: var(--sun); }
+  output { min-width: 34px; color: var(--text); font-variant-numeric: tabular-nums; }
+  button, select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font: inherit; cursor: pointer; }
+  button.on { border-color: var(--sun); color: var(--sun); }
+  main { display: flex; flex-wrap: wrap; gap: 28px; padding: 20px 16px 40px; }
+  section { display: flex; flex-direction: column; gap: 8px; }
+  section h2 { margin: 0; font-size: 13px; font-weight: 600; }
+  section .meta { color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.4em; }
+  .stage { position: relative; width: 390px; height: 844px; border-radius: 28px; overflow: hidden; background: #000; box-shadow: 0 0 0 1px var(--line); }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  body.solo header, body.solo section h2, body.solo section .meta { display: none; }
+  body.solo main { padding: 0; }
+  body.solo section:not(.pick) { display: none; }
+  body.solo .stage { border-radius: 0; box-shadow: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shader lab</h1>
+  <span><button data-preset="night">Night</button> <button data-preset="mid">Mid return</button> <button data-preset="green">Green</button> <button data-preset="dawn">Dawn</button></span>
+  <label>time of day <input id="tod" type="range" min="0" max="1" step="0.005"><output></output></label>
+  <label>colour return <input id="ret" type="range" min="0" max="1" step="0.005"><output></output></label>
+  <label>fog <input id="fog" type="range" min="0" max="1.4" step="0.01"><output></output></label>
+  <label>lantern x <input id="lx" type="range" min="0" max="1" step="0.005"><output></output></label>
+  <label>lantern y <input id="ly" type="range" min="0" max="1" step="0.005"><output></output></label>
+  <label>mode <select id="mode"><option>flow</option><option>calm</option><option>wake</option><option>fatigue</option><option>rest</option></select></label>
+  <label><input id="night" type="checkbox"> night session</label>
+  <label><input id="rm" type="checkbox"> reduced motion</label>
+  <label><input id="core" type="checkbox"> measurement core</label>
+  <button id="play" class="on">Pause</button>
+</header>
+<main id="lab"></main>
+<script>
+  window.A = window.A || {};
+  const MODULES = ['water-fog', 'light-reveal', 'particles-steam', 'sky-aurora'];
+  const q = new URLSearchParams(location.search);
+  const PRESETS = {
+    night: { tod: 0, ret: 0, fog: 0.5, lx: 0.33, ly: 0.735 },
+    mid: { tod: 0.3, ret: 0.55, fog: 0.6, lx: 0.33, ly: 0.735 },
+    green: { tod: 0.2, ret: 0.95, fog: 0.5, lx: 0.33, ly: 0.735 },
+    dawn: { tod: 0.86, ret: 1, fog: 0.45, lx: 0.33, ly: 0.735 },
+  };
+  const Lab = window.Lab = {
+    W: 390, H: 844, dpr: Math.min(2, window.devicePixelRatio || 1),
+    state: { ...PRESETS.night, mode: 'flow', night: false, rm: false, core: 0, playing: true, t: 0 },
+    sections: [],
+    add(name, def) { Lab.sections.push({ name, def }); },
+  };
+  const S = Lab.state, ui = id => document.getElementById(id);
+  const sync = () => {
+    for (const k of ['tod', 'ret', 'fog', 'lx', 'ly']) { ui(k).value = S[k]; ui(k).nextElementSibling.value = (+S[k]).toFixed(2); }
+    ui('mode').value = S.mode; ui('night').checked = S.night; ui('rm').checked = S.rm; ui('core').checked = S.core > 0.5;
+    ui('play').textContent = S.playing ? 'Pause' : 'Play'; ui('play').classList.toggle('on', S.playing);
+  };
+  const preset = n => { Object.assign(S, PRESETS[n] || {}); sync(); };
+  for (const k of ['tod', 'ret', 'fog', 'lx', 'ly']) ui(k).addEventListener('input', e => { S[k] = +e.target.value; sync(); });
+  ui('mode').addEventListener('change', e => (S.mode = e.target.value));
+  for (const k of ['night', 'rm']) ui(k).addEventListener('change', e => (S[k] = e.target.checked));
+  ui('core').addEventListener('change', e => (S.coreGoal = e.target.checked ? 1 : 0));
+  ui('play').addEventListener('click', () => { S.playing = !S.playing; sync(); });
+  document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => preset(b.dataset.preset)));
+
+  if (q.get('preset')) preset(q.get('preset'));
+  for (const k of ['tod', 'ret', 'fog', 'lx', 'ly']) if (q.has(k)) S[k] = +q.get(k);
+  if (q.has('mode')) S.mode = q.get('mode');
+  if (q.has('night')) S.night = q.get('night') === '1';
+  if (q.has('rm')) S.rm = q.get('rm') === '1';
+  if (q.has('core')) S.core = S.coreGoal = +q.get('core');
+  if (q.has('t')) S.t = +q.get('t');
+  if (q.get('freeze') === '1') S.playing = false;
+  if (q.get('solo')) document.body.classList.add('solo');
+  sync();
+
+  const load = src => new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = () => res(true); s.onerror = () => res(false); document.body.appendChild(s); });
+  (async () => {
+    const pick = MODULES.includes(q.get('solo')) ? [q.get('solo')] : MODULES;
+    for (const m of pick) { await load(`js/shaders/${m}.js`); await load(`js/shaders/${m}.lab.js`); }
+    const main = ui('lab');
+    for (const sec of Lab.sections) {
+      const el = document.createElement('section');
+      if (q.get('solo') === sec.name) el.classList.add('pick');
+      el.innerHTML = `<h2>${sec.def.title || sec.name}</h2><div class="stage"></div><div class="meta"></div>`;
+      main.appendChild(el);
+      sec.meta = el.querySelector('.meta');
+      try { sec.inst = sec.def.build(el.querySelector('.stage'), Lab.W, Lab.H, Lab.dpr); } catch (e) { console.warn(sec.name, e); sec.inst = { frame: () => 0, label: () => 'build failed: ' + e.message }; }
+      sec.samples = [];
+    }
+    let last = performance.now(), frames = 0;
+    const tick = now => {
+      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+      if (S.playing) S.t += dt;
+      S.core += ((S.coreGoal ?? S.core) - S.core) * (1 - Math.exp(-dt / 0.25 * 4));
+      if (Math.abs(S.core - (S.coreGoal ?? S.core)) < 0.002) S.core = S.coreGoal ?? S.core;
+      for (const sec of Lab.sections) {
+        const ms = sec.inst.frame(S.t, S, dt) || 0;
+        sec.samples.push(ms); if (sec.samples.length > 240) sec.samples.shift();
+        if (frames % 30 === 0) {
+          const v = [...sec.samples].sort((a, b) => a - b), p = f => v[Math.min(v.length - 1, Math.floor(v.length * f))] || 0;
+          sec.meta.textContent = `${sec.inst.label?.() || ''} render p50 ${p(0.5).toFixed(2)} ms, p95 ${p(0.95).toFixed(2)} ms`;
+        }
+      }
+      frames++;
+      Lab.frames = frames;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    Lab.ready = true;
+  })();
+</script>
+</body>
+</html>
