@@ -43,9 +43,6 @@
       color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 2%, transparent) 49%,
       color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 0.6%, transparent) 60%,
       transparent 70%); }
-    /* a still grain over it all, like the world's, so the soft gradients don't band on a dark screen */
-    #loader::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.05;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 -0.2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
     #loader .ld-core { left: -22px; top: -22px; width: 44px; height: 44px; animation-name: ldEmber; background: radial-gradient(circle,
       var(--af-lantern-flame, #FFE3A6) 0, color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 70%, transparent) 22%,
       color-mix(in srgb, var(--af-light-ember, #FFB54A) 22%, transparent) 52%, transparent 72%); }

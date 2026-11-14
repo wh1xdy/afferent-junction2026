@@ -197,6 +197,10 @@ test('it starts on the launch navy: the same colour as the launch screen, the wi
   const cap = JSON.parse(read('capacitor.config.json'));
   assert.strictEqual(cap.backgroundColor, navy);
   assert.strictEqual(cap.ios.backgroundColor, navy);
+  // its first frame is that navy and nothing else: no overlay over the whole screen (a grain lifted it 6 levels on the
+  // simulator), and the sky and the ember fade in from nothing
+  assert.doesNotMatch(style, /#loader::(after|before)/);
+  for (const c of ['ld-sky', 'ld-fire']) assert.match(style, new RegExp(`#loader \\.${c} \\{[^}]*animation: ldIn `), `${c} fades in`);
   const [r, g, b] = read('ios/App/App/Base.lproj/LaunchScreen.storyboard').match(/<color key="backgroundColor" red="([\d.]+)" green="([\d.]+)" blue="([\d.]+)"/).slice(1).map(Number);
   assert.strictEqual('#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('').toUpperCase(), navy);
 });
