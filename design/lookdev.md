@@ -14,7 +14,7 @@ Today the world reads as a prototype: a flat 72% black overlay turns night into 
 
 ## 1. Vision (5 lines)
 
-1. **You carry the only light.** Outside the lantern the world falls to clean blue-violet dark, inside it the snow keeps its real colour (Limbo and Inside: light is the only thing that reveals the world; Kentucky Route Zero: theatrical pools on clean dark planes).
+1. **You carry the only light.** Outside the lantern the world falls to kaamos blue (cyanotype), inside it the snow keeps its real colour (Limbo and Inside: light is the only thing that reveals the world; Kentucky Route Zero: theatrical pools on clean dark planes).
 2. **Each task sends the light home, and the world keeps the colour.** A mote flies into the lantern and colour floods outward from it (Gris: colour washes outward from the heroine; Ori: spirit light travels to the character).
 3. **The world breathes at 6 per minute and the camera moves like a held breath.** One pacer drives figure, aurora and fog; the camera dollies by depth and never shakes (Journey's restraint, Alto's Odyssey depth camera, Monument Valley's composed stillness).
 4. **Dawn is earned, slow and never blinding.** The sun crests the fell, rays fan through the birches, the lantern hands over to the sun (Alto's Odyssey sunrise, Journey summit, Old Man's Journey lingering).
@@ -88,11 +88,11 @@ Ambient values are the `amb*` fields of the blended preset (3.2) as `mix(base, w
 | Light | Queued by | Colour token | Radius | Alpha |
 |---|---|---|---|---|
 | Lantern air | figure.js | `lantern-glow` | `3.2 * Rl` | `0.9 * br` |
-| Lantern ground pool (ellipse, rx 2.4 Rl, ry 0.45 Rl at `gy`) | figure.js | `lantern-warm` | - | `0.6 * br` |
+| Lantern ground pool (ellipse, rx 2.4 Rl, ry 0.45 Rl at `gy`) | figure.js | `light-glow` | - | `0.6 * br` |
 | Sauna window | world.js `hut()` | `lantern-amber` | `60u` | `0.5 * (0.55 + 0.45 stove)` |
 | Lighthouse lamp | world.js | `lantern-flame` | `0.03H * (0.6 + lamp)` | `0.6 * lamp` |
-| Moon path on water | world.js `sea()` | `silver-300` | `0.06W` | `0.15 * nightA` |
-| Sun wash (dawn) | world.js `sun()` | `dawn-gold` | `0.9W` at `(SUN_X, hy)` | `0.9 * sunP` |
+| Moon path on water | world.js `sea()` | `frost` | `0.06W` | `0.15 * nightA` |
+| Sun wash (dawn) | world.js `sun()` | `honey` | `0.9W` at `(SUN_X, hy)` | `0.9 * sunP` |
 | Touch bloom | world.js | `lantern-glow` | `22u` | `0.25 -> 0` over 500 ms |
 
 `Rl = max(V.lanternRadius, 70) * u * (1 + 0.4 * flare) * (1 + 0.15 * V.kind) * igniteR`, where `igniteR` is the ignite curve (8.1). `br = V.lanternBright`. The flare coupling (`1 + 0.4 * flare`) is identical to today's `darkness()` so the reaction-core stimulus does not change.
@@ -112,7 +112,7 @@ A preset is a struct of numbers and token colours. Colours are token mixes only 
 | `slTop`, `slTopA`, `slBot`, `slBotA` | soft-light split tone, top half and bottom half |
 | `liftC`, `liftA` | screen lift: a coloured toe, so shadows never go pure black and never go milk |
 | `bloom` | bloom gain |
-| `ambFar`, `ambMid`, `ambGnd` | light buffer ambient, as `mix(night-500 or night-600, white, x)` |
+| `ambFar`, `ambMid`, `ambGnd` | light buffer ambient, as `mix(kaamos, white, x)` |
 
 Composition every frame:
 
@@ -128,31 +128,31 @@ Stage changes blend over `dur-colour-return` 4000 ms, but spatially through the 
 
 #### 3.2.1 Colour-return stages (base, night)
 
-| Field | s0 night grey | s1 + yellow | s2 + blue | s3 + green |
+| Field | s0 kaamos | s1 + yellow | s2 + blue | s3 + green |
 |---|---|---|---|---|
 | `sat` | 1.0 | 1.0 | 1.0 | 1.0 |
-| `mulTop` | mix(white, silver-300, 0.30) | same | mix(white, aurora-ice, 0.18) | same as s2 |
-| `mulBot` | mix(white, night-500, 0.22) | mix(white, violet-500, 0.18) | same as s1 | same as s1 |
-| `slTop`, `slTopA` | night-500, 0.18 | night-500, 0.12 | aurora-teal, 0.10 | aurora-green, 0.08 |
-| `slBot`, `slBotA` | night-600, 0.18 | lantern-warm, 0.10 | lantern-warm, 0.10 | lantern-warm, 0.10 |
-| `liftC`, `liftA` | night-800, 1.0 | night-800, 1.0 | night-800, 1.0 | night-700, 0.8 |
-| `vig`, `vigC` | 0.50, night-950 | 0.48 | 0.46 | 0.42 |
+| `mulTop` | mix(white, frost, 0.45) | mix(white, frost, 0.30) | mix(white, ice, 0.18) | same as s2 |
+| `mulBot` | mix(white, `#3E5478`, 0.35) | mix(white, lilac, 0.18) | same as s1 | same as s1 |
+| `slTop`, `slTopA` | kaamos, 0.18 | kaamos, 0.12 | ice, 0.10 | light-aurora-hem, 0.08 |
+| `slBot`, `slBotA` | fjord, 0.18 | light-glow, 0.10 | light-glow, 0.10 | light-glow, 0.10 |
+| `liftC`, `liftA` | fjord, 1.0 | fjord, 1.0 | fjord, 1.0 | fjord, 0.8 |
+| `vig`, `vigC` | 0.50, fjord | 0.48 | 0.46 | 0.42 |
 | `bloom` | 0.55 | 0.55 | 0.58 | 0.60 |
-| `ambFar` (on night-500) | 0.70 | 0.74 | 0.78 | 0.82 |
-| `ambMid` (on night-500) | 0.45 | 0.52 | 0.59 | 0.66 |
-| `ambGnd` (on night-600) | 0.30 | 0.37 | 0.44 | 0.51 |
+| `ambFar` (on kaamos) | 0.70 | 0.74 | 0.78 | 0.82 |
+| `ambMid` (on kaamos) | 0.45 | 0.52 | 0.59 | 0.66 |
+| `ambGnd` (on kaamos) | 0.30 | 0.37 | 0.44 | 0.51 |
 
-The per-group local saturation stays in world.js `grade()` (yellow: birches, wood, scarf; blue: ice, sea, far layers; green: spruce, moss, aurora). The preset is the mood on top. Raise the minimum land saturation in `satOf('base')` from 0.05 to 0.12 at stage 0 (still grey-blue, not dead; session director G5).
+The per-group local saturation stays in world.js `grade()` (yellow: birches, wood, the Keeper's cloak, ply lines; blue: ice, sea, far layers; green: spruce, moss, aurora). The preset is the mood on top. The minimum land saturation in `satOf('base')` stays 0.12 at stage 0 (kaamos blue, not grey; concept 3.4). Token names here follow `design/tokens.json` v2: frost, kaamos, fjord, lilac, ice, honey, apricot, `light-*`; the retired `silver-*`, `night-*`, `violet-*`, `aurora-teal` and `dawn-coral*` are not used.
 
 #### 3.2.2 Mode identities (blended over 2000 ms)
 
 | Mode, biome | Role model and technique | Overrides |
 |---|---|---|
-| calm, sauna | Kentucky Route Zero: one warm interior pool in a cold night, low contrast | `sat` 0.92, `slBot` lantern-amber `slBotA` +0.10, `vig` 0.55, `bloom` 0.45, `ambGnd` +0.04, `liftC` mix(night-800, lantern-amber-deep, 0.15) |
+| calm, sauna | Kentucky Route Zero: one warm interior pool in a cold night, low contrast | `sat` 0.92, `slBot` lantern-amber `slBotA` +0.10, `vig` 0.55, `bloom` 0.45, `ambGnd` +0.04, `liftC` mix(fjord, lantern-amber-deep, 0.15) |
 | flow, forest | Alto's Odyssey neutral night | stage base unchanged, `vig` 0.45, `bloom` 0.50 |
-| wake, lake | Alto's Odyssey clear cold night, crisp stars | `mulBot` mix(stage mulBot, night-600, 0.10), `slBot` aurora-ice 0.12, `vig` 0.35, `bloom` 0.60 |
-| fatigue, shore | Sky: Children of the Light morning lift, sunrise-alarm ramp | `sat` 0.95, `liftC` mix(dawn-daylight, aurora-ice, 0.30), `liftA` 0.18 as a gradient strongest at the horizon and fading upward, `vig` 0.30, `bloom` 0.2 + 0.3 * (1 - daylight), ambient + 0.5 * daylight. world.js halves the flat `daylight` haze in `sky()`, `ground()` and `fogBank()` (this is the milk fix) |
-| rest, harbour | Inside: dim, quiet, cold violet | `sat` 0.65, `slTop` and `slBot` violet-500 0.20, `vig` 0.65, `bloom` 0.35, ambient -0.05. Exposure stays the engine's 0.7 |
+| wake, lake | Alto's Odyssey clear cold night, crisp stars | `mulBot` mix(stage mulBot, kaamos, 0.10), `slBot` ice 0.12, `vig` 0.35, `bloom` 0.60 |
+| fatigue, shore | Sky: Children of the Light morning lift, sunrise-alarm ramp | `sat` 0.95, `liftC` mix(light-daylight, ice, 0.30), `liftA` 0.18 as a gradient strongest at the horizon and fading upward, `vig` 0.30, `bloom` 0.2 + 0.3 * (1 - daylight), ambient + 0.5 * daylight. world.js halves the flat `daylight` haze in `sky()`, `ground()` and `fogBank()` (this is the milk fix) |
+| rest, harbour | Inside: dim, quiet, cold lilac | `sat` 0.65, `slTop` and `slBot` rest `#6E6590` 0.20, `vig` 0.65, `bloom` 0.35, ambient -0.05. Exposure stays the engine's 0.7 |
 
 Calm and rest never excite: no sparks, no lighthouse beam motion, wave 3.5 s, camera ease-in-out only, bumps at most +0.012 zoom, no birds in rest, no shooting star.
 
@@ -161,17 +161,17 @@ Calm and rest never excite: no sparks, no lighthouse beam motion, wave 3.5 s, ca
 | Field | DAWN (morning) | NIGHT_END |
 |---|---|---|
 | `sat` | 1.0 | 0.8 |
-| `mulTop` | mix(white, dawn-peach, 0.12) | mix(white, violet-500, 0.18) |
-| `mulBot` | mix(white, dawn-coral-soft, 0.20) (rose shadows) | mix(white, night-600, 0.35) |
-| `slTop` | dawn-gold 0.25 | violet-600 0.12 |
-| `slBot` | dawn-peach 0.12 | night-600 0.10 |
-| `liftC`, `liftA` | violet-800, 1.0 | night-900, 1.0 |
-| `vig`, `vigC` | 0.25, violet-800 (never black) | 0.60, night-950 |
+| `mulTop` | mix(white, dawn-peach, 0.12) | mix(white, `#6E6590`, 0.18) |
+| `mulBot` | mix(white, apricot, 0.20) (apricot shadows) | mix(white, kaamos, 0.35) |
+| `slTop` | honey 0.25 | `#6E6590` 0.12 |
+| `slBot` | dawn-peach 0.12 | kaamos 0.10 |
+| `liftC`, `liftA` | fjord, 1.0 | fjord, 1.0 |
+| `vig`, `vigC` | 0.25, `#6E6590` (never black) | 0.60, fjord |
 | `bloom` | 0.70 | 0.50 |
 | ambient | all to 1.0 (white) | `ambGnd` to 0.20 |
 | exposure cap | 1.0, and frame mean luminance at most 0.70 | 0.35 at the end hold |
 
-`dawn-coral` (`#FF8A70`) is never used as a light, particle or grade colour. Only `dawn-coral-soft` appears, in the dawn sky and rose shadows. No red anywhere.
+Every warm light is honey or amber; nothing in the orange-red range is emitted or graded. No red anywhere.
 
 #### 3.2.4 Bad day is held, not darkened (KIND) - MUST
 
@@ -180,7 +180,7 @@ Role models: Gris grief chapters (muted but clean and beautiful, never ugly) and
 `V.kind` tweens 0 to 1 over 4 s at the first walk when `profile === 'bad_day'` or `mood_start <= 2`. Values:
 
 - Lantern: radius x1.15 (`Rl`), `lanternGain` floor 1.0 (world floors `max(V.lanternRadius, 70)`), figure warm rim alpha floor 0.6.
-- Grade: `sat` x0.85, `ambGnd` +0.05, `slBot` lantern-warm +0.08, `liftC` night-700 (clean dark), `vig` -0.05, `bloom` +0.05.
+- Grade: `sat` x0.85, `ambGnd` +0.05, `slBot` light-glow +0.08, `liftC` fjord (clean dark), `vig` -0.05, `bloom` +0.05.
 - World caps: fog at most 0.45, `fogBank` heavy x0.5 and only below `gy`, exposure floor 0.90, daylight haze x0.5.
 - Camera: base zoom +0.06 (closer, a smaller and warmer world), every tilt amplitude x0.5.
 - Reactions to results are identical to a good day. The first wave lands at the same time as on a good day.
@@ -193,7 +193,7 @@ In order, each skipped when its strength is under 0.01:
 
 1. `saturation`: fill `#808080` at alpha `1 - sat`.
 2. `multiply`: `mulBake` (tint gradient times vignette centred on the lantern screen position, times static grain, times exposure) drawn at `(0, 0, W, H)`. The vignette centre moves with the lantern, so re-bake when the lantern moves more than 8 px or the preset moves more than 2%, at most every 4th frame; otherwise draw the vignette part as a separate cached sprite (decide by profiling, keep the FSE count).
-3. `soft-light`: top half `slTop` at `slTopA`, bottom half `slBot` at `slBotA` (one cached gradient). The engine's `S.warm` adds lantern-warm at `0.3 * warm` to the bottom half here (replaces the old warm soft-light overlay).
+3. `soft-light`: top half `slTop` at `slTopA`, bottom half `slBot` at `slBotA` (one cached gradient). The engine's `S.warm` adds light-glow at `0.3 * warm` to the bottom half here (replaces the old warm soft-light overlay).
 4. `screen`: `liftC` at `liftA` (fatigue: cached vertical gradient).
 
 Grain: one 128 px tile baked once into `mulBake` (multiply 0.97 to 1.0, static). Role model: Gris static watercolour paper. Static grain also dithers sky banding (Inside's rendering talk uses dither against banding). The per-frame `Math.random` offset is deleted (it was a 60 Hz shimmer).
@@ -202,7 +202,7 @@ Grain: one 128 px tile baked once into `mulBake` (multiply 0.97 to 1.0, static).
 
 Role models: Journey (light glows into the air and never clips hard) and Ori (soft emissive halo on every light source).
 
-- Emitters are the lamps queued with `{bloom: 1}`: lantern (r `22k * fl`, a `0.9 * br`, lantern-glow), lantern core (r `7k`, a 1.0, dawn-daylight), sauna window (r `34u`, lantern-amber), lighthouse lamp (r `0.03H * (0.6 + lamp)`, lantern-flame), sun (r `0.06H`, a `0.9 * sunP`, dawn-sun), village lights (r `6u`, a 0.35, lantern-warm), sparks and touch blooms (r `10u`, a 0.6). Cap 48 emitters per frame.
+- Emitters are the lamps queued with `{bloom: 1}`: lantern (r `22k * fl`, a `0.9 * br`, lantern-glow), lantern core (r `7k`, a 1.0, light-flame), sauna window (r `34u`, lantern-amber), lighthouse lamp (r `0.03H * (0.6 + lamp)`, lantern-flame), sun (r `0.06H`, a `0.9 * sunP`, light-sun-disc), village lights (r `6u`, a 0.35, light-ember), sparks and touch blooms (r `10u`, a 0.6). Cap 48 emitters per frame.
 - Draw each emitter into the q4 `bloom` buffer twice with `lighter`: `tint('soft', c)` at radius `2.2r`, alpha `0.6a`, and at radius `5r`, alpha `0.25a`. SHOULD: also draw `auroraC` into it at alpha `0.35 * auroraAlpha` so the aurora hem blooms.
 - Composite onto main with `screen` at alpha `P.bloom` (x0.7 while a panel is open). `screen`, never `lighter`, so it cannot blind.
 - Cost: about 100 small drawImages into a 20k px buffer plus 1 FSE. No readback.
@@ -211,7 +211,7 @@ Role models: Journey (light glows into the air and never clips hard) and Ori (so
 
 Role models: Journey summit shafts and Alto's Odyssey sun shafts over the ridge line. Technique for tier 2: GPU Gems 3 chapter 13 light scattering as a post-process, ported to drawImage.
 
-- **Tier 0 and 1 (build first, 30 min):** 7 wedges of `SPR.beam` tinted dawn-gold, additive, fanned from the sun centre between 200 and 340 degrees, alpha `0.10 * raysA`, the fan rotating plus or minus 2 degrees over 8 s.
+- **Tier 0 and 1 (build first, 30 min):** 7 wedges of `SPR.beam` tinted honey, additive, fanned from the sun centre between 200 and 340 degrees, alpha `0.10 * raysA`, the fan rotating plus or minus 2 degrees over 8 s.
 - **Tier 2:** copy main to `rayA` (q4), multiply it by itself twice (x^4: dark silhouettes become 0, so occlusion is free), `destination-in` a radial gradient at the sun (radius 0.35H), then 3 ping-pong passes, each drawing the source 4 times with `lighter` at alpha 0.3 scaled about the sun by `1 + k * 0.05 * (pass + 1)`, k = 0..3 (64 taps). Composite with `screen` at `0.5 * raysA`. Sample centre drifts by plus or minus 1% over 8 s.
 - `raysA` ramps 0 to 1 from sun limb contact over 2 s (8.3). Dawn only; fatigue gets no rays.
 
@@ -235,9 +235,9 @@ Role model: Journey and Sky: steady, breathing light that never strobes.
 
 ### 4.1 Sky, sun, stars - MUST
 
-- `SUN_X = 0.70W` (exported as `A.FX.SUN_X` so sky, sea, rays and light buffer agree). Sun y lerps from `hy + 0.03H` to `hy - 0.14H` with `EASE.io` over dawn 2.5 to 5.5 s. Disc fill dawn-sun at alpha at most 0.85, never white.
+- `SUN_X = 0.70W` (exported as `A.FX.SUN_X` so sky, sea, rays and light buffer agree). Sun y lerps from `hy + 0.03H` to `hy - 0.14H` with `EASE.io` over dawn 2.5 to 5.5 s. Disc fill `light-sun` `#FFD58A` (limb `#FFE3A6`) at alpha at most 0.85, never white.
 - **Saddle:** far ridge amplitude multiplied by `1 - 0.55 * exp(-((x - SUN_X) / (0.14W))^2)`, always on (the ridge scrolls at 0.1 parallax, so the morph is invisible). The limb is occluded by the ridge between dawn 2.5 and about 3.2 s, and the disc is fully clear by 5.0 s. Alto's sun crests the ridge; the session director's "sun must be seen" holds.
-- Dawn ridge rim: after `mountains()`, re-stroke the far ridge path with dawn-gold, lineWidth `1.5u`, alpha `0.8 * sunP`.
+- Dawn ridge rim: after `mountains()`, re-stroke the far ridge path with honey, lineWidth `1.5u`, alpha `0.8 * sunP`.
 - Night first light: horizon band alpha cap 0.12 (the `nd` sprites at 0.42 and 0.36 drop to 0.12 and 0.10). No pink smear.
 - Milky Way: drop the 26 soft blobs (they read as a lens smudge), keep the 420-dot band.
 - Stars at dawn go out from the horizon upward: starfield layers drawn clipped to `y < frontY` with `frontY = hy - (hy + 0.1H) * EASE.io(dawnT / 3)`; the 16 glint stars fade individually by y.
@@ -246,10 +246,11 @@ Role model: Journey and Sky: steady, breathing light that never strobes.
 
 Role models: Sky: Children of the Light (ribbons with bright hems), Gris (the world answers the character).
 
+- Drawn as bent veneer (concept 6.3): the curtain is 18 to 30 thin vertical lines that share one wave displacement, not a soft blob; colour `light-aurora-hem` to `light-aurora-tip`.
 - Breathes with the pacer all session: `a *= 0.88 + 0.24 * A.pace(t)`. While the breath task runs (orb alpha above 0.1): `a *= 0.75 + 0.5 * orb.b`, `hh *= 0.9 + 0.2 * orb.b`. Reduced motion: plus or minus 5%.
 - Unfurls on the green wave: per column `fa *= 1 - smoothstep(r - 40u, r, |px - slx|)` (columns inside the wave radius are lit), curtain height grows from 0.5 to 1.0 during the wave.
-- Stage 0: no grey curtain (it read as grey scratches). Draw one soft dim glow band (`tint('soft', silver-300)`, alpha 0.06) until `ds.green > 0.22`.
-- SHOULD: third ribbon (`k = 2`), a bright 1 px hem row per column at `alpha * 1.4` in aurora-green, a travelling brightness wave `alpha *= 0.75 + 0.25 * sin(wx * 0.01 - t * 0.7)` (0.11 Hz), and the reflection on lake and harbour water (`auroraC` drawn with `scale(1, -0.4)` below `hy` at `0.25 * a`, clipped to the water band).
+- Stage 0: no grey curtain (it read as grey scratches). Draw one soft dim glow band (`tint('soft', frost)`, alpha 0.06) until `ds.green > 0.22`.
+- SHOULD: third ribbon (`k = 2`), a bright 1 px hem row per column at `alpha * 1.4` in light-aurora-hem, a travelling brightness wave `alpha *= 0.75 + 0.25 * sin(wx * 0.01 - t * 0.7)` (0.11 Hz), and the reflection on lake and harbour water (`auroraC` drawn with `scale(1, -0.4)` below `hy` at `0.25 * a`, clipped to the water band).
 
 ### 4.3 Fog and depth - MUST (value ladder, caps), SHOULD (feathered tiles)
 
@@ -264,17 +265,17 @@ Role models: Alto's Odyssey (every layer hazed toward the sky's horizon colour b
 
 Role models: Inside (particles lit by the flashlight) and Journey (snow and sand react around the character).
 
-- Flakes within `R = 1.5 * Rl` of the lantern: `n = 1 - d / R`, `alpha *= 1 + 1.6n`, and when `n > 0.25` draw `tint('dot', lantern-glow)` at `alpha * n`. The lantern visibly warms the air.
+- Flakes within `R = 1.5 * Rl` of the lantern: `n = 1 - d / R`, `alpha *= 1 + 1.6n`, and when `n > 0.25` draw `tint('dot', light-glow)` at `alpha * n`. The lantern visibly warms the air.
 - SHOULD: each flake gets `vx, vy`; near the lantern `vx += (dx / d) * 22u * n * dt`, `vy -= 14u * n * dt`, damping `pow(0.92, dt * 60)`. A touch within `90u` gives one outward impulse `60u/s * (1 - d / 90u)`.
 - SHOULD: three depth layers: far (1 px, drawn in band mid before `midHills`), mid (today), near (4 to 6 bokeh discs, 12 to 28 px, alpha 0.08 to 0.15, `SPR.bokeh` with a +15% rim at 0.85 radius, parallax 1.6). Alto's blurred foreground for scale.
-- Dawn: snow speed eases to 30% over 1.5 s, near flakes turn into dawn-gold motes drifting in the shafts.
+- Dawn: snow speed eases to 30% over 1.5 s, near flakes turn into honey motes drifting in the shafts.
 - Reduced motion: 40 mid flakes, glow only, no push.
 
 ### 4.5 Lighthouse ladder - MUST
 
 Role model: Journey (the goal is always visible and grows brighter as you near it); Monument Valley (the structure completes).
 
-`V.lhLevel` (0 to 1) set by moments.js: 0.30 at the end of the reaction core (the minigames Bite payoff calls `A.World.hooks.flareLighthouse(a)`; fallback: moments.js sets it at core end), then each task after green steps it to 0.55, 0.80, 1.0 over 1.6 s `EASE.io`. In `lighthouse()`: `lamp = max(lamp, lhLevel)`, bloom emitter scales with `1 + 0.08 * lift()`, beam `max(beam, 0.5 * lhLevel) * (1 - day)` with a slow 8 s sweep in wake and fatigue only; calm and rest get the lamp, never beam motion. Every completed task now has a visible world payoff, also after green.
+`V.lhLevel` (0 to 1) set by moments.js: 0.30 at the end of the reaction core (the minigames Bite payoff calls `A.World.hooks.flareLighthouse(a)`; fallback: moments.js sets it at core end), then each task after green steps it to 0.55, 0.80, 1.0 over 1.6 s `EASE.io`. In `lighthouse()`: `lamp = max(lamp, lhLevel)`, bloom emitter scales with `1 + 0.08 * lift()`, beam `max(beam, 0.5 * lhLevel) * (1 - day)` with a slow 8 s sweep in wake and fatigue only; calm and rest get the lamp, never beam motion. Every completed task now has a visible world payoff, also after green. The drawn structure is the plain day-mark tower (birch-white, gently tapering, no stripes, no bands, small round lamp room; Decisions L3); `lighthouse()`, `V.lhLevel` and the hook names stay.
 
 ### 4.6 Village of lanterns - MUST
 
@@ -282,7 +283,7 @@ See section 9. Drawn by `village(ctx)` in band islands after `islands()`.
 
 ### 4.7 Life - SHOULD (birds), NICE (boat)
 
-- Birds (Alba: wildlife returns as you restore the world; Alto's flocks for scale): none in the polar night. After the blue wave one loose flock of 5 crosses once, high; at dawn a flock of 7 rises from the treeline at 0.8 s and crosses the sun path. Bird i: `x = lerp(-0.1W, 1.1W, (t - t0) / 14)` + `i * 14u * cos(i)`, `y = y0 + i * 6u + 3u * sin(0.7t + i)`, band islands. Wings: an "m" polyline, half-span `5u`, wing angle `0.5 * sin(phi)`, flapping at 3 Hz for 1.2 s then gliding 1.8 s (shape motion, not a luminance flash). Colour `grade(night-800)`. Never in rest. Speed 0.08 screen/s.
+- Birds (Alba: wildlife returns as you restore the world; Alto's flocks for scale): none in the polar night. After the blue wave one loose flock of 5 crosses once, high; at dawn a flock of 7 rises from the treeline at 0.8 s and crosses the sun path. Bird i: `x = lerp(-0.1W, 1.1W, (t - t0) / 14)` + `i * 14u * cos(i)`, `y = y0 + i * 6u + 3u * sin(0.7t + i)`, band islands. Wings: an "m" polyline, half-span `5u`, wing angle `0.5 * sin(phi)`, flapping at 3 Hz for 1.2 s then gliding 1.8 s (shape motion, not a luminance flash). Colour `grade(fjord)`. Never in rest. Speed 0.08 screen/s.
 - NICE: distant boat with one warm masthead light (Kentucky Route Zero: tiny distant lights that imply other lives).
 
 ### 4.8 Remove debug-looking circles - MUST
@@ -290,9 +291,18 @@ See section 9. Drawn by `village(ctx)` in band islands after `islands()`.
 - `rings()` is deleted; the colour wave front (7.4) replaces it.
 - `orb()`: delete the 1.5 px stroked circle. While the minigames breath task (`g.drawWorld`) is present, `orb()` draws nothing; otherwise it draws only the soft glow plus `SPR.halo` at alpha 0.12.
 
+### 4.9 Lamination - MUST
+
+Role model: bent birch plywood (concept 6.3); about 20 lines in world.js, so the procedural fallback matches the images.
+
+- After filling any landform path (`mountains()`, `islands()`, `midHills()`, `ground()` top edge, snow mounds), stroke 3 copies of its top edge translated down by `2.5u`, `5u`, `7.5u` (`u = H/844`): `birch` at alpha 0.55, `ply` at 0.45, `ply-edge` at 0.35, line width `1u` (ground `1.5u`), clipped to the landform. Vertical translation is enough for these gentle curves; true offset curves are used only for the streak glyph, the strata and the icon.
+- The lines belong to the yellow colour group: at s0 they are graded to kaamos, and they are the first thing the yellow wave warms (7.4 "warmth returns").
+- Steam (löyly, sauna chimney): 3 to 5 parallel curved lines in `ceiling` and `birch`, drifting, never puffs.
+- Hoarfrost (eyes closed): nested parallel arcs in `birch` growing from the corners, 1.2 px, glint at most 0.2 Hz.
+
 ## 5. Figure (figure.js)
 
-Role models: Journey (cloth and scarf as emotion), Limbo and Inside (silhouette first, physical secondary motion), Old Man's Journey and Alba (planted feet, believable stride), Ori (a living hanging light).
+The figure is the Keeper (concept section 7): dome hood, bell cloak in undyed birch-ply wool `ply` with a kaamos shadow side, a hem band of two `ply-edge` lines, the lantern in the mitten at hip height, no scarf, no staff, no face (Decisions L2). Role models: Monument Valley's Ida (one readable shape), Journey only for cloth motion.
 
 ### 5.1 Scale and rig - MUST
 
@@ -308,16 +318,18 @@ Role models: Journey (cloth and scarf as emotion), Limbo and Inside (silhouette 
 
 ### 5.3 Lantern pendulum - MUST
 
-`theta'' = -w0^2 sin(theta) - 2 zeta w0 theta' - (ax / L) cos(theta) - (ay / L) sin(theta)`, `w0 = 5.71 rad/s` (1.1 s period, heavy and calm), `zeta = 0.18` (calm and rest 0.30, reduced motion 0.50), `L = 8` units, `ax = d2(worldX)/dt2 / k`, `ay` from the hip bob. Clamp to plus or minus 0.6 rad. Semi-implicit Euler, substeps of at most 1/60 s. Idle wind `0.04 * noise(0.3t)`. The lantern light, shadows and the light buffer follow it.
+`theta'' = -w0^2 sin(theta) - 2 zeta w0 theta' - (ax / L) cos(theta) - (ay / L) sin(theta)`, `w0 = 5.71 rad/s` (1.1 s period, heavy and calm), `zeta = 0.18` (calm and rest 0.30, reduced motion 0.50), `L = 5` units (the lantern hangs from the hand at hip height), `ax = d2(worldX)/dt2 / k`, `ay` from the hip bob. Clamp to plus or minus 0.6 rad. Semi-implicit Euler, substeps of at most 1/60 s. Idle wind `0.04 * noise(0.3t)`. The lantern light, shadows and the light buffer follow it.
 
 ### 5.4 Breath at 6 per minute - MUST
 
-`breath = A.pace(t) * (1 - walk)`: cloak scaleY `1 + 0.02 * breath` about the feet, hood and shoulders y `-0.7 * breath`, lantern hand y `-0.4 * breath`. During the breath task use `V.orb.b` (or `hooks.setBreath(b)`) at amplitude x2, so the figure breathes with the player. Today's `sin(t * 1.6)` (15 per minute) is deleted. SHOULD: exhale vapour puff at each in-to-out crossing (`tint('soft', silver-100)`, radius 3 to 9 units, rise 10, alpha 0.16 to 0 over 1600 ms, at most 2 alive).
+`breath = A.pace(t) * (1 - walk)`: cloak scaleY `1 + 0.02 * breath` about the feet, hood and shoulders y `-0.7 * breath`, lantern hand y `-0.4 * breath`. During the breath task use `V.orb.b` (or `hooks.setBreath(b)`) at amplitude x2, so the figure breathes with the player. Today's `sin(t * 1.6)` (15 per minute) is deleted. SHOULD: exhale vapour puff at each in-to-out crossing (`tint('soft', birch)`, radius 3 to 9 units, rise 10, alpha 0.16 to 0 over 1600 ms, at most 2 alive).
 
-### 5.5 Scarf - MUST, hem - SHOULD
+### 5.5 Hem and hem band - MUST
 
-- Scarf: 7-point Verlet chain, segment 2.2 units, anchor at the neck (-3, -45), gravity 30 u/s^2, wind x `-0.9 * v + 12 * (noise(0.6t) - 0.5)`, damping `pow(0.96, dt * 60)`, 2 constraint passes, drawn with the existing tapered ribbon polygon. Colour stays `grade(coral)` in the yellow group (the one sanctioned coral pixel of the night).
+- No scarf: the Verlet chain is deleted and its budget goes to the hem.
 - Hem: underdamped spring `v += (w^2 (target - x) - 2 zeta w v) dt`, `w = 9`, `zeta = 0.35`, target `-0.08 * v / k` plus the walk swing.
+- Hem band: two thin `ply-edge` lines near the bottom of the cloak that follow the hem spring. Each fork choice adds one thin line in the chosen side's colour (coreloop 6.4, previously "scarf bands"), so the figure carries the session's layers. Group yellow.
+- Poses: `figure_ride` (released, cloak open) and `figure_crouch` (held, cloak tucked) for the Ride (coreloop 3).
 
 ### 5.6 Reactions (one positive vocabulary) - MUST
 
@@ -338,8 +350,8 @@ No sad or negative pose exists. A bad day uses the same values.
 
 ### 5.7 Rims and shadow - MUST (rims), SHOULD (cast shadow)
 
-- Warm rim on the lantern side (today's clip draw, alpha floor 0.6 on a bad day). Cool rim on the back: cloak offset (-0.9, -0.6) in `grade(silver-300)` at `0.35 * (1 - dawn)`. Dawn: back rim mix(dawn-gold, dawn-sun) at `0.8 * sun`.
-- Ground shadow: `ctx.transform(1, 0, -1.6, -0.22, fx, gy)`, fill the cloak path in night-950 at `0.32 * lanternBright`, cast away from the lantern. At dawn a second shadow stretches 3x the figure height away from the sun at `0.35 * sunP` (Old Man's Journey long shadows).
+- Warm rim on the lantern side (today's clip draw, alpha floor 0.6 on a bad day). Cool rim on the back: cloak offset (-0.9, -0.6) in `grade(frost)` at `0.35 * (1 - dawn)`. Dawn: back rim mix(honey, light-sun-limb) at `0.8 * sun`.
+- Ground shadow: `ctx.transform(1, 0, -1.6, -0.22, fx, gy)`, fill the cloak path in fjord at `0.32 * lanternBright`, cast away from the lantern. At dawn a second shadow stretches 3x the figure height away from the sun at `0.35 * sunP` (Old Man's Journey long shadows).
 - Image figure: if the image workflow's `figure_*` sprites are used, the rim is art.js `shade` tinted the rim colour, offset 1.5 px toward the light, under the sprite.
 
 ### 5.8 Sit - SHOULD
@@ -348,7 +360,7 @@ No sad or negative pose exists. A bad day uses the same values.
 
 ### 5.9 Image figure policy
 
-The procedural rig stays the animated figure during play: a static PNG cannot carry the stride, pendulum, scarf, breath or reactions. The image workflow's `figure_sit` is used only when `V.sit === 1` (start screen, night end), crossfaded over 200 ms, with the procedural lantern drawn on top. `figure_stand` and `figure_walk` are not used in play tonight.
+The procedural rig stays the animated figure during play: a static PNG cannot carry the stride, pendulum, hem, breath or reactions; its shapes are the Keeper's dome and bell. The image workflow's `figure_sit` is the Keeper sprite, used only when `V.sit === 1` (start screen, night end), crossfaded over 200 ms, with the procedural lantern drawn on top. `figure_stand` and `figure_walk` are not used in play tonight.
 
 ## 6. Camera (camera.js computes, world.js applies)
 
@@ -401,19 +413,21 @@ No black dip (delete the `0.35 * sin` dip in `fadein`). Begin fades the start UI
 
 ### 7.2 Task in: the lantern sends a light - MUST
 
+"Panel" in 7.2 and 7.3 means the Opening (concept 9.3): an arch with a 7 px ply frame, the live world visible outside under a `#0A1322` scrim (0.50 play, 0.62 measurement). Stations that open from a prop (sauna door, loom frame, cairn) grow it from that prop; all others from the lantern. Envelope and timing unchanged.
+
 Role model: Ori: spirit light travels as a mote along a curve and connects the character to its target.
 
-- 0 ms: phase `game`. The figure stops (pendulum swings forward), looks up. A mote (r `10u` glow plus 6 trail samples at `0.5^i`) leaves the lantern on a quadratic bezier: control `(slx + 0.15W, (sly + panelCy) / 2 - 0.08H)`, to the panel centre, 600 ms `EASE.soft`. Camera starts the task-open shot.
-- 450 ms: the panel opens out of that point: scale 0.86 to 1 about its centre (420 ms soft), alpha 0 to 1 (320 ms). Input, `g.startAt`, the task timers and the record's start all begin at panel open, so the 450 ms are never counted against the task.
-- Reduced motion: no mote, 600 ms crossfade, input from 200 ms.
-- The minigames workflow owns the panel contents, `g.bare` and `g.outro`. This spec owns only the open and close envelope, via `A.Moments.panelEnv(g, now, box)`.
+- 0 ms: phase `game`. The figure stops (pendulum swings forward), looks up. A mote (r `10u` glow plus 6 trail samples at `0.5^i`) leaves the lantern on a quadratic bezier: control `(slx + 0.15W, (sly + panelCy) / 2 - 0.08H)`, to the Opening's centre, 600 ms `EASE.soft`. Camera starts the task-open shot.
+- 450 ms: the Opening grows out of that point: scale 0.86 to 1 about its centre (420 ms, M3 emphasized decelerate), alpha 0 to 1 (320 ms). Input, `g.startAt`, the task timers and the record's start all begin when the Opening is open, so the 450 ms are never counted against the task.
+- Reduced motion: no mote, the Opening fades in at full size over 600 ms, input from 200 ms.
+- The minigames workflow owns the Opening's contents, `g.bare` and `g.outro`. This spec owns only the open and close envelope, via `A.Moments.panelEnv(g, now, box)`.
 
 ### 7.3 Task out: the light comes home - MUST
 
 Role model: Gris (colour returns from the character into the world, so the result feels earned and physical).
 
 - The engine closes the task at `finishedAt + max(0.7, g.outro)` (minigames rule, at most 2.2 s).
-- Fold: the panel scales 1 to 0.9 and fades over 380 ms `EASE.io` into a mote at the panel centre.
+- Fold: the Opening scales 1 to 0.9 and folds over 380 ms `EASE.io` into a mote at its centre.
 - The mote arcs into the lantern: 650 ms `EASE.io` (calm and rest 1.0 s, timeout +0.4 s). Bezier P0 box centre, control `(mid x, min(y0, sly) - 0.15H)`, P1 lantern.
 - Arrival emits `A.bus.emit('lightHome', {group, by, mode})`: lantern swell (flame x1.3, 120 ms rise, 800 ms decay), figure lift, haptic, `Au.note`, camera result bump and pull-out, the colour wave (7.4), lighthouse step after green.
 - Walk starts 1.1 s after the close (`outroUntil = now + 1.1`), while the camera pulls out.
@@ -426,7 +440,7 @@ Role models: Gris (colour floods outward from the heroine as a soft watercolour 
 - moments.js sets `V.wave = {g, t0, dur, from, to}` on `lightHome` and tweens `V.sat[g]` over `dur`. `dur`: touch 2.4 s (calm and rest 3.5 s, wake 1.8 s); timeout 4.0 s (calm 5.0 s). A miss only slows the bloom; it never lowers saturation.
 - world.js: `r = EASE.soft(p) * hypot(W, H)`, edge `60u`, centre `(slx, sly)`. `satOf(g, x, y)` returns `lerp(from, to, smoothstep(r, r - edge, dist))` for the wave group; other groups never decrease.
 - Positional where it matters: sky and sea (fill the old gradient, then `save(); arc(slx, sly, r); clip();` fill the new gradient), the 16 ground colour stops (each at its x on `gy`), birches, leaves, hut, pier and shore props (their own x, y), aurora (per column). Everything else uses the covered fraction as a global ramp.
-- Front band: one feathered additive band at radius r, at least 0.12H wide, alpha at most 0.10, tinted the group colour (yellow mix(dawn-gold, lantern-amber, 0.5), blue aurora-ice, green aurora-green). Never a thin line.
+- Front band: one feathered additive band at radius r, at least 0.12H wide, alpha at most 0.10, tinted the group colour (yellow mix(honey, sun, 0.5), blue ice, green light-aurora-hem). Never a thin line.
 - Per colour, one named change (Gris: each colour has its own transformation):
   - **Yellow, warmth returns:** birch leaves pop as the front passes (scale 0 to 1.25 to 1 over 350 ms, stagger by distance, leaf size 2.5x today), sauna and hut windows light, footprints turn faint amber.
   - **Blue, the water wakes:** sea and ice get a mirrored sky (`sky` gradient flipped into the sea band at `0.35 * ds.blue`, SHOULD), ripples 2x alpha, ice and sea glints sweep outward, lighthouse reflection becomes a streak, one flock of 5 birds (SHOULD).
@@ -475,7 +489,7 @@ Role models: Ori (mote to character), Gris (outward wave), Journey (the characte
 | 0.38 to 1.03 | Mote arcs to the lantern with a 6-sample trail; the figure's hood follows it |
 | 1.03 | Arrival: `lightHome`. Lantern swell (x1.3), lift begins (up 500 ms), haptic, note, camera bump +0.02 and pull-out to 1.04 (1.4 s) |
 | 1.03 to 3.43 | Yellow wave from the lantern (2.4 s): the sky low band and the ground warm under the front, birch leaves pop ring by ring, sauna windows light as the front reaches them, soft gold front band at alpha 0.10 |
-| 1.10 | Walk starts (pendulum swings back, scarf trails) |
+| 1.10 | Walk starts (pendulum swings back, hem trails) |
 | 1.53 to 2.03 | Lift holds overhead, then lowers over 900 ms while walking |
 | 3.43 to 5.0 | Stage-1 grade settles (`dur-colour-return` 4 s from arrival) |
 
@@ -485,21 +499,22 @@ Pass criteria: the wave never starts before the mote lands; 0.7 s after arrival 
 
 Role models: Alto's Odyssey sunrise (the sun crests a ridge, the sky ignites outward from it, silhouettes get warm rims), Journey summit (the walk into the light, a whiteout capped far below white), Old Man's Journey (linger, do not cut), Sky (the candle you place stays).
 
-Dawn is 8 s (was 4 s). `SESSION_PLAY_END_S` goes from 106 to 102, so the end screen still appears at about 1:50. The bedside light fade stays 4000 ms from dawn 0 (contract unchanged).
+Dawn is 8 s (was 4 s). `SESSION_PLAY_END_S` goes from 106 to 102, so the end screen still appears at about 1:50. The bedside light rises to `#FFF0D2` over the 8 s dawn from dawn 0 and holds 30 s; level 60% until the bedside hardware owner confirms 70% without glare from the lying position (Decisions L5, `tokens.json` `bedside.dawn_morning`).
 
 | t (s) | Beat (morning) |
 |---|---|
 | 0.0 | `startDawn`: `Au.dawnPhrase()`, bedside light starts. Camera y 0 to +0.08H and z to 1.00 over 4 s io (foreground tufts slide off the bottom, the frame opens). Snow slows to 50% over 1.5 s. Stars start going out from the horizon upward |
 | 0.6 | Figure looks up toward the sun (2 s io), then lowers the lantern to the hip (1.2 s io) |
 | 0.8 | SHOULD: a flock of 7 rises from the treeline and crosses the sun path |
-| 1.0 to 3.5 | Ignite: the dawn grade and `satOf('dawn')` spread as a radial wipe from `(SUN_X, hy)`, radius 0 to 1.3H (`EASE.io`), replacing today's left-to-right sweep. The sky gains chroma bottom-up: `bot` to dawn-gold at full strength, `low` to dawn-coral-soft at 0.8, `top` to dawn-sky without the violet mix. Moon fades with `st.sun` |
-| 2.5 to 5.5 | Crest: the sun rises from `hy + 0.03H` to `hy - 0.14H`; the ridge hides the limb until about 3.2 s; rays start at limb contact (0 to 1 over 2 s); dawn-gold ridge rim; gold back rim on the figure; long shadow 3x the figure height away from the sun |
+| 1.0 to 3.5 | Ignite: the dawn grade and `satOf('dawn')` spread as a radial wipe from `(SUN_X, hy)`, radius 0 to 1.3H (`EASE.io`), replacing today's left-to-right sweep. The sky gains chroma bottom-up: `bot` to honey at full strength, `low` to apricot at 0.8, `top` to the dawn sky top `#6E8FC4` without a violet mix; the lilac band is held at the `lilac` token, never pinker. Moon fades with `st.sun` |
+| 2.5 to 5.5 | Crest: the sun rises from `hy + 0.03H` to `hy - 0.14H`; the ridge hides the limb until about 3.2 s; rays start at limb contact (0 to 1 over 2 s); honey ridge rim; honey back rim on the figure; long shadow 3x the figure height away from the sun |
 | 3.0 to 6.0 | Handover (the story beat): flame 1 to 0.35 (`EASE.io`), the light buffer's lantern pool fades while the sun wash rises, lighthouse lamp dims to day |
-| 5.0 to 8.0 | Hold: full colour, bloom 0.70, near snow as gold motes in the shafts |
+| 6.0 | Scheme handover: the UI crossfades from Kaamos to Kevät over 2000 ms (concept 3.3; `--af-dur-scheme-handover`) |
+| 5.0 to 8.0 | Hold: full colour, bloom 0.70, near snow as honey motes in the shafts |
 | 8.0 | `endScreen`. Requirement for the UI owner: "Good morning." starts fading in no earlier than 8.6 s, over clear sky, never over the sun disc |
 | 8.0 + | End hold: Ken Burns z 1.00 to 1.012 and x +6 px over 12 s, pacer ripple |
-| mood tap (or 20 s idle) | One warm mote leaves the figure's lantern and arcs 1.6 s to the next village slot on the far shore, where it settles as a lantern-warm light (always warm, whatever the mood; no answer still places it) |
-| dim | Warm settle, never black: starts at `max(moodAt + 3, endAt + 7)` or 20 s idle, `V.black` to 0.45 over 3.5 s, vignette tint violet-800 |
+| mood tap (or 20 s idle) | One warm mote leaves the figure's lantern and arcs 1.6 s to the next village slot on the far shore, where it settles as a light-glow light (always warm, whatever the mood; no answer still places it) |
+| dim | Warm settle, never black: starts at `max(moodAt + 3, endAt + 7)` or 20 s idle, `V.black` to 0.45 over 3.5 s, vignette tint `#6E6590` |
 
 Pass criteria: at dawn+6 s no mountain pixel lies within the sun disc radius; frame mean luminance below 0.70 throughout and no channel at 255 outside the disc; the lantern pool radius at 7 s is under 40% of its 1 s value; at dawn+5 s a horizontal luminance profile 15% of H above the ground alternates between shadowed and lit bands with at least 6% contrast (tier 2 rays); the world is still visible (`V.black < 0.05`) at end+6.5 s.
 
@@ -507,7 +522,7 @@ Night variant (night clock or rest mode), role models Inside and Limbo (the last
 
 | t (s) | Beat (night) |
 |---|---|
-| 0.0 | No sun, no rays. A violet-coral first-light line on the horizon at alpha at most 0.12, stars stay, aurora softens to 0.6. Camera z +0.03 and y -0.02H over 4 s io (closing in) |
+| 0.0 | No sun, no rays. A lilac first-light line on the horizon at alpha at most 0.12, stars stay, aurora softens to 0.6. Camera z +0.03 and y -0.02H over 4 s io (closing in) |
 | 0.5 | Figure sits (SHOULD; otherwise lowers the lantern) and sets the lantern down |
 | 0 to 6 | Flame 1 to 0.25 (`EASE.breath`), light buffer `ambGnd` to 0.20, exposure eases to 0.35 |
 | 8.0 | `endScreen` ("Rest well."). Dim starts at end+4 s: `V.black` to 0.92 over 6 s, and the ember is drawn after the black at alpha 0.6, so it is the last visible pixel |
@@ -518,14 +533,14 @@ Night pass criteria: frame mean luminance never rises by more than 0.03 between 
 
 Role models: Sky: Children of the Light (persistent candles), Animal Crossing (the town remembers).
 
-- **Village of lanterns - MUST.** `localStorage['afferent.world'] = {v: 1, lanterns: n, lastBiome, updatedISO}`, wrapped in try/catch (falls back to 0). `n` increments once per lit morning: a session whose fixed core finished with the player's own input (`completed`, `fell_asleep`, or `partial` with `core` present and not unengaged; Decisions D3, `design/engagement.md` 6.1, the same rule as the streak and the week lanterns). Never decremented, no dates shown, no gaps, no count in the world: a missed day changes nothing. The day streak lives outside the world, as one small number on the start screen (Decisions D1, `design/engagement.md` section 6). moments.js owns the storage (`A.Continuity.village()`, `.record(status, tasks)`); world.js draws.
-- Drawing: n warm lights (cap 60) on the far islands band at deterministic slots: `rng(1000 + i)` picks the island, x within it and the height. Each is a `tint('dot', lantern-warm)` core of `2.2u` plus a bloom emitter (r `6u`, a 0.35). Twinkle at most 0.2 Hz, 15% amplitude. At dawn alpha x0.6. Visible on the start screen, during play and at dawn. The newest light is placed by the end-screen mote (8.3).
+- **Village of lanterns - MUST.** `localStorage['afferent.world'] = {v: 1, lanterns: n, lastBiome, updatedISO}`, wrapped in try/catch (falls back to 0). `n` increments once per lit morning: a session whose fixed core finished with the player's own input (`completed`, `fell_asleep`, or `partial` with `core` present and not unengaged; Decisions D3, `design/engagement.md` 6.1, the same rule as the streak and the week lanterns). Never decremented, no dates shown, no gaps, no count in the world: a missed day changes nothing. The day streak lives outside the world, as the small mornings chip on the start screen (Decisions D1, `design/engagement.md` section 6, styled in concept 12.1). moments.js owns the storage (`A.Continuity.village()`, `.record(status, tasks)`); world.js draws.
+- Drawing: n warm lights (cap 60) on the far islands band at deterministic slots: `rng(1000 + i)` picks the island, x within it and the height. Each is a `tint('dot', light-ember)` core of `2.2u` plus a bloom emitter (r `6u`, a 0.35). Twinkle at most 0.2 Hz, 15% amplitude. At dawn alpha x0.6. Visible on the start screen, during play and at dawn. The newest light is placed by the end-screen mote (8.3).
 - Demo: `?village=N` forces n (film the dawn shot with 30).
 - NICE (after the demo): seasons toward spring over 8 weeks (snow to moss, ice opens, higher sun), starting where yesterday ended (`lastBiome` and faint old footprints), hub mirror of `n` via `day_index`.
 
 ## 10. Start, end and patient view
 
-- **Start screen - SHOULD:** the world is the menu (Monument Valley and Alba: the title is the place). `A.Moments.idle(V)` sets `V.ignite = 0.15`, `V.sit = 1`, `V.cam = {x: 0, y: 0, z: 1.30}`. Village lights visible. "Begin" and "Not today" stay low and quiet (UI owner). `bg_start` from the image workflow is used only before the first canvas frame or when the world cannot render; it must not cover the live world. NICE: "Not today" covers the ember (ignite 0.15 to 0.05) and dims to `V.black` 0.6 over 2.5 s; the village stays lit.
+- **Start screen - SHOULD:** the world is the menu (Monument Valley and Alba: the title is the place). `A.Moments.idle(V)` sets `V.ignite = 0.15`, `V.sit = 1`, `V.cam = {x: 0, y: 0, z: 1.30}`. Village lights visible. The hold-to-kindle ring and "Not today" stay low in the thumb zone (UI owner). The mornings chip (from a streak of 2, 06:00 to 21:00) sits above the figure at about 27% from the top, in the eye zone, never in the thumb zone (concept 12.1). `bg_start` from the image workflow is used only before the first canvas frame or when the world cannot render; it must not cover the live world. NICE: "Not today" covers the ember (ignite 0.15 to 0.05) and dims to `V.black` 0.6 over 2.5 s; the village stays lit.
 - **End screen:** 8.3. The end-screen DOM and CSS (`css/game-ui.css`, `css/flow-ui.css`) belong to the UI owner; the requirements are the text timing (not before dawn+8.6 s, never over the sun), and that the world stays visible (warm settle, not black) in the morning.
 - **Patient view - SHOULD:** `patient.html` loads fx.js and figure.js. `patient.js` passes `V.fxTier = 1` and a `V.preset = 'patient'` hint (stage 2 grade, flow mode, bloom on, no rays, no camera). The village lights show the person's own lanterns. After 4 s, freeze the canvas to one image to save battery (it already caps at 30 fps). The week ribbon and its stagger animation stay with the patient-view owner.
 
@@ -540,7 +555,7 @@ Role models: Sky: Children of the Light (persistent candles), Animal Crossing (t
 | Task in and out | 600 ms crossfades, no mote flight (the mote fades in place at the lantern) |
 | Colour wave | 4 s crossfade through the same `satOf`, no front band, no leaf pop scale |
 | Dawn | Sun rises at half speed, static ray fan (no rotation, no tier-2 rays), no birds, crossfade grade |
-| Figure | Walk cycle stays with bob x0.5, pendulum zeta 0.5, scarf and hem amplitude x0.4, no vapour |
+| Figure | Walk cycle stays with bob x0.5, pendulum zeta 0.5, hem amplitude x0.4, no vapour |
 | Aurora | Speed x0.3, breathing amplitude plus or minus 5%, no unfurl (alpha fade) |
 | Snow | 40 mid flakes, slow, glow only, no push, no bokeh |
 | Stars | Twinkle off |
@@ -620,7 +635,7 @@ A.Figure = {
                                // writes st.fig, st.lx, st.ly, st.phase (stride-locked), queues lantern lamps via A.FX.lamp
   drawShadow(ctx), draw(ctx), drawLantern(ctx),
   react(kind, data),           // 'nod' | 'tilt' | 'pose' (angle) | 'look' ({x, y, dur}) ; lift, sit and dawn come from V fields
-  debug(),                     // {pend: {a, v}, hood, hand, breath, scarfTip}
+  debug(),                     // {pend: {a, v}, hood, hand, breath, hemTip}
 }
 ```
 
@@ -683,7 +698,7 @@ engine.js is also edited by the minigames workflow (`g.outro`, `g.bare`, `g.draw
 |---|---|---|---|---|
 | 0 to 0.75 | stub + preset tables | port figure and lantern verbatim | stub camera, walk profile | **step 0** |
 | 0.75 to 2 | light pass, grade stack | scale 1.2, stride lock, 4 poses, pendulum | camera core, rest pull-back, task shots | flicker fixes, sun saddle and rise, first-light caps, remove rings and orb ring |
-| 2 to 3 | emitter bloom, static grain bake | breath, scarf, reactions | panel envelope, motes, `lightHome`, wave trigger | positional colour wave, leaf pop, front band |
+| 2 to 3 | emitter bloom, static grain bake | breath, hem band, reactions | panel envelope, motes, `lightHome`, wave trigger | positional colour wave, leaf pop, front band |
 | 3 to 4 | ray fan, tiers, perf overlay line | rims, dawn pose, ground shadow | dawn 8 s, end dim, night end, ignite | aurora breathe and unfurl, lantern-lit snow, lighthouse ladder, village, kindness caps, value ladder |
 | 4 to 5 | SHOULD: tier-2 rays, shadow wedges | SHOULD: sit, hem, vapour | SHOULD: lead, green tilt, check-in mote, idle start | SHOULD: birds, aurora hem and reflection, snow layers and push, water mirror |
 | 5 | joint test pass (section 14) and iPhone perf | | | |
