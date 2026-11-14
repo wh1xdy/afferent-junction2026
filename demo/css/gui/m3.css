@@ -209,7 +209,10 @@
   padding: 0 0 max(20px, calc(var(--af-bottom) - 4px));
   max-height: calc(100% - var(--af-ceiling)); overflow: auto; overscroll-behavior: contain;
 }
-.sheet .handle { width: 36px; height: 4px; border-radius: 2px; background: var(--md-sys-color-on-surface-variant); opacity: 0.32; margin: 14px auto 10px; }
+.sheet .handle { position: relative; width: 36px; height: 4px; border-radius: 2px; background: var(--md-sys-color-on-surface-variant); opacity: 0.32; margin: 14px auto 10px; }
+/* the bar is 4 px; a finger gets the strip around it (swipe.js drags the sheet from here even when its content is scrolled) */
+.sheet .handle::before { content: ""; position: absolute; inset: -14px -56px -10px; }
+.sheet .handle, .sheet .sheet-head { touch-action: none; }
 .scrim { position: absolute; inset: 0; z-index: 5; background: linear-gradient(to bottom, color-mix(in srgb, var(--md-sys-color-scrim) 34%, transparent), color-mix(in srgb, var(--md-sys-color-scrim) 62%, transparent)); }
 
 .dialog {

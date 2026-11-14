@@ -245,7 +245,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals', 'voice'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals', 'voice', 'hubDialog'].includes(id)) return;
       if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
       else delete el.dataset.scheme;
     }, true);
