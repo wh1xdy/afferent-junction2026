@@ -1,0 +1,8 @@
+.sheet, .mood-row { left: var(--gut); right: var(--gut); }
+.dialog { left: max(24px, calc(50% - 280px)); right: max(24px, calc(50% - 280px)); }
+.end-actions { left: calc(var(--gut) + 28px); right: calc(var(--gut) + 28px); }
+.end > .offer { left: calc(var(--gut) + 16px); right: calc(var(--gut) + 16px); }
+.end-paper { padding-left: calc(var(--gut) + 28px); padding-right: calc(var(--gut) + 28px); }
+.talk-body, .talk-actions, .settings-body, .ci-sheet { padding-left: calc(var(--gut) + 16px); padding-right: calc(var(--gut) + 16px); }
+.ci-question { padding-left: calc(var(--gut) + 24px); padding-right: calc(var(--gut) + 24px); }
+.settings .app-bar { padding-left: calc(var(--gut) + 8px); padding-right: calc(var(--gut) + 8px); }
