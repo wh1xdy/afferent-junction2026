@@ -22,7 +22,7 @@
 
   const dev = q.has('dev');
   const GROUPS = [
-    { title: 'Sensors', hint: 'Only numbers leave the phone, never camera images.', rows: [
+    { title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
       { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
       { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
@@ -219,7 +219,7 @@
   const layers = () => {
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      const open = ['hubDialog', 'info', 'signals', 'crisis', 'settings'].map($).find(el => el && !el.classList.contains('hidden'));
+      const open = ['hubDialog', 'info', 'signals', 'crisis', 'settings', 'voice'].map($).find(el => el && !el.classList.contains('hidden'));
       if (open) { e.preventDefault(); open.querySelector('[data-close]')?.click(); }
     });
   };
@@ -235,7 +235,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals', 'voice'].includes(id)) return;
       if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
       else delete el.dataset.scheme;
     }, true);

@@ -1,0 +1,59 @@
+/* Talk: the voice companion. Same parts as the rest of the app: app bar like Settings, lit lantern tile
+   and Jost headline like the support card, tile list like "How it works", pill buttons, lantern glow. */
+.voice { z-index: 6; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); animation: rise var(--af-dur-enter) var(--af-ease-in); }
+
+.voice-intro { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; justify-content: center; padding: 8px 0 16px; }
+.voice-tile { width: 56px; height: 56px; margin: 0 24px; border-radius: 18px; }
+.voice-tile svg { width: 20px; height: 32px; }
+.voice-intro h3 { margin: 20px 24px 16px; color: var(--md-sys-color-on-surface); text-wrap: balance; }
+.voice-how { padding-top: 0; }
+.voice-how li { align-items: flex-start; min-height: 0; padding: 6px 0; }
+.voice-how .t-body { padding-top: 7px; color: var(--md-sys-color-on-surface-variant); }
+.voice.talked .voice-intro { display: none; }
+
+.voice-log {
+  display: none; flex: 1; min-height: 0; margin: 0; padding: 8px 24px 16px; list-style: none;
+  overflow: auto; overscroll-behavior: contain; flex-direction: column; gap: 14px; scrollbar-width: none;
+}
+.voice-log::-webkit-scrollbar { display: none; }
+.voice.talked .voice-log { display: flex; }
+.voice-turn { overflow-wrap: anywhere; }
+.voice-turn:first-child { margin-top: auto; }
+.voice-turn.agent {
+  align-self: flex-start; max-width: 92%;
+  font: 300 21px/31px var(--af-font-voice); font-variation-settings: "opsz" 48; color: var(--md-sys-color-on-surface);
+}
+.voice-turn.user {
+  align-self: flex-end; max-width: 82%; padding: 12px 18px; border-radius: 24px 24px 6px 24px;
+  font: 400 17px/26px var(--af-font-ui); font-variation-settings: "ROND" var(--af-rond);
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
+}
+
+.voice-key { margin: 0 16px 8px; padding: 24px 16px 12px; border-radius: 24px; background: var(--md-sys-color-surface-container-high); display: flex; flex-direction: column; gap: 20px; }
+.voice-key .btn { align-self: flex-end; }
+
+.voice-dock { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 16px calc(var(--safe-bottom) + 24px); }
+.voice-status { min-height: 20px; margin: 0 8px 8px; text-align: center; color: var(--md-sys-color-on-surface-variant); }
+.voice[data-state="error"] .voice-status { font-weight: 400; color: var(--md-sys-color-error); }
+
+/* Lantern that glows with the voice: the mic level while listening, a slow breath while speaking. */
+.voice-lantern { --lvl: 0; position: relative; width: 84px; height: 84px; margin-bottom: 4px; display: none; place-items: center; color: var(--md-sys-color-sun); }
+.voice[data-state="connecting"] .voice-lantern, .voice[data-state="listening"] .voice-lantern, .voice[data-state="speaking"] .voice-lantern { display: grid; }
+.voice-halo {
+  position: absolute; inset: -22px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--af-honey) calc(14% + var(--lvl) * 34%), transparent) 0, transparent 68%);
+  opacity: calc(var(--af-glow-strength) * 0.9); transform: scale(calc(0.9 + var(--lvl) * 0.25));
+  transition: transform 120ms linear;
+}
+.voice-core { position: relative; display: grid; place-items: center; }
+.voice-core svg { width: 30px; height: 46px; display: block; filter: drop-shadow(0 0 calc(4px + var(--lvl) * 10px) color-mix(in srgb, var(--af-honey) 70%, transparent)); }
+.voice[data-state="connecting"] .voice-lantern { opacity: 0.45; }
+.voice[data-state="speaking"] .voice-halo { animation: voiceBreath 2400ms var(--af-ease-breath) infinite; }
+@keyframes voiceBreath { 0%, 100% { transform: scale(0.95); } 45% { transform: scale(1.22); } }
+
+:root[data-motion="reduced"] .voice { animation: fadeIn 150ms linear; }
+:root[data-motion="reduced"] .voice-halo { animation: none !important; transform: none; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .voice { animation: fadeIn 150ms linear; }
+  .voice-halo { animation: none !important; transform: none; transition: none; }
+}
