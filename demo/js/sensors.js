@@ -69,11 +69,11 @@
         await this.plugin.start();
         this.listener = await this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); });
       } else if (source === 'mediapipe') {
-        const base = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+        const base = new URL('vendor/mediapipe', document.baseURI).href;
         const v = await import(`${base}/vision_bundle.mjs`);
         const fileset = await v.FilesetResolver.forVisionTasks(`${base}/wasm`);
         this.landmarker = await v.FaceLandmarker.createFromOptions(fileset, {
-          baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'GPU' },
+          baseOptions: { modelAssetPath: `${base}/face_landmarker.task`, delegate: 'GPU' },
           runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true,
         });
         this.video = Object.assign(document.createElement('video'), { playsInline: true, muted: true });
@@ -86,7 +86,7 @@
 
     async startCamera() {
       const native = window.Capacitor?.isNativePlatform?.();
-      return this.start(native ? 'arkit' : 'mediapipe');
+      return this.start(native && window.Capacitor.getPlatform() === 'ios' ? 'arkit' : 'mediapipe');
     },
 
     stop() {
