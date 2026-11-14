@@ -29,7 +29,7 @@ const webAudio = () => {
   let hold = () => false;
   class Ctx {
     constructor() {
-      this.currentTime = live.now ?? 0; this.sampleRate = 48000; this.state = 'running';
+      this.currentTime = live.now ?? 0; this.sampleRate = 48000; this.state = live.suspended ? 'suspended' : 'running';
       this.destination = this.node('destination'); this.suspends = 0; this.resumes = 0;
       live.contexts.push(this);
     }
@@ -64,7 +64,7 @@ const webAudio = () => {
       const job = { file: data.file, done: () => ok(data.buffer) };
       if (hold(data.file)) held.push(job); else Promise.resolve().then(job.done);
     }
-    resume() { this.resumes++; this.state = 'running'; return Promise.resolve(); }
+    resume() { this.resumes++; if (live.suspended) return new Promise(() => {}); this.state = 'running'; return Promise.resolve(); }
     suspend() { this.suspends++; this.state = 'suspended'; return Promise.resolve(); }
   }
   const release = file => {
@@ -81,8 +81,9 @@ const bufferFor = file => {
   return { file, duration, numberOfChannels: 2, length: Math.round(duration * 48000) };
 };
 
-const app = ({ music = MUSIC } = {}) => {
+const app = ({ music = MUSIC, suspended = false } = {}) => {
   const wa = webAudio();
+  wa.live.suspended = suspended;
   let now = 0, timers = [], seq = 0;
   const intervals = [], docListeners = {}, calls = { dawnPhrase: 0 };
   const ctx = {
@@ -92,7 +93,7 @@ const app = ({ music = MUSIC } = {}) => {
     clearTimeout: id => { timers = timers.filter(t => t.id !== id); },
     setInterval: (f, ms) => { intervals.push({ f, every: ms / 1000, next: ms / 1000 }); return intervals.length; },
     clearInterval: () => {},
-    navigator: {},
+    navigator: { audioSession: { type: 'auto' } },
     document: { hidden: false, addEventListener: (t, f) => { (docListeners[t] ||= []).push(f); } },
     fetch: async url => {
       if (url.endsWith('music/manifest.json')) return { ok: !!music, json: async () => JSON.parse(JSON.stringify(music)) };
@@ -140,7 +141,7 @@ const app = ({ music = MUSIC } = {}) => {
     for (const n of liveBeds()) assert.ok(mine.has(n) || n.stopAt !== null, `${n.buffer.file} plays but is not the current bed and never stops`);
   };
   const watch = async (sec, step = 0.25) => { for (let t = 0; t < sec; t += step) { await advance(step); check(); } };
-  const tap = () => fire('pointerdown');
+  const tap = () => { wa.live.suspended = false; fire('pointerdown'); };
   const begin = ({ clock = 'morning' } = {}) => {
     Au.on = true; Au.start(0.25);
     emit('ws', { type: 'session_start', clock });
@@ -163,6 +164,143 @@ const app = ({ music = MUSIC } = {}) => {
 
 const tests = [];
 const test = (name, f) => tests.push([name, f]);
+
+const ambLoops = a => a.wa.sources.filter(n => n.kind === 'buffer' && n.loop && n.buffer?.file?.startsWith('amb_') && n.startAt !== null && n !== a.A.Ambience.lanternV?.src);
+
+test('the kaamos bed and the harbour ambience play from launch, before any tap', async () => {
+  const a = app();
+  a.emit('home');
+  await a.watch(4);
+  assert.strictEqual(a.M.bed?.key, 'kaamos');
+  assert.strictEqual(a.liveBeds().length, 1);
+  assert.ok(a.M.bed.pad.gain.value > 0, 'the start bed is silent');
+  assert.ok(a.M.bus.curve.gain.value > 0, 'the start screen is muted');
+  assert.ok(ambLoops(a).length > 0, 'no ambience on the start screen');
+  assert.strictEqual(a.ctx.navigator.audioSession.type, 'ambient');
+  assert.ok(!a.A.Ambience.lanternV, 'the lantern is lit before the session');
+});
+
+test('a suspended context resumes on the first tap, and the tap does nothing else', async () => {
+  const a = app({ suspended: true });
+  const ws = [];
+  a.A.bus.on('ws', m => ws.push(m));
+  a.emit('home');
+  await a.watch(3);
+  const ctx = a.M.ctx, beds = a.bedsOf('kaamos');
+  assert.strictEqual(ctx.state, 'suspended');
+  assert.strictEqual(a.M.want, 'kaamos');
+  assert.ok(beds.length <= 1);
+  a.tap();
+  await a.watch(1);
+  assert.strictEqual(ctx.state, 'running');
+  a.tap(); a.fire('keydown');
+  await a.watch(2);
+  assert.deepStrictEqual(ws, [], 'the tap started something');
+  assert.strictEqual(a.M.s.home, true);
+  assert.strictEqual(a.A.session, undefined);
+  if (beds.length) assert.deepStrictEqual(a.bedsOf('kaamos'), beds, 'the tap restarted the bed');
+  assert.strictEqual(a.bedsOf('kaamos').length, 1);
+  assert.strictEqual(a.liveBeds().length, 1);
+});
+
+test('starting a session carries the start bed on without a second source, then moves on as before', async () => {
+  const a = app();
+  a.emit('home');
+  await a.watch(4);
+  const bed = a.M.bed, src = bed.srcs[0], amb = ambLoops(a).length;
+  a.begin();
+  a.emit('segment', 'fadein');
+  await a.watch(4);
+  assert.strictEqual(a.M.bed, bed, 'the bed was replaced');
+  assert.strictEqual(src.stopAt, null, 'the start bed was stopped');
+  assert.strictEqual(a.bedsOf('kaamos').length, 1, 'a second kaamos bed started');
+  assert.ok(bed.pad.gain.value > 0, 'the bed dropped out at the session start');
+  assert.ok(a.M.bus.curve.gain.value > 0);
+  assert.strictEqual(a.M.s.home, false);
+  assert.strictEqual(ambLoops(a).length, amb, 'the ambience restarted');
+  assert.strictEqual(a.A.Ambience.s.home, undefined);
+  a.emit('segment', 'rest'); await a.watch(2);
+  a.emit('segment', 'checkin'); await a.watch(2);
+  a.emit('segment', 'rt'); await a.watch(2);
+  a.emit('mode', 'flow');
+  a.emit('segment', 'walk');
+  await a.watch(12);
+  assert.strictEqual(a.M.bed?.key, 'flow');
+  assert.ok(src.stopAt !== null, 'kaamos never handed over');
+  assert.strictEqual(a.liveBeds().filter(n => n.stopAt === null).length, 1);
+});
+
+test('back on the start screen after a session the calm bed plays again', async () => {
+  for (const status of ['completed', 'closed', 'declined']) {
+    const a = app();
+    a.emit('home');
+    await a.watch(2);
+    a.begin();
+    await a.core('flow');
+    await a.watch(14);
+    a.emit('segment', 'end');
+    a.emit('sessionEnd', { status });
+    await a.watch(10);
+    assert.deepStrictEqual(a.liveBeds().map(n => n.buffer.file), [], status);
+    a.emit('home');
+    await a.watch(4);
+    assert.strictEqual(a.M.bed?.key, 'kaamos', status);
+    assert.strictEqual(a.M.s.home, true, status);
+    assert.strictEqual(a.liveBeds().length, 1, status);
+    assert.ok(a.M.bus.curve.gain.value > 0, 'the start screen is silent after ' + status);
+    assert.strictEqual(a.A.Ambience.s?.home, true, status);
+    assert.ok(a.A.Ambience.out.gain.value > 0, 'the ambience is silent after ' + status);
+  }
+});
+
+test('a decline from a reminder leaves the start bed playing', async () => {
+  const a = app();
+  a.emit('home');
+  await a.watch(3);
+  a.emit('sessionEnd', { status: 'declined' });
+  await a.watch(4);
+  assert.strictEqual(a.M.bed?.key, 'kaamos');
+  assert.ok(a.M.bus.curve.gain.value > 0);
+  assert.strictEqual(a.liveBeds().length, 1);
+});
+
+test('sound off at launch plays nothing, and switching it on starts the start bed', async () => {
+  const a = app();
+  a.Au.on = false;
+  a.emit('home');
+  await a.watch(3);
+  assert.deepStrictEqual(a.wa.sources.filter(n => n.kind === 'buffer' && n.buffer?.file?.startsWith('mu_')), []);
+  assert.strictEqual(ambLoops(a).length, 0);
+  a.Au.on = true;
+  await a.watch(4);
+  assert.strictEqual(a.M.bed?.key, 'kaamos');
+  assert.strictEqual(a.liveBeds().length, 1);
+  assert.ok(ambLoops(a).length > 0);
+  a.Au.on = false;
+  await a.watch(1);
+  assert.strictEqual(a.M.bus.mix.gain.value, 0, 'sound off does not mute the start bed');
+  a.Au.on = true;
+  await a.watch(1);
+  assert.strictEqual(a.M.bus.mix.gain.value, 1);
+  assert.strictEqual(a.bedsOf('kaamos').length, 1);
+});
+
+test('a Talk conversation on the start screen quiets the start bed and brings it back after', async () => {
+  const a = app();
+  a.emit('home');
+  await a.watch(4);
+  const bed = a.M.bed;
+  a.emit('voice', { state: 'connecting' });
+  await a.watch(1);
+  a.emit('voice', { state: 'listening' });
+  await a.watch(3);
+  assert.strictEqual(a.M.bus.curve.gain.value, 0, 'music plays under the conversation');
+  a.emit('voice', { state: 'idle' });
+  await a.watch(4);
+  assert.ok(a.M.bus.curve.gain.value > 0);
+  assert.strictEqual(a.M.bed, bed);
+  assert.strictEqual(a.bedsOf('kaamos').length, 1);
+});
 
 test('a completed morning with dawn and bloom ends silent, and the next morning plays one kaamos bed', async () => {
   for (const bloomLate of [true, false]) await morning(bloomLate);
@@ -395,6 +533,7 @@ test('a Talk conversation ended while the microphone is still being asked for le
 (async () => {
   let failed = 0;
   for (const [name, f] of tests) {
+    if (process.argv[2] && !name.includes(process.argv[2])) continue;
     try { await f(); console.log('ok  ', name); } catch (e) { failed++; console.log('FAIL', name, '\n     ', e.message); }
   }
   process.exit(failed ? 1 : 0);
