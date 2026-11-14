@@ -46,11 +46,11 @@
       try { names = await (await fetch(base + 'manifest.json')).json(); } catch { return; }
       names = names.map(e => { if (typeof e === 'string') return e; meta[e.name] = e; return e.name; });
       await Promise.all(names.map(n => new Promise(res => {
-        const img = new Image();
+        const img = new Image(), ext = '.' + (meta[n]?.ext || 'png');
         let tries = 0;
         img.onload = () => { try { const a = prepare(img, n); if (a) store[n] = a; } catch {} res(); };
-        img.onerror = () => (tries++ < 2 ? setTimeout(() => { img.src = base + n + '.png?r=' + tries; }, 400 * tries) : res());
-        img.src = base + n + '.png';
+        img.onerror = () => (tries++ < 2 ? setTimeout(() => { img.src = base + n + ext + '?r=' + tries; }, 400 * tries) : res());
+        img.src = base + n + ext;
       })));
       A.bus?.emit?.('artLoaded', Object.keys(store));
     },
