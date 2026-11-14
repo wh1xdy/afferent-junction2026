@@ -182,7 +182,7 @@
           if (!r) { this.light = this.items / Math.max(1, this.n); return; }
           if (r.up) sfx('beacon_tier', { tier: r.tier });
           this.tier = r.tier; this.light = r.light;
-          if (r.fever) { this.feverUntil = now + 2.6; hap.seq([['medium', 160]]); }
+          if (r.fever) { this.feverUntil = now + 2.6; hap.seq([['rise', 160]]); }
         },
 
         hit(bt, grade, now) {
@@ -204,9 +204,8 @@
             }
           }
           J.bloom(x, y - 30 * U, (bt.ferry ? 80 : 46) * U * (big ? 1.3 : 1) * (1 + 0.12 * this.tier), C.amber, grade === 'barely' ? 0.35 : 0.6, 0.12, 0.5);
-          if (bt.ferry) hap('medium');
-          else if (grade === 'perfect') hap.seq([['light', 0], ['tick', 40]]);
-          else hap('light');
+          if (bt.ferry) hap('land');
+          else hap(grade === 'perfect' ? 'bright' : 'hit', grade === 'barely' ? 0.7 : 1);
           sfx('beacon_hit', { step: this.fin - 1, n: this.n, grade, tier: this.tier, ferry: bt.ferry });
           this.log();
           if (bt.ferry) this.end(now, true);
@@ -247,7 +246,7 @@
           this.payAt = J.at;
           const b = this.box(), L = this.lamp(b), size = this.light >= 0.8 ? 1 : this.light >= 0.5 ? 0.7 : 0.45;
           J.bloom(L[0], L[1], b.w * (0.22 + 0.16 * size), C.glow, 0.45 * (hit ? 1 : 0.7), 0.3, 0.9);
-          hap.seq([['success', 200]]);
+          hap.seq([['complete', 200]]);
           J.spill(0.35 + 0.55 * size * (hit ? 1 : 0.8));
           J.border(1);
           sfx('beacon_payoff', { size, hit });
@@ -266,7 +265,7 @@
 
         update(dt, now) {
           if (!this.boats) this.build(now);
-          while (this.ci < 2 && now >= this.t0 + this.ci * this.P - 0.01) { hap('light'); sfx('beacon_count', { i: this.ci }); this.ci++; }
+          while (this.ci < 2 && now >= this.t0 + this.ci * this.P - 0.01) { hap('rhythm'); sfx('beacon_count', { i: this.ci }); this.ci++; }
           const late = this.win().barely + GRACE + 0.05, b = this.box(), U = unit(b);
           for (const bt of this.boats) {
             if (bt.state === 'wait' && now >= bt.tl - 3.3 * this.P) this.show(bt);
@@ -302,12 +301,12 @@
               return;
             }
             this.errors++; this.nearAt = J.at;
-            sfx('beacon_near');
+            hap('miss'); sfx('beacon_near');
             this.log();
             return;
           }
           this.empty++; this.emptyAt = J.at;
-          sfx('beacon_empty');
+          hap('touch', 0.7); sfx('beacon_empty');
           this.log();
         },
 

@@ -3,11 +3,11 @@
   const J = A.J, { C, sprite, glow, unit, tapCue, base, finish, fx, hap, sfx, rm } = J;
   const E = J.ease, R = Math.random, ID = 'bells', ROUNDS = 3, COLS = 0.72, TAU = 6.283;
   const BELL = [
-    { tint: C.amber, note: 3, hap: 'heavy', art: 0 },
-    { tint: C.ice, note: 4, hap: 'medium', art: 1 },
-    { tint: C.green, note: 7, hap: 'light', art: 2 },
+    { tint: C.amber, note: 3, hap: 'land', art: 0 },
+    { tint: C.ice, note: 4, hap: 'hit', art: 1 },
+    { tint: C.green, note: 7, hap: 'bright', art: 2 },
   ];
-  const DEEP = { tint: C.violet300, note: 0, hap: 'heavy', art: 0 };
+  const DEEP = { tint: C.violet300, note: 0, hap: 'land', art: 0 };
   const TOWER = { lamp: 0.29, w0: 0.37, w1: 0.775, cx: 0.507, shaft: 0.16 };
 
   A.Skill?.define(ID, {
@@ -163,7 +163,7 @@
           bl.rungAt = at; bl.litAt = at; bl.swing = 0.6;
           const dur = clamp(this.gapR * 0.75, 0.16, 0.3);
           this.comet(L.bells[bl.i], L.wins[i], bl.tint, dur, this.bright ? 1.5 : 1, () => { const w = this.wins[i]; w.on = this.phase === 'echo' ? this.floor : 0.62; w.peakAt = J.at; });
-          if (this.bright) hap('heavy');
+          if (this.bright) hap(bl.hap);
           sfx('bells_show', { bell: bl.i, pos: i, piano: [bl.note, 0.16] });
         },
 
@@ -227,7 +227,7 @@
           if (i !== this.seq[pos]) {
             this.errors++; this.log.replays++; this.replayed = true;
             bl.wrongAt = at; bl.rungAt = at; bl.swing = 0.25;
-            hap('tick'); sfx('bells_tok', { bell: i });
+            hap('miss'); sfx('bells_tok', { bell: i });
             if (this.errors % 2 === 0 && this.target > 2) { this.target--; this.shortened = true; }
             this.phase = 'wait'; this.nextAt = now + 0.6;
             return;
@@ -273,7 +273,7 @@
           this.lastGrade = grade;
           if (r) { this.tier = r.tier; this.lightShare = r.light; if (r.fever) this.fever = true; }
           else { this.tier = grade === 'perfect' || grade === 'good' ? this.tier + 1 : grade === 'miss' ? Math.max(0, this.tier - 1) : this.tier; this.lightShare = Math.min(1, this.items / this.target0); this.fever = this.tier >= 3; }
-          if (grade === 'perfect') hap.seq([['tick', 40]]);
+          if (this.round < ROUNDS - 1 && grade !== 'miss') hap.seq([['success', 240, grade === 'barely' ? 0.7 : 1]]);
           J.border(this.items / Math.max(1, this.target0));
           this.writeExtra();
           if (this.round >= ROUNDS - 1) return;
@@ -288,7 +288,7 @@
           finish(this, now);
           this.phase = 'pay'; this.payAt = J.at;
           J.hitstop(this, 120); J.slowmo(this, 0.3, 420);
-          hap.seq([['heavy', 0], ['success', 420]]);
+          hap.seq([[bl.hap, 0], ['complete', 420]]);
           this.comet(L.bells[i], { x: L.lamp[0], y: L.lamp[1] }, bl.tint, 0.36, 1.5, () => this.ignite(size), true);
           const fc = this.comets[this.comets.length - 1];
           fc.cx = lerp(L.bells[i].cx, w.x, 0.8); fc.cy = Math.min(L.bells[i].crown, w.y) - 30 * L.U;

@@ -36,7 +36,7 @@
         settle(c, now) {
           c.end = now; this.phase = 'reveal'; this.revealAt = J.at; this.revealT = now;
           const b = this.b, U = b ? unit(b) : 1;
-          if (c.miss) { sfx('ferry_miss'); hap('tick'); }
+          if (c.miss) { sfx('ferry_miss'); hap('miss'); }
           else {
             const q = clamp(1 - Math.abs(c.err) / 0.35, 0, 1);
             if (b) {
@@ -45,8 +45,8 @@
               if (q > 0.3) fx.burst(px, py, Math.round(4 + 10 * q), C.glow, (80 + 90 * q) * U, { kind: 'spark', size: [3.5 * U, 1] });
               else fx.snow(px, py - 10 * U, 5);
             }
-            if (Math.abs(c.err) <= GOOD) { hap('light'); sfx('ferry_good', { piano: [3 + (this.items % 5), 0.12] }); }
-            else { hap('tick'); sfx('ferry_near'); }
+            if (Math.abs(c.err) <= GOOD) { hap('hit'); sfx('ferry_good', { piano: [3 + (this.items % 5), 0.12] }); }
+            else { hap('touch'); sfx('ferry_near'); }
           }
           J.border((this.i + 1) / N);
           this.sync();
@@ -58,7 +58,7 @@
           if (this.phase === 'run' && c && now >= c.arrive + LATE) { c.miss = true; this.settle(c, now); }
           if (this.phase === 'reveal' && now - this.revealT >= REVEAL) { this.phase = 'wait'; this.nextAt = this.t + GAP; }
           if (this.phase === 'wait' && this.t >= this.nextAt) {
-            if (this.i + 1 >= N) { this.cur = null; this.sync(); finish(this, now); hap('success'); sfx('ferry_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= N) { this.cur = null; this.sync(); finish(this, now); hap('complete'); sfx('ferry_done'); J.border(1); J.spill(0.35); return; }
             const n = this.trials[++this.i];
             n.on = now; n.onAt = J.at; n.arrive = now + n.dur; this.cur = n; this.phase = 'run';
             sfx('ferry_horn');

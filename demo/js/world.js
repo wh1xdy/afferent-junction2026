@@ -245,14 +245,7 @@
     return g;
   }
 
-  const haptic = () => {
-    if (A.J) { A.J.hap.seq([['light', 0], ['light', 140]]); return; }
-    try {
-      const Hp = window.Capacitor?.Plugins?.Haptics;
-      if (Hp?.impact) { Hp.impact({ style: 'LIGHT' }); setTimeout(() => Hp.impact({ style: 'LIGHT' }), 140); return; }
-      navigator.vibrate?.([12, 110, 18]);
-    } catch {}
-  };
+  const haptic = k => A.Haptics?.play('rise', k);
 
   function step() {
     const t = n0(S.t, 0);
@@ -266,12 +259,12 @@
     st.flashPrev = fl;
     st.flare = fl * (0.4 + 0.6 * clamp((t - st.flashAt) / 0.07, 0, 1));
     st.heavy = clamp((n0(S.fog, 0.4) - 0.55) / 0.25, 0, 1);
-    if ((sw > 0.02 || n0(sat.dawn, 0) > 0.5) && !st.swept) { st.swept = true; haptic(); ring(I.night ? 0.4 : 1, 'dawn'); }
+    if ((sw > 0.02 || n0(sat.dawn, 0) > 0.5) && !st.swept) { st.swept = true; haptic(I.night ? 0.6 : 0.9); ring(I.night ? 0.4 : 1, 'dawn'); }
     const sunT = I.night ? 0 : n0(S.sunP, 0) > 0 || n0(sat.dawn, 0) > 0.5 ? Math.max(n0(S.sunP, 0), n0(sat.dawn, 0)) : 0;
     st.sun = dt ? ema(st.sun, sunT, dt, 1.1) : sunT;
     for (const g of GROUPS) {
       const target = Math.max(n0(sat[g], 0), g === 'dawn' ? ease(sw) : ease(sw) * 0.9);
-      if (st.prev[g] < 0.5 && n0(sat[g], 0) >= 0.5 && g !== 'dawn' && st.last > 0.5) { haptic(); ring(0.8, g); }
+      if (st.prev[g] < 0.5 && n0(sat[g], 0) >= 0.5 && g !== 'dawn' && st.last > 0.5) { haptic(0.7); ring(0.8, g); }
       st.prev[g] = n0(sat[g], 0);
       st.ds[g] = dt ? ema(st.ds[g], target, dt, g === 'dawn' ? 1.4 : 0.8) : target;
     }

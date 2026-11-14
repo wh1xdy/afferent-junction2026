@@ -251,7 +251,7 @@
           this.chillAt = J.at;
           fx.snow(x, y, 8, C.silver100);
           fx.burst(x, y, 5, C.ice, 90, { kind: 'mote', life: 0.4, size: [2, 0.6] });
-          if (!this.stroke.frost) { this.stroke.frost = true; this.tier = A.Skill?.drop(ID) ?? Math.max(0, this.tier - 1); hap('tick'); }
+          if (!this.stroke.frost) { this.stroke.frost = true; this.tier = A.Skill?.drop(ID) ?? Math.max(0, this.tier - 1); hap('miss'); }
           sfx('ff_frost');
         },
 
@@ -274,12 +274,11 @@
           fx.burst(x, y, Math.floor(nSp / 2), C.flame, 140 * U * big, { kind: 'spark', life: 0.35, size: [4 * U * big, 1] });
           if (grade === 'perfect') fx.add({ x, y, life: 0.3, size: q => (10 + 14 * Math.sin(Math.PI * q)) * U * big, alpha: q => 1 - q, kind: 'spark', c: C.daylight });
           J.bloom(x, y, Math.min(64, (24 + 10 * s.catches + (grade === 'perfect' ? 12 : 0)) * big) * U, pal.fly, grade === 'barely' ? 0.35 : 0.6, 0.12, 0.35);
-          if (s.catches === 1) hap('light'); else hap.seq([['light', 50]]);
-          if (grade === 'perfect') hap.seq([['tick', 40]]);
+          hap.seq([[grade === 'perfect' ? 'bright' : 'hit', s.catches === 1 ? 0 : 50, grade === 'barely' ? 0.7 : 1]]);
           const off = beat.period() / 4, ph = ((A.now() - beat.t0) / off) % 1, when = ph > 0.02 ? (1 - ph) * off : 0;
           sfx('ff_catch', { piano: [grade === 'barely' ? 2 + s.catches : Math.min(10, 4 + s.catches + this.tier), grade === 'barely' ? 0.08 : 0.14, when] });
           if (s.catches === 3) {
-            hap('medium');
+            hap.seq([['land', 140]]);
             this.lidAt = J.at;
             if (!rm() && J.flash.request(0.3, 0.15).ok) this.rings.push({ x, y, at: J.at });
             sfx('ff_bowl');
@@ -322,7 +321,7 @@
             i++;
           }
           this.flies = this.flies.filter(f => f.state !== 'gone');
-          hap.seq([['tick', 0], ['tick', 60], ['tick', 120], ['tick', 180], ['medium', 260]]);
+          hap.seq([['tick', 0], ['tick', 70], ['complete', 140]]);
           const gate = J.flash.request(0.15, 0.4);
           this.payGain = gate.ok ? clamp(gate.peak / 0.4, 0.3, 1) : 0.5;
           J.border(1);

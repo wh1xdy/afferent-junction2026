@@ -15,7 +15,7 @@
       p = 0; run.inhale = !run.inhale;
       if (run.inhale) run.len = lens(s);
       el.querySelector('.stay-cue').textContent = run.inhale ? 'Breathe in, gently' : 'And out, slowly';
-      navigator.vibrate?.(run.inhale ? 10 : 6);
+      A.Haptics?.breath(run.inhale ? 'in' : 'out', run.inhale ? run.len[0] : run.len[1]);
     }
     run.p = p;
     const e = 0.5 - 0.5 * Math.cos(Math.PI * p), b = run.inhale ? e : 1 - e;
@@ -25,7 +25,7 @@
   };
 
   const close = () => {
-    cancelAnimationFrame(raf); run = null;
+    cancelAnimationFrame(raf); run = null; A.Haptics?.stop();
     if (!el) return;
     el.classList.remove('on');
     const gone = el;
@@ -33,7 +33,7 @@
     el = null;
   };
   const finish = () => {
-    cancelAnimationFrame(raf); run = null;
+    cancelAnimationFrame(raf); run = null; A.Haptics?.stop();
     if (!el) return;
     el.classList.add('resting');
     el.querySelector('.stay-cue').textContent = 'Rest a moment.';
@@ -56,6 +56,7 @@
     el.classList.add('on');
     t0 = performance.now();
     run = { p: 0, inhale: true, len: lens(0), last: t0 };
+    A.Haptics?.breath('in', run.len[0]);
     raf = requestAnimationFrame(tick);
   };
 

@@ -43,7 +43,7 @@
 
         end(now) {
           this.sync(); finish(this, now);
-          hap('success'); sfx('drips_done'); J.border(1); J.spill(0.35);
+          hap('complete'); sfx('drips_done'); J.border(1); J.spill(0.35);
         },
 
         update(dt, now) {
@@ -52,7 +52,7 @@
           if (this.phase === 'sync') {
             // Land each drip on its beat.
             while (this.beat < NSYNC && now >= this.beatAt(this.beat)) {
-              this.beat++; this.wave('drop'); sfx('drips_drop', { i: this.beat }); hap('tick');
+              this.beat++; this.wave('drop'); sfx('drips_drop', { i: this.beat }); hap('rhythm');
               const p = this.pool(); if (p) fx.drip(p.x, p.y - p.ry * 0.5, C.ice);
               J.border(this.beat / (NSYNC + NCONT));
             }
@@ -73,10 +73,10 @@
             const i = clamp(Math.round((t - this.beatAt(0)) / P), 0, NSYNC - 1);
             this.syncTaps.push(t);
             if (!this.syncTaps.some((x, k) => k < this.syncTaps.length - 1 && Math.round((x - this.beatAt(0)) / P) === i)) this.asyn.push(t - this.beatAt(i));
-            this.wave('tap'); hap('light'); sfx('drips_tap');
+            this.wave('tap'); hap('touch'); sfx('drips_tap');
           } else {
             this.contTaps.push(t);
-            this.wave('tap'); hap('light'); sfx('drips_tap', { i: this.contTaps.length });
+            this.wave('tap'); hap('touch'); sfx('drips_tap', { i: this.contTaps.length });
             J.border((NSYNC + this.contTaps.length) / (NSYNC + NCONT));
             this.sync();
             if (this.contTaps.length >= NCONT) { this.end(t); return; }

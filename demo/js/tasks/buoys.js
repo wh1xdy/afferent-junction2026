@@ -82,17 +82,17 @@
           fx.burst(o.x, o.y, 8, C.glow, 120 * U, { kind: 'spark', size: [4 * U, 1] });
           J.bloom(o.x, o.y, o.r * 3 + 20 * U, C.glow, 0.35, 0.12, 0.35);
           J.border(this.next / N);
-          if (this.next < N) { hap('light'); sfx('buoys_link', { i: this.next - 1, piano: [3 + ((this.next - 1) % 5), 0.12] }); }
+          if (this.next < N) { hap('hit'); sfx('buoys_link', { i: this.next - 1, piano: [3 + ((this.next - 1) % 5), 0.12] }); }
           else {
             this.sync(); finish(this, t); this.doneAt = J.at; this.touching = false; this.fp = null;
-            hap('success'); sfx('buoys_done'); J.border(1); J.spill(0.35);
+            hap('complete'); sfx('buoys_done'); J.border(1); J.spill(0.35);
           }
         },
 
         wrong(o) {
           this.errors++; o.wob = J.at; o.inside = true;
           const tg = this.target(); if (tg) tg.wob2 = J.at;
-          hap('tick'); sfx('buoys_wrong');
+          hap('miss'); sfx('buoys_wrong');
           fx.drip(o.x, o.y + o.r);
         },
 

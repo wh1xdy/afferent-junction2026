@@ -95,7 +95,7 @@
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
         if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },
-      haptic(name = 'light') { if (A.J) A.J.hap(name); else { navigator.vibrate?.(15); A.bus.emit('haptic'); } },
+      haptic(name = 'touch', k) { A.Haptics?.play(name, k); },
       kick(x) { this.flameKick = Math.max(this.flameKick, x); },
       kindleFrom(i, now) {
         const b = this.box();
@@ -104,7 +104,7 @@
       updateSpark(now) {
         const sp = this.spark;
         if (!sp || sp.lit || now - sp.at < SPARK_S) return;
-        sp.lit = true; this.kick(0.6); Au.piano(9, 0.1); this.haptic('light');
+        sp.lit = true; this.kick(0.6); Au.piano(9, 0.1); this.haptic('hit', 0.8);
         for (let i = 0; i < 6; i++) V.sparks.push({ born: now, dx: R() * 2 - 1, dy: -R() });
       },
       drawSpark(ctx, now) {
@@ -666,7 +666,7 @@
           const k = clamp(V.dawnT / DAWN_S, 0, 1);
           if (this.night) { for (const g of ['yellow', 'blue', 'green']) V.sat[g] = Math.max(V.sat[g], k); V.aurora = Math.max(V.aurora, k); }
           V.sweep = k; V.sunP = k; V.border = lerp(0.1, 0.22, k); V.daylight = ema(V.daylight, 0, dt, 1);
-          if (V.dawnT >= DAWN_S) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
+          if (V.dawnT >= DAWN_S) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); this.haptic('complete'); A.bus.emit('endScreen'); }
         }
         if (this.phase === 'end') {
           const t = now - this.phaseAt;
@@ -689,6 +689,7 @@
       setMood(v) {
         if (this.done || this.phase !== 'end' || this.moodEnd !== undefined) return;
         this.moodEnd = v; this.moodAt = A.now();
+        this.haptic('tick');
         A.bus.emit('mood', { which: 'end', value: v });
         this.ws({ type: 'mood', which: 'end', value: v });
         if (v === 1 && this.coreRec?.mood_start === 1) A.bus.emit('crisisOffer', 'mood');

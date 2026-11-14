@@ -54,6 +54,7 @@
     { id: 'morningsGroup', title: 'Mornings', rows: [] },
     { title: 'Sound and light', rows: [
       { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
+      { icon: 'touch_app', label: 'Vibration', sup: 'Soft touches as you play', sw: 'id="hapticSw"' },
       { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
       { icon: 'favorite', label: 'Heartbeat touch', sup: 'A soft beat at your own pulse in calm moments', sw: 'id="beatSw"' },
@@ -101,7 +102,7 @@
   // The kindle flame beats with the live heartbeat (heartbeat.js) while the home screen shows; main.js calls this each frame.
   let kindleBeat = () => {};
   const buildGap = p => 170 - 125 * p;
-  const smoothHap = () => (window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.AfferentHaptics : null) || null;
+  const smoothHap = () => !!A.Haptics?.smooth();
   const kindle = () => {
     const btn = $('begin');
     if (!btn) return;
@@ -109,15 +110,15 @@
     const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
     let p = 0, t0 = 0, heldFrom = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
     const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 && v < 1 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
-    const buzz = n => (A.J ? A.J.hap(n) : navigator.vibrate?.(n === 'success' ? [12, 60, 22] : n === 'light' ? 6 : 3));
-    const fire = () => { lit = true; btn.classList.add('lit'); const H = smoothHap(); if (H) H.success().catch(() => buzz('success')); else buzz('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
+    const buzz = (n, k) => A.Haptics?.play(n, k);
+    const fire = () => { lit = true; btn.classList.add('lit'); A.Haptics?.lit(); btn.dispatchEvent(new CustomEvent('kindle')); };
     const tick = () => {
       if (!holding) return;
       set(Math.min(1, (performance.now() - t0) / HOLD_MS));
       if (p >= 1) { holding = false; fire(); return; }
       const now = performance.now();
       if (smoothHap()) { raf = requestAnimationFrame(tick); return; }
-      if (p >= 0.75) { if (!swell) { swell = true; buzz('light'); } }
+      if (p >= 0.75) { if (!swell) { swell = true; buzz('touch'); } }
       else if (now >= buzzAt) { buzz('tick'); buzzAt = now + Math.max(70, buildGap(p)); }
       raf = requestAnimationFrame(tick);
     };
@@ -137,8 +138,7 @@
       try { btn.setPointerCapture(e.pointerId); } catch {}
       cancelAnimationFrame(raf);
       holding = true; btn.classList.add('holding'); buzzAt = performance.now() + buildGap(p); swell = p >= 0.75;
-      const H = smoothHap();
-      if (H) H.holdStart({ durationMs: (1 - p) * HOLD_MS, from: p }).catch(() => {}); else buzz('tick');
+      if (!(smoothHap() && A.Haptics.hold((1 - p) * HOLD_MS, p))) buzz('tick');
       t0 = performance.now() - p * HOLD_MS; heldFrom = at(e) - p * HOLD_MS;
       raf = requestAnimationFrame(tick);
     });
@@ -147,7 +147,7 @@
       holding = false; btn.classList.remove('holding');
       if (lit) return;
       if ((at(e) - heldFrom) / HOLD_MS >= 1) { cancelAnimationFrame(raf); set(1); fire(); return; }
-      smoothHap()?.holdStop().catch(() => {}); drain(); hint();
+      A.Haptics?.release(); drain(); hint();
     };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => btn.addEventListener(t, release));
     btn.addEventListener('contextmenu', e => e.preventDefault());

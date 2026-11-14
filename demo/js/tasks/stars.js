@@ -155,7 +155,7 @@
           if (tg) tg.breathe = this.at ?? J.at;
           this.gaps.push(s.rank - (tg ? tg.rank : this.n));
           this.flags.wrong = true;
-          sfx('stars_wrong');
+          hap('miss'); sfx('stars_wrong');
         },
 
         commit(s, t, how) {
@@ -182,8 +182,7 @@
           J.bloom(s.x, s.y, s.r * (fever ? 5 : 3.5) + 24 * U, C.glow, grade === 'perfect' || fever ? 0.55 : 0.4, 0.12, 0.35);
           J.border(this.items / this.n);
           if (this.items < this.n) {
-            const h = this.calm || i < 3 ? 'light' : 'medium';
-            grade === 'perfect' ? hap.seq([[h, 0], ['tick', 40]]) : hap(h);
+            hap(grade === 'perfect' ? 'bright' : 'hit', this.calm || i < 3 ? 0.75 : 1);
           }
           sfx('stars_link', { i, grade, piano: [soft ? 2 + i : 3 + i, soft ? 0.09 : 0.15] });
           if (this.items >= this.n) this.complete(t, at);
@@ -194,7 +193,7 @@
           finish(this, t);
           this.doneAt = at; this.touching = false; this.fp = null;
           J.hitstop(this, 120);
-          hap(this.calm ? 'light' : 'success');
+          hap('complete');
           sfx('stars_done', { chord: true });
           J.border(1);
           const L = this.lay();
