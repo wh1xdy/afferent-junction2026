@@ -27,6 +27,27 @@ def test_sitting_bent_knees():
     assert acts[-1] == "sitting"
 
 
+def test_standing_short_leg_span_not_sitting():
+    """Regression: straight knees + hip->ankle span < 1.6*trunk must not
+    read as sitting (real framing compresses leg span below the 1.6x
+    ratio; the span heuristic is only a fallback for missing knees)."""
+    from afferent import keypoints as kp
+    tr = SituationTracker()
+    k = make_kpts()
+    # shorten the leg chain but keep hip-knee-ankle collinear (straight leg)
+    for i in (kp.LEFT_KNEE, kp.RIGHT_KNEE):
+        k[i, 1] = 320
+    for i in (kp.LEFT_ANKLE, kp.RIGHT_ANKLE, kp.LEFT_HEEL, kp.RIGHT_HEEL,
+              kp.LEFT_BIG_TOE, kp.RIGHT_BIG_TOE,
+              kp.LEFT_SMALL_TOE, kp.RIGHT_SMALL_TOE):
+        k[i, 1] = 380
+    acts = []
+    for i in range(90):
+        fs = tr.update(i / 30.0, k)
+        acts.append(fs.activity)
+    assert acts[-1] == "standing"
+
+
 def test_walking_fast_floor():
     tr = SituationTracker()
     k = make_kpts()

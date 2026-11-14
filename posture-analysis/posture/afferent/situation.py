@@ -71,8 +71,8 @@ class SituationTracker:
         speed = self._ground_speed(t, kpts, floor_pos, calibrated, tl)
 
         sitting = False
-        if knee is not None and knee < self.sit_knee_thr:
-            sitting = True
+        if knee is not None:
+            sitting = knee < self.sit_knee_thr
         elif tl:
             mh, ma = geo.mid_hip(kpts), geo.mid_ankle(kpts)
             if mh is not None and ma is not None:
