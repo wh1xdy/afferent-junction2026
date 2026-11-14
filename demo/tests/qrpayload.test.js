@@ -142,6 +142,19 @@ test('over the cap: talk then PHQ shrink, safety never dropped, then chunks', ()
   assert.throws(() => QR.encode(worstCase(), { key, now: NOW, maxChars: 150 }), /too_large/);
 });
 
+test('a part ending in a space survives, only line breaks and tabs are stripped', () => {
+  let r;
+  do r = QR.encode(worstCase(), { key, now: NOW }); while (!r.text.slice(4, -1).includes(' '));
+  const data = r.text.slice(4);
+  const cut = data.indexOf(' ') + 1;
+  const parts = [`AF1/1/2/SPCE:${data.slice(0, cut)}`, `AF1/2/2/SPCE:${data.slice(cut)}`];
+  assert.ok(parts[0].endsWith(' '));
+  assert.strictEqual(QR.decode(parts, { now: NOW }).status, 'ok');
+  assert.strictEqual(QR.decode(parts.map(p => `\t${p}\r\n`), { now: NOW }).status, 'ok');
+  assert.strictEqual(QR.parse('AF1/1/2/SPCE:AB \r\n').data, 'AB ');
+  assert.strictEqual(QR.parse('\nAF1:AB \t').data, 'AB ');
+});
+
 test('tamper: a changed character never yields a different verified body', () => {
   const r = QR.encode(fixture(), { key, now: NOW });
   const original = JSON.stringify(QR.decode(r.text, { now: NOW }).body);
