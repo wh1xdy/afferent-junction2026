@@ -275,7 +275,7 @@
   };
   const border = w => { st.warmth = clamp(w, 0, 1); };
   const borderWarmth = () => clamp(st.warmth + (rm() ? 0.2 : 0.35) * Math.sin(Math.PI * clamp((J.at - st.pulseAt) / 0.7, 0, 1)), 0, 1);
-  const stinger = () => { st.pulseAt = J.at; hap.seq([['light', 0], ['medium', 120]]); sfx('stinger'); };
+  const stinger = () => { st.pulseAt = J.at; hap('rise'); sfx('stinger'); };
   const spill = (a = 0.5) => {
     if (st.spilled) return;
     st.spilled = true;
@@ -286,33 +286,9 @@
     else if (s?.V && s.tween) s.tween(s.V, 'aurora', s.V.aurora, Math.min(1, s.V.aurora + 0.15 * a), 2);
   };
 
-  const HAP = { tick: ['sel', 6], light: ['LIGHT', 10], medium: ['MEDIUM', 16], heavy: ['HEAVY', 24], success: ['SUCCESS', [10, 70, 14, 70, 22]] };
-  const hs = { tick: -9, impact: -9, sel: false, end: 0 };
-  const plugin = () => { const Cap = window.Capacitor; return Cap?.isNativePlatform?.() ? Cap.Plugins?.Haptics : null; };
-  const fire = name => {
-    const spec = HAP[name];
-    if (!spec) return false;
-    const t = performance.now() / 1000, lane = name === 'tick' ? 'tick' : 'impact';
-    if (t - hs[lane] < (lane === 'tick' ? 0.07 : 0.12)) return false;
-    hs[lane] = t;
-    A.bus.emit('haptic', name);
-    try {
-      const Hp = plugin();
-      if (Hp) {
-        if (name === 'tick') {
-          if (!hs.sel) { hs.sel = true; Hp.selectionStart?.(); }
-          Hp.selectionChanged?.();
-          clearTimeout(hs.end); hs.end = setTimeout(() => { hs.sel = false; Hp.selectionEnd?.(); }, 400);
-        }
-        else if (name === 'success') Hp.notification?.({ type: 'SUCCESS' });
-        else Hp.impact?.({ style: spec[0] });
-      } else navigator.vibrate?.(spec[1]);
-    } catch {}
-    return true;
-  };
-  const hap = (name, ...args) => (name === 'seq' ? hap.seq(...args) : name === 'ladder' ? hap.ladder(...args) : fire(name));
-  hap.seq = list => { for (const [n, ms] of list.slice(0, 5)) ms > 0 ? setTimeout(() => fire(n), ms) : fire(n); };
-  hap.ladder = (i, n) => fire(i >= n ? 'heavy' : i / n <= 1 / 3 ? 'light' : 'medium');
+  // Every vibration goes through the router (haptics.js). A page without it (a few tests) stays silent.
+  const mute = () => false;
+  const hap = A.Haptics?.hap || Object.assign(mute, { play: mute, seq: mute, ladder: mute, drag: mute, breath: mute, stop: mute });
 
   const beat = {
     bpm: 60, t0: 0, cbs: [], last: -1,

@@ -191,7 +191,7 @@
             const x = L.x0 + i * sp + (R() - 0.5) * sp * 0.3, q = clamp(i / N, 0, 1);
             this.filler.push({ x, y: L.tray - this.arc.h * Math.sin(Math.PI * q) * 0.45 + this.arc.tilt * (q - 0.5) * 0.5 + sp * 0.12, r: sp * 0.66 });
           }
-          if (anim) hap('tick');
+          if (anim) hap('touch', 0.7);
         },
 
         fill(t, how) {
@@ -199,7 +199,7 @@
           if (this.extra.bloom_s === null) this.extra.bloom_s = Math.round(bloom * 1000) / 1000;
           this.pour = { t0: t, how, water: 1, entry: 0, seen: [], warmed: 0, spits: 0, spd: [], thr: (L.x1 - L.x0) / bloom, tolPx: tol * L.U, even, bloom, drain: 1 / (water * bloom), dry: false, stallI: -1, stallT: 0 };
           this.water = 1; this.nextBloom = bloom;
-          if (how === 'dip') { this.shuffle(true); this.vis.rippleAt = J.at; hap('light'); sfx('loyly_dip'); }
+          if (how === 'dip') { this.shuffle(true); this.vis.rippleAt = J.at; hap('touch'); sfx('loyly_dip'); }
         },
 
         rawLip() { const f = this.finger; return f ? [f[0] + this.L.lipOff[0], f[1] + this.L.lipOff[1]] : null; },
@@ -232,7 +232,7 @@
           this.fill(t, 'grab');
           this.prevLx = this.rawLip()[0];
           this.vis.grabAt = J.at; this.vis.rippleAt = J.at;
-          hap('light'); sfx('loyly_grab');
+          hap('touch'); sfx('loyly_grab');
         },
         drag(x, y, t) {
           if (!this.finger || this.done) return;
@@ -249,6 +249,7 @@
             return;
           }
           if (!P.entry && this.pouring()) P.entry = lx - L.x0 < L.x1 - lx ? 1 : -1;
+          hap.drag(this.pouring() ? P.warmed / this.stones.length : null);
           if (P.entry && this.prevLx !== null) {
             const spd = this.speed(t);
             for (const s of this.stones) if (!P.seen[s.i] && between(this.prevLx, lx, s.x)) { P.seen[s.i] = 1; this.cross(s, spd, ly); }
@@ -262,6 +263,7 @@
           if (this.state !== 'carry') return;
           if (this.pour) this.extra.cancels++;
           this.pour = null;
+          hap.drag(null);
           this.state = 'swing'; this.vis.swingAt = J.at;
         },
 
@@ -277,6 +279,7 @@
             for (let i = 0; i < fx.n(3); i++) this.puff(s.x + (R() - 0.5) * s.r, s.y - s.r * 0.6, 0.42);
             J.bloom(s.x, s.y, 34 * L.U, C.amber, 0.35, 0.15, 0.5);
             hap('tick'); sfx('loyly_hiss', { step: P.warmed });
+            if (this.pouring()) hap.drag(P.warmed / this.stones.length);
           } else {
             P.spits++;
             if (!rm()) for (let i = 0; i < 3; i++) fx.add({ x: s.x + (R() - 0.5) * 4, y: s.y - s.r - 18 * L.U * R(), vx: 0, vy: 70, g: 420, life: 0.4, size: [1.6, 1.3], alpha: [0.7, 0.2], kind: 'mote', add: false, c: C.silver400 });
@@ -302,6 +305,7 @@
           X.pour_s.push(r3(dur)); X.stones_warmed.push(P.warmed); X.finger_speed_cv.push(r3(cv)); X.water_left.push(r3(P.water)); X.start.push(P.how);
           const tr = A.Skill?.trial(ID, grade);
           this.pour = null;
+          hap.drag(null);
           this.payoff(slow, grade, Math.min(1, dur / P.bloom), f, tr);
           if (slow && A.Skill?.progress(ID, this.items, this.need)) J.stinger();
           if (this.items >= this.need) { finish(this, t); this.doneAt = J.at; this.release(t); }
@@ -312,7 +316,7 @@
           if (!slow) {
             this.puff(cx, cy, 0.5, { life: 1.4 });
             this.steam = Math.max(this.steam, 0.25);
-            sfx('loyly_puff');
+            hap('miss', 0.8); sfx('loyly_puff');
             return;
           }
           const size = Math.max(this.items >= this.need ? 0.65 : 0.3, clamp(q * (0.45 + 0.55 * f), 0, 1)) * (fever ? 1.15 : 1);
@@ -324,8 +328,7 @@
           J.bloom(cx, cy, 120 * L.U, C.glow, 0.3 + 0.25 * size, 0.6, 1);
           if (grade === 'perfect') { J.bloom(cx, cy - 30 * L.U, 22 * L.U, C.sun, 0.8, 0.12, 0.5); fx.burst(cx, cy - 10 * L.U, 8, C.sun, 90, { kind: 'spark', size: [5, 1] }); }
           this.ember = Math.min(1, this.ember + 0.12 + (tr?.up ? 0.1 : 0));
-          hap.seq([['medium', 0], ['light', 140], ['tick', 200], ['tick', 280]]);
-          if (grade === 'perfect') hap.seq([['tick', 40]]);
+          hap(this.items >= this.need ? 'complete' : 'success', grade === 'barely' ? 0.75 : 1);
           sfx('loyly_bloom', { piano: [this.items > 1 ? -2 : 0, 0.12] });
           A.session?.kick?.(0.5);
           const H = A.World?.hooks, mark = H?.landmarks?.().find(m => m.kind === 'sauna');

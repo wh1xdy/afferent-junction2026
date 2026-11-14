@@ -30,6 +30,9 @@
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
+    { title: 'While you play', rows: [
+      { icon: 'vital_signs', label: 'Live vitals', sup: 'Your pulse and breathing in a corner, and why the games change', sw: 'id="vitalsSw"' },
+    ] },
     { title: 'Before a session', rows: [
       { icon: 'back_hand', label: 'Check the finger clips', sup: 'Not checked yet', supId: 'clipState', attrs: 'id="clipCheckRow"', chevron: true },
       { icon: 'checklist', label: 'Ask before each session', sup: 'Only when the clips give no pulse yet', sw: 'id="clipAskSw"' },
@@ -51,8 +54,10 @@
     { id: 'morningsGroup', title: 'Mornings', rows: [] },
     { title: 'Sound and light', rows: [
       { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
+      { icon: 'touch_app', label: 'Vibration', sup: 'Soft touches as you play', sw: 'id="hapticSw"' },
       { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
+      { icon: 'favorite', label: 'Heartbeat touch', sup: 'A soft beat at your own pulse in calm moments', sw: 'id="beatSw"' },
     ] },
     { title: 'Help', rows: [
       { icon: 'info', label: 'How it works', attrs: 'data-open="info"' },
@@ -94,24 +99,26 @@
   };
 
   const HOLD_MS = 900;
+  // The kindle flame beats with the live heartbeat (heartbeat.js) while the home screen shows; main.js calls this each frame.
+  let kindleBeat = () => {};
   const buildGap = p => 170 - 125 * p;
-  const smoothHap = () => (window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins?.AfferentHaptics : null) || null;
+  const smoothHap = () => !!A.Haptics?.smooth();
   const kindle = () => {
     const btn = $('begin');
     if (!btn) return;
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
     const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
-    let p = 0, t0 = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
+    let p = 0, t0 = 0, heldFrom = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
     const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 && v < 1 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
-    const buzz = n => (A.J ? A.J.hap(n) : navigator.vibrate?.(n === 'success' ? [12, 60, 22] : n === 'light' ? 6 : 3));
-    const fire = () => { lit = true; btn.classList.add('lit'); const H = smoothHap(); if (H) H.success().catch(() => buzz('success')); else buzz('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
+    const buzz = (n, k) => A.Haptics?.play(n, k);
+    const fire = () => { lit = true; btn.classList.add('lit'); A.Haptics?.lit(); btn.dispatchEvent(new CustomEvent('kindle')); };
     const tick = () => {
       if (!holding) return;
       set(Math.min(1, (performance.now() - t0) / HOLD_MS));
       if (p >= 1) { holding = false; fire(); return; }
       const now = performance.now();
       if (smoothHap()) { raf = requestAnimationFrame(tick); return; }
-      if (p >= 0.75) { if (!swell) { swell = true; buzz('light'); } }
+      if (p >= 0.75) { if (!swell) { swell = true; buzz('touch'); } }
       else if (now >= buzzAt) { buzz('tick'); buzzAt = now + Math.max(70, buildGap(p)); }
       raf = requestAnimationFrame(tick);
     };
@@ -120,6 +127,10 @@
       const step = () => { if (holding || lit) return; const k = Math.min(1, (performance.now() - s) / 320); set(from * (1 - k)); if (k < 1) raf = requestAnimationFrame(step); };
       raf = requestAnimationFrame(step);
     };
+    // When the finger really went down or up. A busy frame (as right after launch) can run the pointerdown handler late,
+    // and the ring times the hold from the handler, so a 1.3 s hold could end with the ring barely started and drain.
+    // On release the event times decide; the ring itself still counts from the handler, so a stall never fills it early.
+    const at = e => { const n = performance.now(), t = e?.timeStamp; return t > 0 && t <= n + 1 && t > n - 5000 ? t : n; };
     btn.addEventListener('pointerdown', e => {
       if (btn.disabled || lit || e.button > 0) return;
       e.preventDefault();
@@ -127,15 +138,26 @@
       try { btn.setPointerCapture(e.pointerId); } catch {}
       cancelAnimationFrame(raf);
       holding = true; btn.classList.add('holding'); buzzAt = performance.now() + buildGap(p); swell = p >= 0.75;
-      const H = smoothHap();
-      if (H) H.holdStart({ durationMs: (1 - p) * HOLD_MS, from: p }).catch(() => {}); else buzz('tick');
-      t0 = performance.now() - p * HOLD_MS;
+      if (!(smoothHap() && A.Haptics.hold((1 - p) * HOLD_MS, p))) buzz('tick');
+      t0 = performance.now() - p * HOLD_MS; heldFrom = at(e) - p * HOLD_MS;
       raf = requestAnimationFrame(tick);
     });
-    const release = () => { if (!holding) return; holding = false; btn.classList.remove('holding'); if (!lit) { smoothHap()?.holdStop().catch(() => {}); drain(); hint(); } };
+    const release = e => {
+      if (!holding) return;
+      holding = false; btn.classList.remove('holding');
+      if (lit) return;
+      if ((at(e) - heldFrom) / HOLD_MS >= 1) { cancelAnimationFrame(raf); set(1); fire(); return; }
+      A.Haptics?.release(); drain(); hint();
+    };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => btn.addEventListener(t, release));
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
+    let beatOn = false, beatV = -1;
+    kindleBeat = h => {
+      const on = !!h && h.k > 0.02, v = on ? Math.round((h.beat + 0.6 * h.swell) * 100) / 100 : 0;
+      if (on !== beatOn) { beatOn = on; btn.classList.toggle('beating', on); }
+      if (v !== beatV) { beatV = v; btn.style.setProperty('--beat', v); }
+    };
     const hint = () => { const l = $('beginLabel'); l.classList.remove('nudge'); void l.offsetWidth; l.classList.add('nudge'); };
     const unlit = () => { cancelAnimationFrame(raf); lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); };
     A.bus.on('home', unlit);
@@ -245,7 +267,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals', 'voice'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals', 'voice', 'hubDialog'].includes(id)) return;
       if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
       else delete el.dataset.scheme;
     }, true);
@@ -256,5 +278,5 @@
   const noLoupe = () => ['begin', 'game'].forEach(id => $(id)?.addEventListener('touchstart', e => e.preventDefault(), { passive: false }));
 
   buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped(); noLoupe();
-  A.Shell = { toast, week, phase, row, group, groups: GROUPS };
+  A.Shell = { toast, week, phase, row, group, groups: GROUPS, kindleBeat: h => kindleBeat(h) };
 })();

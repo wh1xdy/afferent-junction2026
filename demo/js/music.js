@@ -42,6 +42,7 @@
       Au.init();
       const ctx = this.ctx = Au.ctx;
       this.session();
+      ctx.addEventListener?.('statechange', safe(() => { if (this.unlocked || this.s) this.wake(); }));
       const g = v => { const n = ctx.createGain(); n.gain.value = v; return n; };
       const f = (type, freq, q, gain) => { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = freq; if (q != null) n.Q.value = q; if (gain != null) n.gain.value = gain; return n; };
       const b = this.bus;

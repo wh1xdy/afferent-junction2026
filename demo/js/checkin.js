@@ -92,7 +92,7 @@
   const only = (o, ks) => Object.fromEntries(Object.entries(o).filter(([k]) => ks.includes(k)));
 
   let opts = { night: () => false, busy: () => false, log: () => {} };
-  let root, sheet, run = null, timer = null, current = null, gesture = null;
+  let root, sheet, run = null, timer = null, current = null;
   const iso = () => A.Record?.isoLocal ? A.Record.isoLocal(new Date()) : new Date().toISOString();
 
   const build = (how) => {
@@ -156,7 +156,7 @@
   const saveDraft = () => run && store.set(draftKey(), run);
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-  const btn = (cls, text, fn) => { const b = el('button', cls, text); b.type = 'button'; b.onclick = e => { if (!gesture?.moved) fn(e); }; return b; };
+  const btn = (cls, text, fn) => { const b = el('button', cls, text); b.type = 'button'; b.onclick = fn; return b; };
   const ICON = {
     support: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6"/><path d="M6 6l3.45 3.45M18 6l-3.45 3.45M6 18l3.45-3.45M18 18l-3.45-3.45"/>',
     schedule: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
@@ -218,8 +218,10 @@
   };
   const focusFirst = () => requestAnimationFrame(() => sheet.querySelector('[data-focus]')?.focus({ preventScroll: true }));
 
+  // The intro says a swipe down stops, so it closes there too, like on the thank-you screens. Not on the support screens.
+  const SWIPE_AWAY = new Set(['intro', 'thanks', 'saved']);
   const info = (kind, { title, sub, lines = [], items = [], buttons = [], body, lead, gestures = false, pre, talkBar = true } = {}) => {
-    const s = screen('ci-info ci-' + kind, gestures);
+    const s = screen('ci-info ci-' + kind, gestures || SWIPE_AWAY.has(kind));
     if (talkBar) s.append(bar());
     const main = el('div', 'ci-body');
     if (lead) main.append(lead);
@@ -291,7 +293,7 @@
     if (had === v && timer) return;
     if (had !== undefined && had !== v) run.changed[k] = (run.changed[k] || 0) + 1;
     run.answers[k] = v;
-    A.J?.hap('light');
+    A.Haptics?.play('tick');
     run.ms[k] = Math.round(performance.now() - run.shownAt);
     sheet.querySelectorAll('.ci-opt').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === String(v))));
     saveDraft();
@@ -364,7 +366,7 @@
   const close = () => {
     clearTimeout(timer);
     root.classList.add('hidden');
-    sheet.style.transform = '';
+    root.style.translate = '';
     current = null;
     forcedScheme = null;
     siblings().forEach(n => { n.inert = false; });
@@ -397,34 +399,11 @@
     close();
   };
 
+  // Swipe down stops (the answers so far are kept), a swipe from the left edge goes back a question (gui/swipe.js).
+  // A swipe down moves the card over the home screen: during the questions it springs back while the next screen comes
+  // in, on the other screens it slides away. A swipe back moves the question inside the card.
   const bindGestures = () => {
-    const EDGE = 28;
-    root.addEventListener('pointerdown', e => {
-      if (!root.dataset.gestures) return;
-      const r = root.getBoundingClientRect();
-      gesture = { id: e.pointerId, x: e.clientX, y: e.clientY, edge: e.clientX - r.left < EDGE, moved: false, dx: 0, dy: 0 };
-    });
-    root.addEventListener('pointermove', e => {
-      if (!gesture || e.pointerId !== gesture.id) return;
-      gesture.dx = e.clientX - gesture.x; gesture.dy = e.clientY - gesture.y;
-      if (!gesture.moved && Math.hypot(gesture.dx, gesture.dy) > 12) gesture.moved = true;
-      if (!gesture.moved) return;
-      if (gesture.edge && gesture.dx > Math.abs(gesture.dy)) sheet.style.transform = `translateX(${Math.max(0, gesture.dx) * 0.6}px)`;
-      else if (gesture.dy > Math.abs(gesture.dx)) sheet.style.transform = `translateY(${Math.max(0, gesture.dy)}px)`;
-    });
-    const end = e => {
-      if (!gesture || e.pointerId !== gesture.id) return;
-      const g = gesture;
-      setTimeout(() => { if (gesture === g) gesture = null; }, 0);
-      if (!g.moved) return;
-      sheet.style.transition = 'transform 220ms var(--af-ease-out-soft, ease-out)';
-      requestAnimationFrame(() => { sheet.style.transform = ''; setTimeout(() => { sheet.style.transition = ''; }, 240); });
-      if (e.type === 'pointercancel') return;
-      if (g.edge && g.dx > 70 && g.dx > Math.abs(g.dy)) back();
-      else if (g.dy > 110 && g.dy > Math.abs(g.dx) * 1.3) stopGesture();
-    };
-    root.addEventListener('pointerup', end);
-    root.addEventListener('pointercancel', end);
+    A.Swipe?.bind(root, () => (root.dataset.gestures ? { sheet: root, side: sheet, down: stopGesture, back: run && run.stack.length > 1 ? back : null, leaves: run ? 'spring' : 'slide' } : null));
     addEventListener('keydown', e => {
       if (root.classList.contains('hidden')) return;
       if (e.key === 'Escape') { e.preventDefault(); root.dataset.gestures ? stopGesture() : close(); }

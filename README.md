@@ -300,6 +300,15 @@ The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numb
 - Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
 - The printed page lists the same weekly numbers under the code.
 
+### Room climate
+
+The bedside unit's Modulino Thermo measures the bedroom's temperature and humidity. It reaches the phone through the home hub, not over Bluetooth: the finger clips' packet carries no room climate, so this needs no firmware redeploy and no change to the native plugins.
+
+- **Live, to the phone.** The hub turns every `thermo` event from the bedside source (UNO Q `/state` `climate`, about once a minute; or the simulator) into a `room` message for the app of the patient the unit belongs to: `{ temp_c, humidity_pct, source: "modulino_thermo" | "simulated", simulated, age_s }`, and sends the last one right after `hello`. Nothing goes to the clinic socket. On the phone `A.Sensors.room(now)` gives `{ celsius, humidity, source, at }` only for a measured reading at most 150 s old, never a simulated one (`A.Sensors.roomFrame(now)` includes simulated ones, which "Your signals" shows labelled). The line for the live vitals overlay is `A.Room.line(A.Sensors.room(now))`: "Room 21.5 °C · 40 %".
+- **One gentle response.** At night, on the start screen before the wind-down games, a measured room warmer than 19.5 °C gets one quiet line: "Your room is 22.5 °C tonight. Sleep often comes more easily a little cooler, around 16 to 19 °C." Nothing else changes and nothing is asked of the patient (`demo/js/room.js`). The session records the measured room in `context.room_temp_c`.
+- **Over the weeks.** The UNO Q hands the data manager one mean per minute (`env.temperature_c`, `env.humidity_pct`, source `modulino-hub`). The hub reads them as hourly buckets and takes the night of each date, 23:00 to 07:00, when at least 4 of its 8 hours have a reading (`hub/afferent_hub/room.py`). Without the data manager, and for the demo roster, the daily records' own `room` fields are used and marked simulated where the record says so.
+- **Patient view** (`patient-view` `room`, Week tab): each night of the week, the typical night and the 16 to 19 °C band. **Shared dashboard** (Share, `demo/js/qrexport.js`): a "Bedroom at night (8 weeks)" card with the weekly medians of the night temperature and humidity, the nights with a reading and the simulated mark, from `GET /api/patients/<id>/room-nights`. The QR code shares the dashboard, not the numbers: neither the "Show to my doctor" code nor `qr-body` carries the room. "What your clinic sees" lists it. It is context next to the vitals, not part of the index.
+
 ### Talk transcripts on the hub
 
 When a Talk conversation ends, the phone sends the transcript to the hub over the app link
@@ -368,6 +377,71 @@ inside the auth message (`{auth, context}`); the relay (`voice-relay/main.py`) v
 and appends it to the system instruction. So on a bad day the companion gently acknowledges
 that things have not been easy, reminds the person the app and their care team are there
 exactly for that, and suggests — once, without pushing — that they talk to their doctor.
+
+The companion's conversation design, references, and limitations are documented in
+[`voice-relay/README.md`](voice-relay/README.md).
+
+### Personal decline alert
+
+Full guide: [docs/decline_alert.md](docs/decline_alert.md).
+
+The hub compares daily outings, visitor time, HRV and posture against the patient's own
+reference: the median of the previous 14 full days versus the mean of the latest 3 full days.
+Outings, visitor time and HRV are higher-is-better; posture is lower-is-better and its score
+is the reference divided by the recent mean. A score below 80% makes the indicator low and
+adds a short fact to the voice companion context.
+At least 5 reference days are needed. These initial values are arbitrary placeholders to
+be tuned; they are not clinical thresholds.
+
+**How it runs.** The analyzer runs inside the hub process, not as a separate script:
+
+- On demand: `GET /api/patients/{pid}/decline`, every `voice_context` request (WebSocket or
+  `GET /api/patients/{pid}/wellbeing`), and every app `hello`.
+- Automatically: a hub background task checks the bound patient every
+  `AFFERENT_DECLINE_INTERVAL_S` seconds (default `3600`; `0` disables it). When the level
+  changes, it pushes a fresh `voice_context` to the patient's app; an app connecting during
+  an active alert also receives the context. The companion uses it at the start of the next
+  Talk conversation, not during a conversation already in progress.
+
+Measured analysis needs the data manager. On the Jetson, `AFFERENT_DATA_MANAGER_URL=auto`
+finds it over mDNS.
+
+| Environment variable | Default | Meaning |
+|---|---:|---|
+| `AFFERENT_DATA_MANAGER_URL` | empty | Data manager URL; use `auto` on the Jetson |
+| `AFFERENT_DECLINE_THRESHOLD` | `0.8` | Relative level below which an indicator is low |
+| `AFFERENT_DECLINE_REF_DAYS` | `14` | Full days used for the personal reference |
+| `AFFERENT_DECLINE_RECENT_DAYS` | `3` | Latest full days compared with the reference |
+| `AFFERENT_DECLINE_INTERVAL_S` | `3600` | Background check interval in seconds; `0` disables it |
+
+**Demo API — for demos and testing only**
+
+> This is not part of the product. Demo scenarios and scores override what the companion is
+> told; overrides are in memory, are lost on restart, and never write to the data manager or
+> hub database. Synthetic data is generated on the fly. Always `DELETE` the override after a
+> demo. On the home hub these routes, like every API route, require the hub token.
+
+| Scenario | Description | Expected result |
+|---|---|---|
+| `stable` | Everything at the usual level | No low indicators |
+| `withdrawal` | Social withdrawal: fewer outings and visits | Outings 50%, visits 30%; low |
+| `stress` | Lower heart-rate variability | HRV 70%; low |
+| `slumped` | More slumped posture | Posture 70%; low |
+| `global_decline` | Every indicator down | All four at 60%; low |
+| `borderline` | Slightly down but above the 80% threshold | Outings and visits 88%; okay |
+| `recovering` | Better than usual | All four at 115%; okay |
+
+```sh
+BASE=http://localhost:8000
+curl "$BASE/api/demo/decline/scenarios"
+curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' \
+  -d '{"scenario":"withdrawal"}'
+curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' \
+  -d '{"scores":{"outings":0.55}}'
+curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' -d '{}'
+curl "$BASE/api/patients/anna/decline"
+curl -X DELETE "$BASE/api/demo/decline"
+```
 
 ### Home hub on the Jetson
 

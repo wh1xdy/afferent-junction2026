@@ -241,11 +241,11 @@
           this.lastIn = this.t; this.lastTouch = this.t;
           const P = this.px(u, v), w = this.cur();
           this.touchMark = { x: P[0], y: P[1], at: J.at };
-          if (!w || w.st !== 'ready' || this.drag || !this.hit(w, P)) { if (this.slide && !this.drag) this.rt?.early(); fx.burst(P[0], P[1], 3, C.flame, 50, { life: 0.35, size: [2, 0.5] }); return; }
+          if (!w || w.st !== 'ready' || this.drag || !this.hit(w, P)) { if (this.slide && !this.drag) this.rt?.early(); fx.burst(P[0], P[1], 3, C.flame, 50, { life: 0.35, size: [2, 0.5] }); hap('touch', 0.6); return; }
           this.rt?.hit(w.i, d?.ts ?? t);
           this.drag = { w, x0: P[0], y0: P[1], ticks: 0, wrong: false, past: false, frostAt: 0 };
           w.tries++; w.grabAt = J.at; w.grabMs = performance.now(); w.sp = null;
-          hap('light');
+          hap('touch'); hap.drag(0);
           sfx(w.m === 'pair' ? 'shutters.latch' : 'shutters.creak');
         },
 
@@ -266,6 +266,7 @@
               const s = 1 - w.sep / L.travel;
               for (const dir of [-1, 1]) fx.snow(L.cx + dir * (L.ow / 2) * (1 - s), L.oy + R() * L.oh, 1, C.silver050, { vx: dir * 30, vy: 30 });
             }
+            hap.drag(clamp(w.sep / L.travel, 0, 1));
             if (w.sep >= w.commit * L.travel) { this.commit(w, t, false); return; }
           } else {
             const raw = Math.max(0, dy) * RESIST;
@@ -273,6 +274,7 @@
             w.by = dy < 0 && -dy > side ? rubber(dy, 12 * U) : 0;
             w.bx = side > Math.max(0, dy) ? rubber(dx, 10 * U) : 0;
             while (w.pull >= (g.ticks + 1) * 25 * U && g.ticks < 6) { g.ticks++; hap('tick'); sfx('shutters.ratchet', { i: g.ticks }); }
+            hap.drag(clamp(w.pull / L.travel, 0, 1));
             const past = w.pull >= w.commit * L.travel;
             if (past && !g.past) { w.readyAt = J.at; fx.burst(L.cx, w.m === 'blind_up' ? L.oy + L.oh : L.oy, 4, C.sun, 70, { life: 0.4 }); }
             g.past = past;
@@ -280,7 +282,7 @@
           if (!g.wrong && wrongMag > 14 * U && wrongMag > Math.max(0, fwd)) {
             g.wrong = true; w.hintAt = J.at;
             if (w.tries === 1) w.wrongFirst = true;
-            hap('tick'); sfx('shutters.tock');
+            hap('miss'); sfx('shutters.tock');
           }
         },
 
@@ -288,6 +290,7 @@
           const g = this.drag;
           this.drag = null;
           if (!g) return;
+          hap.drag(null);
           const w = g.w;
           if (w.st !== 'ready') return;
           if (w.m !== 'pair' && g.past && w.pull >= w.commit * this.L(w).travel) { this.commit(w, t, false); return; }
@@ -302,7 +305,7 @@
           w.st = 'open'; w.openAt = J.at; w.openT = t; w.auto = auto;
           if (auto) this.rt?.lapse(w.i);
           w.from = w.m === 'pair' ? 1 - w.sep / L.travel : w.pull;
-          if (this.drag?.w === w) this.drag = null;
+          if (this.drag?.w === w) { this.drag = null; hap.drag(null); }
           let grade = 'miss';
           if (!auto) {
             this.items++;
@@ -327,11 +330,11 @@
             if (grade === 'perfect') { const gy = w.m === 'blind_up' ? L.oy + L.oh : L.oy; J.bloom(cx, gy, 30 * U, C.daylight, 0.6, 0.12, 0.4); fx.add({ x: cx + (R() - 0.5) * L.ow * 0.4, y: gy, kind: 'spark', c: C.daylight, life: 0.5, size: [14 * U, 2 * U], alpha: [1, 0] }); }
             if (w.m === 'pair') {
               const o = Math.max(0, 125 - (performance.now() - (w.grabMs || 0)));
-              hap.seq([['tick', 0], ['medium', o], ['light', o + 140], ...(grade === 'perfect' ? [['tick', o + 75]] : [])]);
+              hap.seq([['tick', 0], [grade === 'perfect' ? 'bright' : 'hit', o], ['touch', o + 140]]);
               for (let k = 0; k < fx.n(10); k++) fx.add({ x: L.ox - 8 * U + R() * (L.ow + 16 * U), y: L.oy - 14 * U, vx: (R() - 0.5) * 30, vy: 10 + 30 * R(), g: 260, life: 0.9, kind: 'mote', add: false, c: C.silver050, size: [2.2 * U, 1.4 * U], alpha: [0.9, 0] });
             } else {
               const o = Math.max(0, 125 - (performance.now() - (w.grabMs || 0)));
-              hap.seq([['heavy', o], ...(grade === 'perfect' ? [['tick', o + 40]] : [])]);
+              hap.seq([['land', o], ...(grade === 'perfect' ? [['tick', o + 45]] : [])]);
             }
             J.hitstop(this, last ? 40 : 50);
             if (res?.up) J.stinger();
@@ -355,7 +358,7 @@
           J.slowmo(this, 0.3, 500);
           const gate = J.flash.request(0.45, 0.35);
           this.washPeak = gate.ok ? Math.min(0.12, gate.peak) : 0.06;
-          hap.seq([['success', 420]]);
+          hap.seq([['complete', 420]]);
           J.border(1);
           J.spill(0.5 + 0.5 * share);
           sfx('shutters.finale', { piano: [14, 0.18] });

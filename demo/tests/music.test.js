@@ -30,9 +30,13 @@ const webAudio = () => {
   class Ctx {
     constructor() {
       this.currentTime = live.now ?? 0; this.sampleRate = 48000; this.state = live.suspended ? 'suspended' : 'running';
-      this.destination = this.node('destination'); this.suspends = 0; this.resumes = 0;
+      this.destination = this.node('destination'); this.suspends = 0; this.resumes = 0; this.on = {};
+      this.audioWorklet = { modules: [], addModule: async url => { this.audioWorklet.modules.push(url); } };
       live.contexts.push(this);
     }
+    addEventListener(t, f) { (this.on[t] ||= []).push(f); }
+    set(state) { if (this.state === state || this.state === 'closed') return; this.state = state; (this.on.statechange || []).forEach(f => f()); }
+    createMediaStreamSource(stream) { return this.node('mic', { stream }); }
     node(kind, extra = {}) {
       const n = { kind, outs: new Set(), channelCount: 2, connect: to => { n.outs.add(to); return to; }, disconnect: () => { n.outs.clear(); }, ...extra };
       for (const p of PARAMS) n[p] = new Param(p === 'gain' || p === 'playbackRate' ? 1 : 0);
@@ -59,13 +63,14 @@ const webAudio = () => {
     createConvolver() { return this.node('convolver'); }
     createBufferSource() { return this.scheduled('buffer', { buffer: null, loop: false }); }
     createOscillator() { return this.scheduled('osc', { type: 'sine' }); }
-    createBuffer(ch, len, sr) { return { numberOfChannels: ch, length: len, sampleRate: sr, duration: len / sr, getChannelData: () => new Float32Array(len) }; }
+    createBuffer(ch, len, sr) { return { numberOfChannels: ch, length: len, sampleRate: sr, duration: len / sr, getChannelData: () => new Float32Array(len), copyToChannel() {} }; }
     decodeAudioData(data, ok) {
       const job = { file: data.file, done: () => ok(data.buffer) };
       if (hold(data.file)) held.push(job); else Promise.resolve().then(job.done);
     }
-    resume() { this.resumes++; if (live.suspended) return new Promise(() => {}); this.state = 'running'; return Promise.resolve(); }
-    suspend() { this.suspends++; this.state = 'suspended'; return Promise.resolve(); }
+    resume() { this.resumes++; if (live.suspended || this.state === 'closed') return new Promise(() => {}); this.set('running'); return Promise.resolve(); }
+    suspend() { this.suspends++; this.set('suspended'); return Promise.resolve(); }
+    close() { this.set('closed'); return Promise.resolve(); }
   }
   const release = file => {
     const i = held.findIndex(j => j.file === file);
@@ -81,6 +86,46 @@ const bufferFor = file => {
   return { file, duration, numberOfChannels: 2, length: Math.round(duration * 48000) };
 };
 
+const iosSession = live => {
+  let type = 'auto';
+  return {
+    get type() { return type; },
+    set type(v) {
+      const record = type === 'play-and-record' || v === 'play-and-record';
+      type = v;
+      if (record) live.contexts.forEach(c => { if (c.state === 'running') c.set('interrupted'); });
+    },
+  };
+};
+
+const element = (els, id) => els[id] ||= {
+  id, dataset: {}, listeners: {}, style: { setProperty() {} }, classList: { toggle() {}, contains: () => false },
+  textContent: '', innerHTML: '', value: '', scrollTop: 0, scrollHeight: 0, append() {},
+  addEventListener(t, f) { (this.listeners[t] ||= []).push(f); },
+  querySelector: sel => element(els, sel),
+};
+
+const voiceStandIns = (ctx, voice) => {
+  const els = {};
+  Object.assign(ctx, {
+    Uint8Array, DataView, TextDecoder, btoa, atob, crypto: { randomUUID: () => 'id-' + Math.random() },
+    requestAnimationFrame: () => 0,
+    AFFERENT_VOICE: { url: 'https://relay.test', code: 'c' },
+    AudioWorkletNode: function (c, name) { Object.assign(this, c.node('worklet', { name }), { port: { onmessage: null } }); },
+    WebSocket: class { constructor(url) { this.url = url; this.readyState = 1; this.sent = []; voice.sockets.push(this); } send(m) { this.sent.push(m); } close() { this.readyState = 3; } },
+  });
+  ctx.navigator.mediaDevices = {
+    getUserMedia: async () => {
+      if (voice.deny) throw Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+      const track = { readyState: 'live', stop() { this.readyState = 'ended'; } };
+      voice.tracks.push(track);
+      return { getTracks: () => [track] };
+    },
+  };
+  Object.assign(ctx.document, { getElementById: id => element(els, id), createElement: () => element(els, 'li' + Math.random()) });
+  return els;
+};
+
 // A seeded Math.random, so two runs of the same session can be compared source by source.
 const seeded = seed => {
   let a = seed >>> 0;
@@ -90,7 +135,7 @@ const seeded = seed => {
 
 // sensors: also load sensors.js on the same clock, so a pulse can be fed as the finger sensor gives it.
 // seed: a seeded Math.random. reducedMotion: the setting of that name.
-const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, reducedMotion = false } = {}) => {
+const app = ({ music = MUSIC, suspended = false, voice = false, sensors = false, seed = null, reducedMotion = false } = {}) => {
   const wa = webAudio();
   wa.live.suspended = suspended;
   let now = 0, timers = [], seq = 0, feeder = null, fedAt = -99;
@@ -102,7 +147,7 @@ const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, r
     clearTimeout: id => { timers = timers.filter(t => t.id !== id); },
     setInterval: (f, ms) => { intervals.push({ f, every: ms / 1000, next: ms / 1000 }); return intervals.length; },
     clearInterval: () => {},
-    navigator: { audioSession: { type: 'auto' } },
+    navigator: { audioSession: iosSession(wa.live) },
     document: { hidden: false, addEventListener: (t, f) => { (docListeners[t] ||= []).push(f); } },
     fetch: async url => {
       if (url.endsWith('music/manifest.json')) return { ok: !!music, json: async () => JSON.parse(JSON.stringify(music)) };
@@ -113,6 +158,8 @@ const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, r
   };
   ctx.window = ctx;
   ctx.AudioContext = wa.Ctx;
+  const talk = { sockets: [], tracks: [], deny: false };
+  if (voice) talk.els = voiceStandIns(ctx, talk);
   vm.createContext(ctx);
   const run = f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
   run('util.js');
@@ -120,7 +167,7 @@ const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, r
     vm.runInContext(`A.now = () => __now(); A.config = { baselinePulse: 68, reducedMotion: ${!!reducedMotion}, sensors: { pulse_stone: true, phone_camera: true } };`, Object.assign(ctx, { __now: () => now }));
     run('sensors.js');
   }
-  for (const f of ['audio.js', 'music.js', 'biomusic.js', 'ambience.js']) run(f);
+  for (const f of ['audio.js', 'music.js', 'biomusic.js', 'ambience.js', ...(voice ? ['voice.js'] : [])]) run(f);
   const A = ctx.A, M = A.Music, Au = A.Audio;
   const phrase = Au.dawnPhrase;
   Au.dawnPhrase = (...a) => { calls.dawnPhrase++; return phrase.apply(Au, a); };
@@ -184,7 +231,7 @@ const app = ({ music = MUSIC, suspended = false, sensors = false, seed = null, r
     S.feedFingerBle({ kind: 'hrm', bpm });
     S.feedFingerBle({ kind: 'aff1', quality, presence, payload_len: 5, finger_bpm: [bpm, bpm], breathing_per_min: 14, rmssd_ms: 32, ...(twoHearts ? { two_hearts: true } : {}) });
   };
-  return { A, M, Au, wa, ctx, calls, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, isLive, feed, finger, now: () => now };
+  return { A, M, Au, wa, ctx, calls, talk, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, isLive, feed, finger, now: () => now };
 };
 
 const tests = [];
@@ -535,14 +582,16 @@ test('ambience keeps one source per bed through rapid scene changes and restarts
 
 test('a Talk conversation ended while the microphone is still being asked for leaves the microphone off', async () => {
   const asks = [], tracks = [];
-  class Ctx { constructor() { this.audioWorklet = { addModule: async () => {} }; } resume() {} close() {} }
+  class Ctx { constructor() { this.audioWorklet = { addModule: async () => {} }; } resume() { return Promise.resolve(); } }
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, Promise, Error, Uint8Array, DataView, Float32Array, TextDecoder, btoa, atob, AFFERENT_VOICE: { url: 'https://relay.test', code: 'c' } };
   ctx.window = ctx;
   ctx.AudioContext = Ctx;
   ctx.AudioWorkletNode = function () {};
   ctx.navigator = { mediaDevices: { getUserMedia: () => new Promise(ok => asks.push(ok)) } };
   vm.createContext(ctx);
-  for (const f of ['util.js', 'voice.js']) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
+  vm.runInContext(fs.readFileSync(path.join(JS, 'util.js'), 'utf8'), ctx, { filename: 'util.js' });
+  ctx.A.Audio = { init() {}, ctx: new Ctx() };
+  vm.runInContext(fs.readFileSync(path.join(JS, 'voice.js'), 'utf8'), ctx, { filename: 'voice.js' });
   const V = ctx.A.Voice;
   V.start();
   V.stop();
@@ -553,6 +602,85 @@ test('a Talk conversation ended while the microphone is still being asked for le
   assert.strictEqual(tracks.length, 2);
   assert.deepStrictEqual(tracks.map(t => t.live), [false, false]);
   assert.strictEqual(V.s, null);
+});
+
+const REPLY = Buffer.from(new Int16Array(4800).fill(1000).buffer).toString('base64');
+const conversation = async a => {
+  a.tap();
+  a.A.Voice.start();
+  await a.watch(0.5);
+  const ws = a.talk.sockets.at(-1);
+  ws.onopen();
+  ws.onmessage({ data: JSON.stringify({ setupComplete: true }) });
+  ws.onmessage({ data: JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { data: REPLY } }] }, outputTranscription: { text: 'Hello.' } } }) });
+  await a.watch(0.25);
+  assert.strictEqual(a.A.Voice.state, 'speaking');
+  assert.strictEqual(a.ctx.navigator.audioSession.type, 'play-and-record');
+  assert.strictEqual(a.M.ctx.state, 'running', 'the reply plays on a stopped context');
+  await a.watch(2);
+};
+
+const gameAudible = async (a, how) => {
+  await a.watch(4);
+  const M = a.M, b = M.bus;
+  assert.strictEqual(a.A.Voice.s, null, how);
+  assert.ok(['idle', 'error'].includes(a.A.Voice.state), how);
+  assert.ok(a.talk.tracks.length && a.talk.tracks.every(t => t.readyState === 'ended'), how + ': the microphone stays on');
+  assert.strictEqual(a.ctx.navigator.audioSession.type, 'ambient', how + ': the audio session stays in record mode');
+  assert.strictEqual(a.wa.live.contexts.length, 1, how + ': Talk runs its own audio contexts');
+  assert.strictEqual(M.ctx.state, 'running', how + ': the game audio context is left ' + M.ctx.state);
+  assert.ok(b.curve.gain.value > 0, how + ': music, ambience and sfx stay muted');
+  assert.ok(b.ambience.gain.value > 0 && b.sfx.gain.value > 0 && b.mix.gain.value > 0, how);
+  assert.ok(a.Au.master.outs.has(b.sfx), how + ': synth sfx are cut off');
+  assert.ok(a.bedsOf('kaamos').some(n => n.stopAt === null), how + ': the start bed is gone');
+  a.begin();
+  await a.watch(3);
+  assert.strictEqual(M.ctx.state, 'running', how);
+  assert.ok(b.curve.gain.value > 0 && a.Au.master.gain.value > 0, how + ': the game starts silent');
+};
+
+const TALK_EXITS = {
+  'the end button': a => a.talk.els.voiceEnd.onclick(),
+  'the back button': a => a.talk.els['[data-close="voice"]'].listeners.click.forEach(f => f()),
+  'the relay closing': a => a.talk.sockets.at(-1).onclose({ code: 1000 }),
+  'a refused access code': a => a.talk.sockets.at(-1).onclose({ code: 4401 }),
+  'a crisis': a => a.emit('ws', { type: 'crisis' }),
+  'the app going to the background': async a => {
+    a.ctx.document.hidden = true; a.fire('visibilitychange');
+    await a.watch(1);
+    a.ctx.document.hidden = false; a.fire('visibilitychange');
+  },
+};
+
+for (const [how, exit] of Object.entries(TALK_EXITS)) test('after Talk ends by ' + how + ', music, ambience and sfx play again', async () => {
+  const a = app({ voice: true });
+  a.emit('home');
+  await a.watch(4);
+  await conversation(a);
+  await exit(a);
+  await gameAudible(a, how);
+});
+
+test('after the microphone is denied, music, ambience and sfx play again', async () => {
+  const a = app({ voice: true });
+  a.talk.deny = true;
+  a.emit('home');
+  await a.watch(4);
+  a.tap();
+  a.A.Voice.start();
+  await a.watch(0.5);
+  assert.strictEqual(a.A.Voice.state, 'error');
+  a.talk.tracks.push({ readyState: 'ended' });
+  await gameAudible(a, 'a denied microphone');
+});
+
+test('two Talk conversations in a row load the capture worklet once and leave the game audio running', async () => {
+  const a = app({ voice: true });
+  a.emit('home');
+  await a.watch(4);
+  for (let i = 0; i < 2; i++) { await conversation(a); a.talk.els.voiceEnd.onclick(); }
+  assert.deepStrictEqual(a.M.ctx.audioWorklet.modules, ['js/voice-worklet.js']);
+  await gameAudible(a, 'two conversations');
 });
 
 // The music that follows the heart (biomusic.js, music.js follow). Its oscillators are the only ones that reach the beds' bus.

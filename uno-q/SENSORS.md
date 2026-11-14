@@ -12,6 +12,16 @@ The sensor LEDs are **off until a finger is detected** (2.5 s probe flashes ever
 
 Advertises as **`Afferent Finger`** with the Heart Rate Service, so it is found by a scan for `180D`.
 
+The board sends a second advertisement from the same Bluetooth address: Wendy Net's (service
+`7565E9EB-4C20-4B67-9272-D708B397B631`, name `wendyos-uno-q`). A Wendy Net peer that connects by
+address can land on ours, and while that link lasts ours is off the air (seen 2026-11-14: only
+Wendy Net's left, the phone stayed at "scanning"). Both share one GATT server, so the phone
+plugins (`ios/App/App/AfferentFinger.swift`, Android `AfferentFingerLink.kt`) scan for `180D`
+**and** Wendy Net's service. They connect to a device named exactly `Afferent Finger`, or one
+with Wendy Net's service named exactly `wendyos-uno-q`, and trust it only once it has the `AFF0`
+service; anything else is never connected (another team's WendyOS UNO Q without `AFF0` gets one
+service check and is then left alone for the session).
+
 | Service | Characteristic | Props | Bytes | Meaning |
 |---|---|---|---|---|
 | `180D` Heart Rate | `2A37` Heart Rate Measurement | notify, read | `[flags=0x00, bpm]` | **the** finger pulse: both sensors fused (one value). Standard format, any heart-rate app understands it |
@@ -79,7 +89,7 @@ repository sends 7 bytes (v3); the first four are unchanged, so a client that re
 | `hrv.sdnn_ms`, `hrv.mean_bpm` | float, int | SDNN and mean pulse over the same window |
 | `hrv.vs_baseline` | float | RMSSD relative to the sensor's running median of its last 10 min of readings (after ≥ 2 min), e.g. `-0.3` = 30 % below. Not per person: the sensor does not know who wears the clip |
 | `presence.mode` | str | `idle` (LEDs off) · `probing` (checking for a finger) · `active` (measuring) |
-| `climate.celsius`, `climate.humidity` | float | Modulino Thermo |
+| `climate.celsius`, `climate.humidity` | float | Modulino Thermo. The phone gets it through the home hub (a `room` message, README "Room climate"), not over Bluetooth |
 | `knob.position`, `knob.pressed` | int, bool | Modulino Knob |
 
 Other endpoints: `GET /ppg?ch=0|1` (raw 30–70 s signal, debugging) · `POST /buzz?freq=&ms=` ·
@@ -113,13 +123,42 @@ The unit is quiet by default: it is a silent bedside unit for the morning sessio
 
 | | Time to first value | Accuracy |
 |---|---|---|
-| Finger pulse | ~4 s after a finger is detected (+ up to ~4 s until the next probe) | fingers agree within ±5 BPM; matches a smartwatch |
+| Finger pulse | ~10 s after a finger is detected: 4 s warm-up, then 6 s steady (pulse guard below) (+ up to ~4 s until the next probe) | fingers agree within ±5 BPM; matches a smartwatch |
 | Breathing | 25–40 s of steady beats | 6 / 10 / 18 per min recovered exactly (synthetic); 6/min paced breathing on a real person |
 | HRV (RMSSD) | ~60 s | synthetic 14 / 47 / 86 ms → 20 / 48 / 93 ms (45 Hz sampling: small positive bias at low HRV — prefer `vs_baseline`) |
 
 Logic is covered by offline tests: `cd uno-q/modulino-hub && python3 -m unittest discover tests`.
 They also cover the AFF1 v2 payload, the keepalive, the cleared bytes, the idle reset, `now` and
 the quiet defaults; none of that has been run on the board yet.
+
+## Pulse guard: a settling finger and double counting
+
+Seen in the data manager on 2026-11-14: 164 BPM four times (19:08:25–29, quality 0.36–0.38)
+right after a finger went on, and a single 171 at 19:20:36, with nothing stored for minutes
+around them. Most likely beats counted twice while the finger settled into the clip. The
+quality limit cannot catch it: a doubled rhythm is a clean rhythm. So the number is held back
+(`PulseGuard` in `modulino-hub/app.py`):
+
+- **New wearing:** after a finger is detected (or 10 s without a trusted value) nothing is known
+  yet. A pulse goes out once it has stayed steady (within 12 %) for **6 s**, counting only values
+  that are measurements (quality ≥ 0.3, a live finger behind it).
+- **Jump to about double or half** (ratio within 15 % of 2) of the last value that went out: held
+  the same way. A return to the old value goes out at once.
+- **Everything else goes out at once**, and a held value that stays steady goes out after 6 s, so a
+  real change is delayed by a few seconds at most, never blocked. A real rise to double over
+  tens of seconds is never held (each step is small).
+- It applies to the fused pulse everywhere it leaves the box: `2A37`, `/state` `finger.bpm` and
+  `beat.bpm_live`, and the data manager. Each finger's own number has its own guard: AFF1 bytes 0–1
+  and `/state` `finger.fingers` are 0 / `null` while that finger is held (the byte goes to 0 once).
+  `fingers[c].bpm_live` in `/state` stays the detector's own number, unguarded.
+- `/state` `finger.held` says what is held and why: `{"bpm", "reason": "settling"|"double"|"half",
+  "steady_s"}`, `null` when nothing is.
+- The limit: from the first contact the box has no other reference, so a doubled pulse that stays
+  steady for more than 6 s goes out like a real one, and the real value after it waits 6 s.
+
+Tested offline with the stored values of that day and with a synthetic finger run through the
+hub end to end (a port of the STM32 beat detector, the real autocorrelation, fusion, Bluetooth
+payloads and data manager hand-over): `tests/test_pulse_guard.py`.
 
 ## Two people on the two clips (Heart Duel)
 

@@ -142,6 +142,7 @@
     renderLifetime();
     renderPause();
     renderWeek();
+    renderRoom();
     renderStrata();
     renderToday(t);
     renderSharing();
@@ -264,6 +265,31 @@
         dayLight(d),
         el('span', { class: 'lt', text: d.today ? 'Today' : DAYS[dd.getDay()] }),
         el('span', { class: 'lv', text: STATE_LABEL[d.state] || STATE_LABEL.missed }),
+      ]);
+    }));
+  }
+
+  // The bedroom at night this week, from the bedside unit (hub/afferent_hub/room.py). Context only: no judgement,
+  // no colour for warm or cool, just the nights and the range sleep research points to.
+  const ROOM_SCALE = [12, 26];
+  function renderRoom() {
+    const r = view?.room, card = $('roomCard');
+    card.hidden = !r;
+    if (!r) return;
+    const [lo, hi] = r.sleep_c || [16, 19], [a, b] = ROOM_SCALE;
+    const y = t => `${(Math.max(0, Math.min(1, (t - a) / (b - a))) * 100).toFixed(1)}%`;
+    $('roomSim').hidden = !r.simulated;
+    $('roomLead').textContent = `About ${r.temp_c_night.toFixed(1)} °C on a typical night this week${r.humidity_pct != null ? `, humidity around ${r.humidity_pct} %` : ''}.`;
+    $('roomNote').textContent = `${plural(r.nights, 'night')} with a reading. The band is ${lo} to ${hi} °C, the cool bedroom sleep research points to.`;
+    const list = $('roomNights');
+    list.style.setProperty('--lo', y(lo));
+    list.style.setProperty('--hi', y(hi));
+    list.replaceChildren(...(r.days || []).map(d => {
+      const dd = parseDate(d.date), t = d.temp_c_night, has = t != null;
+      return el('li', { class: 'rn-col' + (has ? '' : ' none'), 'aria-label': `${DAYS[dd.getDay()]}: ${has ? `${t.toFixed(1)} °C` : 'no reading'}` }, [
+        el('span', { class: 'rn-v', 'aria-hidden': 'true', text: has ? t.toFixed(1) : '–' }),
+        el('span', { class: 'rn-track', 'aria-hidden': 'true' }, has ? [el('span', { class: 'rn-dot', style: `--y:${y(t)}` })] : []),
+        el('span', { class: 'rn-wd', 'aria-hidden': 'true', text: DAYS[dd.getDay()][0] }),
       ]);
     }));
   }
@@ -440,6 +466,8 @@
     send({ type: 'crisis', patient_id: pid, source: 'talk_button', t_iso: new Date().toISOString() });
   };
   $('back').href = 'index.html' + location.search;
+  // a swipe from the left edge goes back to the lantern like the arrow does (gui/swipe.js), not over the code or a talk screen
+  A.Swipe?.bind(document.body, t => (t.closest('.qx, .ci') ? null : { sheet: document.body, back: () => $('back').click(), keep: true }));
   $('talkTop').onclick = openTalk;
   $('talkRow').onclick = openTalk;
   A.QRShow?.init({ pid, hub: hubBase, talk: openTalk });

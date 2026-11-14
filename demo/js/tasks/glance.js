@@ -70,7 +70,7 @@
           if (this.done) return;
           const T = this.t - this.stateAt, s = this.trials[this.i];
           if (this.state === 'gap' && T >= ITI) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('glance_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('glance_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'mem'; this.stateAt = this.t; this.trials[this.i].memAt = J.at; sfx('glance_show');
           } else if (this.state === 'mem' && T >= MEM) {
             this.state = 'fog'; this.stateAt = this.t; this.fogAt = J.at; sfx('glance_fog');
@@ -93,8 +93,8 @@
           s.pick = best; s.rt = Math.max(0, t - s.on); s.correct = best === s.target; this.answerAt = J.at;
           if (s.correct) {
             fx.burst(P.x, P.y - P.s * 0.7, 12, C.gold, 140 * P.U, { kind: 'spark', size: [4 * P.U, 1] }); J.bloom(P.x, P.y - P.s * 0.6, P.s * 4, C.glow, 0.4, 0.12, 0.4);
-            hap('light'); sfx('glance_hit', { piano: [3 + (this.items % 5), 0.12] });
-          } else { fx.snow(P.x, P.y - P.s, 5); hap('tick'); sfx('glance_miss'); }
+            hap('hit'); sfx('glance_hit', { piano: [3 + (this.items % 5), 0.12] });
+          } else { fx.snow(P.x, P.y - P.s, 5); hap('miss'); sfx('glance_miss'); }
           this.state = 'gap'; this.stateAt = this.t;
           J.border((this.i + 1) / this.trials.length);
           this.sync();

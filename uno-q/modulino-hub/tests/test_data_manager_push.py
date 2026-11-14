@@ -8,6 +8,7 @@ says so, and never opens a connection.
 """
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -66,6 +67,24 @@ class FakeStop:
     def wait(self, _timeout=None):
         self.rounds -= 1
         return self.rounds < 0
+
+
+PLACEHOLDER = re.compile(r"\A\$\{[A-Z][A-Z0-9_]*\}\Z")
+
+
+def values_in_wendy_json(text):
+    """What in a wendy.json would carry a value of the data manager settings: an env entry that
+    is not exactly one ${NAME} placeholder, or the names anywhere else in the file."""
+    doc = json.loads(text)
+    env = doc.get("env") or {}
+    found = [f"env {k}" for k, v in env.items() if not (isinstance(v, str) and PLACEHOLDER.match(v))]
+    rest = json.dumps({k: v for k, v in doc.items() if k != "env"})
+    return found + (["outside env"] if "DATA_MANAGER" in rest else [])
+
+
+def trust(guard, bpm, now):
+    """a wearing in progress: this value went out as a measurement a moment ago"""
+    guard.trusted, guard.trusted_t = bpm, now
 
 
 def push(fail=None):
@@ -338,8 +357,17 @@ class RealClient(unittest.TestCase):
         self.assertEqual(lines, [])
 
     def test_nothing_secret_in_the_app_files(self):
+        # wendy.json may name the variables (c0c136f: "${DATA_MANAGER_URL}" placeholders, filled
+        # in at deploy time), never carry a value: every env entry is exactly one placeholder
         with open(os.path.join(ROOT, "wendy.json")) as f:
-            self.assertNotIn("DATA_MANAGER", f.read(), "token and URL are passed at deploy time")
+            text = f.read()
+        self.assertEqual(values_in_wendy_json(text), [])
+        # the check itself: a pasted token or a pinned address is caught, also outside "env"
+        for bad in ('{"env": {"DATA_MANAGER_TOKEN": "3f9c0a7e5b1d"}}',
+                    '{"env": {"DATA_MANAGER_URL": "http://10.99.0.1:8100"}}',
+                    '{"env": {"DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}\\n"}}',
+                    '{"env": {}, "build": {"args": ["DATA_MANAGER_TOKEN=3f9c0a7e5b1d"]}}'):
+            self.assertNotEqual(values_in_wendy_json(bad), [], bad)
         with open(os.path.join(ROOT, "Dockerfile")) as f:
             docker = f.read()
         self.assertNotIn("DATA_MANAGER_TOKEN", docker)
@@ -380,6 +408,8 @@ class AppWiring(unittest.TestCase):
         app.presence.update(auto=True, mode="active", since=now - since)
         app.last_locked[:] = [now, now]
         app.last_ppg = now                                    # samples are arriving
+        if bpm and since > app.WARMUP_S + app.GUARD_HOLD_S:
+            trust(app.pulse_guard, bpm, now)                  # this pulse has been steady for a while
 
         def fuse():
             app.fused.update(bpm=bpm, sources=[0, 1] if bpm else [], quality=quality)
@@ -510,6 +540,7 @@ class AppWiring(unittest.TestCase):
         # the same signal while samples arrive: no finger has a beat-locked BPM, the pulse is
         # the rhythm of both buffers and it is of this second
         self._clean_signal()
+        trust(app.pulse_guard, 75, time.time())               # worn for a minute: 75 is trusted
         app.period_loop(FakeStop(2))
         self.assertEqual(app.fused["sources"], [])
         self.assertEqual([s["value"] for s in self.client.of(PULSE)], [75, 75])

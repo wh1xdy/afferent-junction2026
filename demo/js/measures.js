@@ -34,7 +34,7 @@
     down(u, v, now) {
       if (this.choice !== null || v < 0.15 || v > 0.88) return;
       this.choice = this.slot(u) + 1; this.pickedAt = now; this.decisionMs = Math.round(this.t * 1000);
-      Au.piano(5, 0.14);
+      Au.piano(5, 0.14); A.Haptics?.play('tick');
       A.session?.kindleFrom?.(this.choice - 1, now);
     },
     auto(dt, now) {

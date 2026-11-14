@@ -236,6 +236,31 @@ class AfferentFingerParserTest {
         assertFalse(AfferentFingerParser.isAfferentFinger("", ""))
     }
 
+    @Test
+    fun theBoardMayAlsoBeFoundThroughWendyNet() {
+        val may = { adv: String?, dev: String?, wendy: Boolean -> AfferentFingerParser.mayBeAfferentBoard(adv, dev, wendy) }
+        assertTrue(may("Afferent Finger", null, false))
+        assertTrue(may(null, "Afferent Finger", false))
+        assertTrue(may("wendyos-uno-q", "Afferent Finger", true))           // what a Mac saw on 2026-11-14
+        assertTrue(may("wendyos-uno-q", null, true))
+        assertTrue(may(null, "wendyos-uno-q", true))
+        assertFalse(may("wendyos-uno-q", null, false))                       // the name alone
+        assertFalse(may("wendyos-hackathon-device-12", null, true))          // another Wendy device
+        assertFalse(may(null, null, true))
+        assertFalse(may("WendyOS-UNO-Q", null, true))
+        assertFalse(may("wendyos-uno-q-2", null, true))
+        assertFalse(may("Polar H10 8A3B2C1D", "Polar H10", true))
+    }
+
+    @Test
+    fun theScanLooksForHeartRateAndWendyNet() {
+        assertEquals("7565e9eb-4c20-4b67-9272-d708b397b631", AfferentFingerParser.WENDY_NET_SERVICE.toString())
+        assertEquals(
+            listOf(AfferentFingerParser.HEART_RATE_SERVICE, AfferentFingerParser.WENDY_NET_SERVICE),
+            AfferentFingerParser.SCAN_SERVICES
+        )
+    }
+
     // ── Bluetooth identifiers (Android only: iOS takes the short form) ────
 
     @Test

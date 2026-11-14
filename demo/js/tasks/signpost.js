@@ -74,8 +74,8 @@
           const b = this.b;
           if (c.ok) {
             if (b) { const U = unit(b), sx = b.x + b.w / 2 + c.side * b.w * 0.27; fx.burst(sx + dir * 30 * U, b.y + b.h * 0.42, 10, C.glow, 130 * U, { kind: 'spark', size: [4 * U, 1] }); }
-            hap('light'); sfx('signpost_ok', { piano: [3 + (this.items % 5), 0.12] });
-          } else { hap('tick'); sfx('signpost_miss'); }
+            hap('hit'); sfx('signpost_ok', { piano: [3 + (this.items % 5), 0.12] });
+          } else { hap('miss'); sfx('signpost_miss'); }
           this.state = 'gap'; this.stateAt = this.t;
           J.border((this.i + 1) / this.trials.length);
           this.sync();
@@ -85,7 +85,7 @@
           this.tilt *= Math.exp(-dt * 6);
           if (this.done) return;
           if (this.state === 'gap' && this.t - this.stateAt >= ITI) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('signpost_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('signpost_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           }
           if (this.state === 'fix' && this.t - this.stateAt >= FIX) { this.state = 'show'; this.stateAt = this.t; this.trials[this.i].on = now; this.trials[this.i].onAt = J.at; }

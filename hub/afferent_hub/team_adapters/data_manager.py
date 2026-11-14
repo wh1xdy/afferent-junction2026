@@ -1,3 +1,4 @@
+from .. import room
 from .loader import dm_client
 
 READ = ("info", "metrics", "latest", "samples", "series", "daily", "stats", "trend", "baseline", "profile",
@@ -47,6 +48,12 @@ class SensorSource:
                 day["room"][field] = r.get("mean")
                 day["hours_covered"][field] = r.get("hours_covered")
         return {"tz": tz, "days": [by_day[d] for d in sorted(by_day)]}
+
+    def room_nights(self, days: int, tz) -> dict[str, dict]:
+        """The bedroom at night per date from the bedside unit's minute means (afferent_hub/room.py)."""
+        rows = {m: self.get("series", {"metric": m, "source": room.SOURCE, "bucket": "1h", "from": f"-{days}d"})
+                .get("series") or [] for m in (room.TEMP, room.HUMIDITY)}
+        return room.nights(rows[room.TEMP], rows[room.HUMIDITY], tz)
 
     def finger_readings(self, days: int) -> list[tuple]:
         out = []

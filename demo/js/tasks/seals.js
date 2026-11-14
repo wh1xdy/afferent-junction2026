@@ -35,7 +35,7 @@
           const c = this.cur;
           if (c && now - c.on >= UP) { c.off = now; this.cur = null; this.nextAt = this.t + c.gap; sfx('seals_dive'); this.sync(); }
           if (!this.cur && this.t >= this.nextAt) {
-            if (this.i + 1 >= this.pops.length) { this.sync(); finish(this, now); hap('success'); sfx('seals_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.pops.length) { this.sync(); finish(this, now); hap('complete'); sfx('seals_done'); J.border(1); J.spill(0.35); return; }
             const p = this.pops[++this.i]; p.on = now; p.onAt = J.at; this.cur = p; sfx('seals_pop');
           }
         },
@@ -53,9 +53,9 @@
             this.hitAt = J.at; this.hitHole = c.h;
             const H = this.hole(c.h, b);
             fx.burst(H.x, H.y - H.ry * 2, 10, C.glow, 140 * H.U, { kind: 'spark', size: [4 * H.U, 1] }); fx.drip(H.x, H.y);
-            hap('light'); sfx('seals_hit', { piano: [3 + (this.items % 5), 0.12] });
+            hap('hit'); sfx('seals_hit', { piano: [3 + (this.items % 5), 0.12] });
             J.border((this.i + 1) / this.pops.length);
-          } else { c.wrong++; hap('tick'); sfx('seals_splash'); const H = this.hole(best, b); fx.snow(H.x, H.y - H.ry, 5); }
+          } else { c.wrong++; hap('miss'); sfx('seals_splash'); const H = this.hole(best, b); fx.snow(H.x, H.y - H.ry, 5); }
           this.sync();
         },
 

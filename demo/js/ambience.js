@@ -469,13 +469,9 @@
   const hook = {
     bite_plunk: () => Amb.play('sfx_ui_tap_wood_02', { dB: -8, ui: true, fixed: true }),
     bite_swell: () => Amb.play('sfx_flame_whoosh', { dB: -8, fixed: true }),
-    ride_launch: () => { Amb.play('sfx_step_snow', { dB: -10, el: -20 }); Amb.play('sfx_step_snow', { dB: -11, el: -20, delay: 0.34 }); },
-    ride_kick: () => Amb.play('sfx_ski_swish', { dB: -10 }),
-    ride_silk: () => Amb.play('sfx_ski_swish', { dB: -16 }),
     ride_land: e => Amb.play('sfx_land_snow', { dB: e.grade === 'perfect' ? -2 : -5 }),
-    ride_mote: e => Amb.play('sfx_mote_twinkle', { dB: -18, rate: Math.pow(2, PENTA[(e.step || 0) % PENTA.length] / 12), az: 20, el: 10 }),
-    ride_press: () => Amb.ride(4),
-    ride_release: () => Amb.ride(0),
+    ride_jump: () => Amb.play('sfx_ski_swish', { dB: -14 }),
+    ride_bump: e => Amb.play(e.kind === 'drift' ? 'sfx_step_snow' : 'sfx_land_snow', { dB: e.kind === 'drift' ? -12 : -9, rate: 0.85 }),
     fork_choose: () => Amb.play('sfx_ui_tap_soft', { dB: -14, ui: true, fixed: true }),
     fork_step: e => Amb.play('sfx_ui_tap_wood', { dB: -10, ui: true, fixed: true, index: e.i || 0 }),
     fork_bowl: () => Amb.play('sfx_mote_gleam', { dB: -12, fixed: true }),
@@ -499,11 +495,6 @@
     bells_chord: () => Amb.once('bells', 'sfx_colour_swell', { dB: -12 }),
     'shutters.open': () => { const p = Amb.at(); Amb.play('sfx_ui_tap_wood_03', { dB: -8, ...p }); Amb.bird(['sfx_bird_great_tit', 'sfx_bird_chaffinch', 'sfx_bird_blackbird', 'sfx_bird_redstart'][Math.floor(R() * 4)], p.az); },
     'shutters.finale': () => Amb.play('sfx_colour_swell', { dB: -10 }),
-  };
-  Amb.ride = boost => {
-    const v = Amb.voices.amb_ride_ski;
-    if (!v || Amb.s?.frozen) return;
-    v.boost = boost; Amb.level(v, boost ? 0.4 : 0.8);
   };
   Amb.bell = (i = 0, db) => {
     const n = Math.max(0, Math.min(2, i | 0));

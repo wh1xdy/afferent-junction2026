@@ -9,7 +9,7 @@ import com.getcapacitor.Plugin
  * MainActivity registers every class in [all] before the bridge is created, so each one is
  * reachable from the web layer as window.Capacitor.Plugins.<name>, where <name> is the
  * `name` of its @CapacitorPlugin annotation. That name must be the jsName of the iOS plugin
- * (AfferentFinger, AfferentPresence, AfferentEyes): the web layer looks plugins up by that
+ * (AfferentFinger, AfferentPresence, AfferentEyes, AfferentHaptics): the web layer looks plugins up by that
  * name and has no platform checks. PluginSetupTest enforces it.
  *
  * To add a plugin: write the class in this package and add `YourPlugin::class.java` below.
@@ -20,5 +20,6 @@ object AfferentPlugins {
     val all: List<Class<out Plugin>> = listOf(
         AfferentFingerPlugin::class.java,
         AfferentPresencePlugin::class.java,
+        AfferentHapticsPlugin::class.java,
     )
 }

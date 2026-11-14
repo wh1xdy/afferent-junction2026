@@ -93,7 +93,7 @@
         touchDown(t) {
           this.rt?.hit('in' + this.cy?.c, t);
           this.touched = true; this.downAt = this.at ?? A.now(); this.drift = 0;
-          J.hap('tick');
+          J.hap('touch');
           const p = this.geo();
           J.bloom(p.x, p.y, 70 * p.u, this.endless ? C.ice : C.glow, 0.28, 0.15, 0.5);
           J.sfx('breath_wind', { on: true });
@@ -125,7 +125,7 @@
           this.sync = 0.5 * ((this.inF ? this.inH / this.inF : 0) + (this.exF ? this.exR / this.exF : 0));
 
           if (inhale) {
-            while (this.cy.ticks <= 3 && ct >= this.cy.ticks) { this.cy.ticks++; J.hap('tick'); }
+            if (!this.cy.ticks) { this.cy.ticks = 4; if (this.feel()) J.hap.breath('in', IN - ct); }
           } else if (!this.cy.top) this.turn(holding, now);
 
           const c = Math.floor(this.t / CYCLE);
@@ -156,7 +156,7 @@
           cy.top = true; cy.share = this.cIn ? this.cHeld / this.cIn : 0;
           this.rt?.lapse('in' + cy.c);
           this.topAt = this.at ?? now;
-          J.hap('light');
+          if (this.feel()) J.hap.breath('out', CYCLE - IN);
           const p = this.geo();
           J.bloom(p.x, p.y, 95 * p.u, this.endless ? C.ice : C.glow, 0.32, 0.3, 0.7);
           J.sfx('breath_top');
@@ -289,7 +289,8 @@
 
         outroUpdate(dt, now) { this.visual(dt, now); },
 
-        close(now) { if (this.engaged()) J.finish(this, now); else this.max = this.t; },
+        close(now) { if (this.engaged()) { J.finish(this, now); if (!this.endless) J.hap('complete'); } else this.max = this.t; },
+        feel() { return !this.endless || this.cyc < 6; },
         engaged() { return this.inF > 0 && this.inH / this.inF >= ENGAGED; },
 
         auto() {
@@ -341,14 +342,16 @@
           }
 
           const b = this.b, open = this.done ? Math.max(0, b * (1 - clamp((at - this.finishedAt) / 0.8, 0, 1))) : b;
-          J.sprite(ctx, 'soft', col, x, y, (90 + 70 * this.gather) * u, (0.1 + 0.18 * this.gather + 0.1 * this.flare) * (0.6 + 0.4 * open), true);
+          // The body (heartbeat.js): the glow grows with the calm response and beats with a real pulse; both are 0 without a reading.
+          const hb = A.Heartbeat?.st, beat = hb?.beat ?? 0, calm = hb?.glow ?? 0;
+          J.sprite(ctx, 'soft', col, x, y, (90 + 70 * this.gather + 90 * calm + 14 * beat) * u, (0.1 + 0.18 * this.gather + 0.1 * this.flare + 0.22 * calm + 0.08 * beat) * (0.6 + 0.4 * open), true);
 
           if (this.waitA > 0.01) J.sprite(ctx, 'ring', col, x, y, (112 + 8 * Math.sin(at * Math.PI)) * u, 0.3 * this.waitA * (0.6 + 0.4 * Math.sin(at * Math.PI)), true);
           this.drawArc(ctx, at, ct, inhale, u, col);
           this.drawPace(ctx, u, rm);
           this.drawMotes(ctx, at, u, rm);
           this.drawPetals(ctx, at, open, u, night);
-          this.drawFlame(ctx, at, u, open, night);
+          this.drawFlame(ctx, at, u, open, night, beat);
           ctx.globalAlpha = 1;
           this.drawGhost(ctx, at, ct, W, H, u);
           ctx.restore();
@@ -429,12 +432,12 @@
           if (rim > 0) J.sprite(ctx, 'ring', C.glow, x, y, lerp(40, 100, open) * u, 0.35 * rim, true);
         },
 
-        drawFlame(ctx, at, u, open, night) {
+        drawFlame(ctx, at, u, open, night, beat = 0) {
           const { x, y } = this.geo(), G = this.gather, [sx0, sy0] = J.squash(at - this.downAt, 0.92, 0.12);
           const flick = J.rm() ? 1 : 0.94 + 0.06 * Math.sin(at * 9.3) * Math.sin(at * 5.1);
           const sy = sy0 * lerp(1, 1.25, G * this.flare) * flick, sx = sx0 * lerp(1, 0.9, G * this.flare);
-          const s = (11 + 7 * G) * u;
-          J.sprite(ctx, 'glow', night ? C.ice : C.amber, x, y, s * 4.5, 0.35 + 0.3 * G + 0.15 * this.flare, true);
+          const s = (11 + 7 * G) * u * (1 + 0.16 * beat);
+          J.sprite(ctx, 'glow', night ? C.ice : C.amber, x, y, s * 4.5, 0.35 + 0.3 * G + 0.15 * this.flare + 0.3 * beat, true);
           const img = flame(), fw = s * 1.5 * sx, fh = s * 2.6 * sy;
           const sway = J.rm() ? 0 : (this.loose ? 2.5 : 0.6) * u * Math.sin(at * (this.loose ? 7 : 2));
           ctx.drawImage(img, x - fw / 2 + sway, y + s * 0.9 - fh, fw, fh);
