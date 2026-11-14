@@ -1,1255 +1,721 @@
 [
   {
     "id": "q001",
-    "text": "There is something infinitely healing in these repeated refrains of nature - the assurance that dawn comes after night, and spring after winter.",
-    "author": "Rachel Carson",
-    "work": "\"The Real World Around Us\", speech to Theta Sigma Phi (in Lost Woods, 1998)",
-    "year": "1954",
+    "text": "Every journey starts with a first step.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Rachel_Carson",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day",
       "morning"
     ]
   },
   {
     "id": "q002",
-    "text": "Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.",
-    "author": "Rachel Carson",
-    "work": "The Sense of Wonder",
-    "year": "1965",
+    "text": "The journey of a thousand miles begins with one step.",
+    "author": "Lao Tzu",
+    "work": "Tao Te Ching",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Rachel_Carson",
+    "source_url": "",
     "tags": [
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q003",
-    "text": "There is symbolic as well as actual beauty in the migration of birds ... in the folded bud ready for the spring.",
-    "author": "Rachel Carson",
-    "work": "\"The Real World Around Us\", speech to Theta Sigma Phi (in Lost Woods, 1998)",
-    "year": "1954",
+    "text": "Little by little, one travels far.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Rachel_Carson",
+    "source_url": "",
     "tags": [
-      "morning",
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q004",
-    "text": "No winter lasts forever; no spring skips its turn.",
-    "author": "Hal Borland",
-    "work": "Sundial of the Seasons, p. 49",
-    "year": "1964",
+    "text": "One day at a time.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Hal_Borland",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day",
-      "night"
+      "morning"
     ]
   },
   {
     "id": "q005",
-    "text": "Knowing trees, I understand the meaning of patience. Knowing grass, I can appreciate persistence.",
-    "author": "Hal Borland",
-    "work": "Countryman: A Summary of Belief, p. 99",
-    "year": "1965",
+    "text": "One step at a time.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Hal_Borland",
+    "source_url": "",
     "tags": [
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q006",
-    "text": "In the depths of winter, I finally learned that within me there lay an invincible summer.",
-    "author": "Albert Camus",
-    "work": "\"Return to Tipasa\", Lyrical and Critical Essays, p. 169",
-    "year": "1952 (translation 1968)",
-    "translator": "Ellen Conroy Kennedy",
-    "source_url": "https://en.wikiquote.org/wiki/Albert_Camus",
+    "text": "Fall seven times, stand up eight.",
+    "author": "Japanese proverb",
+    "work": "",
+    "year": "",
+    "translator": "",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q007",
-    "text": "Hope is the thing with feathers\nThat perches in the soul,\nAnd sings the tune without the words,\nAnd never stops at all.",
+    "text": "Hope is the thing with feathers.",
     "author": "Emily Dickinson",
-    "work": "\"Hope\", Poems, Second Series",
-    "year": "1891",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/12242",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q008",
-    "text": "Not knowing when the dawn will come\nI open every door.",
+    "text": "I dwell in Possibility.",
     "author": "Emily Dickinson",
-    "work": "\"Dawn\", Poems, Third Series",
-    "year": "1896",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/12242",
+    "source_url": "",
     "tags": [
-      "night",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q009",
-    "text": "To make a prairie it takes a clover and one bee,\nOne clover, and a bee,\nAnd revery.\nThe revery alone will do\nIf bees are few.",
-    "author": "Emily Dickinson",
-    "work": "Poems, Third Series, XV",
-    "year": "1896",
+    "text": "Every day is a new beginning.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/12242",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q010",
-    "text": "I'll tell you how the sun rose,\nA ribbon at a time.",
-    "author": "Emily Dickinson",
-    "work": "\"A Day\", Poems, Third Series",
-    "year": "1896",
+    "text": "Mighty oaks from little acorns grow.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/12242",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q011",
-    "text": "There is more day to dawn. The sun is but a morning star.",
-    "author": "Henry David Thoreau",
-    "work": "Walden, \"Conclusion\"",
-    "year": "1854",
+    "text": "Little strokes fell great oaks.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/205",
+    "source_url": "",
     "tags": [
-      "morning",
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q012",
-    "text": "I have a great deal of company in my house; especially in the morning, when nobody calls.",
-    "author": "Henry David Thoreau",
-    "work": "Walden, \"Solitude\"",
-    "year": "1854",
+    "text": "The first step is always the hardest.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/205",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q013",
-    "text": "Morning is when I am awake and there is a dawn in me.",
-    "author": "Henry David Thoreau",
-    "work": "Walden, \"Where I Lived, and What I Lived For\"",
-    "year": "1854",
+    "text": "Well begun is half done.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/205",
+    "source_url": "",
     "tags": [
-      "night",
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q014",
-    "text": "The first sparrow of spring! The year beginning with younger hope than ever!",
-    "author": "Henry David Thoreau",
-    "work": "Walden, \"Spring\"",
-    "year": "1854",
+    "text": "Here comes the sun.",
+    "author": "George Harrison",
+    "work": "Here Comes the Sun",
+    "year": "1969",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/205",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q015",
-    "text": "To the attentive eye, each moment of the year has its own beauty.",
-    "author": "Ralph Waldo Emerson",
-    "work": "Nature, Chapter III \"Beauty\"",
-    "year": "1836",
+    "text": "The sun is new each day.",
+    "author": "Heraclitus",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/29433",
+    "source_url": "",
     "tags": [
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q016",
-    "text": "Adopt the pace of Nature. Her secret is patience.",
-    "author": "Ralph Waldo Emerson",
-    "work": "\"Education\", Lectures and Biographical Sketches",
-    "year": "1883",
+    "text": "But still, like dust, I'll rise.",
+    "author": "Maya Angelou",
+    "work": "Still I Rise",
+    "year": "1978",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/75942",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q017",
-    "text": "The sky is the daily bread of the eyes.",
-    "author": "Ralph Waldo Emerson",
-    "work": "Journals, entry of May 25, 1843",
-    "year": "1843",
+    "text": "Hope is a good thing, maybe the best of things.",
+    "author": "Stephen King",
+    "work": "Rita Hayworth and Shawshank Redemption",
+    "year": "1982",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Ralph_Waldo_Emerson",
+    "source_url": "",
     "tags": [
-      "morning",
-      "night"
+      "morning"
     ]
   },
   {
     "id": "q018",
-    "text": "Come forth into the light of things,\nLet Nature be your teacher.",
-    "author": "William Wordsworth",
-    "work": "\"The Tables Turned\", Lyrical Ballads",
-    "year": "1798",
+    "text": "Go placidly amid the noise and haste.",
+    "author": "Max Ehrmann",
+    "work": "Desiderata",
+    "year": "1927",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/9622",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q019",
-    "text": "And 'tis my faith that every flower\nEnjoys the air it breathes.",
-    "author": "William Wordsworth",
-    "work": "\"Lines Written in Early Spring\", Lyrical Ballads",
-    "year": "1798",
+    "text": "Pay attention. Be astonished. Tell about it.",
+    "author": "Mary Oliver",
+    "work": "Sometimes",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/9622",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q020",
-    "text": "For oft when on my couch I lie\nIn vacant or in pensive mood,\nThey flash upon that inward eye\nWhich is the bliss of solitude",
-    "author": "William Wordsworth",
-    "work": "\"I wandered lonely as a cloud\", Poems in Two Volumes",
-    "year": "1807",
+    "text": "You don't have to see the whole staircase, just take the first step.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/8824",
+    "source_url": "",
     "tags": [
-      "night"
+      "morning"
     ]
   },
   {
     "id": "q021",
-    "text": "My heart leaps up when I behold\nA Rainbow in the sky",
-    "author": "William Wordsworth",
-    "work": "\"My heart leaps up\", Poems in Two Volumes",
-    "year": "1807",
+    "text": "Every day is a second chance.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/8824",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q022",
-    "text": "If Winter comes, can Spring be far behind?",
-    "author": "Percy Bysshe Shelley",
-    "work": "\"Ode to the West Wind\"",
-    "year": "1820",
+    "text": "Every new beginning comes from some other beginning's end.",
+    "author": "Dan Wilson",
+    "work": "Closing Time",
+    "year": "1998",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Percy_Bysshe_Shelley",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day",
-      "night"
+      "morning"
     ]
   },
   {
     "id": "q023",
-    "text": "Where are the songs of Spring? Ay, where are they?\nThink not of them, thou hast thy music too.",
-    "author": "John Keats",
-    "work": "\"To Autumn\"",
-    "year": "1820",
+    "text": "Not all those who wander are lost.",
+    "author": "J.R.R. Tolkien",
+    "work": "The Fellowship of the Ring",
+    "year": "1954",
     "translator": "",
-    "source_url": "https://rpo.library.utoronto.ca/poems/autumn-1",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q024",
-    "text": "A thing of beauty is a joy for ever.",
-    "author": "John Keats",
-    "work": "Endymion, Book I, line 1",
-    "year": "1818",
+    "text": "To live is so startling it leaves little time for anything else.",
+    "author": "Emily Dickinson",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/John_Keats",
+    "source_url": "",
     "tags": [
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q025",
-    "text": "Isn't it nice to think that tomorrow is a new day with no mistakes in it yet?",
-    "author": "L. M. Montgomery",
-    "work": "Anne of Green Gables, Chapter XXI",
-    "year": "1908",
+    "text": "There is always light, if only we're brave enough to see it.",
+    "author": "Amanda Gorman",
+    "work": "The Hill We Climb",
+    "year": "2021",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/45",
+    "source_url": "",
     "tags": [
-      "night",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q026",
-    "text": "I'm so glad I live in a world where there are Octobers.",
-    "author": "L. M. Montgomery",
-    "work": "Anne of Green Gables, Chapter XVI",
-    "year": "1908",
+    "text": "Bloom where you are planted.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/45",
+    "source_url": "",
     "tags": [
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q027",
-    "text": "Isn't it splendid to think of all the things there are to find out about?",
-    "author": "L. M. Montgomery",
-    "work": "Anne of Green Gables, Chapter II",
-    "year": "1908",
+    "text": "Rise and shine.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/45",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q028",
-    "text": "The nicest and sweetest days are ... just those that bring simple little pleasures, following one another softly, like pearls slipping off a string.",
-    "author": "L. M. Montgomery",
-    "work": "Anne of Avonlea, Chapter XIX",
-    "year": "1909",
+    "text": "Keep some room in your heart for the unimaginable.",
+    "author": "Mary Oliver",
+    "work": "Evidence",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/47",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "morning"
     ]
   },
   {
     "id": "q029",
-    "text": "The sun is shining, the sun is shining. That is the Magic. The flowers are growing, the roots are stirring.",
-    "author": "Frances Hodgson Burnett",
-    "work": "The Secret Garden, Chapter XXIII \"Magic\"",
-    "year": "1911",
+    "text": "It's a new dawn, it's a new day.",
+    "author": "Leslie Bricusse and Anthony Newley",
+    "work": "Feeling Good",
+    "year": "1964",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/113",
+    "source_url": "",
     "tags": [
       "morning"
     ]
   },
   {
     "id": "q030",
-    "text": "Might I have a bit of earth?",
-    "author": "Frances Hodgson Burnett",
-    "work": "The Secret Garden, Chapter XII",
-    "year": "1911",
+    "text": "Start where you are.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/113",
+    "source_url": "",
     "tags": [
-      "any"
+      "morning"
     ]
   },
   {
     "id": "q031",
-    "text": "You do not have to be good.\n...\nYou only have to let the soft animal of your body\nlove what it loves.",
-    "author": "Mary Oliver",
-    "work": "\"Wild Geese\", Dream Work",
-    "year": "1986",
+    "text": "Rome wasn't built in a day.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Mary_Oliver",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
       "any"
     ]
   },
   {
     "id": "q032",
-    "text": "I do know how to pay attention, how to fall down\ninto the grass ...\nhow to be idle and blessed",
-    "author": "Mary Oliver",
-    "work": "\"The Summer Day\", House of Light",
-    "year": "1990",
+    "text": "Slow and steady wins the race.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Mary_Oliver",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
       "any"
     ]
   },
   {
     "id": "q033",
-    "text": "For a time\nI rest in the grace of the world, and am free.",
-    "author": "Wendell Berry",
-    "work": "\"The Peace of Wild Things\", Openings",
-    "year": "1968",
+    "text": "Adopt the pace of nature: her secret is patience.",
+    "author": "Ralph Waldo Emerson",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Wendell_Berry",
+    "source_url": "",
     "tags": [
-      "night",
-      "after_hard_day"
+      "any"
     ]
   },
   {
     "id": "q034",
-    "text": "The tree which fills the arms grew from the tiniest sprout; ... the journey of a thousand li commenced with a single step.",
-    "author": "Laozi",
-    "work": "Tao Te Ching, chapter 64",
-    "year": "c. 4th century BCE (translation 1891)",
-    "translator": "James Legge",
-    "source_url": "https://www.gutenberg.org/ebooks/216",
+    "text": "Nature does not hurry, yet everything is accomplished.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
+    "translator": "",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "any"
     ]
   },
   {
     "id": "q035",
-    "text": "Who can make the muddy water clear? Let it be still, and it will gradually become clear.",
-    "author": "Laozi",
-    "work": "Tao Te Ching, chapter 15",
-    "year": "c. 4th century BCE (translation 1891)",
-    "translator": "James Legge",
-    "source_url": "https://www.gutenberg.org/ebooks/216",
+    "text": "Make haste slowly.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
+    "translator": "",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
-      "night"
+      "any"
     ]
   },
   {
     "id": "q036",
-    "text": "He who is satisfied with his lot is rich.",
-    "author": "Laozi",
-    "work": "Tao Te Ching, chapter 33",
-    "year": "c. 4th century BCE (translation 1891)",
-    "translator": "James Legge",
-    "source_url": "https://www.gutenberg.org/ebooks/216",
+    "text": "Good things take time.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
+    "translator": "",
+    "source_url": "",
     "tags": [
       "any"
     ]
   },
   {
     "id": "q037",
-    "text": "In every walk with Nature one receives far more than he seeks.",
-    "author": "John Muir",
-    "work": "Steep Trails, chapter IX \"Mormon Lilies\"",
-    "year": "1918",
+    "text": "Easy does it.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/326",
+    "source_url": "",
     "tags": [
       "any"
     ]
   },
   {
     "id": "q038",
-    "text": "Nature's peace will flow into you as sunshine flows into trees.",
-    "author": "John Muir",
-    "work": "Our National Parks, chapter I",
-    "year": "1901",
+    "text": "You can't pour from an empty cup.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/60929",
+    "source_url": "",
     "tags": [
-      "morning",
       "any"
     ]
   },
   {
     "id": "q039",
-    "text": "Faith is the bird that feels the light and sings when the dawn is still dark.",
-    "author": "Rabindranath Tagore",
-    "work": "Fireflies",
-    "year": "1928",
+    "text": "Be gentle with yourself.",
+    "author": "Max Ehrmann",
+    "work": "Desiderata",
+    "year": "1927",
     "translator": "",
-    "source_url": "https://en.wikisource.org/wiki/Fireflies",
+    "source_url": "",
     "tags": [
-      "night",
-      "after_hard_day",
-      "morning"
+      "any"
     ]
   },
   {
     "id": "q040",
-    "text": "The butterfly counts not months but moments, and has time enough.",
-    "author": "Rabindranath Tagore",
-    "work": "Fireflies",
-    "year": "1928",
+    "text": "You do not have to be good.",
+    "author": "Mary Oliver",
+    "work": "Wild Geese",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikisource.org/wiki/Fireflies",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "any"
     ]
   },
   {
     "id": "q041",
-    "text": "Wishing to hearten a timid lamp\ngreat night lights all her stars.",
-    "author": "Rabindranath Tagore",
-    "work": "Fireflies",
-    "year": "1928",
+    "text": "And now that you don't have to be perfect, you can be good.",
+    "author": "John Steinbeck",
+    "work": "East of Eden",
+    "year": "1952",
     "translator": "",
-    "source_url": "https://en.wikisource.org/wiki/Fireflies",
+    "source_url": "",
     "tags": [
-      "night",
-      "after_hard_day"
+      "any"
     ]
   },
   {
     "id": "q042",
-    "text": "The faith waiting in the heart of a seed promises a miracle of life which it cannot prove at once.",
-    "author": "Rabindranath Tagore",
-    "work": "Fireflies",
-    "year": "1928",
+    "text": "Forever is composed of nows.",
+    "author": "Emily Dickinson",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikisource.org/wiki/Fireflies",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
+      "any"
     ]
   },
   {
     "id": "q043",
-    "text": "And forget not that the earth delights to feel your bare feet and the winds long to play with your hair.",
-    "author": "Kahlil Gibran",
-    "work": "The Prophet, \"On Clothes\"",
-    "year": "1923",
+    "text": "There is a crack in everything. That's how the light gets in.",
+    "author": "Leonard Cohen",
+    "work": "Anthem",
+    "year": "1992",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/58585",
+    "source_url": "",
     "tags": [
-      "morning",
       "any"
     ]
   },
   {
     "id": "q044",
-    "text": "The soul walks not upon a line, neither does it grow like a reed. The soul unfolds itself, like a lotus of countless petals.",
-    "author": "Kahlil Gibran",
-    "work": "The Prophet, \"On Self-Knowledge\"",
-    "year": "1923",
+    "text": "Patience and time do more than strength or rage.",
+    "author": "Jean de La Fontaine",
+    "work": "The Lion and the Rat",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/58585",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
       "any"
     ]
   },
   {
     "id": "q045",
-    "text": "I believe a leaf of grass is no less than the journey work of the stars",
-    "author": "Walt Whitman",
-    "work": "\"Song of Myself\" 31, Leaves of Grass",
-    "year": "1855 (text of 1891-92)",
+    "text": "One kind word can warm three winter months.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/1322",
+    "source_url": "",
     "tags": [
-      "night",
       "any"
     ]
   },
   {
     "id": "q046",
-    "text": "I exist as I am, that is enough",
-    "author": "Walt Whitman",
-    "work": "\"Song of Myself\" 20, Leaves of Grass",
-    "year": "1855 (text of 1891-92)",
+    "text": "After all, tomorrow is another day.",
+    "author": "Margaret Mitchell",
+    "work": "Gone with the Wind",
+    "year": "1936",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/1322",
+    "source_url": "",
     "tags": [
-      "after_hard_day"
+      "night"
     ]
   },
   {
     "id": "q047",
-    "text": "Who has seen the wind?\nNeither I nor you:\nBut when the leaves hang trembling\nThe wind is passing through.",
-    "author": "Christina Rossetti",
-    "work": "Sing-Song: A Nursery Rhyme Book",
-    "year": "1872",
+    "text": "Tomorrow is a new day with no mistakes in it yet.",
+    "author": "L. M. Montgomery",
+    "work": "Anne of Green Gables",
+    "year": "1908",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/76703",
+    "source_url": "",
     "tags": [
-      "any"
+      "night"
     ]
   },
   {
     "id": "q048",
-    "text": "There lives the dearest freshness deep down things",
-    "author": "Gerard Manley Hopkins",
-    "work": "\"God's Grandeur\", Poems",
-    "year": "1918",
+    "text": "Rest is not idleness.",
+    "author": "John Lubbock",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/22403",
+    "source_url": "",
     "tags": [
-      "after_hard_day"
+      "night"
     ]
   },
   {
     "id": "q049",
-    "text": "Nothing is so beautiful as spring",
-    "author": "Gerard Manley Hopkins",
-    "work": "\"Spring\", Poems",
-    "year": "1918",
+    "text": "Night brings counsel.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/22403",
+    "source_url": "",
     "tags": [
-      "morning"
+      "night"
     ]
   },
   {
     "id": "q050",
-    "text": "Therefore all seasons shall be sweet to thee",
-    "author": "Samuel Taylor Coleridge",
-    "work": "\"Frost at Midnight\"",
-    "year": "1798",
+    "text": "Sleep that knits up the ravelled sleeve of care.",
+    "author": "William Shakespeare",
+    "work": "Macbeth",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/8208",
+    "source_url": "",
     "tags": [
-      "any",
       "night"
     ]
   },
   {
     "id": "q051",
-    "text": "Haply I think on thee, and then my state,\nLike to the lark at break of day arising\nFrom sullen earth, sings hymns at heaven's gate",
-    "author": "William Shakespeare",
-    "work": "Sonnet 29",
-    "year": "1609",
+    "text": "A day without sunshine is like, you know, night.",
+    "author": "Steve Martin",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/100",
+    "source_url": "",
     "tags": [
-      "morning"
+      "night"
     ]
   },
   {
     "id": "q052",
-    "text": "Night's candles are burnt out, and jocund day\nStands tiptoe on the misty mountain tops.",
-    "author": "William Shakespeare",
-    "work": "Romeo and Juliet, Act III, Scene 5",
-    "year": "1597",
+    "text": "Only when it is dark enough can you see the stars.",
+    "author": "Martin Luther King Jr.",
+    "work": "I've Been to the Mountaintop",
+    "year": "1968",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/100",
+    "source_url": "",
     "tags": [
-      "morning"
+      "night"
     ]
   },
   {
     "id": "q053",
-    "text": "That I could think there trembled through\nHis happy good-night air\nSome blessed Hope, whereof he knew\nAnd I was unaware.",
-    "author": "Thomas Hardy",
-    "work": "\"The Darkling Thrush\", Poems of the Past and the Present",
-    "year": "1901",
+    "text": "I have loved the stars too fondly to be fearful of the night.",
+    "author": "Sarah Williams",
+    "work": "The Old Astronomer",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/3168",
+    "source_url": "",
     "tags": [
-      "night",
-      "after_hard_day"
+      "night"
     ]
   },
   {
     "id": "q054",
-    "text": "And I shall have some peace there, for peace comes dropping slow,\nDropping from the veils of the morning to where the cricket sings",
-    "author": "W. B. Yeats",
-    "work": "\"The Lake Isle of Innisfree\"",
-    "year": "1890",
+    "text": "Finish each day and be done with it.",
+    "author": "Ralph Waldo Emerson",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikisource.org/wiki/The_Lake_Isle_of_Innisfree",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
-      "morning"
+      "night"
     ]
   },
   {
     "id": "q055",
-    "text": "Tread softly because you tread on my dreams.",
-    "author": "W. B. Yeats",
-    "work": "\"He Wishes for the Cloths of Heaven\", The Wind Among the Reeds",
-    "year": "1899",
+    "text": "The darkest hour is just before the dawn.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/32233",
+    "source_url": "",
     "tags": [
       "night"
     ]
   },
   {
     "id": "q056",
-    "text": "Behind the clouds is the sun still shining",
-    "author": "Henry Wadsworth Longfellow",
-    "work": "\"The Rainy Day\", Ballads and Other Poems",
-    "year": "1841",
+    "text": "This too shall pass.",
+    "author": "Proverb",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikisource.org/wiki/The_Rainy_Day",
+    "source_url": "",
     "tags": [
-      "after_hard_day",
-      "any"
+      "after_hard_day"
     ]
   },
   {
     "id": "q057",
-    "text": "The year's at the spring\nAnd day's at the morn;\nMorning's at seven;\nThe hill-side's dew-pearl'd",
-    "author": "Robert Browning",
-    "work": "Pippa Passes, Part I",
-    "year": "1841",
+    "text": "No winter lasts forever; no spring skips its turn.",
+    "author": "Hal Borland",
+    "work": "",
+    "year": "",
     "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Robert_Browning",
+    "source_url": "",
     "tags": [
-      "morning"
+      "after_hard_day"
     ]
   },
   {
     "id": "q058",
-    "text": "I was something that lay under the sun and felt it, like the pumpkins, and I did not want to be anything more.",
-    "author": "Willa Cather",
-    "work": "My Ántonia, Book I, Chapter II",
-    "year": "1918",
+    "text": "If winter comes, can spring be far behind?",
+    "author": "Percy Bysshe Shelley",
+    "work": "Ode to the West Wind",
+    "year": "1820",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/242",
+    "source_url": "",
     "tags": [
-      "any",
       "after_hard_day"
     ]
   },
   {
     "id": "q059",
-    "text": "I'm not afraid of storms, for I'm learning how to sail my ship.",
-    "author": "Louisa May Alcott",
-    "work": "Little Women, Part Two, Chapter XLIV \"My Lord and Lady\"",
-    "year": "1869",
+    "text": "In the midst of winter, I found there was, within me, an invincible summer.",
+    "author": "Albert Camus",
+    "work": "Return to Tipasa",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/37106",
+    "source_url": "",
     "tags": [
-      "any"
+      "after_hard_day"
     ]
   },
   {
     "id": "q060",
-    "text": "It's no use going back to yesterday, because I was a different person then.",
-    "author": "Lewis Carroll",
-    "work": "Alice's Adventures in Wonderland, Chapter X",
-    "year": "1865",
+    "text": "The night is long that never finds the day.",
+    "author": "William Shakespeare",
+    "work": "Macbeth",
+    "year": "",
     "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/11",
+    "source_url": "",
     "tags": [
-      "any",
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q061",
-    "text": "There is nothing - absolute nothing - half so much worth doing as simply messing about in boats.",
-    "author": "Kenneth Grahame",
-    "work": "The Wind in the Willows, Chapter I",
-    "year": "1908",
-    "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/289",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q062",
-    "text": "\"Pooh!\" he whispered.\n\"Yes, Piglet?\"\n\"Nothing,\" said Piglet, taking Pooh's paw. \"I just wanted to be sure of you.\"",
-    "author": "A. A. Milne",
-    "work": "The House at Pooh Corner, Chapter VII \"In Which Tigger Is Unbounced\"",
-    "year": "1928",
-    "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/73011",
-    "tags": [
-      "night",
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q063",
-    "text": "We are all in the gutter, but some of us are looking at the stars.",
-    "author": "Oscar Wilde",
-    "work": "Lady Windermere's Fan, Act III",
-    "year": "1892",
-    "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/790",
-    "tags": [
-      "night"
-    ]
-  },
-  {
-    "id": "q064",
-    "text": "Patience and time are my warriors, my champions.",
-    "author": "Leo Tolstoy",
-    "work": "War and Peace, Book Thirteen, Chapter XVII",
-    "year": "1869 (translation 1922-23)",
-    "translator": "Louise and Aylmer Maude",
-    "source_url": "https://www.gutenberg.org/ebooks/2600",
-    "tags": [
-      "any",
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q065",
-    "text": "Although the world is full of suffering, it is full also of the overcoming of it.",
-    "author": "Helen Keller",
-    "work": "Optimism: An Essay",
-    "year": "1903",
-    "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/31622",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q066",
-    "text": "I go to Nature to be soothed and healed, and to have my senses put in tune once more.",
-    "author": "John Burroughs",
-    "work": "\"The Gospel of Nature\", Time and Change",
-    "year": "1912",
-    "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/5706",
-    "tags": [
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q067",
-    "text": "Now when the child of morning, rosy-fingered Dawn, appeared",
-    "author": "Homer",
-    "work": "The Odyssey, Book II",
-    "year": "c. 8th century BCE (translation 1900)",
-    "translator": "Samuel Butler",
-    "source_url": "https://www.gutenberg.org/ebooks/1727",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q068",
-    "text": "Look within. Within is the fountain of good, and it will ever bubble up, if thou wilt ever dig.",
-    "author": "Marcus Aurelius",
-    "work": "Meditations, Book VII, 59",
-    "year": "c. 170-180 (translation 1862)",
-    "translator": "George Long",
-    "source_url": "https://www.gutenberg.org/ebooks/15877",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q069",
-    "text": "Look round at the courses of the stars, as if thou wert going along with them",
-    "author": "Marcus Aurelius",
-    "work": "Meditations, Book VII, 47",
-    "year": "c. 170-180 (translation 1862)",
-    "translator": "George Long",
-    "source_url": "https://www.gutenberg.org/ebooks/15877",
-    "tags": [
-      "night"
-    ]
-  },
-  {
-    "id": "q070",
-    "text": "Greetings to thee, Sun of fortune,\nGreetings to thee, Moon of good-luck,\nWelcome sunshine, welcome moonlight,\nGolden is the dawn of morning!",
-    "author": "Kalevala (compiled by Elias Lönnrot)",
-    "work": "Kalevala, Rune XLIX \"Restoration of the Sun and Moon\"",
-    "year": "1849 (translation 1888)",
-    "translator": "John Martin Crawford",
-    "source_url": "https://www.gutenberg.org/ebooks/5186",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q071",
-    "text": "Many runes the cold has told me,\nMany lays the rain has brought me,\nOther songs the winds have sung me",
-    "author": "Kalevala (compiled by Elias Lönnrot)",
-    "work": "Kalevala, Proem",
-    "year": "1849 (translation 1888)",
-    "translator": "John Martin Crawford",
-    "source_url": "https://www.gutenberg.org/ebooks/5186",
-    "tags": [
-      "night",
-      "any"
-    ]
-  },
-  {
-    "id": "q072",
-    "text": "For all that has been - Thanks!\nTo all that shall be - Yes!",
-    "author": "Dag Hammarskjöld",
-    "work": "Markings (entry of 1953)",
-    "year": "1963 (translation 1964)",
-    "translator": "Leif Sjöberg and W. H. Auden",
-    "source_url": "https://en.wikiquote.org/wiki/Dag_Hammarskj%C3%B6ld",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q073",
-    "text": "All things are so very uncertain, and that's exactly what makes me feel reassured.",
-    "author": "Tove Jansson",
-    "work": "Moominland Midwinter (Too-ticky)",
-    "year": "1957 (translation 1958)",
-    "translator": "Thomas Warburton",
-    "source_url": "https://www.themarginalian.org/2014/09/29/too-ticky-quotes-tove-jansson/",
-    "tags": [
-      "night",
-      "any"
-    ]
-  },
-  {
-    "id": "q074",
-    "text": "He'll return tomorrow... And then he'll be a tiny bit bigger, about like a piece of cheese rind. Take it easy.",
-    "author": "Tove Jansson",
-    "work": "Moominland Midwinter (Too-ticky, about the returning sun)",
-    "year": "1957 (translation 1958)",
-    "translator": "Thomas Warburton",
-    "source_url": "https://www.themarginalian.org/2014/09/29/too-ticky-quotes-tove-jansson/",
-    "tags": [
-      "after_hard_day",
-      "night"
-    ]
-  },
-  {
-    "id": "q075",
-    "text": "A person can find anything if he takes the time, that is, if he can afford to look. And while he's looking, he's free",
-    "author": "Tove Jansson",
-    "work": "The Summer Book",
-    "year": "1972 (translation 1974)",
-    "translator": "Thomas Teal",
-    "source_url": "https://en.wikiquote.org/wiki/Tove_Jansson",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q076",
-    "text": "It is only with the heart that one can see rightly; what is essential is invisible to the eye.",
-    "author": "Antoine de Saint-Exupéry",
-    "work": "The Little Prince, Chapter XXI",
-    "year": "1943",
-    "translator": "Katherine Woods",
-    "source_url": "https://en.wikiquote.org/wiki/The_Little_Prince",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q077",
-    "text": "Be patient toward all that is unsolved in your heart and try to love the questions themselves",
-    "author": "Rainer Maria Rilke",
-    "work": "Letters to a Young Poet, Letter Four (16 July 1903)",
-    "year": "1929 (translation 1934)",
-    "translator": "M. D. Herter Norton",
-    "source_url": "https://en.wikiquote.org/wiki/Rainer_Maria_Rilke",
-    "tags": [
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q078",
-    "text": "Leaving behind nights of terror and fear\nI rise\nInto a daybreak that's wondrously clear\nI rise",
-    "author": "Maya Angelou",
-    "work": "\"Still I Rise\", And Still I Rise",
-    "year": "1978",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Maya_Angelou",
-    "tags": [
-      "morning",
-      "any"
-    ]
-  },
-  {
-    "id": "q079",
-    "text": "Let the rain kiss you.\nLet the rain beat upon your head with silver liquid drops.\nLet the rain sing you a lullaby.",
-    "author": "Langston Hughes",
-    "work": "\"April Rain Song\" (The Brownies' Book)",
-    "year": "1921",
-    "translator": "",
-    "source_url": "https://standardebooks.org/ebooks/langston-hughes/poetry",
-    "tags": [
-      "any",
-      "night"
-    ]
-  },
-  {
-    "id": "q080",
-    "text": "The rain plays a little sleep tune\nOn our roof at night,\nAnd I love the rain.",
-    "author": "Langston Hughes",
-    "work": "\"April Rain Song\" (The Brownies' Book)",
-    "year": "1921",
-    "translator": "",
-    "source_url": "https://standardebooks.org/ebooks/langston-hughes/poetry",
-    "tags": [
-      "night"
-    ]
-  },
-  {
-    "id": "q081",
-    "text": "Remember the sky that you were born under,\nknow each of the star's stories.\nRemember the moon, know who she is.",
-    "author": "Joy Harjo",
-    "work": "\"Remember\", She Had Some Horses",
-    "year": "1983",
-    "translator": "",
-    "source_url": "https://poets.org/poem/remember-0",
-    "tags": [
-      "night"
-    ]
-  },
-  {
-    "id": "q082",
-    "text": "Remember the sun's birth at dawn, that is the strongest point of time.",
-    "author": "Joy Harjo",
-    "work": "\"Remember\", She Had Some Horses",
-    "year": "1983",
-    "translator": "",
-    "source_url": "https://poets.org/poem/remember-0",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q083",
-    "text": "You've made this day a special day, by just your being you.",
-    "author": "Fred Rogers",
-    "work": "Testimony before the U.S. Senate Subcommittee on Communications (May 1, 1969), quoting his program's closing words",
-    "year": "1969",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Fred_Rogers",
-    "tags": [
-      "after_hard_day",
-      "any"
-    ]
-  },
-  {
-    "id": "q084",
-    "text": "Almost everything will work again if you unplug it for a few minutes, including you.",
-    "author": "Anne Lamott",
-    "work": "Facebook post (April 8, 2015); repeated in her TED talk \"12 truths I learned from life and writing\" (2017)",
-    "year": "2015",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Anne_Lamott",
-    "tags": [
-      "after_hard_day",
-      "night"
-    ]
-  },
-  {
-    "id": "q085",
-    "text": "In the end the Shadow was only a small and passing thing: there was light and high beauty for ever beyond its reach.",
-    "author": "J. R. R. Tolkien",
-    "work": "The Return of the King, Book VI, Chapter 2 \"The Land of Shadow\"",
-    "year": "1955",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/The_Return_of_the_King",
-    "tags": [
-      "after_hard_day",
-      "night"
-    ]
-  },
-  {
-    "id": "q086",
-    "text": "Ring the bells that still can ring\nForget your perfect offering\nThere is a crack in everything\nThat's how the light gets in.",
-    "author": "Leonard Cohen",
-    "work": "\"Anthem\", The Future",
-    "year": "1992",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Leonard_Cohen",
-    "tags": [
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q087",
-    "text": "For small creatures such as we the vastness is bearable only through love.",
-    "author": "Carl Sagan",
-    "work": "Contact, Chapter 24",
-    "year": "1985",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Carl_Sagan",
-    "tags": [
-      "night"
-    ]
-  },
-  {
-    "id": "q088",
-    "text": "One swallow does not make a summer, but one skein of geese, cleaving the murk of a March thaw, is the spring.",
-    "author": "Aldo Leopold",
-    "work": "A Sand County Almanac, \"March: The Geese Return\", p. 18",
-    "year": "1949",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Aldo_Leopold",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q089",
-    "text": "Often the mountain gives itself most completely when I have no destination, when I reach nowhere in particular",
-    "author": "Nan Shepherd",
-    "work": "The Living Mountain",
-    "year": "1977",
-    "translator": "",
-    "source_url": "https://www.themarginalian.org/2018/04/18/nan-shepherd-living-mountain-walking/",
-    "tags": [
-      "any",
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q090",
-    "text": "Hang on to your hat. Hang on to your hope. And wind the clock, for tomorrow is another day.",
-    "author": "E. B. White",
-    "work": "Letter to Mr. Nadeau, 30 March 1973 (Letters of E. B. White)",
-    "year": "1973",
-    "translator": "",
-    "source_url": "https://www.themarginalian.org/2014/05/06/e-b-white-letters-of-note-book/",
-    "tags": [
-      "night",
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q091",
-    "text": "I shall get up Sunday morning and wind the clock, as a contribution to order and steadfastness.",
-    "author": "E. B. White",
-    "work": "Letter to Mr. Nadeau, 30 March 1973 (Letters of E. B. White)",
-    "year": "1973",
-    "translator": "",
-    "source_url": "https://www.themarginalian.org/2014/05/06/e-b-white-letters-of-note-book/",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q092",
-    "text": "Feelings come and go\nlike clouds in a windy sky.\nConscious breathing\nis my anchor.",
-    "author": "Thich Nhat Hanh",
-    "work": "Stepping into Freedom",
-    "year": "1997",
-    "translator": "",
-    "source_url": "https://www.parallax.org/?p=25061",
-    "tags": [
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q093",
-    "text": "In spring it is the dawn that is most beautiful. As the light creeps over the hills, their outlines are dyed a faint red",
-    "author": "Sei Shōnagon",
-    "work": "The Pillow Book, section 1",
-    "year": "c. 1002 (translation 1967)",
-    "translator": "Ivan Morris",
-    "source_url": "https://worldhistorycommons.org/node/1679",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q094",
-    "text": "In summer the nights. Not only when the moon shines, but on dark nights too, as the fireflies flit to and fro",
-    "author": "Sei Shōnagon",
-    "work": "The Pillow Book, section 1",
-    "year": "c. 1002 (translation 1967)",
-    "translator": "Ivan Morris",
-    "source_url": "https://worldhistorycommons.org/node/1679",
-    "tags": [
-      "night"
-    ]
-  },
-  {
-    "id": "q095",
-    "text": "Wanderer, there is no path,\nthe path is made by walking.",
-    "author": "Antonio Machado",
-    "work": "\"Proverbios y cantares\" XXIX, Campos de Castilla",
-    "year": "1912 (translation 1979)",
-    "translator": "Betty Jean Craige",
-    "source_url": "https://en.wikiquote.org/wiki/Antonio_Machado",
-    "tags": [
-      "any",
-      "after_hard_day"
-    ]
-  },
-  {
-    "id": "q096",
-    "text": "I am one\nWho eats his breakfast,\nGazing at morning glories.",
-    "author": "Matsuo Bashō",
-    "work": "Haiku (asagao ni / ware wa meshi kū / otoko kana)",
-    "year": "17th century (translation 1970)",
-    "translator": "Richard Lewis (The Way of Silence)",
-    "source_url": "https://en.wikiquote.org/wiki/Matsuo_Bash%C5%8D",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q097",
-    "text": "When there is a big tree small ones climb on its back to reach the sun.",
-    "author": "Chinua Achebe",
-    "work": "No Longer at Ease, Chapter 10 (Igbo proverb)",
-    "year": "1960",
-    "translator": "",
-    "source_url": "https://en.wikiquote.org/wiki/Chinua_Achebe",
-    "tags": [
-      "any"
-    ]
-  },
-  {
-    "id": "q098",
-    "text": "In winter I get up at night\nAnd dress by yellow candle-light.",
-    "author": "Robert Louis Stevenson",
-    "work": "\"Bed in Summer\", A Child's Garden of Verses",
-    "year": "1885",
-    "translator": "",
-    "source_url": "https://www.gutenberg.org/ebooks/136",
-    "tags": [
-      "morning"
-    ]
-  },
-  {
-    "id": "q099",
-    "text": "And they both sat there, grown up, yet children at heart; and it was summer, warm, beautiful summer.",
-    "author": "Hans Christian Andersen",
-    "work": "\"The Snow Queen\", Seventh Story (closing lines)",
-    "year": "1844",
-    "translator": "Anonymous public-domain translation (Fairy Tales of Hans Christian Andersen, Project Gutenberg eBook #27200)",
-    "source_url": "https://www.gutenberg.org/ebooks/27200",
-    "tags": [
-      "morning",
-      "any"
-    ]
-  },
-  {
-    "id": "q100",
-    "text": "Thence we came forth to rebehold the stars.",
-    "author": "Dante Alighieri",
-    "work": "Inferno, Canto XXXIV, last line",
-    "year": "c. 1314 (translation 1867)",
-    "translator": "Henry Wadsworth Longfellow",
-    "source_url": "https://www.gutenberg.org/ebooks/1001",
-    "tags": [
-      "night",
       "after_hard_day"
     ]
   }
