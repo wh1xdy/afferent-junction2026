@@ -195,7 +195,7 @@
 
   const STATUS = { idle: '', connecting: 'Connecting', listening: 'Listening', speaking: 'Speaking' };
   const ERRORS = {
-    no_relay: 'Voice is not set up on this phone yet. Enter the relay address and access code.',
+    no_relay: 'Voice is not set up on this phone yet.',
     code: 'The access code was not accepted. Check it and try again.',
     mic: 'The microphone is blocked. Allow it in the phone settings, then try again.',
     unsupported: 'This phone cannot run the voice companion.',
@@ -222,6 +222,13 @@
     raf = V.s ? requestAnimationFrame(pulse) : 0;
   };
 
+  const setup = (offer, open) => {
+    $('voiceSetupBtn').classList.toggle('hidden', !offer || open);
+    $('voiceSetupBtn').setAttribute('aria-expanded', String(!!open));
+    $('voiceKeyForm').classList.toggle('hidden', !open);
+  };
+  $('voiceSetupBtn').onclick = () => { setup(true, true); $('voiceUrl').focus({ preventScroll: true }); };
+
   A.bus.on('voiceText', render);
   A.bus.on('voice', ({ state, detail }) => {
     el.dataset.state = state;
@@ -229,7 +236,9 @@
     $('voiceStart').classList.toggle('hidden', live);
     $('voiceEnd').classList.toggle('hidden', !live);
     $('voiceStatus').textContent = state === 'error' ? (ERRORS[detail?.code] || ERRORS.failed) + (detail?.code === 'mic' && detail.text ? ` (${detail.text})` : '') : STATUS[state];
-    $('voiceKeyForm').classList.toggle('hidden', !(state === 'error' && ['no_relay', 'code', 'refused'].includes(detail?.code)));
+    // The relay address and access code are set up once by the care team, not asked of the patient: they stay behind
+    // a small "Set up" link that only shows when voice cannot reach its relay.
+    setup(state === 'error' && ['no_relay', 'code', 'refused'].includes(detail?.code), false);
     if (state === 'connecting') { rows.clear(); $('voiceLog').textContent = ''; }
     el.classList.toggle('talked', live || rows.size > 0);
     if (live && !raf) raf = requestAnimationFrame(pulse);
