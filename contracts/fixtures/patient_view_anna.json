@@ -228,9 +228,9 @@
     "tel": "116117"
    },
    {
-    "label": "Your clinic, office hours (demo placeholder)",
-    "number": "09 000 0000",
-    "tel": "+35890000000"
+    "label": "Your clinic, number added by your care team",
+    "number": null,
+    "tel": null
    }
   ]
  }

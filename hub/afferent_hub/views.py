@@ -41,7 +41,7 @@ CLINIC_SEES = [
 ]
 
 CRISIS_FOOTER = "Afferent is not an emergency service and is not watched around the clock."
-CLINIC_CONTACT = {"name": "Your clinic", "number": "09 000 0000", "hours": "office hours"}
+CLINIC_CONTACT = {"name": "Your clinic", "number": None, "hours": "office hours"}
 CRISIS = {
     "title": "If today is heavy, you do not have to carry it alone.",
     "text": "If you need someone now, call 112 or a helpline below. " + CRISIS_FOOTER,
@@ -49,7 +49,7 @@ CRISIS = {
         {"label": "Emergency", "number": "112", "tel": "112"},
         {"label": "MIELI Crisis Helpline, in Finnish, 24 h", "number": "09 2525 0111", "tel": "+358925250111"},
         {"label": "Medical Helpline, 24 h", "number": "116117", "tel": "116117"},
-        {"label": "Your clinic, office hours (demo placeholder)", "number": "09 000 0000", "tel": "+35890000000"},
+        {"label": "Your clinic, number added by your care team", "number": None, "tel": None},
     ],
 }
 

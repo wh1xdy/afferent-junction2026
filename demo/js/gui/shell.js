@@ -32,9 +32,7 @@
     ] },
     { title: 'Export to your clinic', hint: 'One export a day, at 07:00. Nobody watches live.', rows: [
       { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
-        <button type="button" role="radio" data-v="summary">Summary</button>
-        <button type="button" role="radio" data-v="nothing_tonight">Skip today</button>
-        <button type="button" role="radio" data-v="paused">Pause 7 days</button></div></div>` },
+        <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
       { icon: 'schedule', label: 'Next export', static: true, val: '', valId: 'nextExport' },
       { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
       { icon: 'description', label: 'What is in an export', sup: 'Lanterns, play times, sensor numbers', static: true },
