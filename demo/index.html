@@ -10,7 +10,7 @@
        painted frame of the world are on their way, with no minimum time, then crossfades into the world.
        Only opacity and transform move, so it costs no repaint while the app loads under it. */
     #loader { position: absolute; inset: 0; z-index: 40; overflow: hidden; contain: strict; pointer-events: auto; background: var(--af-kaamos-surface, #0D182A);
-      transition: opacity 520ms var(--af-ease-in-out, cubic-bezier(0.65, 0, 0.35, 1)); }
+      transition: opacity 520ms var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)); }
     #loader.out { opacity: 0; pointer-events: none; }
     #loader i { position: absolute; display: block; pointer-events: none; }
     #loader .ld-sky { inset: 0 0 50% 0; animation: ldIn 1600ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) both; }
@@ -29,9 +29,11 @@
       radial-gradient(1px 1px at 22% 44%, rgba(232, 238, 245, 0.35), transparent),
       radial-gradient(1.1px 1.1px at 71% 46%, rgba(232, 238, 245, 0.4), transparent);
       animation: ldTwinkle 9s var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite alternate; }
-    #loader .ld-fire { left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 165px); width: 0; height: 0;
+    /* The ember sits on the kindle's centre (165 px over the bottom inset, see .dock). On iOS the web view gets its
+       insets a moment after the first paint, so the ember glides up to its place instead of jumping. */
+    #loader .ld-fire { left: 50%; bottom: 165px; width: 0; height: 0; translate: 0 calc(0px - env(safe-area-inset-bottom, 0px));
       animation: ldIn 700ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) both;
-      transition: transform 520ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)); }
+      transition: transform 520ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)), translate 1200ms var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)); }
     #loader .ld-glow, #loader .ld-core { left: -140px; top: -140px; width: 280px; height: 280px; border-radius: 50%; will-change: transform, opacity;
       animation: ldBreath calc(var(--af-breath-in, 4000ms) + var(--af-breath-out, 6000ms)) var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite; }
     #loader .ld-glow { background: radial-gradient(circle,
@@ -54,6 +56,7 @@
     @keyframes ldDrift { from { transform: translateX(-3%); opacity: 0.6; } to { transform: translateX(3%); opacity: 1; } }
     /* Reduced motion (the app's setting, else the system's; set before the first paint below): a still glow, plain fades */
     .af-still #loader .ld-glow, .af-still #loader .ld-core, .af-still #loader .ld-stars, .af-still #loader .ld-aurora { animation: none; }
+    .af-still #loader .ld-fire { transition: none; }
     .af-still #loader.out .ld-fire { transform: none; }
   </style>
   <script>

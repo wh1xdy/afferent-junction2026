@@ -537,7 +537,7 @@
       if (k >= 1) { const then = curtain.then; curtain = null; then?.(); }
     }
     if (curtainV > 0.001) { ctx.fillStyle = `rgba(0,0,0,${curtainV})`; ctx.fillRect(0, 0, W, H); }
-    A.Loader?.frame();
+    A.Loader?.frame(t);
     if (++frame % 8 === 0) panel(s, now);
     requestAnimationFrame(loop);
   };

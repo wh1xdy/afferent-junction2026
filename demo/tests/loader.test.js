@@ -80,7 +80,7 @@ test('no minimum hold: ready after 100 ms means it starts to leave on the frame 
   // the only timer before it leaves is the cap, which can only end it early, never hold it
   assert.deepStrictEqual(timers.map(t => t.at), [8000]);
   advance(40);
-  L.frame();
+  L.frame(now() - 8);
   assert.strictEqual(now(), 100);
   assert.strictEqual(L.state, 'leaving');
   assert.ok(loader.classList.contains('out'));
@@ -92,6 +92,30 @@ test('no minimum hold: ready after 100 ms means it starts to leave on the frame 
   assert.strictEqual(L.state, 'gone');
 });
 
+test('the heavy frame that first draws the art is not where the fade starts: the next light one is', async () => {
+  const { L, advance, settle, now } = boot({ at: 1000 });
+  L.when(Promise.resolve());
+  await settle();
+  // the art is baked into its layers in this frame: 300 ms of drawing, so a fade started now would lose its beginning
+  advance(300);
+  L.frame(now() - 300);
+  assert.strictEqual(L.state, 'loading');
+  advance(16);
+  L.frame(now() - 9);
+  assert.strictEqual(L.state, 'leaving');
+  assert.strictEqual(L.why, 'ready');
+});
+
+test('if every frame stays heavy it fades anyway, at most half a second after the first frame with everything in', async () => {
+  const { L, advance, settle } = boot({ at: 1000 });
+  L.when(Promise.resolve());
+  await settle();
+  const states = [];
+  for (let i = 0; i < 4; i++) { advance(200); L.frame(1000 + 200 * i); states.push(L.state); }
+  // frames end at 1200 (the first with everything in), 1400, 1600 (400 ms later) and 1800 (600 ms later)
+  assert.deepStrictEqual(states, ['loading', 'loading', 'loading', 'leaving']);
+});
+
 test('the crossfade is about half a second, and only the loading screen fades', () => {
   const rule = style.match(/#loader \{([^}]*)\}/)[1];
   const t = rule.match(/transition:\s*opacity (\d+)ms/);
@@ -99,6 +123,11 @@ test('the crossfade is about half a second, and only the loading screen fades', 
   assert.ok(+t[1] >= 400 && +t[1] <= 600, `fade ${t[1]} ms`);
   assert.match(style, /#loader\.out \{ opacity: 0; pointer-events: none; \}/, 'touches reach the app as soon as it starts to fade');
   assert.strictEqual(read('demo/js/loader.js').match(/FADE_MS = (\d+)/)[1], t[1], 'loader.js removes it after the same fade');
+  // WebKit never shows the first 70-80 ms of it (loader.js): the curve, the app's breath easing, must hardly move there
+  const [, token, x1, y1, x2, y2] = rule.match(/transition:\s*opacity \d+ms var\((--af-[\w-]+), cubic-bezier\(([\d.]+), ([\d.]+), ([\d.]+), ([\d.]+)\)\)/).map((v, i) => (i > 1 ? +v : v));
+  assert.match(read('design/tokens.css'), new RegExp(`${token}: cubic-bezier\\(${x1}, ${y1}, ${x2}, ${y2}\\);`));
+  const at = x => { let lo = 0, hi = 1; for (let i = 0; i < 40; i++) { const u = (lo + hi) / 2, bx = 3 * (1 - u) ** 2 * u * x1 + 3 * (1 - u) * u * u * x2 + u ** 3; bx < x ? (lo = u) : (hi = u); } const u = lo; return 3 * (1 - u) ** 2 * u * y1 + 3 * (1 - u) * u * u * y2 + u ** 3; };
+  assert.ok(at(80 / +t[1]) < 0.08, `${Math.round(at(80 / +t[1]) * 100)}% of the fade is gone after 80 ms`);
 });
 
 test('art that fails to load still lets it go, into the procedural world', async () => {
@@ -147,8 +176,9 @@ test('main.js waits for the art and the fonts, and reports every world frame aft
   const main = read('demo/js/main.js');
   assert.match(main, /A\.Loader\?\.when\(A\.Art\.load\(\), document\.fonts\?\.ready\);\n  loop\(\);/);
   const loop = main.slice(main.indexOf('const loop = () => {'), main.indexOf('requestAnimationFrame(loop);\n  };'));
-  const present = loop.indexOf('A.FXGL?.present('), frame = loop.indexOf('A.Loader?.frame();');
+  const present = loop.indexOf('A.FXGL?.present('), frame = loop.indexOf('A.Loader?.frame(t);');
   assert.ok(present > 0 && frame > present, 'frame() comes after the world is drawn and presented');
+  assert.match(loop, /^const loop = \(\) => \{\n    const t = performance\.now\(\);/, 'with the time the frame began');
   const at = f => html.indexOf(`<script src="js/${f}"></script>`);
   assert.ok(at('util.js') > 0 && at('loader.js') > at('util.js') && at('loader.js') < at('main.js'), 'loader.js runs after util.js made A, before main.js');
 });
@@ -211,7 +241,12 @@ test('it sits over the whole phone, above the check-in, and its ember is where t
   const z = +style.match(/#loader \{[^}]*z-index: (\d+)/)[1], ci = +read('demo/css/checkin.css').match(/inset: 0; z-index: (\d+)/)[1];
   assert.ok(z > ci, `z-index ${z} over the check-in's ${ci}`);
   // the kindle's centre: the dock's bottom padding (safe area + 25 px), "Not today" (56), 10, the label (16), 16, half the kindle (42)
-  assert.match(style, /\.ld-fire \{[^}]*bottom: calc\(env\(safe-area-inset-bottom, 0px\) \+ 165px\)/);
+  const fire = style.match(/#loader \.ld-fire \{([^}]*)\}/)[1];
+  assert.match(fire, /bottom: 165px;/);
+  assert.match(fire, /translate: 0 calc\(0px - env\(safe-area-inset-bottom, 0px\)\)/);
+  // iOS hands the web view its insets after the first paint: the ember glides there, and holds still for reduced motion
+  assert.match(fire, /transition:[^;]*translate \d+ms/);
+  assert.match(style, /\.af-still #loader \.ld-fire \{ transition: none; \}/);
   assert.match(read('demo/css/gui/shell.css'), /\.dock \{[^}]*calc\(var\(--safe-bottom\) \+ 25px\)/);
 });
 
