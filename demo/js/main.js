@@ -8,6 +8,7 @@
   const speed = Math.max(0.1, Number(q.get('speed')) || 1);
   const t0 = performance.now();
   A.now = () => (performance.now() - t0) / 1000 * speed;
+  A.fromPerf = ms => (ms - t0) / 1000 * speed;
 
   const saved = store.get('afferent.settings') || {};
   const deviceId = store.get('afferent.device') || 'inst-' + Math.random().toString(16).slice(2, 8);
@@ -20,6 +21,10 @@
     sensors: { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: true, phone_motion: false, ...saved.sensors },
     sharing: saved.sharing || 'summary',
     simulator: saved.simulator ?? true,
+    quietNight: saved.quietNight ?? true,
+    weeklyCheckin: saved.weeklyCheckin ?? true,
+    forceTask: q.get('task') || null,
+    forceK: q.has('k') ? Number(q.get('k')) : null,
   };
   const S = A.Sensors;
   const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
@@ -32,16 +37,17 @@
     clock: q.get('clock') === 'night' || (!q.get('clock') && (hour >= 21 || hour < 6)) ? 'night' : 'morning',
     stage: q.get('stage') === '1',
     profile: PROFILES.includes(q.get('profile')) ? q.get('profile') : 'live',
-    sound: true,
+    sound: saved.sound ?? true,
   };
+  A.Audio.on = ui.sound;
 
   const canvas = $('game'), ctx = canvas.getContext('2d');
   let W = 0, H = 0, dpr = 1;
-  const resize = () => { dpr = Math.min(devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; };
+  const resize = () => { dpr = Math.min(devicePixelRatio || 1, A.Perf ? A.Perf.cap : 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; };
   addEventListener('resize', resize); resize();
 
   A.Input.init(canvas);
-  const idle = A.makeVisual(ui.profile); idle.black = 0;
+  let idle = A.makeVisual(ui.profile); idle.black = 0;
   let idleTweens = [];
   const idleTween = (obj, key, from, to, dur) => { idleTweens = idleTweens.filter(x => !(x.obj === obj && x.key === key)); idleTweens.push({ obj, key, from, to, start: A.now(), dur }); };
 
@@ -61,6 +67,12 @@
     $('profileChip').classList.toggle('sim', ui.profile !== 'live');
     $('profileTag').textContent = ui.profile;
     $('soundBtn').classList.toggle('off', !ui.sound);
+    camGlyph();
+  };
+  const camGlyph = () => {
+    const st = !A.config.sensors.phone_camera ? 'off' : ui.input === 'camera' || S.camera() ? 'on' : A.config.simulator ? 'simulated' : 'off';
+    $('camBtn').dataset.state = st;
+    $('camBtn').setAttribute('aria-label', 'Camera: ' + st);
   };
   const setProfile = (p, from) => {
     if (!PROFILES.includes(p)) return;
@@ -76,13 +88,14 @@
   $('clockChip').onclick = () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); };
   $('stageChip').onclick = () => { ui.stage = !ui.stage; chips(); };
   $('profileChip').onclick = () => setProfile(PROFILES[(PROFILES.indexOf(ui.profile) + 1) % PROFILES.length]);
-  $('soundBtn').onclick = () => { ui.sound = !ui.sound; A.Audio.on = ui.sound; chips(); };
+  const setSound = on => { ui.sound = on; A.Audio.on = on; $('soundSw').checked = on; chips(); saveSettings(); };
+  $('soundBtn').onclick = () => setSound(!ui.sound);
   chips();
 
   $('weekBtn').href = 'patient.html' + location.search;
 
   const phone = window.matchMedia?.('(max-width: 760px)').matches;
-  if (phone && !q.has('dev')) $('demoBox').prepend(document.querySelector('#start .chips'));
+  if (phone && !q.has('dev')) $('demoBox').querySelector('summary').after(document.querySelector('#start .chips'));
 
   const hubKey = 'afferent.hub';
   const normHub = v => {
@@ -100,51 +113,114 @@
     location.reload();
   };
 
+  const night = () => ui.clock === 'night';
   const morningText = () => {
-    $('endText').textContent = ui.clock === 'night' ? 'Rest well.' : 'Good morning.';
-    $('decline').textContent = ui.clock === 'night' ? 'Not tonight' : 'Not today';
-    $('end').classList.toggle('night', ui.clock === 'night');
+    $('endText').textContent = night() ? 'Rest well.' : 'Good morning.';
+    $('decline').textContent = night() ? 'Not tonight' : 'Not today';
+    $('crisisLead').textContent = `If ${night() ? 'tonight' : 'today'} is heavy, you do not have to carry it alone.`;
+    $('end').classList.toggle('night', night());
+    weeklyPill();
   };
-  morningText();
 
-  const show = (id, on) => $(id).classList.toggle('hidden', !on);
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'settings', 'weekly'];
+  const show = (id, on) => {
+    $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
+    if (CARDS.includes(id)) {
+      if (on) CARDS.forEach(c => c !== id && $(c).classList.add('hidden'));
+      $('phone').classList.toggle('card-open', CARDS.some(c => !$(c).classList.contains('hidden')));
+    }
+  };
   const crisis = source => {
+    $('selfHarmNote').classList.toggle('hidden', source !== 'weekly_checkin');
     show('crisis', true);
     A.bus.emit('ws', { type: 'crisis', patient_id: A.config.patientId, ...(A.session?.rec?.session_id ? { session_id: A.session.rec.session_id } : {}), source, t_iso: A.Record.isoLocal(new Date()) });
     log('crisis card opened (' + source + ')');
   };
-  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : b.dataset.open === 'weekly' ? openWeekly() : show(b.dataset.open, true));
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => show(b.dataset.close, false));
-  A.bus.on('crisisOffer', source => crisis(source));
+  A.bus.on('crisisOffer', () => { show('offer', true); log('talk offer shown (lowest lantern twice)'); });
+  $('offerYes').onclick = () => { show('offer', false); crisis('mood'); };
+  $('offerNo').onclick = () => { show('offer', false); log('talk offer declined'); };
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion });
+  const weeklyKey = 'afferent.weekly.' + A.config.patientId;
+  const WEEKLY_ITEMS = [['interest', 'Little interest or pleasure in doing things'], ['down', 'Feeling down, depressed or hopeless'], ['self_harm', 'Thoughts that you would be better off dead, or of hurting yourself']];
+  const WEEKLY_OPTS = ['Not at all', 'Several days', 'More than half the days', 'Nearly every day'];
+  let weeklyAnswers = {};
+  const weeklyDue = () => {
+    if (!A.config.weeklyCheckin || night()) return false;
+    if (q.get('weekly') === '1') return true;
+    const w = store.get(weeklyKey);
+    return !w || Date.now() - (w.done || 0) > 7 * 864e5 && Date.now() > (w.snooze || 0);
+  };
+  const weeklyPill = () => show('weeklyBtn', weeklyDue() && !A.session);
+  WEEKLY_ITEMS.forEach(([key, text]) => {
+    const f = document.createElement('fieldset');
+    f.className = 'item';
+    f.innerHTML = `<legend>${text}</legend><div class="opts" role="radiogroup">${WEEKLY_OPTS.map((o, i) => `<button type="button" role="radio" aria-checked="false" data-v="${i}">${o}</button>`).join('')}</div>`;
+    f.querySelectorAll('button').forEach(b => b.onclick = () => {
+      weeklyAnswers[key] = Number(b.dataset.v);
+      f.querySelectorAll('button').forEach(x => x.setAttribute('aria-checked', String(x === b)));
+      $('weeklyDone').disabled = Object.keys(weeklyAnswers).length < WEEKLY_ITEMS.length;
+    });
+    $('weeklyItems').append(f);
+  });
+  const openWeekly = () => {
+    weeklyAnswers = {};
+    document.querySelectorAll('#weeklyItems button').forEach(b => b.setAttribute('aria-checked', 'false'));
+    $('weeklyDone').disabled = true;
+    show('weekly', true);
+  };
+  $('weeklyLater').onclick = () => { store.set(weeklyKey, { ...store.get(weeklyKey), snooze: Date.now() + 864e5 }); show('weekly', false); weeklyPill(); };
+  $('weeklyDone').onclick = () => {
+    const a = { ...weeklyAnswers };
+    store.set(weeklyKey, { done: Date.now() });
+    A.bus.emit('ws', { type: 'weekly_checkin', patient_id: A.config.patientId, answers: a, phq2: a.interest + a.down, self_harm: a.self_harm, t_iso: A.Record.isoLocal(new Date()) });
+    log(`weekly check-in sent (two items ${a.interest + a.down} of 6, third item ${a.self_harm})`);
+    show('weekly', false); weeklyPill();
+    if (a.self_harm > 0) crisis('weekly_checkin');
+  };
+
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, weeklyCheckin: A.config.weeklyCheckin, sound: ui.sound });
+  const sharingSeg = () => {
+    const bs = [...document.querySelectorAll('#sharingSeg button')];
+    bs.forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.sharing)));
+    $('sharingSeg').style.setProperty('--idx', Math.max(0, bs.findIndex(b => b.dataset.v === A.config.sharing)));
+  };
   const toggles = () => {
     document.querySelectorAll('[data-sensor]').forEach(el => { el.checked = !!A.config.sensors[el.dataset.sensor]; });
-    $('shareSw').checked = A.config.sharing === 'summary';
+    sharingSeg();
     $('simSw').checked = A.config.simulator;
     $('motionSw').checked = A.config.reducedMotion;
+    $('soundSw').checked = ui.sound;
+    $('quietSw').checked = A.config.quietNight;
+    $('weeklySw').checked = A.config.weeklyCheckin;
+    camGlyph();
   };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
     const sensor = el.dataset.sensor;
     A.config.sensors[sensor] = el.checked;
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
-    syncSensors(); saveSettings();
+    syncSensors(); saveSettings(); camGlyph();
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
-  $('shareSw').onchange = e => {
-    A.config.sharing = e.target.checked ? 'summary' : 'nothing_tonight'; saveSettings();
+  document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
+    if (A.config.sharing === b.dataset.v) return;
+    A.config.sharing = b.dataset.v; sharingSeg(); saveSettings();
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sharing: A.config.sharing });
-  };
-  $('simSw').onchange = e => { A.config.simulator = e.target.checked; syncSensors(); saveSettings(); };
+  });
+  $('simSw').onchange = e => { A.config.simulator = e.target.checked; syncSensors(); saveSettings(); camGlyph(); };
   $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; saveSettings(); };
-  toggles();
+  $('soundSw').onchange = e => setSound(e.target.checked);
+  $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; setDawn(A.config.dawnLevel); saveSettings(); };
+  $('weeklySw').onchange = e => { A.config.weeklyCheckin = e.target.checked; saveSettings(); weeklyPill(); };
 
   const applyPrivacy = pv => {
     if (!pv) return;
     if (pv.sensors) Object.assign(A.config.sensors, pv.sensors);
-    if (pv.sharing) A.config.sharing = pv.sharing === 'summary' ? 'summary' : pv.sharing;
+    if (pv.sharing) A.config.sharing = pv.sharing;
     syncSensors(); toggles(); saveSettings();
   };
+  morningText(); toggles();
 
   let timeline = [];
 
@@ -170,11 +246,12 @@
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();
-    show('start', false); show('end', false); show('closeBtn', true);
+    show('start', false); show('end', false); show('closeBtn', true); show('weeklyBtn', false);
+    resetEnd();
     $('json').textContent = '';
     timeline = [];
-    A.session = A.startSession({ input: A.Input.mode, clock: ui.clock, stage: ui.stage, profile: ui.profile });
-    document.querySelectorAll('.flame').forEach(f => f.classList.remove('on'));
+    A.session = A.startSession({ input: A.Input.mode, clock: ui.clock, stage: ui.stage, profile: ui.profile, visual: idle });
+    camGlyph();
     const s = A.session;
     A.bus.emit('ws', { type: 'session_start', session_id: s.rec.session_id, patient_id: A.config.patientId, clock: ui.clock, profile: ui.profile, simulated: s.liveMetrics(A.now()).simulated, sensors: s.rec.sensors, t_iso: s.rec.started_iso });
     log(`session start, ${A.Input.mode}, ${ui.clock}, ${ui.profile}`);
@@ -186,11 +263,36 @@
     A.bus.emit('ws', { type: 'session_end', session: r });
     A.bus.emit('sessionEnd', r);
     log('not tonight, logged as declined');
+    resetEnd(); $('end').classList.add('declined');
     show('start', false); show('end', true);
-    $('end').classList.add('declined');
   };
-  $('again').onclick = () => { A.session = null; $('end').classList.remove('declined'); show('end', false); show('start', true); };
+
+  let curtain = null, curtainV = 0, leaving = false, endShown = false;
+  const fadeCurtain = (to, dur, then) => { curtain = { from: curtainV, to, start: A.now(), dur, then }; };
+  const resetEnd = () => {
+    endShown = false;
+    $('end').classList.remove('declined', 'dim', 'closed');
+    show('offer', false);
+    document.querySelectorAll('#moodEnd .flame').forEach(f => f.classList.remove('on'));
+  };
+  const goHome = () => {
+    if (leaving) return;
+    leaving = true;
+    const s = A.session;
+    if (s && !s.done) s.close();
+    show('end', false); show('wakeBtn', false); show('offer', false); CARDS.forEach(c => show(c, false));
+    fadeCurtain(1, 1.2, () => {
+      A.session = null;
+      idle = A.makeVisual(ui.profile); idle.black = 0;
+      resetEnd(); camGlyph(); weeklyPill();
+      show('start', true);
+      fadeCurtain(0, 1.8, () => { leaving = false; });
+    });
+  };
+  $('again').onclick = goHome;
+  $('wakeBtn').onclick = goHome;
   $('closeBtn').onclick = () => A.bus.emit('exit');
+  const cue = text => { if (text) $('cue').textContent = text; $('cue').classList.toggle('on', !!text); };
 
   $('download').onclick = () => {
     const text = $('json').textContent;
@@ -201,24 +303,33 @@
     a.click();
   };
 
-  document.addEventListener('visibilitychange', () => { if (document.hidden && A.session && !A.session.done) A.session.pauses++; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && A.session && !A.session.done) { A.session.pauses++; A.Skill?.save(); } });
 
   ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
-  A.bus.on('segment', id => { if (id !== 'walk') log('phase ' + id); });
+  A.bus.on('segment', id => {
+    if (id !== 'walk') log('phase ' + id);
+    cue(id === 'checkin' ? (night() ? 'How are you tonight?' : 'How are you this morning?') : '');
+  });
   A.bus.on('mode', m => log('mode ' + m));
   A.bus.on('game', g => log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`));
   A.bus.on('haptic', () => { $('haptic').classList.remove('pulse'); void $('haptic').offsetWidth; $('haptic').classList.add('pulse'); });
   A.bus.on('mood', m => {
     log(`lantern check-in ${m.which} ${m.value ?? 'skipped'}`);
+    if (m.which === 'start') cue('');
     if (m.which === 'end') document.querySelectorAll('#moodEnd .flame').forEach(f => f.classList.toggle('on', Number(f.dataset.v) === m.value));
   });
-  A.bus.on('endScreen', () => { show('end', true); show('closeBtn', false); });
+  A.bus.on('endScreen', () => { endShown = true; show('end', true); show('closeBtn', false); });
+  A.bus.on('endDim', () => $('end').classList.add('dim'));
   A.bus.on('sessionEnd', r => {
     $('json').textContent = JSON.stringify(r, null, 2);
     log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
-    show('closeBtn', false); show('simBadge', false);
-    if (r.status !== 'completed' && r.status !== 'declined') { $('end').classList.add('declined'); show('end', true); }
+    show('closeBtn', false); show('simBadge', false); cue('');
     if (S.camera()) S.stop();
+    camGlyph();
+    if (leaving || r.status === 'declined') return;
+    if (r.status === 'fell_asleep') { $('phone').addEventListener('pointerdown', () => show('wakeBtn', true), { once: true }); return; }
+    if (endShown) { $('end').classList.add('closed'); return; }
+    $('end').classList.add('declined'); show('end', true);
   });
 
   const led = $('led');
@@ -236,7 +347,11 @@
     if (rgb === '#FFC98A' || rgb === '#FFF3DC') ledTimer = setTimeout(() => setLed(rgb, 0, 10000), fade_ms + 30000);
   });
   setLed('#FFD9A0', 5, 0);
-  const setDawn = v => { A.config.dawnLevel = v; $('knob').value = v; $('knobVal').textContent = v + '%'; };
+  const setDawn = v => {
+    const cap = A.config.quietNight ? 25 : 60;
+    v = Math.min(cap, v); A.config.dawnLevel = v;
+    $('knob').max = cap; $('knob').value = v; $('knobVal').textContent = v + '%';
+  };
   $('knob').oninput = e => setDawn(Number(e.target.value));
 
   const sliders = { pulseSlider: 'offset', drowsySlider: 'drowsy' };
@@ -259,7 +374,7 @@
   });
   Hub.on('ack', d => log(`hub stored session${d.duplicate ? ' (duplicate)' : ''}${d.error ? ' error ' + d.error : ''}`));
   Hub.on('pulse', d => S.feedPulse(d));
-  Hub.on('knob', d => { if (Number.isFinite(d.level)) setDawn(Math.min(25, d.level)); if (d.press) log('knob press'); });
+  Hub.on('knob', d => { if (Number.isFinite(d.level)) setDawn(d.level); if (d.press) log('knob press'); });
   Hub.on('profile', d => setProfile(d.profile, 'hub'));
   Hub.on('privacy', d => applyPrivacy(d.privacy));
   Hub.on('demo_reset', () => log('hub demo reset'));
@@ -325,6 +440,12 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     A.World.draw(ctx, W, H, V);
     s?.drawOverlay(ctx, now);
+    if (curtain) {
+      const k = A.clamp((now - curtain.start) / curtain.dur, 0, 1);
+      curtainV = A.lerp(curtain.from, curtain.to, A.ease(k));
+      if (k >= 1) { const then = curtain.then; curtain = null; then?.(); }
+    }
+    if (curtainV > 0.001) { ctx.fillStyle = `rgba(0,0,0,${curtainV})`; ctx.fillRect(0, 0, W, H); }
     if (++frame % 8 === 0) panel(s, now);
     requestAnimationFrame(loop);
   };

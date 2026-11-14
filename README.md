@@ -19,7 +19,7 @@ Needs Python 3 (the script creates `hub/.venv` and installs `hub/requirements.tx
 
 Options: `--no-sim` (no bedside simulator), `--serial /dev/tty.usbmodemXXXX` (real Arduino UNO Q), `--ws` (bedside unit over Wi-Fi), `--sim-pulse` (simulated pulse stone during sessions), `--port 8000`.
 
-Game query options: `patient=anna|juha|mikko|leena|sofia|eero`, `input=auto|touch|camera`, `clock=morning|night`, `profile=live|good_day|bad_day`, `stage=1` (60 s stage mode), `dev=1` (show the demo chips on the start screen on a phone).
+Game query options: `patient=anna|juha|mikko|leena|sofia|eero`, `input=auto|touch|camera`, `clock=morning|night`, `profile=live|good_day|bad_day`, `stage=1` (60 s stage mode), `dev=1` (show the demo chips on the start screen on a phone), `task=<id>` (dev: every slot plays this task, measurements included; `task=reaction` loops the reaction core without rest and check-in; combine with `stage=1` to skip the core), `k=0..1` (dev: force the task intensity), `speed=<x>` (dev: run the clock faster).
 
 ## Reset the demo
 

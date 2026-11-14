@@ -479,6 +479,13 @@
             "valid": {
               "type": "boolean",
               "description": "5 trials and at least 3 taps with rt >= 150"
+            },
+            "stimulus": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Presentation version of the reaction stimulus, name/version: flare/0 (lantern flare, until v3 minigames), bite/1 (Bite float). Absent or null means flare/0. Pool RT baselines within one stimulus only"
             }
           }
         }

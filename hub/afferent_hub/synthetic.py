@@ -197,7 +197,8 @@ def pick_task(rng, mode: str, weights: dict, prev: str | None) -> tuple[str, flo
 
 def bandit_weights(arm_counts: dict) -> dict:
     out = {"flow": {a: 0.5 for a in bandit.FLOW}}
-    for mode, ids in bandit.MODE_ARMS.items():
+    for mode in bandit.MODE_ARMS:
+        ids = TASKS_BY_MODE[mode]
         alpha = [1 + arm_counts[(mode, a)][0] for a in ids]
         beta = [1 + arm_counts[(mode, a)][1] for a in ids]
         p, _ = bandit.p_best_from_counts(alpha, beta, draws=2000)

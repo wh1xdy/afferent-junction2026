@@ -8,6 +8,18 @@
   <link rel="stylesheet" href="design/tokens.css">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="css/game-ui.css">
+  <link rel="stylesheet" href="css/flow-ui.css">
+  <link rel="stylesheet" href="css/tasks/reaction.css">
+  <link rel="stylesheet" href="css/tasks/fork.css">
+  <link rel="stylesheet" href="css/tasks/lanterns.css">
+  <link rel="stylesheet" href="css/tasks/fireflies.css">
+  <link rel="stylesheet" href="css/tasks/beacon.css">
+  <link rel="stylesheet" href="css/tasks/bells.css">
+  <link rel="stylesheet" href="css/tasks/shutters.css">
+  <link rel="stylesheet" href="css/tasks/threads.css">
+  <link rel="stylesheet" href="css/tasks/stars.css">
+  <link rel="stylesheet" href="css/tasks/loyly.css">
+  <link rel="stylesheet" href="css/tasks/breath.css">
 </head>
 <body>
   <main id="app">
@@ -19,10 +31,19 @@
       </button>
       <span id="simBadge" class="af-simulated sim-badge hidden">SIMULATED</span>
 
-      <div id="start" class="overlay">
+      <span id="cue" class="cue" aria-live="polite"></span>
+      <button id="wakeBtn" class="icon close faint hidden" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+
+      <div id="start" class="overlay fade">
         <div class="bar">
           <button id="soundBtn" class="icon" aria-label="Sound">
             <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path class="wave" d="M16 8.5a4.5 4.5 0 0 1 0 7"/></svg>
+          </button>
+          <button id="camBtn" class="icon cam" data-open="settings" aria-label="Camera">
+            <svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/><path class="slash" d="M4 4l16 16"/></svg>
+            <i class="dot"></i>
           </button>
           <span class="spacer"></span>
           <a id="weekBtn" class="icon" href="patient.html" aria-label="Your week">
@@ -38,6 +59,7 @@
             <svg viewBox="0 0 24 24"><path d="M4 5h16v10H9l-5 4z"/></svg>
           </button>
         </div>
+        <button id="weeklyBtn" class="weekly hidden" data-open="weekly">Weekly check-in</button>
         <div class="choices">
           <button id="begin" class="primary">Begin</button>
           <button id="decline" class="primary">Not tonight</button>
@@ -50,7 +72,7 @@
         </div>
       </div>
 
-      <div id="end" class="overlay hidden">
+      <div id="end" class="overlay fade off">
         <div class="bar">
           <span class="spacer"></span>
           <button class="icon" data-open="crisis" aria-label="Talk to someone">
@@ -58,12 +80,17 @@
           </button>
         </div>
         <p id="endText" class="rest">Rest well.</p>
+        <div id="offer" class="offer hidden">
+          <p>Would you like someone to talk to?</p>
+          <div class="offer-btns"><button id="offerYes" class="primary">Yes</button><button id="offerNo" class="primary quiet">Not now</button></div>
+        </div>
         <div id="moodEnd" class="flames"></div>
         <div class="choices"><button id="again" class="primary quiet">Back</button></div>
       </div>
 
       <div id="crisis" class="card hidden">
-        <p class="lead">If today is heavy, you do not have to carry it alone.</p>
+        <p id="crisisLead" class="lead">If today is heavy, you do not have to carry it alone.</p>
+        <p id="selfHarmNote" class="note hidden">Your clinic will see this on the next working day. If you need someone now, call 112 or MIELI.</p>
         <a class="primary contact" href="tel:0900000000"><span>Your clinic</span><small>09 000 0000 (demo placeholder)</small></a>
         <a class="primary contact" href="tel:112"><span>Emergency</span><small>112</small></a>
         <a class="primary contact" href="tel:0925250111"><span>MIELI Crisis Helpline (24 h)</span><small>09 2525 0111</small></a>
@@ -72,13 +99,14 @@
       </div>
 
       <div id="info" class="card hidden">
+        <p class="lead">How it works</p>
         <dl class="keys">
-          <dt>Start</dt><dd>rest a moment, pick the lantern that fits today, then tap when the lantern flares (5 times)</dd>
+          <dt>Start</dt><dd>rest a moment, pick the lantern that fits how you feel, then tap when the lantern flares (5 times)</dd>
           <dt>Tasks</dt><dd>tap, drag or swipe inside the panel</dd>
           <dt>Paths</dt><dd>choose the short path or the climb; the climb gives more glow</dd>
           <dt>Two lanterns</dt><dd>tap the lantern that flared larger</dd>
           <dt>Breathing</dt><dd>hold while the circle grows, let go while it shrinks (Space works too)</dd>
-          <dt>Adaptive</dt><dd>high pulse brings calm tasks, low pulse brings lively ones, closing eyes brings wake-up tasks</dd>
+          <dt>Adaptive</dt><dd>high pulse brings calm tasks, low pulse brings lively ones; eyes that keep closing bring a gentle wake-up in the morning and rest at night</dd>
         </dl>
         <button class="primary quiet" data-close="info">Close</button>
       </div>
@@ -92,16 +120,34 @@
           <label class="toggle"><span>Bedside camera (stick figure)</span><input type="checkbox" data-sensor="bedside_camera"><i></i></label>
           <label class="toggle"><span>Presence sensor</span><input type="checkbox" data-sensor="presence"><i></i></label>
           <label class="toggle"><span>Phone movement</span><input type="checkbox" data-sensor="phone_motion"><i></i></label>
-          <label class="toggle"><span>Share a summary with my clinic</span><input type="checkbox" id="shareSw"><i></i></label>
-          <label class="toggle sep"><span>Simulated sensors (demo)</span><input type="checkbox" id="simSw"><i></i></label>
+        </div>
+        <p class="sub">Your clinic sees</p>
+        <div id="sharingSeg" class="seg" role="radiogroup" aria-label="Your clinic sees">
+          <button type="button" role="radio" data-v="summary">Summary</button>
+          <button type="button" role="radio" data-v="nothing_tonight">Not tonight</button>
+          <button type="button" role="radio" data-v="paused">Pause 7 days</button>
+        </div>
+        <div class="toggles">
+          <label class="toggle sep"><span>Sound</span><input type="checkbox" id="soundSw"><i></i></label>
+          <label class="toggle"><span>Quiet night (light at most 25%)</span><input type="checkbox" id="quietSw"><i></i></label>
+          <label class="toggle"><span>Weekly check-in</span><input type="checkbox" id="weeklySw"><i></i></label>
           <label class="toggle"><span>Reduced motion</span><input type="checkbox" id="motionSw"><i></i></label>
         </div>
         <p class="small">Only numbers leave the phone, never camera images.</p>
-        <div id="demoBox" class="demo-box">
+        <details id="demoBox" class="demo-box">
+          <summary>Demo</summary>
+          <label class="toggle"><span>Simulated sensors</span><input type="checkbox" id="simSw"><i></i></label>
           <form id="hubForm" class="hub-form"><label for="hubAddr" class="small">Hub address</label><input id="hubAddr" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000"><button class="chip" type="submit">Connect</button></form>
           <p id="hubState" class="small">Hub: offline</p>
-        </div>
+        </details>
         <button class="primary quiet" data-close="settings">Close</button>
+      </div>
+
+      <div id="weekly" class="card hidden" role="dialog" aria-labelledby="weeklyLead">
+        <p id="weeklyLead" class="lead">Weekly check-in</p>
+        <p class="small">Over the last week, how often have you been bothered by:</p>
+        <div id="weeklyItems" class="items"></div>
+        <div class="weekly-btns"><button id="weeklyLater" class="primary quiet" type="button">Later</button><button id="weeklyDone" class="primary" type="button" disabled>Done</button></div>
       </div>
     </section>
 
@@ -150,10 +196,24 @@
   <script src="js/audio.js"></script>
   <script src="js/art.js"></script>
   <script src="js/world.js"></script>
+  <script src="js/juice.js"></script>
+  <script src="js/skill.js"></script>
   <script src="js/minigames.js"></script>
+  <script src="js/tasks/fireflies.js"></script>
+  <script src="js/tasks/beacon.js"></script>
+  <script src="js/tasks/bells.js"></script>
+  <script src="js/tasks/shutters.js"></script>
+  <script src="js/tasks/threads.js"></script>
+  <script src="js/tasks/stars.js"></script>
+  <script src="js/tasks/loyly.js"></script>
+  <script src="js/tasks/breath.js"></script>
+  <script src="js/tasks/reaction.js"></script>
+  <script src="js/tasks/fork.js"></script>
+  <script src="js/tasks/lanterns.js"></script>
   <script src="js/measures.js"></script>
   <script src="js/record.js"></script>
   <script src="js/engine.js"></script>
+  <script src="js/perf.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

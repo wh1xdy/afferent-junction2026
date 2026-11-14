@@ -195,31 +195,29 @@
     svg.setAttribute('aria-label', `Today's arc, lantern from ${t.mood_start ?? 'unset'} to ${t.mood_end ?? 'unset'} of 5`);
   }
 
+  const LANTERN = '<svg viewBox="0 0 40 60" aria-hidden="true"><path class="lf" d="M16.5 11a3.5 3.5 0 0 1 7 0"/><path class="lb" d="M15 13.5h10l5.5 5h-21z"/><rect class="lg" x="11" y="18.5" width="18" height="24" rx="4"/><ellipse class="ll" cx="20" cy="32" rx="2.3" ry="5.2"/><rect class="lb" x="9.8" y="42" width="20.4" height="3.2" rx="1.2"/></svg>';
+
   function renderWeek(week) {
-    const wrap = $('week');
-    wrap.replaceChildren();
     const days = week.slice(-7), n = days.length || 7;
-    const lit = d => d.played && d.colour;
-    const glowOf = d => parseFloat(token(`--af-mood-${d.mood}-glow`)) || 0.6;
+    const mood = d => d.played && d.mood >= 1 && d.mood <= 5 ? Math.round(d.mood) : null;
+    const colourOf = d => token(`--af-mood-${mood(d)}`) || d.colour;
+    const glowOf = d => parseFloat(token(`--af-mood-${mood(d)}-glow`)) || 0.6;
+    const lit = d => !!(mood(d) && colourOf(d));
     const rgba = (hex, a) => { const [r, g, b] = A.hex(hex); return `rgba(${r},${g},${b},${a.toFixed(3)})`; };
-    const stop = (d, at) => lit(d) ? `${rgba(d.colour, 0.55 + 0.45 * glowOf(d))} ${at}%` : `${rgba(token('--af-silver-300') || '#B9CAD6', 0)} ${at}%`;
-    const stops = days.map((d, i) => stop(d, ((i + 0.5) / n * 100).toFixed(2)));
-    const bg = days.length ? `linear-gradient(90deg, ${stop({}, 0)}, ${stops.join(', ')}, ${stop({}, 100)})` : 'none';
-    const ribbon = el('div', { class: 'ribbon' }, [el('div', { class: 'glow', style: `background:${bg}` }), el('div', { class: 'band', style: `background:${bg}` })]);
-    const lanterns = el('div', { class: 'lanterns', style: `grid-template-columns:repeat(${n},1fr)` }, days.map(d => lit(d)
-      ? el('span', { class: 'lamp' + (d.dawn_reached ? ' dawn' : ''), style: `--c:${d.colour};--g:${glowOf(d)}` })
-      : el('span', { class: 'lamp gap' })));
-    ribbon.append(lanterns);
-    const cols = el('div', { class: 'days', style: `grid-template-columns:repeat(${n},1fr)` });
-    days.forEach(d => {
+    const stop = (d, at) => `${lit(d) ? rgba(colourOf(d), 0.25 + 0.6 * glowOf(d)) : 'rgba(0,0,0,0)'} ${at}%`;
+    const glow = days.length ? `linear-gradient(90deg, ${stop({}, 0)}, ${days.map((d, i) => stop(d, ((i + 0.5) / n * 100).toFixed(2))).join(', ')}, ${stop({}, 100)})` : 'none';
+    const cols = el('div', { class: 'days', style: `grid-template-columns:repeat(${n},1fr)` }, days.map(d => {
       const dd = parseDate(d.date);
-      cols.append(el('div', {
+      return el('div', {
         class: 'day' + (d.today ? ' today' : ''),
         role: 'img',
         'aria-label': `${DAYS[dd.getDay()]}${d.today ? ', today' : ''}, ${d.played ? (d.dawn_reached ? 'reached dawn' : 'played') : 'a quiet day'}`,
-      }, [el('span', { class: 'wd', text: d.today ? 'Today' : (d.weekday || DAYS[dd.getDay()].slice(0, 3)) })]));
-    });
-    wrap.append(ribbon, cols);
+      }, [
+        el('span', { class: 'lamp' + (lit(d) ? '' : ' gap'), style: lit(d) ? `--c:${colourOf(d)};--g:${glowOf(d)}` : null, html: LANTERN }),
+        el('span', { class: 'wd', text: d.today ? 'Today' : (d.weekday || DAYS[dd.getDay()].slice(0, 3)) }),
+      ]);
+    }));
+    $('week').replaceChildren(el('div', { class: 'ribbon', style: `background:${glow}`, 'aria-hidden': 'true' }), cols);
   }
 
   function renderHelped(items) {

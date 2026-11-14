@@ -69,6 +69,7 @@ Fork and Two lanterns are skipped (never replaced) when the director is in rest 
 | `rt.median_ms`, `rt.iqr_ms` | Over taps with rt >= 150 (hits and lapses); IQR by linear interpolation; rounded to integers |
 | `rt.lapses`, `rt.anticipations`, `rt.hits` | Counts (lapses include misses) |
 | `rt.valid` | 5 trials and at least 3 taps with rt >= 150 |
+| `rt.stimulus` | Presentation version of the reaction stimulus as `name/version`: `flare/0` (lantern flare, the original core) or `bite/1` (Bite float, minigames v3). Absent or null means `flare/0`. A version change is a baseline break: RT is compared and pooled within one stimulus only |
 
 ### tasks[] (every task, adaptive and measurement)
 
