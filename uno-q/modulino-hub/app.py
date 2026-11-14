@@ -111,7 +111,7 @@ def pulse_summary(window_ms=10000, ch=0):
             "last_beat_age_s": round((t_end - t[beats[-1]]) / 1000, 2) if beats else None}
 
 
-beats = [collections.deque(maxlen=20) for _ in range(CHANNELS)]  # (t_ms, ibi_ms), locked beats
+beats = [collections.deque(maxlen=90) for _ in range(CHANNELS)]  # (t_ms, ibi_ms), locked beats (~60 s)
 
 
 ble = HeartRateBroadcaster()
@@ -249,6 +249,8 @@ def period_loop(stopped):
                     bridge.call("pulse_period", c, int(ms or 0), int(q * 100), timeout=2)
                 except Exception as e:
                     print(f"period update failed (ch {c}): {e}", flush=True)
+        br = update_breathing() if sensing() else None
+        ble.update_breathing(br or 0)
         bpm = fuse() if sensing() else None
         if not sensing():
             with lock:
@@ -352,6 +354,96 @@ def presence_loop(stopped):
                 presence.update(mode="idle", since=time.time())
 
 
+# ── breathing from heart-rate rhythm (respiratory sinus arrhythmia) ─────────────────
+# Heart rate rises on the in-breath and falls on the out-breath, so the beat-to-beat
+# interval series oscillates at the breathing rate. Seen on this sensor: 78<->102 BPM
+# over ~10 s. Dominant frequency 0.07-0.5 Hz (4-30/min) over the last 40 s; the band starts
+# below 6/min so slow paced breathing (5 s in, 5 s out) isn't at the edge.
+breathing = {"per_minute": None, "snr": None, "channel": None}
+
+
+def rsa_breathing(c, window_ms=40000):
+    per = period_state[c].get("period_ms")
+    pts = [(t, i) for t, i in list(beats[c]) if i > 0]
+    if per:                                   # same plausibility filter as the BPM
+        pts = [(t, i) for t, i in pts if 0.7 * per <= i <= 1.4 * per]
+    if len(pts) < 20:
+        return None
+    t_end = pts[-1][0]
+    pts = [(t, i) for t, i in pts if t >= t_end - window_ms]
+    if len(pts) < 20 or (pts[-1][0] - pts[0][0]) < 25000:
+        return None
+    # resample the interval series at 4 Hz
+    fs = 4.0
+    ts = [t / 1000 for t, _ in pts]
+    xs = [float(i) for _, i in pts]
+    grid, g = [], ts[0]
+    while g <= ts[-1]:
+        grid.append(g)
+        g += 1 / fs
+    y, j = [], 0
+    for g in grid:
+        while j < len(ts) - 2 and ts[j + 1] < g:
+            j += 1
+        a = (g - ts[j]) / (ts[j + 1] - ts[j]) if ts[j + 1] > ts[j] else 0
+        y.append(xs[j] + (xs[j + 1] - xs[j]) * min(max(a, 0), 1))
+    n = len(y)
+    k = int(20 * fs)                         # remove trends slower than ~20 s (keeps 6/min = 10 s period)
+    hp = []
+    for i in range(n):
+        seg = y[max(0, i - k // 2):i + k // 2 + 1]
+        hp.append(y[i] - sum(seg) / len(seg))
+    hp = [v * (0.5 - 0.5 * math.cos(2 * math.pi * i / (n - 1))) for i, v in enumerate(hp)]
+    freqs, power = [], []
+    f = 0.07
+    while f <= 0.5 + 1e-9:
+        re = sum(v * math.cos(2 * math.pi * f * i / fs) for i, v in enumerate(hp))
+        im = sum(v * math.sin(2 * math.pi * f * i / fs) for i, v in enumerate(hp))
+        freqs.append(f)
+        power.append(re * re + im * im)
+        f += 0.005
+    kmax = max(range(len(power)), key=power.__getitem__)
+    if kmax <= 1 or kmax >= len(power) - 2:  # peak at the band edge = drift/noise, not breathing
+        return None
+    f0 = freqs[kmax]
+    sig = sum(p for fi, p in zip(freqs, power) if abs(fi - f0) <= 0.03)
+    rest = sum(p for fi, p in zip(freqs, power) if abs(fi - f0) > 0.03)
+    return round(f0 * 60), round(10 * math.log10(sig / (rest + 1e-12)), 1)
+
+
+_last_breath_log = 0.0
+
+
+def rsa_debug(c):
+    """why there is / isn't a reading (logged every 5 s while sensing)"""
+    per = period_state[c].get("period_ms")
+    allp = [(t, i) for t, i in list(beats[c]) if i > 0]
+    kept = [(t, i) for t, i in allp if not per or 0.7 * per <= i <= 1.4 * per]
+    span = (kept[-1][0] - kept[0][0]) / 1000 if len(kept) > 1 else 0
+    ibis = [i for _, i in kept]
+    return f"ch{c}: beats {len(allp)} kept {len(kept)} span {span:.0f}s period {per} ibi {min(ibis) if ibis else '-'}-{max(ibis) if ibis else '-'}"
+
+
+def update_breathing():
+    global _last_breath_log
+    best = None
+    results = []
+    for c in range(CHANNELS):
+        r = rsa_breathing(c)
+        results.append(r)
+        if r and (best is None or r[1] > best[1]):
+            best = (r[0], r[1], c)
+    if time.time() - _last_breath_log > 5:
+        _last_breath_log = time.time()
+        print(f"breathing: {results} | " + " | ".join(rsa_debug(c) for c in range(CHANNELS)), flush=True)
+    with lock:
+        if best and best[1] > 0:
+            breathing.update(per_minute=best[0], snr=best[1], channel=best[2])
+        else:
+            breathing.update(per_minute=None, snr=best[1] if best else None, channel=None)
+    return breathing["per_minute"]
+
+
 def on_modulinos(knob_ok, thermo_ok, buzzer_ok):
     _set("modulinos", {"knob": bool(knob_ok), "thermo": bool(thermo_ok), "buzzer": bool(buzzer_ok)})
 
@@ -399,6 +491,7 @@ class Handler(BaseHTTPRequestHandler):
                 ps["period"] = dict(period_state[c])
                 out["pulses"].append(ps)
             out["finger"] = dict(fused)     # the one combined finger reading
+            out["breathing"] = dict(breathing)
             out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}
             out["ble"] = ble.status
             self._json(200, out)
