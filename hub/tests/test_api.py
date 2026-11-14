@@ -170,9 +170,16 @@ def test_websocket_relay(client):
         app.send_json({"type": "session_end", **doc})
         assert recv_until(app, "ack")["duplicate"] is True
 
-        app.send_json({"type": "crisis", "patient_id": "anna", "source": "talk_button",
+        app.send_json({"type": "crisis", "patient_id": "anna", "source": "talk_button", "talk_id": "talk-1",
                        "t_iso": "2026-11-15T07:50:00+02:00"})
-        assert recv_until(clinic, "crisis_flag")["flag_type"] == "talk_request"
+        assert recv_until(app, "ack")["talk_id"] == "talk-1"
+        # kept on the patient's hub for the handover, never sent to a clinic socket
+        clinic.send_json({"type": "ping"})
+        seen = []
+        while not seen or seen[-1].get("type") != "pong":
+            seen.append(clinic.receive_json())
+        assert "talk_request" not in json.dumps(seen) and "crisis" not in json.dumps(seen), seen
+        assert client.get("/api/patients/anna/qr-body").json()["talk"], "the talk request is in the handover"
 
         r = client.post("/api/demo/profile", json={"profile": "bad_day", "patient_id": "anna"})
         assert r.json()["sent_to"] == 1
@@ -278,15 +285,21 @@ def test_checkin_flags_ack_and_firewall(client, monkeypatch):
         acks = [recv_until(app, "ack") for _ in range(3)]
         assert [(a["checkin_id"], a["ok"], a["duplicate"]) for a in acks] == [
             (first["checkin_id"], True, False), (first["checkin_id"], True, True), (second["checkin_id"], True, False)]
-        flag = recv_until(clinic, "crisis_flag")
-        assert flag["flag_type"] == "safety_moderate" and flag["label"] == "C-SSRS not asked; tier from item 9"
+        added = recv_until(clinic, "checkin_added")
+        assert set(added) == {"type", "patient_id", "checkin_id", "status"}, added
+        clinic.send_json({"type": "ping"})
+        seen = []
+        while not seen or seen[-1].get("type") != "pong":
+            seen.append(clinic.receive_json())
+        assert not any(m.get("type") == "crisis_flag" or "flags" in (m.get("row") or {}) for m in seen), seen
+        assert "safety_moderate" not in json.dumps(seen) and '"phq9' not in json.dumps(seen), seen
         app.send_json({"type": "checkin", "checkin": {"checkin_id": "x"}})
         assert recv_until(app, "ack")["ok"] is False
         app.send_json({"type": "weekly_checkin", "patient_id": "anna", "answers": {"self_harm": 3}})
         app.send_json({"type": "ping"})
         recv_until(app, "pong")
     row = next(p for p in client.get("/api/patients").json()["patients"] if p["id"] == "anna")
-    assert [f["type"] for f in row["flags"]] == ["safety_moderate"]
+    assert [(f["type"], f["label"]) for f in row["flags"]] == [("safety_moderate", "C-SSRS not asked; tier from item 9")]
     d = client.get("/api/patients/anna").json()
     assert len(d["checkins"]) == 2
     assert (d["phq"]["total"], d["phq"]["phq8_total"], d["phq"]["band"]) == (8, 8, "moderate")

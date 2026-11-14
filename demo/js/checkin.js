@@ -297,7 +297,7 @@
     if (run.stack[run.stack.length - 1] !== k) run.stack.push(k);
     saveDraft();
     if (k === 'cssrs_intro') {
-      const [t, sub] = sentences('A few more questions, so your clinic can understand. Answer yes or no.');
+      const [t, sub] = sentences('A few more questions about how you have been. Answer yes or no.');
       return info('cssrs-intro', { title: t, sub, buttons: [['Continue', () => go('c1')]], gestures: true });
     }
     question(k);
@@ -335,21 +335,19 @@
   };
 
   const intro = () => {
-    const c = cfg();
     const items = [
       ['schedule', 'Nine short questions about the last 2 weeks.'],
-      ['doc', (c.protocol ? 'Your clinic sees your answers on the next working day.' : 'Your clinic will see your answers.') + ' This is not watched around the clock.'],
+      ['doc', 'Your answers stay with you and your home hub; your clinic sees them only if you show them. This is not watched around the clock.'],
       ['swipe', 'You can stop at any time with the cross at the top, or by swiping down.'],
     ];
-    if (A.config?.sharing === 'paused') items.push(['shield', 'Sharing is paused, but answers about your safety still reach your clinic.']);
     info('intro', { lead: tile(icon('checklist')), title: 'Check-in', items, buttons: [['Start', begin], ['Later', later, 'text']] });
   };
 
   const later = () => { patch({ snooze: Date.now() + SNOOZE }); opts.log('check-in snoozed 24 h'); close(); };
 
   const render = kind => {
-    const c = cfg();
-    const support = (c.protocol ? 'Your clinic will see your answers on the next working day.' : 'Your clinic will see your answers.') + ' If you need someone now, call 112 or a helpline below.';
+    // Nothing reaches the clinic by itself, so the support screens never suggest that someone has been told.
+    const support = 'Your clinic does not see these answers unless you show them. If you need someone now, call 112 or a helpline below.';
     const fixed = variant => {
       const body = el('div');
       body.append(contacts(variant), el('p', 'ci-footer', FOOTER));

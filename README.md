@@ -289,7 +289,7 @@ hub/.venv/bin/pip install -r hub/requirements-dev.txt
 (cd jetson/presence && python3 -m unittest discover -s tests)
 (cd jetson/hub && python3 -m unittest discover tests)
 # Voice relay (a fake Vertex, no Google account needed)
-(cd voice-relay && pip install -r requirements.txt pytest httpx && pytest test_main.py)
+(cd voice-relay && pip install -r requirements-dev.txt && pytest test_main.py)   # pinned versions
 # Native
 (cd ios/App/TeamTests && swift test)     # camera pulse estimator and gate
 (cd ios/App/FaceCore && swift test)      # face measures
@@ -347,6 +347,6 @@ All repo content (code, comments, docs, commit messages) is in English.
   `design/fonts/` and `demo/fonts/`), Material Symbols (Apache-2.0).
 - Vendored: qrcode-generator, jsQR, fflate, noble-curves/hashes
   ([`demo/vendor/qr/LICENSES.md`](demo/vendor/qr/LICENSES.md)); MediaPipe Tasks Vision and its face
-  landmarker model (Apache-2.0, `demo/vendor/mediapipe/`).
+  landmarker model (Apache-2.0, [`demo/vendor/mediapipe/LICENSE`](demo/vendor/mediapipe/LICENSE)).
 - The companion's listening design draws on Rogers and Farson
   ([references](voice-relay/README.md#listening-design-and-references)).

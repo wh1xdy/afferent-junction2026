@@ -2,7 +2,8 @@
   const q = new URLSearchParams(location.search);
   const OUTBOX = 'afferent.outbox';
   // talk requests (type crisis), kept on the phone like sessions until the hub acks their talk_id: one made while the hub
-  // is out of reach, or sent on a link that drops before the hub has it, still reaches the clinic
+  // is out of reach, or sent on a link that drops before the hub has it, still reaches the patient's own hub (never the
+  // clinic: the hub keeps it for the handover the patient chooses to show)
   const TALKS = 'afferent.outbox.talk';
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },

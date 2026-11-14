@@ -34,7 +34,9 @@ their dashboard, not the numbers themselves.
 ## Sensor numbers in the handover
 
 No sensor number is sent or streamed to the clinic page. Its socket only says which stored document
-changed (`session_added`: ids, day, status; `analytics_updated`: the list row). On the home hub the real
+changed (`session_added` and `checkin_added`: ids, day, status; `analytics_updated`: the list row without its flags).
+"Talk to someone" and check-in safety answers stay on the patient's hub: no clinic socket hears of them, and they
+reach a clinician only in the handover (the dashboard's Safety & contact card). On the home hub the real
 patient is left out of the clinic view entirely (`hub/afferent_hub/home.py`): the clinic sees that patient
 only through the code the patient shows.
 

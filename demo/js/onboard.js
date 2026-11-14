@@ -81,7 +81,7 @@
         </div>
         <p class="ob-note">Small steps you could take on a good or a hard day. Optional.</p>
         <div class="group">${stepRows('ob_')}</div>
-        <p class="ob-note">Your clinic sees your morning results and your check-in answers. Camera images never leave your phone. Most mornings is plenty.</p>
+        <p class="ob-note">Your mornings and check-in answers stay with you. Your clinic sees them only when you choose to show them. Camera images never leave your phone. Most mornings is plenty.</p>
         <div class="ob-go"><button id="obGo" class="btn filled block state" type="button">Let's begin</button></div>
       </div>`;
     phone.append(card);
