@@ -1113,6 +1113,15 @@
     }
   }
   const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4], ski: ['figure_crouch', 0.42, 0, 0.89, 0.8, 1.02], air: ['figure_ride', 0.42, 0, 0.89, 0.7, 1.22] };
+  // Centre of the lantern's lit glass inside each figure sprite, as fractions of the sprite (it hangs below the hand).
+  const FIG_LANTERN = { figure_walk: [0.89, 0.73], figure_stand: [0.88, 0.73] };
+  const lanternBody = () => {
+    if (!st?.fig) return [fx + 20, gy - 30];
+    const F = st.fig, sp = F.sp, L = sp && FIG_LANTERN[sp.n];
+    if (!L || F.pole > 0.02) return [st.lx, st.ly];
+    const qx = (sp.x0 + sp.fw * L[0] - F.ox) * F.sxk / F.k, qy = (sp.y0 + sp.fh * L[1] - F.oy) * F.syk / F.k, ca = Math.cos(F.a), sa = Math.sin(F.a);
+    return [F.ox + ca * qx - sa * qy, F.oy + sa * qx + ca * qy];
+  };
   const figSprite = () => { const p = S.ride?.pose, s = p && FIGS[p] && ART.has(FIGS[p][0]) ? FIGS[p] : st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
 
   function figure(ctx) {
@@ -1465,6 +1474,8 @@
     hooks,
     panel,
     lanternPos: () => [st ? st.lx : fx + 20, st ? st.ly : gy - 30],
+    // Where the carried lantern is drawn, for a touch hint that should sit on it (lanternPos is its light).
+    lanternBody,
     wave,
     size: () => ({ W, H, gy, fx }),
     tintStats: () => ({ ...tintStats, size: tints.size }),

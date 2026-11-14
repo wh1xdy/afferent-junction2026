@@ -265,7 +265,8 @@
 
   const drawGhost = (ctx, B, g, at) => {
     if (B.ghostA <= 0.01) return;
-    const U = g.U, x = g.x + g.S * 0.21, y = g.y - g.H * 0.01, p = (at - B.ghostPress) / 0.32;
+    // On the float itself (or the bite spot while it is under), the thing the tap answers.
+    const U = g.U, [x, y] = floatPos(B, g, at, J.rm()) || [g.x, g.y], p = (at - B.ghostPress) / 0.32;
     const press = p >= 0 && p < 1 && !J.rm() ? Math.sin(Math.PI * p) : 0;
     if (press > 0) J.sprite(ctx, 'glow', C.flame, x, y, 22 * U, 0.5 * press * B.ghostA / 0.62, true);
     J.touch(ctx, x, y, U, B.ghostA, press);
