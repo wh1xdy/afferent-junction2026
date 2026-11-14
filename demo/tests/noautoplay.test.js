@@ -37,6 +37,22 @@ test('the reaction trials start on a tap after a skipped check-in', () => {
   assert.strictEqual(s.T.state, 'ready');
 });
 
+test('after the kindle the session rests 6 s, then asks the start lantern, and the answer is the start mood', () => {
+  const { A, s, go } = session();
+  go(2.5);
+  assert.strictEqual(s.phase, 'rest');
+  go(6);
+  assert.strictEqual(s.phase, 'checkin');
+  Object.assign(s.panel, { choice: 4, decisionMs: 1200, done: true, finishedAt: A.now() });
+  go(1);
+  assert.strictEqual(s.phase, 'rt');
+  assert.strictEqual(s.rtArmed, true);
+  let doc = null;
+  A.bus.on('sessionEnd', d => { doc = d; });
+  s.finish('partial');
+  assert.deepStrictEqual([doc.core.mood_start, doc.core.mood_start_ms], [4, 1200]);
+});
+
 test('a short session with no input waits at the start of the ride', () => {
   const { s, games, go } = session({ stage: true });
   go(120);
