@@ -145,6 +145,7 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   vm.createContext(ctx);
   const run = f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
   run('util.js');
+  run('haptics.js');
   let clock = 0;
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
   for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'face.js', 'input.js', ...(breathing ? ['breathing.js'] : []), 'record.js']) run(f);

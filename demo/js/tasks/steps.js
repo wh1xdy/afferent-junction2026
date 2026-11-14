@@ -55,11 +55,11 @@
           this.phase = ok ? 'pause' : 'review';
           this.nextAt = this.t + (ok ? 1.0 : 0.8 + r.seq.length * 0.42);
           if (ok) {
-            hap('light'); sfx('steps_round', { piano: [5, 0.14] });
+            hap('success'); sfx('steps_round', { piano: [5, 0.14] });
             const b = this.b;
             if (b) { const P = this.patch(r.seq[r.seq.length - 1], b); J.bloom(P.x, P.y, P.rx * 2.4, C.glow, 0.35, 0.12, 0.5); }
             this.span = Math.min(SPANMAX, this.span + 1);
-          } else { hap('tick'); sfx('steps_miss'); }
+          } else { hap('miss'); sfx('steps_miss'); }
           J.border(this.rounds.length / ROUNDS);
           this.sync();
         },
@@ -69,7 +69,7 @@
           const T = this.t, r = this.cur;
           if (this.phase === 'idle' || this.phase === 'pause' || this.phase === 'review') {
             if (T < this.nextAt) return;
-            if (this.rounds.length >= ROUNDS) { this.sync(); finish(this, now); hap('success'); sfx('steps_done'); J.border(1); J.spill(0.35); return; }
+            if (this.rounds.length >= ROUNDS) { this.sync(); finish(this, now); hap('complete'); sfx('steps_done'); J.border(1); J.spill(0.35); return; }
             this.startRound();
             return;
           }
@@ -97,6 +97,7 @@
           this.marks[best] = { at: J.at, good: best === want };
           if (best === want) {
             r.good++;
+            if (r.taps.length < r.seq.length) hap('tick');
             sfx('steps_tap', { piano: [3 + i, 0.12] });
             fx.snow(P.x, P.y, 4);
             if (r.taps.length >= r.seq.length) this.endRound(true, t);

@@ -2,7 +2,8 @@
   const { clamp, lerp, ema } = A;
   const R = Math.random, GULLIES = false;
   const rm =() => !!A.config?.reducedMotion;
-  const hap = n => A.J?.hap(n);
+  const hap = (n, k) => A.J?.hap(n, k);
+  const hum = level => A.Haptics?.drag(level);
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
   const DT = 1 / 120;
@@ -496,7 +497,7 @@
           s.kick(0.12 + 0.05 * Math.min(4, st.chain.tier));
           decision(now, 'mote');
           if (seg.gotLine[m.line] === seg.lines?.[m.line]) {
-            if (m.high) { st.dda.highLines++; chainStep(now); hap('light'); }
+            if (m.high) { st.dda.highLines++; chainStep(now); hap('hit'); }
             else chainStep(now);
             if (seg.approach) st.carry = true;
           }
@@ -585,14 +586,16 @@
         st.rec.silk++;
         squash(now, 1.15, 0.8, 0.12);
         st.streak = { at: now, x: b.x };
-        hap(P.m === 'calm' ? 'tick' : 'light');
-        if (g === 'perfect') { hap('tick'); st.perfRun++; fx(b.x, b.y + 4, 4, COL.glow, 60, 0.5, 2, { g: 0 }); } else st.perfRun = 0;
+        const k = P.m === 'calm' ? 0.55 : 0.8;
+        if (g === 'perfect') A.J?.hap.seq([['land', 0, k], ['tick', 45]]); else hap('land', k);
+        if (g === 'perfect') { st.perfRun++; fx(b.x, b.y + 4, 4, COL.glow, 60, 0.5, 2, { g: 0 }); } else st.perfRun = 0;
         sfx('ride_silk', { grade: g });
-        if (st.perfRun >= 3 && st.fever < now) { st.fever = now + 4; st.dda.fevers++; st.perfRun = 0; hap('medium'); A.J?.stinger?.(); }
+        if (st.perfRun >= 3 && st.fever < now) { st.fever = now + 4; st.dda.fevers++; st.perfRun = 0; A.J?.stinger?.(); }
       } else {
         st.perfRun = 0;
         if (st.fever > now) st.fever = now;
         squash(now, 1.06, 0.9, 0.14);
+        hap(g === 'rough' ? 'miss' : 'land', g === 'rough' ? 0.8 : 0.45);
         fx(b.x, b.y, g === 'rough' ? 8 : 4, COL.snow, 50, 0.6, 2.4, { spread: 2.4 });
         sfx('ride_land', { grade: g });
         if (g === 'rough') { b.v = Math.max(b.v * (assist() ? 0.9 : 0.75), P.vmin); st.dda.rough++; chainDrop(); }
@@ -622,12 +625,13 @@
       if (st.held) { st.touchedHill = true; }
       if (ed.down) {
         st.rec.holds++;
-        if (!b.air) { hap('tick'); sfx('ride_press'); } else { hap('tick'); }
+        hap('touch', 0.8);
+        if (!b.air) sfx('ride_press');
         if (m === 'calm') st.calmPressAt = ed.pt;
       }
       if (ed.up) sfx('ride_release');
 
-      if (m === 'calm' && st.held && now - st.tickAt >= 1) { st.tickAt = now; hap('tick'); s.kick(0.08); }
+      if (m === 'calm' && st.held && now - st.tickAt >= 1) { st.tickAt = now; hap('rhythm', 0.5); s.kick(0.08); }
       if (ed.up) st.lastRelease = ed.rt;
       if (ed.down) st.lastPress = ed.pt;
 
@@ -674,7 +678,7 @@
       if (landed) {
         landGrade(now, landed, P);
       }
-      if (b.air && P.m === 'wake' && b.y - (st.hill?.crestH ?? 0) > 150 && !st.bigHap) { st.bigHap = true; hap('medium'); }
+      if (b.air && P.m === 'wake' && b.y - (st.hill?.crestH ?? 0) > 150 && !st.bigHap) { st.bigHap = true; hap('rise', 0.7); }
       if (!b.air) st.bigHap = false;
 
       const gseg = T.segs.find(g => g.gully && b.x >= g.x0 && b.x < g.x1);
@@ -697,12 +701,12 @@
         st.state = 'arrive'; st.at = now; st.arriveV = b.v; st.arriveX = b.x;
         st.tgtV = sta.kind === 'sky' ? 40 : 0;
         fx(b.x, b.y, 8, COL.snow, 60, 0.6, 2.2, { dir: PI * 0.8, spread: 0.8 });
-        hap('light');
+        hap('land', 0.6);
         endHill(now);
       }
       if (st.plan?.plateau && b.x >= st.plan.plateau.x0 + 10 && !b.air) {
         st.state = 'arrive'; st.at = now; st.arriveV = b.v; st.arriveX = b.x; st.tgtV = 0; st.summit = true;
-        hap('light'); endHill(now);
+        hap('land', 0.7); endHill(now);
       }
     }
 
@@ -713,7 +717,7 @@
       h.tp = h.tp == null ? tp : lerp(h.tp, tp, 0.2);
       if (Eyes() && !h.bright) { h.bright = true; }
       for (const n of [2, 1]) {
-        if (!h['ci' + n] && now >= h.tp - n * beat && b.x < h.crestX) { h['ci' + n] = true; hap(h.bright ? 'medium' : 'tick'); decision(now, 'countin'); }
+        if (!h['ci' + n] && now >= h.tp - n * beat && b.x < h.crestX) { h['ci' + n] = true; hap('rhythm', h.bright ? 1 : 0.7); decision(now, 'countin'); }
       }
       const [wp, wg, wb] = AX.kick();
       if (ed.up && Math.abs(ed.rt - h.tp) <= wb && !h.kickDone) {
@@ -722,7 +726,7 @@
         st.rec.kicks++;
         grade(now, gg, 'kick');
         st.daylight = Math.min(0.25, st.daylight + 0.04);
-        hap('light'); sfx('ride_kick', { grade: gg });
+        hap(gg === 'perfect' ? 'bright' : 'hit'); sfx('ride_kick', { grade: gg });
         if (b.air) b.vy += 0.25 * b.v * (rm() ? 0.5 : 1); else st.kickBoost = 0.25;
         const gate = A.J?.flash?.request(0.06, 0.5);
         h.bloom = gate?.ok !== false ? now : null;
@@ -779,9 +783,11 @@
 
       coreKindle(now, dt) {
         const held = s.auto ? true : A.Input.holding();
+        if (held && !st.kindleHeldNow) hap('touch');
         st.kindleHeldNow = held;
         st.rec.restN++; if (held) st.rec.restHeld++;
         st.kindle = Math.min(1, st.kindle + dt / 6 * (held ? 1 : 0.5));
+        if (st.kindle >= 1 && !st.kindleFull) { st.kindleFull = true; if (held) hap('success', 0.7); }
       },
 
       launch(now) {
@@ -793,7 +799,7 @@
       go(now) {
         if (st.state !== 'ready') return;
         st.state = 'run'; st.at = now;
-        hap('light');
+        hap('touch');
         sfx('ride_go');
       },
 
@@ -862,8 +868,10 @@
           b.v = ema(b.v || 30, v, dt, 0.8); b.air = false;
           b.x += b.v * dt; b.y = T.h(b.x); b.ang = Math.atan(T.d(b.x));
           if (st.held) s.kick(0.04);
+          if (s.phase === 'dawn') hum(st.held ? (s.V?.sweep ?? 0) : null);
         } else if (st.state === 'give') {
-          if (st.held) { st.rec.dawn_hold_s += dt; if (now - st.giveTick >= 1) { st.giveTick = now; hap('tick'); } }
+          if (st.held) st.rec.dawn_hold_s += dt;
+          hum(st.held && s.phase === 'dawn' ? (s.V?.sweep ?? 0) : null);
         }
         if (['ride', 'arrive', 'stage', 'drift'].includes(st.state)) T.trim(b.x - 1.2 * W0() - 200);
         pose(now, dt);
@@ -910,7 +918,7 @@
         if (ph === 'rest' || ph === 'fadein') return type !== 'exit';
         if (ph === 'walk') {
           if (st.state === 'ready' && (type === 'pdown' || type === 'key')) T_.go(now);
-          if (st.state === 'exit' && (type === 'pdown' || type === 'key')) st.exitTap = true;
+          if (st.state === 'exit' && (type === 'pdown' || type === 'key') && !st.exitTap) { st.exitTap = true; hap('touch'); }
           return true;
         }
         if (ph === 'dawn') return true;

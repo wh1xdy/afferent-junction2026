@@ -171,6 +171,7 @@
     $('simSw').checked = A.config.simulator;
     $('motionSw').checked = A.config.reducedMotion;
     $('soundSw').checked = ui.sound;
+    $('hapticSw').checked = A.Haptics.on;
     $('quietSw').checked = A.config.quietNight;
     $('checkinSw').checked = A.config.checkin;
     $('sigSw').checked = A.config.signalsOverlay;
@@ -195,6 +196,7 @@
   $('simSw').onchange = e => { A.config.simulator = e.target.checked; syncSensors(); saveSettings(); camGlyph(); };
   $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; A.Theme.motion(); saveSettings(); };
   $('soundSw').onchange = e => setSound(e.target.checked);
+  $('hapticSw').onchange = e => { A.Haptics.setEnabled(e.target.checked); if (e.target.checked) A.Haptics.play('touch'); };
   $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
   $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };

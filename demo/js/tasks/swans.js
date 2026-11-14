@@ -49,8 +49,8 @@
           const b = this.b;
           if (c.ok) {
             if (b) { const U = unit(b); fx.burst(b.x + b.w / 2 + dir * 40 * U, b.y + b.h * 0.55, 10, C.glow, 140 * U, { kind: 'spark', size: [4 * U, 1] }); }
-            hap('light'); sfx('swans_glide', { piano: [3 + (this.items % 5), 0.12] });
-          } else { hap('tick'); sfx('swans_splash'); }
+            hap('hit'); sfx('swans_glide', { piano: [3 + (this.items % 5), 0.12] });
+          } else { hap('miss'); sfx('swans_splash'); }
           this.state = 'gap'; this.stateAt = this.t;
           J.border((this.i + 1) / this.trials.length);
           this.sync();
@@ -60,7 +60,7 @@
           this.tilt *= Math.exp(-dt * 6);
           if (this.done) return;
           if (this.state === 'gap' && this.t - this.stateAt >= ITI) {
-            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('success'); sfx('swans_done'); J.border(1); J.spill(0.35); return; }
+            if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('swans_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           }
           if (this.state === 'fix' && this.t - this.stateAt >= FIX) { this.state = 'show'; this.stateAt = this.t; this.trials[this.i].on = now; this.trials[this.i].onAt = J.at; }

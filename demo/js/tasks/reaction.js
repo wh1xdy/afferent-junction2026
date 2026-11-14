@@ -68,7 +68,7 @@
     }
     B.fish.push({ t: at, kind: 'catch', x0: g.x, y0: g.y, dur: rm ? 0.3 : 0.5, bead: demo ? -1 : s.core.trials.length, demo });
     if (!demo) B.catches++;
-    if (player) J.hap.seq([['medium', 0], ['light', 450]]);
+    if (player) J.hap.seq([['hit', 0], ['touch', 450]]);
     J.sfx('bite_zip'); J.sfx('bite_plunk');
   };
 
@@ -145,7 +145,7 @@
         const flare = hooks().flareLighthouse, [hx, hy] = lighthouse(g);
         if (flare) { flare(1); J.bloom(hx, hy, g.S * 0.1, C.glow, 0.5, 0.3, 0.9); }
         else J.bloom(g.lx, g.ly, g.S * 0.2, C.glow, 0.5, 0.3, 0.9);
-        J.hap('success'); J.sfx('bite_swell', { piano: [0, 0.1] });
+        J.hap('complete'); J.sfx('bite_swell', { piano: [0, 0.1] });
       }
       if (pt >= 0.8 && !B.released) { B.released = true; hooks().lanternPose?.(null); }
     }
@@ -312,7 +312,7 @@
       const B = state(s), g = geo();
       B.dip = J.at; B.twitch = J.at;
       ripple(B, g.x, g.y, 6 * g.U, 24 * g.U, 0.5, 0.35);
-      J.hap('tick'); J.sfx('bite_tap_water');
+      J.hap('miss', 0.8); J.sfx('bite_tap_water');
     },
     resolve(s, trial, now) {
       const B = state(s), tr = s.core.trial, g = geo(), at = J.at;
