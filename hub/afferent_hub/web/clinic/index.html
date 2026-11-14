@@ -22,7 +22,6 @@
     <a class="rail-mark" href="#/" aria-label="Afferent clinic, patients"><span class="mark" aria-hidden="true"></span></a>
     <a class="dest" href="#/" data-tab="patients"><span class="pill"><span class="ms">group</span></span><span class="dl">Patients</span></a>
     <a class="dest" href="#/validation" data-tab="validation"><span class="pill"><span class="ms">insights</span></span><span class="dl">Validation</span></a>
-    <a class="dest" href="#/exports" data-tab="exports"><span class="pill"><span class="ms">upload_file</span></span><span class="dl">Exports and codes</span></a>
     <span class="rail-sp"></span>
     <a class="dest" href="#/settings" data-tab="settings"><span class="pill"><span class="ms">settings</span></span><span class="dl">Settings</span></a>
   </nav>
@@ -30,9 +29,7 @@
     <header class="topbar">
       <a class="wordmark" href="#/"><span class="wm">afferent</span><span class="wm-sub">Clinic</span></a>
       <span class="topbar-sp"></span>
-      <span class="stamp" id="stamp"><span class="ms" aria-hidden="true">file_save</span><span id="stamp-t"></span></span>
-      <span class="sim-badge" id="global-sim" hidden>Simulated</span>
-      <button class="btn tonal scan-btn" type="button" data-codes="scan" aria-label="Scan patient code"><span class="ms" aria-hidden="true">qr_code_scanner</span><span class="bl">Scan patient code</span></button>
+      <button class="btn tonal scan-btn" type="button" data-codes="scan" aria-label="Scan patient QR"><span class="ms" aria-hidden="true">qr_code_scanner</span><span class="bl">Scan patient QR</span></button>
       <label class="search" id="search-wrap"><span class="ms" aria-hidden="true">search</span><input id="search" type="search" placeholder="Search patients" aria-label="Search patients" autocomplete="off"></label>
       <div class="menu-wrap">
         <button class="icon-btn" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="More"><span class="ms">more_vert</span></button>
@@ -44,8 +41,6 @@
     <main id="view" class="view" tabindex="-1"></main>
   </div>
 </div>
-<div class="scrim" id="scrim" hidden></div>
-<div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" hidden></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 <script src="charts.js"></script>
@@ -57,6 +52,7 @@
 <script src="qrdecode.js"></script>
 <script src="imported.js"></script>
 <script src="scan.js"></script>
+<script src="demo.js"></script>
 <script src="clinic.js"></script>
 </body>
 </html>
