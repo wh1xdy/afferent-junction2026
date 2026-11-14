@@ -152,15 +152,6 @@ def test_websocket_relay(client):
         rows = client.get("/api/patients").json()["patients"]
         assert next(p for p in rows if p["id"] == "anna")["live_now"] is True
 
-        app.send_json({"type": "live_metrics", "session_id": sid, "patient_id": "anna", "t_ms": 1000,
-                       "phase": "game", "pulse_bpm": 74.1, "head_pitch_deg": -8.4, "simulated": True})
-        live = recv_until(clinic, "live")
-        assert live["pulse_bpm"] == 74.1 and live["patient_id"] == "anna"
-
-        app.send_json({"type": "mode", "session_id": sid, "mode": "calm", "arousal": 1.2, "fatigue": 0.1,
-                       "t_ms": 1200})
-        assert recv_until(clinic, "mode")["mode"] == "calm"
-
         app.send_json({"type": "light", "rgb": "#FFC98A", "level": 8, "fade_ms": 2000, "reason": "mode"})
         light = recv_until(bedside, "light")
         while light["rgb"] != "#FFC98A":
@@ -170,15 +161,15 @@ def test_websocket_relay(client):
 
         bedside.send_json({"type": "pulse", "bpm": 71.5, "quality": 0.9, "contact": True, "source": "ky039"})
         assert recv_until(app, "pulse")["bpm"] == 71.5
-        assert recv_until(clinic, "pulse")["bpm"] == 71.5
         bedside.send_json({"type": "knob", "level": 40})
         assert recv_until(app, "knob")["level"] == 40
         bedside.send_json({"type": "presence", "in_bed": True, "motion": True})
-        assert recv_until(clinic, "presence")["in_bed"] is True
         bedside.send_json({"type": "thermo", "temp_c": 20.5, "humidity_pct": 33})
-        assert recv_until(app, "thermo")["temp_c"] == 20.5
+        bedside.send_json({"type": "ping"})
+        recv_until(bedside, "pong")
         state = client.get("/api/bedside/state").json()
         assert state["pulse"]["bpm"] == 71.5 and state["thermo"]["temp_c"] == 20.5 and state["knob"]["level"] == 40
+        assert state["presence"]["in_bed"] is True
 
         doc = new_session(session_id=sid)
         app.send_json({"type": "session_end", "session": doc})
@@ -528,16 +519,9 @@ def test_unoq_serial_over_pty():
     assert next(e for e in events if e["type"] == "pulse")["bpm"] == 72.5
 
 
-def test_pose_only_with_camera_on(client):
-    pose = {"type": "pose", "keypoints": {"head": [0.5, 0.2], "neck": [0.5, 0.3]}, "trunk_angle_deg": 12.0,
-            "quality": 0.8, "simulated": True}
-    with client.websocket_connect("/ws/clinic") as clinic, client.websocket_connect("/ws/bedside") as bedside:
-        clinic.receive_json()
+def test_bedside_camera(client):
+    with client.websocket_connect("/ws/bedside") as bedside:
         bedside.send_json({"type": "hello", "device": "jetson_pose", "fw": "t"})
         assert recv_until(bedside, "camera")["on"] is False
-        bedside.send_json(pose)
         assert client.post("/api/bedside/camera", json={"on": True}).json()["camera_on"] is True
         assert recv_until(bedside, "camera")["on"] is True
-        bedside.send_json(pose)
-        got = recv_until(clinic, "pose")
-        assert got["patient_id"] == "anna" and got["trunk_angle_deg"] == 12.0

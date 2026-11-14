@@ -22,7 +22,6 @@ log = logging.getLogger("afferent.hub")
 
 VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
-RELAYED = ("mode", "game", "task_end", "core_trial", "mood")
 SHARING = ("summary", "nothing_tonight", "paused")
 SENSOR_IDS = [s[0] for s in views.SENSORS]
 DISCLAIMER = "Written on the hub from the numbers shown. Rephrasing only: no advice, no diagnosis."
@@ -70,7 +69,7 @@ class Hub:
         self.validation_status = "idle"
         self._gemma: tuple[float, dict] | None = None
         self._tasks: list[asyncio.Task] = []
-        self.bedside = Bedside(make_source(settings), self._to_bound_app, self.to_clinic, self._to_devices)
+        self.bedside = Bedside(make_source(settings), self._to_bound_app, self._to_devices)
         self.bedside.patient_id = settings.bound_patient
 
     async def to_clinic(self, msg: dict):
@@ -233,7 +232,6 @@ class Hub:
             self.store.put_patient({**p, "pauses": sorted(pauses, key=lambda q: q["from_day"])})
             analytics = await asyncio.to_thread(self.recompute, pid)
         pause = views.current_pause(self.patient(pid), nd)
-        await self.to_clinic({"type": "pause", "patient_id": pid, "pause": pause})
         await self.rooms.broadcast("app", {"type": "pause", "pause": pause}, patient_id=pid)
         await self.broadcast_analytics(pid, analytics)
         return {"ok": True, "pause": pause,
@@ -531,7 +529,6 @@ class Hub:
         pid = client.patient_id or msg.get("patient_id") or self.settings.bound_patient
         if t == "hello":
             client.patient_id = msg.get("patient_id") or client.patient_id or self.settings.bound_patient
-            client.role, client.device_id = msg.get("role"), msg.get("device_id")
             await self.rooms.send(client, self.config(client.patient_id))
         elif t == "ping":
             await self.rooms.send(client, {"type": "pong"})
@@ -546,10 +543,6 @@ class Hub:
                                   "profile": msg.get("profile"), "simulated": msg.get("simulated"),
                                   "t_iso": msg.get("t_iso") or views.now_iso()})
             await self.rooms.send(client, self.config(pid))
-        elif t == "live_metrics":
-            await self.to_clinic({**msg, "type": "live", "patient_id": msg.get("patient_id") or pid})
-        elif t in RELAYED:
-            await self.to_clinic({**msg, "patient_id": msg.get("patient_id") or pid})
         elif t == "light":
             if self.privacy(pid).get("sensors", {}).get("bedside_light", True) and pid == self.settings.bound_patient:
                 level = msg.get("level") or 0
@@ -612,14 +605,10 @@ class Hub:
     async def handle_bedside(self, client: Client, msg: dict):
         t = msg.get("type")
         if t == "hello":
-            client.role = msg.get("device")
             if msg.get("device") in ("unoq", "simulator"):
                 await self.bedside.on_event(msg)
             await self.rooms.send(client, {"type": "light", **self.bedside.state["light"]})
             await self.rooms.send(client, {"type": "camera", "on": self.bedside.state["camera_on"]})
-        elif t == "pose":
-            if self.bedside.state["camera_on"]:
-                await self.to_clinic({**msg, "patient_id": msg.get("patient_id") or self.settings.bound_patient})
         elif t == "ping":
             await self.rooms.send(client, {"type": "pong"})
         else:

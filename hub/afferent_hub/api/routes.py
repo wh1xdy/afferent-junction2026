@@ -123,30 +123,11 @@ async def bedside_state(request: Request):
     return hub(request).bedside.snapshot()
 
 
-@router.post("/bedside/light")
-async def bedside_light(request: Request, body=Body(...)):
-    body = _obj(body)
-    b = hub(request).bedside
-    light = await b.set_light(body.get("rgb") or "#000000", body.get("level") or 0, body.get("fade_ms", 2000),
-                              body.get("reason") or "manual", hold_s=body.get("hold_s", 120))
-    return {"ok": True, "light": light}
-
-
 @router.post("/bedside/camera")
 async def bedside_camera(request: Request, body=Body(...)):
     b = hub(request).bedside
     await b.set_camera(bool(_obj(body).get("on")))
     return {"ok": True, "camera_on": b.state["camera_on"]}
-
-
-@router.post("/bedside/simulate")
-async def bedside_simulate(request: Request, body=Body(...)):
-    body = _obj(body)
-    b = hub(request).bedside
-    if not hasattr(b.source, "inject"):
-        raise HubError(400, "no_simulator", f"Bedside source is {b.source.name}, not the simulator")
-    await b.source.inject(body)
-    return {"ok": True, "state": b.snapshot()}
 
 
 @router.get("/config/{pid}")

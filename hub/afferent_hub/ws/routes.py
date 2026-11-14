@@ -53,7 +53,6 @@ async def ws_clinic(ws: WebSocket):
     hub.rooms.add(client)
     lst = hub.patients_list()
     await hub.rooms.send(client, {"type": "hello", "now_day": lst["now_day"], "patients": lst["patients"]})
-    await hub.rooms.send(client, {"type": "bedside_state", **hub.bedside.snapshot()})
 
     async def handle(c, msg):
         if msg.get("type") == "ping":
@@ -73,4 +72,3 @@ async def ws_bedside(ws: WebSocket):
         await _loop(ws, client, hub.handle_bedside)
     finally:
         hub.bedside.ws_devices -= 1
-        await hub.bedside.push_state()
