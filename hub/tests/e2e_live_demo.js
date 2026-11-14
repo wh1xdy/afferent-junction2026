@@ -115,15 +115,18 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   check('bedside light changed at dawn', atDawn && (atDawn.rgb !== bedsideBefore.light.rgb || atDawn.level !== bedsideBefore.light.level),
     atDawn ? `${bedsideBefore.light.rgb}/${bedsideBefore.light.level} -> ${atDawn.rgb}/${atDawn.level} (${atDawn.reason}); now ${bedsideAfter.light.rgb}/${bedsideAfter.light.level} (${bedsideAfter.light.reason})` : `bedside lights seen: ${bedsideLights.map((l) => l.reason + ':' + l.level).join(' ')}`);
 
-  // Decisions I5 and I53: with no finger sensor and no camera, the whole pulse of the run is the
-  // simulator's and says so; no finger block appears and the relayed live data has no physio.
+  // With no finger sensor and no camera, the whole pulse of the run is the simulator's and says so,
+  // and no finger block appears.
   const doc = sentEnd && sentEnd.m.session;
-  const lives = clinicMsgs.filter((x) => x.m.type === 'live' && forPatient(x.m));
   const simOk = doc && doc.signal && doc.signal.pulse_source === 'simulated' && doc.simulated === true
-    && (doc.simulated_fields || []).includes('vitals') && !(doc.vitals && doc.vitals.finger)
-    && lives.length > 0 && lives.every((x) => x.m.physio == null && x.m.pulse_source !== 'finger_ppg');
+    && (doc.simulated_fields || []).includes('vitals') && !(doc.vitals && doc.vitals.finger);
   check('simulated run stays labelled simulated, no finger data', simOk,
     doc ? `pulse_source ${doc.signal && doc.signal.pulse_source}, simulated_fields has vitals ${(doc.simulated_fields || []).includes('vitals')}, finger ${JSON.stringify(doc.vitals && doc.vitals.finger)}` : 'no session');
+
+  // The game streams live_metrics to the hub during play; none of it may reach the dashboard.
+  const streamed = clinicMsgs.filter((x) => ['live', 'live_metrics', 'physio', 'pulse', 'bedside_state'].includes(x.m.type) || 'physio' in x.m);
+  check('nothing live from the sensors reached the dashboard', appSent.some((s) => s.m.type === 'live_metrics') && streamed.length === 0,
+    `${appSent.filter((s) => s.m.type === 'live_metrics').length} live_metrics sent by the game, ${streamed.length} sensor messages at the dashboard: ${[...new Set(streamed.map((x) => x.m.type))].join(' ')}`);
 
   check('no errors in clinic page', errors.clinic.length === 0, errors.clinic.slice(0, 5).join(' | '));
   check('no errors in app page', errors.app.length === 0, errors.app.slice(0, 5).join(' | '));

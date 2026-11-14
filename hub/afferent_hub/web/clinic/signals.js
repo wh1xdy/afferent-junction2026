@@ -1,11 +1,13 @@
-// Signals section of the patient detail (Decisions I53, contracts/api.md section 3.5).
+// Signals section of the clinic view. Two inputs, and no other:
+//  - the sensor blocks of a session document stored on the patient's own hub (sessionRows, html)
+//  - the weekly finger sensor numbers of a code the patient handed over (weeklyRows, weeklyHtml)
+// Nothing here is a current reading: the system never sends, streams or serves sensor values to the clinic.
 // Pure functions on window.C: no DOM access, so hub/tests/clinic_signals.test.js runs them in a node vm.
 (() => {
   const C = (window.C = window.C || {});
-  const STALE_S = 5;
   const MINUS = '−';
   const NO_READING = 'no reading';
-  const NO_CURRENT = 'no current reading';
+  const WEEKS = 8;
   const SOURCE = {
     ble: 'finger sensor (PPG), Bluetooth via the phone',
     hub_http: 'finger sensor (PPG), hub HTTP',
@@ -13,15 +15,20 @@
     camera: 'phone camera (rPPG)',
     simulated: 'simulator',
   };
-  const PRESENCE = { idle: 'no finger', probing: 'checking for a finger', active: 'measuring' };
-  const LINK = {
-    off: 'Bluetooth off', unauthorized: 'Bluetooth not allowed', unsupported: 'no Bluetooth in this app', scanning: 'looking for the sensor',
-    connecting: 'connecting to the sensor', connected: 'sensor connected', unavailable: 'sensor not reachable',
-  };
   const SERIES = { pulse: 'pulse_bpm', breathing: 'breathing_per_min', rmssd: 'rmssd_ms' };
   // The sensor keeps one running median of its last 10 minutes of RMSSD readings, whoever wore the clip
   // (uno-q/modulino-hub/app.py update_hrv). It is not a baseline kept per person, so it is not called one.
   const VS_NOTE = 'RMSSD against the sensor’s median of its last 10 minutes of readings; not kept per person';
+  // The numbers of a patient code (demo/js/qrpayload.js VITALS, map key 18): key, label, unit, what the number is.
+  const WEEKLY = [
+    ['pulse_bpm', 'Pulse, finger sensor', 'bpm', 'session mean, sitting with the clips on'],
+    ['breathing_per_min', 'Breathing rate', 'per min', 'from the pulse rhythm'],
+    ['rmssd_ms', 'HRV (RMSSD)', 'ms', '60 s windows'],
+  ];
+  const NOT_CARRIED = 'This code carries no finger sensor numbers. It was made before the app added them.';
+  const NO_WEEKS = 'No finger sensor reading in these 8 weeks.';
+  const SESSION_FOOT = 'Measured values with their source, from a stored session. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.';
+  const WEEKLY_FOOT = 'Handed over by the patient in this code: weekly medians with their source. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.';
 
   const esc = (s) => C.esc(s);
   const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -29,39 +36,6 @@
   const pct = (v) => { if (!isNum(v)) return null; const p = Math.round(v * 100); return (p > 0 ? '+' : p < 0 ? MINUS : '') + Math.abs(p); };
   const isSim = (o) => !!o && (o.simulated === true || o.source === 'simulated');
   const fingerSource = (o) => (isSim(o) ? SOURCE.simulated : SOURCE[o.transport] || SOURCE.finger);
-  const ageText = (s) => (!isNum(s) ? 'age unknown' : s < 1.5 ? 'just now' : s < 90 ? `${Math.round(s)} s ago` : 'over a minute ago');
-
-  // One row per value. `ageS` is the time since the dashboard received the object, in seconds;
-  // the object's own age_s is added. A value older than STALE_S is not shown.
-  function liveRows(physio, camera, ageS) {
-    const rows = [];
-    const total = (o) => (isNum(ageS) ? ageS + (isNum(o.age_s) ? o.age_s : 0) : null);
-    if (physio && (physio.source === 'finger_ppg' || isSim(physio))) {
-      const age = total(physio);
-      const base = { source: fingerSource(physio), simulated: isSim(physio), age, ageText: ageText(age), stale: age == null || age > STALE_S };
-      const row = (key, label, value, unit, note) => rows.push({ ...base, key, label, unit, note: base.stale ? '' : note || '',
-        value: base.stale ? NO_CURRENT : value ?? NO_READING, missing: base.stale || value == null });
-      const q = physio.quality_reported && isNum(physio.quality) ? `signal quality ${physio.quality.toFixed(2)}` : 'signal quality not reported';
-      const fb = Array.isArray(physio.finger_bpm) ? physio.finger_bpm : [];
-      row('pulse', 'Pulse (fused)', fmt(physio.pulse_bpm), 'bpm', q);
-      row('finger_1', 'Finger 1', fmt(fb[0]), 'bpm');
-      row('finger_2', 'Finger 2', fmt(fb[1]), 'bpm');
-      row('breathing', 'Breathing rate', fmt(physio.breathing_per_min), 'per min');
-      row('rmssd', 'HRV (RMSSD)', fmt(physio.rmssd_ms), 'ms');
-      if (isNum(physio.sdnn_ms)) row('sdnn', 'SDNN', fmt(physio.sdnn_ms), 'ms');
-      if (isNum(physio.rmssd_vs_baseline)) row('vs_baseline', 'vs recent median', pct(physio.rmssd_vs_baseline), '%', VS_NOTE);
-      row('presence', 'Finger detection', PRESENCE[physio.presence] || (physio.presence == null ? 'not reported' : null), '');
-    }
-    if (camera && camera.source === 'rppg') {
-      const age = total(camera);
-      const stale = age == null || age > STALE_S;
-      const value = fmt(camera.bpm);
-      const trust = isNum(camera.trust_score) ? `trust ${Math.round(camera.trust_score)} of 100${camera.trust_label ? ', ' + camera.trust_label : ''}` : 'trust not reported';
-      rows.push({ key: 'camera', label: 'Pulse (camera)', value: stale ? NO_CURRENT : value ?? NO_READING, unit: 'bpm', note: stale ? '' : trust,
-        source: SOURCE.camera, simulated: false, age, ageText: ageText(age), stale, missing: stale || value == null });
-    }
-    return rows;
-  }
 
   const named = (fields, block) => (fields || []).some((f) => f === '*' || f === 'vitals' || f === `vitals.${block}` || String(f).startsWith(`vitals.${block}.`));
   const has = (st) => !!st && st.samples > 0 && isNum(st.mean);
@@ -117,7 +91,7 @@
   }
 
   function rowHtml(r, series) {
-    const meta = [r.source, r.ageText, r.note].filter(Boolean).map(esc).join(' · ');
+    const meta = [r.source, r.note].filter(Boolean).map(esc).join(' · ');
     return `<div class="sig-row${r.missing ? ' none' : ''}" data-key="${esc(r.key)}">
       <span class="sig-l">${esc(r.label)}</span>
       ${r.series ? spark(series, r.series) : ''}
@@ -126,35 +100,50 @@
     </div>`;
   }
 
-  // o: {physio, camera, at, cameraAt, via, session, sessionLabel, bound, nowMs}
-  //  physio, camera: the newest objects (contracts/api.md 3.5) or null; at, cameraAt: when the dashboard received them (ms)
-  //  via: 'phone' or 'hub'; session: a compact session row with `vitals` (and `simulated_fields`); bound: this patient is
-  //  bound to the bedside unit; nowMs: the caller's clock. Returns '' when there is nothing to show.
+  // o: {session, sessionLabel}. session is a compact session row of the hub with `vitals` (and `simulated_fields`),
+  // sessionLabel when it was recorded. Returns '' when the session has no sensor block.
   function html(o) {
-    const now = o.nowMs;
-    const age = (at) => (isNum(at) && isNum(now) ? Math.max(0, (now - at) / 1000) : null);
-    const rows = liveRows(o.physio, null, age(o.at)).concat(liveRows(null, o.camera, age(o.cameraAt ?? o.at)));
-    const vit = o.session && o.session.vitals;
-    const srows = vit ? sessionRows(vit, o.session.simulated_fields) : [];
-    if (!rows.length && !srows.length && !o.bound) return '';
-    const out = [];
-    if (rows.length) {
-      // `link` is the phone's Bluetooth link. It says nothing about a frame the phone got from the hub
-      // (transport hub_http): those values are current while the Bluetooth link may be off or searching.
-      const link = o.physio && o.via === 'phone' && o.physio.transport !== 'hub_http' && LINK[o.physio.link];
-      const from = [o.via === 'phone' ? 'relayed by the phone' : o.via === 'hub' ? 'from the bedside source on the hub' : '', link || ''].filter(Boolean).join(' · ');
-      out.push(`<div class="sig-block" data-part="now"><div class="sig-h"><h3>Current readings</h3><span class="muted">${esc(from)}</span></div><div class="sig-rows">${rows.map((r) => rowHtml(r)).join('')}</div></div>`);
-    } else if (o.bound) {
-      out.push('<p class="sig-empty muted">No finger sensor reading yet</p>');
-    }
-    if (srows.length) {
-      const when = o.sessionLabel || (o.session.started_iso ? `${o.session.started_iso.slice(0, 10)} ${o.session.started_iso.slice(11, 16)}` : '');
-      const noQ = vit.finger && vit.finger.quality_reported === false;
-      out.push(`<div class="sig-block" data-part="session"><div class="sig-h"><h3>Last session with sensor data</h3><span class="muted">${esc(when)}</span></div><div class="sig-rows">${srows.map((r) => rowHtml(r, vit.series)).join('')}</div>${noQ ? '<p class="sig-note">signal quality not reported by this sensor version; not used by the game</p>' : ''}</div>`);
-    }
-    out.push('<p class="sig-foot">Measured values with their source. Support for monitoring and follow-up, not a diagnosis. HRV is shown as a number and is not part of the index.</p>');
-    return out.join('');
+    const session = o && o.session;
+    const vit = session && session.vitals;
+    const rows = vit ? sessionRows(vit, session.simulated_fields) : [];
+    if (!rows.length) return '';
+    const when = o.sessionLabel || (session.started_iso ? `${session.started_iso.slice(0, 10)} ${session.started_iso.slice(11, 16)}` : '');
+    const noQ = vit.finger && vit.finger.quality_reported === false;
+    return `<div class="sig-block" data-part="session"><div class="sig-h"><h3>Last session with sensor data</h3><span class="muted">${esc(when)}</span></div><div class="sig-rows">${rows.map((r) => rowHtml(r, vit.series)).join('')}</div>${noQ ? '<p class="sig-note">signal quality not reported by this sensor version; not used by the game</p>' : ''}</div><p class="sig-foot">${esc(SESSION_FOOT)}</p>`;
   }
 
-  C.signals = { liveRows, sessionRows, html, STALE_S };
+  // One row per number of a patient code. `vitals` is the block of a decoded code, or nothing for a code made
+  // before the block existed. `week` is the newest week that has a value; a week without one is null, never 0.
+  function weeklyRows(vitals) {
+    if (!vitals || typeof vitals !== 'object') return [];
+    return WEEKLY.map(([key, label, unit, note]) => {
+      const raw = vitals.weekly && vitals.weekly[key];
+      const weeks = Array.from({ length: WEEKS }, (_, i) => (Array.isArray(raw) && isNum(raw[i]) && raw[i] > 0 ? raw[i] : null));
+      let week = WEEKS - 1;
+      while (week >= 0 && weeks[week] === null) week--;
+      const missing = week < 0;
+      const simulated = !missing && !!vitals.simulated && vitals.simulated[key] === true;
+      const days = !missing && vitals.days && isNum(vitals.days[key]) && vitals.days[key] > 0 ? vitals.days[key] : null;
+      return { key, label, unit, note, weeks, week: missing ? null : week, value: missing ? NO_READING : weeks[week].toFixed(1), missing, days, simulated,
+        source: simulated ? SOURCE.simulated : SOURCE.finger };
+    });
+  }
+
+  // Inner HTML for the numbers of a patient code. `weekLabel(i)` names week i by its first day;
+  // the page draws the charts into #sig-<key>.
+  function weeklyHtml(vitals, weekLabel = () => '') {
+    const rows = weeklyRows(vitals);
+    if (!rows.length) return `<p class="sig-empty muted">${esc(NOT_CARRIED)}</p>`;
+    if (rows.every((r) => r.missing)) return `<p class="sig-empty muted">${esc(NO_WEEKS)}</p>`;
+    const cells = rows.map((r) => {
+      const meta = r.missing ? [] : [r.source, `week from ${weekLabel(r.week)}`, r.days ? `${r.days} ${r.days === 1 ? 'day' : 'days'} with a reading` : '', r.note];
+      return `<div class="mm sig-mm${r.missing ? ' none' : ''}" data-key="${esc(r.key)}">
+        <div class="mm-h"><span>${esc(r.label)}</span><span class="mm-v num">${esc(r.value)}${r.missing ? '' : `<small> ${esc(r.unit)}</small>`}</span></div>
+        <div class="sig-s">${meta.filter(Boolean).map(esc).join(' · ')}${badge(r.simulated)}</div>
+        ${r.missing ? '' : `<div class="chart-wrap" id="sig-${esc(r.key)}"></div>`}</div>`;
+    }).join('');
+    return `<div class="mms">${cells}</div><p class="sig-foot">${esc(WEEKLY_FOOT)}</p>`;
+  }
+
+  C.signals = { sessionRows, html, weeklyRows, weeklyHtml };
 })();

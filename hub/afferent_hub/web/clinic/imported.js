@@ -162,6 +162,12 @@
     return `<section><div class="sect-h"><h2>Measures, 8 weeks</h2><span class="muted">weekly medians</span>${info('Each line is the weekly median; the band is the usual range from the first two weeks after TMS. A week without data is a gap.')}</div><div class="mms">${cells}</div></section>`;
   }
 
+  const weekStart = (B, i) => Math.max(0, B.period.to_day - 55 + 7 * i);
+
+  function signals(B) {
+    return `<section class="signals" aria-label="Signals"><div class="sect-h"><h2>Signals, 8 weeks</h2><span class="muted">finger sensor, weekly medians</span>${info('Pulse, breathing rate and HRV (RMSSD) from the finger sensor at the patient\'s home: for each week the median of the session means. The pulse here is not the resting pulse under Measures, which is the bedside morning reading. Numbers only: no usual range, and not part of the early-warning index. A week without a reading is a gap.')}</div>${C.signals.weeklyHtml(B.vitals, (i) => tiny(B, weekStart(B, i)))}</section>`;
+  }
+
   function facts(B) {
     const m = B.mornings, c = B.complete, total = B.period.to_day - B.period.from_day + 1;
     const on = Object.entries(B.sensors || {}).filter(([, v]) => v).map(([k]) => SENSOR[k] || k);
@@ -204,6 +210,7 @@
       ${drivers(B)}
       ${phq(B)}
       ${measures(B)}
+      ${signals(B)}
       ${facts(B)}
       <p class="dp-foot">Summary from the patient's phone, signed on ${esc(signedAt)}. Not live data.${imp.once ? ' Shown once; not saved.' : ''} Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
     </div></div></section>`;
@@ -226,6 +233,10 @@
       const vals = B.weekly[k] || [], b = B.baseline[k];
       const band = b && b.scale != null ? [b.median - b.scale, b.median + b.scale] : null;
       C.seriesChart(e, { values: vals, connect: false, band, mid: band ? b.median : null, bandLabel: 'usual', h: 104, xlabels: xl, aria: `${FEAT[k][0]}, 8 weekly medians`, tip: wtip(vals, FEAT[k][0], (v) => `${fmtV(k, v)} ${FEAT[k][1]}`) });
+    }
+    for (const r of C.signals.weeklyRows(B.vitals)) {
+      const e = document.getElementById('sig-' + r.key);
+      if (e) C.seriesChart(e, { values: r.weeks, connect: false, dots: true, h: 104, xlabels: xl, aria: `${r.label}, 8 weekly medians`, tip: wtip(r.weeks, r.label, (v) => `${num(v, 1)} ${r.unit}`) });
     }
   };
 })();

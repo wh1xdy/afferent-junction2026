@@ -16,7 +16,10 @@
     prev: '<path d="M14.5 6l-6 6 6 6"/>',
     next: '<path d="M9.5 6l6 6-6 6"/>',
     chev: '<path d="M9.5 6l6 6-6 6"/>',
+    pulse: '<path d="M3 12.5h4l2.2-6 4 12 2.3-6H21"/>',
   };
+  const VITALS = [['pulse_bpm', 'pulse', 'Pulse, finger sensor', 'bpm'], ['breathing_per_min', 'breathing rate', 'Breathing rate', 'per minute'], ['rmssd_ms', 'HRV (RMSSD)', 'HRV (RMSSD)', 'ms']];
+  const DASH = '–';
   const svg = (p, cls = '') => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true">${p}</svg>`;
   const h = (tag, attrs = {}, kids = []) => {
     const n = document.createElement(tag);
@@ -87,6 +90,21 @@
   const fpGroups = s => { const c = crockford(s); return c ? c.match(/.{1,4}/g).join(' ') : ''; };
   const fpSpoken = s => crockford(s).split('').join(', ');
 
+  function vitalRows(body) {
+    const Q = codec();
+    let v = null;
+    try { v = Q.unpack(Q.pack(body)).vitals || null; } catch {}
+    return VITALS.map(([k, name, label, unit]) => ({ name, label, unit, weeks: v?.weekly?.[k] || [], sim: !!v?.simulated?.[k] })).filter(r => r.weeks.some(x => x !== null));
+  }
+
+  function vitalsLine(body) {
+    const rows = vitalRows(body);
+    if (!rows.length) return 'No finger sensor numbers: no reading in these weeks';
+    const names = rows.map(r => r.name);
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+    return `Weekly ${list} from the finger sensor${rows.some(r => r.sim) ? ' (simulated)' : ''}`;
+  }
+
   async function key(Q) {
     try { return await Q.deviceKey(); } catch { return Q.newKey(); }
   }
@@ -94,7 +112,7 @@
   async function build(rec, paper, initial) {
     const Q = codec();
     const r = Q.encode(rec.body, { key: await key(Q), paper, initial: initial || undefined, ttl: paper ? PAPER_TTL : SCREEN_TTL });
-    return { parts: r.parts, ecl: r.ecl, iat: r.iat, exp: r.exp, fp: fpGroups(r.fingerprint), sim: !!rec.body.sim, period: period(rec.body) };
+    return { parts: r.parts, ecl: r.ecl, iat: r.iat, exp: r.exp, fp: fpGroups(r.fingerprint), sim: !!rec.body.sim, period: period(rec.body), vitals: vitalRows(rec.body) };
   }
 
   function matrix(text, ecl) {
@@ -218,15 +236,17 @@
     const print = h('button', { type: 'button', class: 'qx-btn text', id: 'qsPrint', html: 'Print or save as PDF' });
     const cancel = h('button', { type: 'button', class: 'qx-btn text', id: 'qsCancel', text: 'Cancel' });
     const item = (icon, text) => h('li', {}, [h('span', { class: 'qs-li', html: svg(icon) }), h('span', { text })]);
+    const vitalsItem = item(ICON.pulse, '');
     const content = h('div', { class: 'qs-content' }, [
       h('p', { class: 'qs-sub', text: 'This code holds' }),
       h('ul', { class: 'qs-list' }, [
         item(ICON.twilight, '8 weeks of mornings: lanterns, play and the measures from play'),
+        vitalsItem,
         item(ICON.checklist, 'Check-in totals, and safety answers as levels'),
         item(ICON.taskAlt, 'How complete the data is'),
-        item(ICON.visOff, 'No name. No camera images. No pulse traces.'),
+        item(ICON.visOff, 'No name. No camera images. No pulse traces, only weekly numbers.'),
       ]),
-      h('p', { class: 'qs-note', text: 'Anyone who scans this code can read it. It is not sent anywhere.' }),
+      h('p', { class: 'qs-note', text: 'Anyone who scans this code can read it. It is not sent anywhere: you show it or hand it over yourself.' }),
       h('div', { class: 'qf' }, [ini, h('label', { for: 'qsIni', class: 'qf-label', text: 'Add an initial' }), h('p', { class: 'qf-help', id: 'qsIniHelp', text: 'Optional. Up to 3 letters.' })]),
     ]);
     const empty = h('p', { class: 'qs-empty', text: 'Open Afferent at home once, so there is something to show.', hidden: true });
@@ -250,6 +270,7 @@
       if (!has) { periodLine.textContent = ''; stale.hidden = true; return; }
       const p = period(r.body);
       periodLine.textContent = `Data from ${longDay(p.from)} to ${longDay(p.to)}`;
+      vitalsItem.lastChild.textContent = vitalsLine(r.body);
       const t = Date.parse(r.saved_iso || r.body.generated_iso || '');
       const old = Number.isFinite(t) && Date.now() - t > 864e5;
       stale.hidden = !old;
@@ -423,6 +444,14 @@
     const n = enc.parts.length;
     const codes = enc.parts.map((t, i) => h('figure', { class: 'qp-code' }, [h('div', { html: svgCode(matrix(t, enc.ecl)) }), n > 1 ? h('figcaption', { text: `${i + 1} of ${n}` }) : null]));
     const p = enc.period, made = new Date(enc.iat * 1000), until = new Date(enc.exp * 1000);
+    const shortDay = d => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+    const cells = (tag, list) => list.map(text => h(tag, { text }));
+    const weekFrom = k => { const d = addDays(p.to, 7 * k - 55); return shortDay(d < p.from ? p.from : d); };
+    const vitals = enc.vitals?.length ? h('table', { class: 'qp-vit' }, [
+      h('caption', { text: 'Finger sensor, weekly medians. A dash is a week without a reading.' }),
+      h('tr', {}, cells('th', ['Week from', ...Array.from({ length: 8 }, (_, k) => weekFrom(k))])),
+      ...enc.vitals.map(r => h('tr', {}, [h('th', { text: `${r.label}, ${r.unit}${r.sim ? ', simulated' : ''}` }), ...cells('td', r.weeks.map(x => (x === null ? DASH : x.toFixed(1))))])),
+    ]) : null;
     sec.replaceChildren(
       h('p', { class: 'qp-mark', text: 'afferent' }),
       enc.sim ? h('p', { class: 'qp-sim', text: 'SIMULATED DATA' }) : null,
@@ -430,6 +459,7 @@
       h('div', { class: 'qp-codes' + (n > 2 ? ' three' : '') }, codes),
       enc.fp ? h('p', { class: 'qp-fp', text: enc.fp }) : null,
       h('p', { text: `Data from ${fullDay(p.from)} to ${fullDay(p.to)}` }),
+      vitals,
       h('p', { text: `Made ${fullDay(made)} · valid until ${fullDay(until)}` }),
       h('p', { text: 'Scan it in the Afferent clinic dashboard with Scan patient code.' }),
       h('p', { class: 'qp-foot', text: 'Research prototype. Not a CE-marked medical device. Not for clinical use.' }),

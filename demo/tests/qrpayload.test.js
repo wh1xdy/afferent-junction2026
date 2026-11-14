@@ -13,6 +13,20 @@ const test = (name, fn) => {
   try { fn(); results.push(['ok', name]); } catch (e) { results.push(['FAIL', name, e]); }
 };
 const Q = Object.fromEntries([['composite', 100], ...QR.FEATURES]);
+const VKEYS = QR.VITALS.map(v => v[0]);
+const frozen = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'contracts', 'fixtures', 'qr_code_before_vitals.json'), 'utf8'));
+const per = v => Object.fromEntries(VKEYS.map((k, i) => [k, typeof v === 'function' ? v(k, i) : v]));
+const measured = () => ({
+  weekly: { pulse_bpm: [null, null, 71.2, 69.8, null, 72.4, 70.1, 68.9], breathing_per_min: [null, null, 12.4, 11.9, null, 13.1, 12.2, 11.6], rmssd_ms: [null, null, 41.5, 38.2, null, null, 44.9, 47.3] },
+  days: { pulse_bpm: 21, breathing_per_min: 21, rmssd_ms: 17 }, simulated: per(false),
+});
+function largest() {
+  let x = 12345;
+  const next = () => { x = (x * 1103515245 + 12345) % 2147483648; return 2600 + (x % 39535) / 10; };
+  return { weekly: per(() => Array.from({ length: 8 }, next)), days: per(56), simulated: per(true) };
+}
+const OLD_KEYS = [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+const OLD_LENGTHS = { 3: 3, 4: 5, 5: 8, 6: 3, 8: 2, 9: 10, 10: 18, 11: 5, 14: 14 };
 
 function worstCase() {
   const j = fixture();
@@ -24,6 +38,7 @@ function worstCase() {
   j.pauses = [{ from_day: 3, until_day: 9, source: 'patient' }, { from_day: 20, until_day: 33, source: 'clinician' }, { from_day: 50, until_day: 51, source: 'patient' }];
   j.cusum.history = Array.from({ length: 10 }, (_, i) => ({ day: i * 5 + 1, state: QR.STATES[i % 4] }));
   j.omitted = { safety_entries: 3, talk_requests: 7, phq_totals: 4 };
+  j.vitals = largest();
   return j;
 }
 
@@ -97,12 +112,101 @@ test('round trip: encode, decode, verify, same body', () => {
   }
   for (const k of ['played_days', 'sessions_7d', 'days_7d', 'missed_7d', 'paused_days']) assert.strictEqual(b.complete[k], j.complete[k]);
   assert.strictEqual(b.omitted, undefined);
+  assert.deepStrictEqual(b.vitals, j.vitals);
+});
+
+test('finger sensor numbers: round trip with gaps, days and the simulated mark', () => {
+  const j = { ...fixture(), vitals: measured() };
+  const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
+  assert.strictEqual(d.status, 'ok');
+  assert.deepStrictEqual(d.body.vitals, j.vitals);
+  assert.deepStrictEqual(Object.keys(d.body.vitals.weekly), ['pulse_bpm', 'breathing_per_min', 'rmssd_ms']);
+  assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].length === 8));
+  const v = measured();
+  v.simulated.rmssd_ms = true;
+  const s = QR.decode(QR.encode({ ...fixture(), vitals: v }, { key, now: NOW }).text, { now: NOW }).body.vitals;
+  assert.deepStrictEqual(s.simulated, { pulse_bpm: false, breathing_per_min: false, rmssd_ms: true });
+  const big = QR.decode(QR.encode({ ...fixture(), vitals: largest() }, { key, now: NOW }).text, { now: NOW }).body.vitals;
+  const want = largest();
+  for (const k of VKEYS) big.weekly[k].forEach((x, i) => near(x, want.weekly[k][i], 10, `${k}[${i}]`));
+  assert.deepStrictEqual(big.simulated, per(true));
+  assert.deepStrictEqual(big.days, per(56));
+});
+
+test('finger sensor numbers: missing stays missing, never 0', () => {
+  const none = fixture();
+  delete none.vitals;
+  const a = QR.decode(QR.encode(none, { key, now: NOW }).text, { now: NOW });
+  assert.strictEqual(a.packed.has(18), false);
+  assert.strictEqual('vitals' in a.body, false);
+  const empty = { weekly: per(() => Array(8).fill(null)), days: per(0), simulated: per(false) };
+  for (const vit of [empty, {}, { weekly: {} }, { weekly: per(() => []), days: per(9), simulated: per(true) }]) {
+    const e = QR.decode(QR.encode({ ...fixture(), vitals: vit }, { key, now: NOW }).text, { now: NOW });
+    assert.deepStrictEqual(e.packed.get(18), []);
+    assert.deepStrictEqual(e.body.vitals, empty);
+  }
+  const odd = measured();
+  odd.weekly.pulse_bpm = [0, -3, NaN, Infinity, '72', undefined, 6553.6, 71.24];
+  odd.weekly.breathing_per_min = [0, 0, 0, 0, 0, 0, 0, 0];
+  odd.weekly.rmssd_ms = [41.5];
+  odd.days.breathing_per_min = 30;
+  odd.simulated.breathing_per_min = true;
+  const o = QR.decode(QR.encode({ ...fixture(), vitals: odd }, { key, now: NOW }).text, { now: NOW }).body.vitals;
+  assert.deepStrictEqual(o.weekly.pulse_bpm, [null, null, null, null, null, null, null, 71.2]);
+  assert.deepStrictEqual(o.weekly.breathing_per_min, Array(8).fill(null));
+  assert.deepStrictEqual(o.weekly.rmssd_ms, [41.5, null, null, null, null, null, null, null]);
+  assert.deepStrictEqual([o.days.breathing_per_min, o.simulated.breathing_per_min], [0, false]);
+  assert.ok(VKEYS.every(k => o.weekly[k].every(x => x === null || x > 0)));
+});
+
+test('codes made before the finger sensor numbers still decode', () => {
+  const f = frozen();
+  assert.ok(!f.packed_keys.includes(18));
+  const d = QR.decode(f.text, { now: f.now_ms });
+  assert.strictEqual(d.status, 'ok');
+  assert.strictEqual(d.verified, true);
+  assert.strictEqual(d.fingerprint, f.fingerprint);
+  assert.deepStrictEqual(d.body, f.body);
+  assert.strictEqual('vitals' in d.body, false);
+  assert.deepStrictEqual([...d.packed.keys()].sort((a, b) => a - b), f.packed_keys);
+  const parts = QR.decode([...f.parts].reverse(), { now: f.now_ms });
+  assert.strictEqual(parts.status, 'ok');
+  assert.strictEqual(parts.fingerprint, f.fingerprint);
+  assert.strictEqual('vitals' in parts.body, false);
+  for (const k of ['period', 'state', 'safety', 'talk', 'weekly', 'baseline', 'complete', 'sensors']) assert.deepStrictEqual(parts.body[k], f.body[k], k);
+  assert.strictEqual(QR.decode(f.text, { now: f.now_ms + 11 * 60e3 }).status, 'expired');
+});
+
+test('a code with finger sensor numbers decodes in a reader from before them', () => {
+  assert.strictEqual(QR.VERSION, 1);
+  assert.strictEqual(QR.FEATURES.length, 9);
+  const j = { ...fixture(), vitals: measured() };
+  const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
+  const p = d.packed;
+  assert.strictEqual(p.get(0), 1);
+  assert.ok(p.has(18));
+  for (const k of OLD_KEYS) assert.ok(p.has(k), `key ${k}`);
+  for (const [k, n] of Object.entries(OLD_LENGTHS)) assert.strictEqual(p.get(+k).length, n, `key ${k}`);
+  assert.deepStrictEqual(frozen().packed_keys.filter(k => k !== 2), OLD_KEYS);
+  const old = new Map([...p].filter(([k]) => k !== 18));
+  const plain = fixture();
+  delete plain.vitals;
+  assert.deepStrictEqual(QR.cbor.encode(old), QR.cbor.encode(QR.pack(plain)));
+  const { vitals, ...rest } = d.body;
+  assert.deepStrictEqual(QR.unpack(old), rest);
+  assert.deepStrictEqual(vitals, j.vitals);
 });
 
 test('byte budget: anna at version 20 or lower, worst case at 22 or lower, both at M in one code', () => {
   const a = QR.encode(fixture(), { key, now: NOW });
+  const m = QR.encode({ ...fixture(), vitals: measured() }, { key, now: NOW });
   const w = QR.encode(worstCase(), { key, now: NOW, initial: 'ABC' });
-  console.log(`  anna: ${a.chars} chars, version ${a.versions[0]} ${a.ecl}; worst case: ${w.chars} chars, version ${w.versions[0]} ${w.ecl}, shrink ${w.shrink}`);
+  const bare = worstCase();
+  delete bare.vitals;
+  const b = QR.encode(bare, { key, now: NOW, initial: 'ABC' });
+  console.log(`  anna: ${a.chars} chars, version ${a.versions[0]} ${a.ecl}; with finger sensor numbers: ${m.chars} chars, version ${m.versions[0]}; worst case: ${w.chars} chars, version ${w.versions[0]} ${w.ecl}, shrink ${w.shrink}; of these ${w.chars - b.chars} chars are the finger sensor numbers at their largest`);
+  assert.ok(m.versions[0] <= 20 && m.chars <= 970, `anna with finger sensor numbers: version ${m.versions[0]}`);
+  assert.ok(w.chars - b.chars <= 150, `finger sensor numbers take ${w.chars - b.chars} chars`);
   assert.strictEqual(a.ecl, 'M');
   assert.ok(a.versions[0] <= 20, `anna version ${a.versions[0]}`);
   assert.ok(a.chars <= 970);
@@ -115,6 +219,7 @@ test('byte budget: anna at version 20 or lower, worst case at 22 or lower, both 
   assert.strictEqual(d.body.phq.history.length, 8);
   assert.deepStrictEqual(d.body.phq.history.map(h => h.day), worstCase().phq.history.slice(-8).map(h => h.day));
   assert.deepStrictEqual(d.body.omitted, { safety_entries: 3, talk_requests: 7, phq_totals: 8 });
+  assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].every(x => x !== null)));
 });
 
 test('over the cap: talk then PHQ shrink, safety never dropped, then chunks', () => {
@@ -125,6 +230,10 @@ test('over the cap: talk then PHQ shrink, safety never dropped, then chunks', ()
   assert.strictEqual(d.body.talk.length, 5);
   assert.strictEqual(d.body.safety.length, 8);
   assert.strictEqual(d.body.omitted.talk_requests, 12);
+  assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].every(x => x !== null)));
+  const tight = QR.unpack(QR.pack(worstCase(), { caps: { talk: 5, phq: 4 } }));
+  assert.deepStrictEqual([tight.talk.length, tight.phq.history.length, tight.safety.length], [5, 4, 8]);
+  assert.deepStrictEqual(tight.vitals, d.body.vitals);
   const c = QR.encode(worstCase(), { key, now: NOW, maxChars: 400 });
   assert.ok(c.text === null && c.parts.length >= 2 && c.parts.length <= 3);
   assert.ok(c.parts.every(p => p.length <= 400 && /^AF1\/[1-3]\/[23]\/[0-9A-Z]{4}:/.test(p)));
@@ -203,7 +312,7 @@ test('nothing raw travels: forbidden keys and names never reach the code', () =>
   assert.ok(!text.includes('Anna') && !text.includes('anna') && !text.includes('yes'));
   const bin = Buffer.from(QR.cbor.encode(d.packed)).toString('latin1');
   assert.ok(!bin.includes('Anna') && !bin.includes('anna') && !bin.includes('phq9'));
-  assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 17));
+  assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 18));
 });
 
 test('scan: jsQR reads the drawn matrix at 3 px per module', () => {

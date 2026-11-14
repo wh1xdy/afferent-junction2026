@@ -206,9 +206,21 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 The two finger clips on the UNO Q feed the app with pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
 
 - Phone, direct: the `AfferentFinger` plugin reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading).
-- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone and the clinic view.
+- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone only.
 
-Rules: a reading counts for 3 s, quality is never invented, real and simulated are never mixed inside a session, and anything simulated is marked in `simulated_fields`. For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`; the clinic view shows them under Signals.
+Rules: a reading counts for 3 s, quality is never invented, real and simulated are never mixed inside a session, and anything simulated is marked in `simulated_fields`. For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`.
+
+### Sensor numbers in the handover
+
+Nothing from the sensors is sent, streamed or served live to a clinic. The clinic view has two inputs: the stored session documents on the patient's own hub (Signals in the patient detail) and the code the patient shows or prints (Signals in the imported view).
+
+The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numbers from the finger clips for its 8 weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms).
+
+- Built in `hub/afferent_hub/qr.py` (`vitals_block`) from the `vitals` blocks of the stored sessions: per day the last played session, per week the median, as for the other measures. The pulse is the session mean of the fused finger pulse, taken sitting with the clips on. It is not `morning_pulse`, which is the bedside morning reading of `daily.v1` and has no real source today.
+- A session counts only when its finger block reports quality with a mean of 0.3 or more and has at least 10 s of readings. A week without such a session has no value (never 0). Simulated sessions are used only when there is no measured one, and the number is then marked simulated.
+- In the code they are map key 18, and the version stays 1. A code made before this still decodes (no key 18: "carries no finger sensor numbers"). A code made after it decodes in an older reader, which shows everything else and ignores key 18; the signature covers the whole body either way. New numbers go into a new key, never into `FEATURES`, whose fixed lengths older readers check.
+- Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
+- The printed page lists the same weekly numbers under the code.
 
 Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
 
