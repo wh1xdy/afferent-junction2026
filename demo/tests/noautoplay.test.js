@@ -61,14 +61,12 @@ test('a timed-out task ends, then the rider waits for a tap before travelling on
 test('a task that finishes itself without a tap is logged as auto, with a tap as touch', () => {
   for (const tapped of [false, true]) {
     const { A, s, tap, go } = session({ stage: true });
-    for (const reg of [A.MEASURES, A.MINIGAMES]) for (const def of Object.values(reg || {})) {
-      const make = def.make;
-      def.make = (...a) => Object.assign(make(...a), { update(dt, now) { if (!this.done && this.t >= 3) { this.done = true; this.finishedAt = now; } } });
-    }
+    const make = A.MEASURES.fork.make;
+    A.MEASURES.fork.make = () => Object.assign(make(), { update(dt, now) { if (!this.done && this.t >= 3) { this.done = true; this.finishedAt = now; } } });
     go(3);
     tap();
     for (let i = 0; i < 60 && s.phase !== 'game'; i++) go(1);
-    assert.ok(s.game, 'a task started');
+    assert.strictEqual(s.game.id, 'fork');
     if (tapped) s.handle('key', { t: A.now() });
     go(6);
     assert.strictEqual(s.tasks[0].completed_by, tapped ? 'touch' : 'auto');

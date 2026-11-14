@@ -68,14 +68,14 @@ const tests = {
     assert.ok(Math.abs(s.a - a0) < 0.3, `arousal moved from ${a0} to ${s.a}`);
   },
 
-  'night: eyes closing during the core puts the director in rest at once, and the Fork is never played'() {
+  'night: eyes closing during the core puts the director in rest at once, so the Fork is skipped'() {
     const { A, tick } = load();
     const s = A.startSession({ clock: 'night', input: 'auto', stage: false, profile: 'bad_day' });
     let first = null;
     A.bus.on('game', g => { if (!first) first = g; });
     run(A, tick, s, 60, () => { A.Sim.drowsy = 1; });
     assert.strictEqual(s.transitions[0].to, 'rest', JSON.stringify(s.transitions[0]));
-    assert.ok(!s.tasks.some(t => t.id === 'fork'), JSON.stringify(s.tasks.map(t => [t.id, t.completed_by])));
+    assert.ok(s.tasks.some(t => t.id === 'fork' && t.completed_by === 'skipped' && t.skip_reason === 'rest_mode'), JSON.stringify(s.tasks.map(t => [t.id, t.completed_by])));
     assert.notStrictEqual(first?.id, 'fork');
   },
 
