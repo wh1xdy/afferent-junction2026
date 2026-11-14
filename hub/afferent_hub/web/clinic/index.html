@@ -14,6 +14,7 @@
   })();
 </script>
 <link rel="stylesheet" href="clinic.css">
+<link rel="stylesheet" href="scan.css">
 </head>
 <body>
 <div class="app">
@@ -21,7 +22,7 @@
     <a class="rail-mark" href="#/" aria-label="Afferent clinic, patients"><span class="mark" aria-hidden="true"></span></a>
     <a class="dest" href="#/" data-tab="patients"><span class="pill"><span class="ms">group</span></span><span class="dl">Patients</span></a>
     <a class="dest" href="#/validation" data-tab="validation"><span class="pill"><span class="ms">insights</span></span><span class="dl">Validation</span></a>
-    <a class="dest" href="#/exports" data-tab="exports"><span class="pill"><span class="ms">upload_file</span></span><span class="dl">Exports</span></a>
+    <a class="dest" href="#/exports" data-tab="exports"><span class="pill"><span class="ms">upload_file</span></span><span class="dl">Exports and codes</span></a>
     <span class="rail-sp"></span>
     <a class="dest" href="#/settings" data-tab="settings"><span class="pill"><span class="ms">settings</span></span><span class="dl">Settings</span></a>
   </nav>
@@ -31,6 +32,7 @@
       <span class="topbar-sp"></span>
       <span class="stamp" id="stamp"><span class="ms" aria-hidden="true">file_save</span><span id="stamp-t"></span></span>
       <span class="sim-badge" id="global-sim" hidden>Simulated</span>
+      <button class="btn tonal scan-btn" type="button" data-codes="scan" aria-label="Scan patient code"><span class="ms" aria-hidden="true">qr_code_scanner</span><span class="bl">Scan patient code</span></button>
       <label class="search" id="search-wrap"><span class="ms" aria-hidden="true">search</span><input id="search" type="search" placeholder="Search patients" aria-label="Search patients" autocomplete="off"></label>
       <div class="menu-wrap">
         <button class="icon-btn" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="More"><span class="ms">more_vert</span></button>
@@ -54,6 +56,12 @@
 <script src="charts.js"></script>
 <script src="signals.js"></script>
 <script src="views.js"></script>
+<script src="/app/vendor/qr/fflate.js"></script>
+<script src="/app/vendor/qr/noble-p256.js"></script>
+<script src="/app/js/qrpayload.js"></script>
+<script src="qrdecode.js"></script>
+<script src="imported.js"></script>
+<script src="scan.js"></script>
 <script src="clinic.js"></script>
 </body>
 </html>

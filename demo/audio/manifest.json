@@ -1,6 +1,6 @@
 {
  "version": 1,
- "note": "Generated with the soundscape pass of 14 Nov 2026. Loops: start a looping AudioBufferSourceNode with loopStart and loopEnd in seconds and start(0, loopStart). gainDb is a starting mix value relative to the file; see design/soundscape.md.",
+ "note": "Generated with the soundscape pass of 14 Nov 2026. Loops: start a looping AudioBufferSourceNode with loopStart and loopEnd in seconds and start(0, loopStart). gainDb is a starting mix value relative to the file.",
  "files": {
   "amb_night_air": {
    "path": "ambience/amb_night_air",

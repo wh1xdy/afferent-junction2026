@@ -354,7 +354,7 @@ def test_pause_and_export(client):
     assert "SIMULATED_afferent_anna_" in r.headers["content-disposition"] and today in r.headers["content-disposition"]
     z = zipfile.ZipFile(io.BytesIO(r.content))
     assert {"README.txt", "manifest.json", "sessions.ndjson", "daily.csv", "features.csv", "codebook.csv",
-            "SessionSchema.md"} <= set(z.namelist())
+            "session.v3.schema.json", "checkin.v1.schema.json"} <= set(z.namelist())
     assert z.read("README.txt").decode().startswith("SIMULATED DATA.")
     header = z.read("daily.csv").decode().splitlines()[0].split(",")
     assert {"streak_protection", "pause_source", "pause_until", "simulated", "missed"} <= set(header)
@@ -422,7 +422,7 @@ def test_static_mounts(client):
     assert client.get("/app/").status_code == 200
     assert client.get("/app/design/tokens.css").status_code == 200
     assert client.get("/design/tokens.json").status_code == 200
-    assert client.get("/contracts/api.md").status_code == 200
+    assert client.get("/contracts/session.v3.schema.json").status_code == 200
 
 
 def test_protocol_roundtrip():

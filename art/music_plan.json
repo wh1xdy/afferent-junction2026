@@ -1,0 +1,205 @@
+{
+  "name": "afferent-music",
+  "tool": "Suno, custom mode, newest model, same model for every track",
+  "key": "D",
+  "out_dir": "demo/audio/music",
+  "raw_dir": "art/audio/raw",
+  "always_style": ["instrumental", "D major", "soft dynamics", "intimate", "no build-ups"],
+  "always_exclude": ["vocals"],
+  "encoding": {
+    "target_lufs": -20,
+    "true_peak_dbtp": -2,
+    "stereo": "AAC-LC 128 kb/s, 48 kHz",
+    "mono": "AAC-LC 80 kb/s, 48 kHz",
+    "fallback": "Opus .ogg 96 kb/s stereo, 64 kb/s mono"
+  },
+  "tracks": [
+    {
+      "id": "G1",
+      "track": "Kaamos",
+      "mode": "kaamos",
+      "style": "dark ambient drone, polar night, instrumental, 60 BPM, D, open fifth D and A, low bowed strings and soft organ pad, sustained tones only, no melody, slow breathing swells, cold still air, wide stereo, very quiet, soft dynamics, intimate, no build-ups",
+      "exclude": "vocals, drums, piano, bells",
+      "length": "2:00",
+      "key": "D (open fifth, no third)",
+      "tempo": 60,
+      "meter": "4/4",
+      "beatless": true,
+      "instrumental": true,
+      "pick": "40 s in the middle with no audible note onset and no third",
+      "files": [
+        { "file": "mu_kaamos_pad.m4a", "channels": 2, "loop_bars": 8, "loop_s": 32.0 }
+      ]
+    },
+    {
+      "id": "G2",
+      "track": "Calm, sauna",
+      "mode": "calm",
+      "style": "warm ambient, sauna evening, instrumental, 54 BPM, 3/4, D major, beatless, soft harmonium, low cello drone, felt piano single notes far apart, warm tape, lots of space and silence, slow swells like breathing out, cozy lullaby, soft dynamics, intimate, no build-ups",
+      "exclude": "vocals, drums, percussion, synth lead",
+      "length": "2:00",
+      "key": "D major",
+      "tempo": 54,
+      "meter": "3/4",
+      "beatless": true,
+      "instrumental": true,
+      "pick": "slowest and warmest, piano notes at least 2 s apart, one clean falling phrase for the stinger",
+      "files": [
+        { "file": "mu_calm_pad.m4a", "channels": 2, "loop_bars": 12, "loop_s": 40.0 },
+        { "file": "st_settle.m4a", "channels": 2, "one_shot_s": [4, 6], "cut": "descending phrase A F# E D" }
+      ]
+    },
+    {
+      "id": "G3",
+      "track": "Flow, birch forest",
+      "mode": "flow",
+      "style": "gentle Nordic folk ambient, birch forest at night, instrumental, 66 BPM, D major pentatonic, plucked kantele arpeggios, felt piano, soft string pad, warm and hopeful, light and playful, steady tempo, indie game soundtrack, close-miked, soft dynamics, intimate, no build-ups",
+      "exclude": "vocals, drums, electric guitar, cymbals",
+      "length": "2:30",
+      "key": "D major pentatonic",
+      "tempo": 66,
+      "meter": "4/4",
+      "instrumental": true,
+      "stems": "auto_split",
+      "pick": "a steady 16-bar stretch with no fill, drop or key change, arpeggio clearly apart from the pad",
+      "files": [
+        { "file": "mu_flow_pad.m4a", "channels": 2, "loop_bars": 16, "loop_s": 58.18, "stems": "strings, synth, bass, FX" },
+        { "file": "mu_flow_motion.m4a", "channels": 1, "loop_bars": 16, "loop_s": 58.18, "stems": "guitar, percussion, keyboard arpeggio" }
+      ]
+    },
+    {
+      "id": "G4",
+      "track": "Wake, frozen lake",
+      "mode": "wake",
+      "style": "crisp Nordic ambient, frozen lake under stars, instrumental, 76 BPM, D major, bright plucked kantele and soft marimba eighth-note arpeggios, glassy pad, airy clear cold night, gentle forward motion, uplifting but soft, steady tempo, soft dynamics, intimate, no build-ups",
+      "exclude": "vocals, drums, hi-hats, distortion",
+      "length": "2:00",
+      "key": "D major",
+      "tempo": 76,
+      "meter": "4/4",
+      "instrumental": true,
+      "stems": "auto_split",
+      "pick": "awake without urgency, no hi-hat sizzle, one clean rising kantele figure",
+      "files": [
+        { "file": "mu_wake_pad.m4a", "channels": 2, "loop_bars": 8, "loop_s": 25.26, "stems": "strings, synth, bass, FX" },
+        { "file": "mu_wake_motion.m4a", "channels": 1, "loop_bars": 8, "loop_s": 25.26, "stems": "guitar, percussion, keyboard arpeggio" },
+        { "file": "st_clear.m4a", "channels": 2, "loop_bars": 2, "one_shot_s": 6.3, "cut": "rising kantele figure D A B D" }
+      ]
+    },
+    {
+      "id": "G5",
+      "track": "Fatigue, bright shore",
+      "mode": "fatigue",
+      "style": "warm morning folk ambient, bright shore at sunrise, instrumental, 84 BPM, D major, soft steady pulse on muted kantele and marimba quarter notes, light shaker, warm strings, clear downbeat, daylight, friendly and gently uplifting, steady tempo, soft dynamics, intimate, no build-ups",
+      "exclude": "vocals, kick drum, snare, cymbals",
+      "length": "2:00",
+      "key": "D major",
+      "tempo": 84,
+      "meter": "4/4",
+      "instrumental": true,
+      "stems": "auto_split",
+      "pick": "clearest downbeat, no low thump",
+      "files": [
+        { "file": "mu_fatigue_pad.m4a", "channels": 2, "loop_bars": 8, "loop_s": 22.86, "stems": "strings, synth, bass, FX" },
+        { "file": "mu_fatigue_pulse.m4a", "channels": 1, "loop_bars": 8, "loop_s": 22.86, "stems": "guitar, percussion, keyboard" }
+      ]
+    },
+    {
+      "id": "G6",
+      "track": "Rest, harbour",
+      "mode": "rest",
+      "night_only": true,
+      "style": "sleep ambient, quiet harbour at night, instrumental, 50 BPM, D, beatless, very low soft pad, a distant felt piano note every few bars, dark and warm, almost silent, lullaby, soft dynamics, intimate, no build-ups",
+      "exclude": "vocals, drums, bells, strings",
+      "length": "2:00",
+      "key": "D",
+      "tempo": 50,
+      "meter": "4/4",
+      "beatless": true,
+      "instrumental": true,
+      "pick": "quietest, no swell at all",
+      "files": [
+        { "file": "mu_rest_pad.m4a", "channels": 2, "loop_bars": 8, "loop_s": 38.4 }
+      ]
+    },
+    {
+      "id": "G7",
+      "track": "Colour yellow",
+      "group": "yellow",
+      "style": "solo harmonium and soft reed organ, warm sustained chords, instrumental, free time, D major, slow swells, cozy fireside warmth, close and intimate, no rhythm, soft dynamics, no build-ups",
+      "exclude": "vocals, drums, piano",
+      "length": "1:30",
+      "key": "D major",
+      "tempo": null,
+      "meter": "free",
+      "instrumental": true,
+      "pick": "most static, chords hold D and F#",
+      "files": [
+        { "file": "mu_colour_yellow.m4a", "channels": 1, "loop_bars": null, "loop_s": 23.5 }
+      ]
+    },
+    {
+      "id": "G8",
+      "track": "Colour blue",
+      "group": "blue",
+      "style": "glass bells, celesta and bowed crystal glass, sparse pentatonic notes D E F sharp A B, instrumental, free time, ice and starlight, shimmering but soft, spacious reverb, no rhythm, soft dynamics, no build-ups",
+      "exclude": "vocals, drums, synth bass",
+      "length": "1:30",
+      "key": "D major pentatonic",
+      "tempo": null,
+      "meter": "free",
+      "instrumental": true,
+      "pick": "softest attacks, least high-frequency fizz",
+      "files": [
+        { "file": "mu_colour_blue.m4a", "channels": 1, "loop_bars": null, "loop_s": 29.9 }
+      ]
+    },
+    {
+      "id": "G9",
+      "track": "Colour green",
+      "group": "green",
+      "style": "solo cello, long slow legato notes, D major pentatonic melody fragments, instrumental, free time, warm wood, forest, tender, close-miked, small room reverb, no accompaniment, soft dynamics, no build-ups",
+      "exclude": "vocals, drums, piano, orchestra",
+      "length": "1:30",
+      "key": "D major pentatonic",
+      "tempo": null,
+      "meter": "free",
+      "instrumental": true,
+      "stems": "split_from_mix strings, only if accompaniment appears",
+      "pick": "phrases with rests between them",
+      "files": [
+        { "file": "mu_colour_green.m4a", "channels": 1, "loop_bars": null, "loop_s": 37.1 }
+      ]
+    },
+    {
+      "id": "G10",
+      "track": "Dawn",
+      "mode": "dawn",
+      "style": "cinematic ambient sunrise, instrumental, 66 BPM, D major, begins with a quiet shimmering sustained D chord that slowly rises, warm string pads swell, then blooms into a full warm D major chord with kantele and felt piano sparkle, long glowing fade, hopeful Nordic spring morning, soft dynamics",
+      "exclude": "vocals, drums, choir",
+      "length": "1:30",
+      "key": "D major",
+      "tempo": 66,
+      "meter": "4/4",
+      "instrumental": false,
+      "lyrics": "[Intro]\n[Soft shimmer, sustained D chord]\n[Slow swell]\n[Build]\n[Bloom: full warm major chord]\n[Outro: long glowing fade]\n[End]",
+      "pick": "an even swell of at least 12 s and one clear bloom with a long tail",
+      "files": [
+        { "file": "mu_dawn_rise.m4a", "channels": 2, "loop_bars": null, "loop_s": 12.0, "cut": "from the swell" },
+        { "file": "mu_dawn_bloom.m4a", "channels": 2, "one_shot_s": 32.0, "hit_s": 0.5, "target_lufs": -18, "cut": "from 0.5 s before the bloom chord" }
+      ]
+    },
+    {
+      "id": "st_open",
+      "track": "Opening stinger",
+      "style": "low bowed swell opening into a D major chord",
+      "key": "D major",
+      "tempo": null,
+      "meter": "free",
+      "files": [
+        { "file": "st_open.m4a", "channels": 2, "one_shot_s": 4.0 }
+      ]
+    }
+  ],
+  "spares": ["G3", "G10"]
+}

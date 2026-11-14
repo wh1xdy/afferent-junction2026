@@ -41,6 +41,11 @@ async def patient_view(pid: str, request: Request):
     return hub(request).patient_view(pid)
 
 
+@router.get("/patients/{pid}/qr-body")
+async def qr_body(pid: str, request: Request):
+    return hub(request).qr_body(pid)
+
+
 @router.get("/patients/{pid}/summary")
 async def summary(pid: str, request: Request, refresh: int = 0):
     return await hub(request).summary(pid, bool(refresh))

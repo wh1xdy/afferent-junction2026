@@ -10,7 +10,7 @@ from .settings import ROOT
 
 DAILY_SCHEMA = ROOT / "contracts" / "daily.v1.schema.json"
 CHECKIN_SCHEMA = ROOT / "contracts" / "checkin.v1.schema.json"
-SESSION_DOC = ROOT / "SessionSchema.md"
+SESSION_SCHEMA = ROOT / "contracts" / "session.v3.schema.json"
 LIST_JOIN = ";"
 
 DERIVED = {
@@ -102,7 +102,7 @@ def codebook(daily_cols: list[str], feature_cols: list[str], checkin_cols: list[
     docs = {**_schema_docs(json.loads(DAILY_SCHEMA.read_text())["properties"]), **DERIVED}
     cdocs = {**_schema_docs(json.loads(CHECKIN_SCHEMA.read_text())["properties"]), **CHECKIN_DERIVED}
     rows = [{"file": "sessions.ndjson", "column": "(one session document per line)",
-             "description": "afferent.session/3, see SessionSchema.md in this zip", "unit": ""},
+             "description": "afferent.session/3, see session.v3.schema.json in this zip", "unit": ""},
             {"file": "checkins.ndjson", "column": "(one check-in document per line)",
              "description": "afferent.checkin/1, see checkin.v1.schema.json in this zip", "unit": ""}]
     for c in checkin_cols:
@@ -159,7 +159,7 @@ def build(patient: dict, sessions: list[dict], daily: list[dict], analytics: dic
         "Afferent clinic export. sessions.ndjson holds one session document per line, daily.csv one row per "
         "day, features.csv the per-day features with robust z and EWMA, checkins.ndjson and checkins.csv the "
         "PHQ-9 check-ins with the gated C-SSRS screener and the safety tier. "
-        "codebook.csv describes every column; SessionSchema.md describes the session document. "
+        "codebook.csv describes every column; session.v3.schema.json describes the session document. "
         f"Lists inside a CSV cell are joined with '{LIST_JOIN}'.\n")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
@@ -170,11 +170,10 @@ def build(patient: dict, sessions: list[dict], daily: list[dict], analytics: dic
         z.writestr("features.csv", feats_csv)
         z.writestr("checkins.ndjson", "".join(json.dumps(c) + "\n" for c in checkins))
         z.writestr("checkins.csv", _csv(checkin_rows) if checkin_rows else "")
+        z.writestr("session.v3.schema.json", SESSION_SCHEMA.read_text())
         z.writestr("checkin.v1.schema.json", CHECKIN_SCHEMA.read_text())
         z.writestr("codebook.csv", codebook(list(dict.fromkeys(c for r in daily_rows for c in r)),
                                             list(dict.fromkeys(c for r in feats for c in r)),
                                             list(dict.fromkeys(c for r in checkin_rows for c in r))))
-        if SESSION_DOC.exists():
-            z.writestr("SessionSchema.md", SESSION_DOC.read_text())
     name = f"{'SIMULATED_' if simulated else ''}afferent_{patient['id']}_{date}.zip"
     return name, buf.getvalue()

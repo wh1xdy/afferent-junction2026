@@ -6,6 +6,7 @@ Two WendyOS boards working together over Wendy Net:
 |---|---|---|
 | NVIDIA Jetson Orin Nano | [`jetson/vision`](jetson/vision) | Logitech C920 + YOLOv8n on the GPU. Finds `modulino-hub` on the mesh, beeps when a person enters the frame. |
 | NVIDIA Jetson Orin Nano | [`jetson/presence`](jetson/presence) | Wi-Fi (ARP) + BLE: is the patient home, outings, isolation alert, guest visits — mobility and social-withdrawal markers. See its README for deploy + test steps. |
+| NVIDIA Jetson Orin Nano | [`jetson/data_manager`](jetson/data_manager) | Long-running SQLite store for every sensor (climate, CO2, heart rate, posture, presence, guest visits): apps push samples/intervals over HTTP, the API serves raw data, daily aggregates, trends and baseline deviations. See its [API guide](jetson/data_manager/API.md). |
 | Arduino UNO Q | [`uno-q/modulino-hub`](uno-q/modulino-hub) | STM32 sketch reads Modulino **Knob** + **Thermo**, a **PulseSensor** on A1, drives **Buzzer** and a **KY-016 RGB LED**; the Linux side bridges them to an HTTP service on the mesh. |
 
 ```
@@ -53,25 +54,13 @@ wendy net forward 3005:3005 --device <jetson>   # keep running
 open http://localhost:3005
 ```
 
-## Heart-rate variability (HRV)
-
-Full sensor API for the app: [`uno-q/SENSORS.md`](uno-q/SENSORS.md).
-
-
-The UNO Q computes **RMSSD** (and SDNN, mean BPM) over the last 60 s of finger beats — the standard
-short-term HRV / stress marker; lower than your own baseline = more stressed. Beats are re-timed at
-the steepest point of each upstroke with sub-sample interpolation (the ADC runs at ~45 Hz, so a raw
-beat time is only ±11 ms), and artefacts are dropped (off-period intervals, > 30 % off the local median = missed/double beats).
-Synthetic check: true 14 / 47 / 86 ms → 20 / 48 / 93 ms. After 2 min it
-also reports `vs_baseline` (relative to the median of your own readings). `GET /state` → `hrv`.
-
 ## Finger pulse over Bluetooth
 
 Two PulseSensors: finger 1 on **A1**, finger 2 on **A2** (each `+` 3.3V, `-` GND), each with its
 own beat detector (beep 880 Hz / 660 Hz, LED red / blue when `led_beat` is on).
 The UNO Q advertises **"Afferent Finger"** with the standard BLE Heart Rate Service (0x180D,
 measurement 0x2A37 = finger 1, body location = finger) plus a custom service `AFF0`/`AFF1`
-carrying `[bpm finger 1, bpm finger 2, breaths/min, RMSSD ms]`, notified on every locked beat. The iPhone app
+carrying `[bpm finger 1, bpm finger 2]`, notified on every locked beat. The iPhone app
 (`ios/`) connects automatically and shows `Finger 83 · Δ 1` under the camera reading.
 Any heart-rate app that talks to chest straps can read it too.
 
@@ -97,12 +86,19 @@ cd jetson/vision && wendy run --device <jetson> --detach --yes
 Both apps use `"mode": "mesh"` networking, so their ports are reachable only inside
 Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a laptop).
 
+## Laptop POC
+
+[`posture-analysis/posture`](posture-analysis/posture) — Dockerised webcam pipeline for posture, gait
+and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
+README for setup; the project plan is in [`docs/plan_posture_depression.md`](docs/plan_posture_depression.md).
+
 ## HTTP
 
 - UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
   `GET /ppg` (raw 30 s), `POST /buzz?freq=880&ms=200`, `POST /heartbeat?on=0|1`,
   `POST /led?r=0&g=255&b=0&ms=500`
 - Jetson `afferent-vision` (mesh, port 3005): web UI `/`, `GET /rppg` (camera + finger BPM), `GET /hub`, `POST /hub/buzz`
+- Jetson `afferent-data-manager` (mesh, port 8100): `POST /api/v1/samples`, `POST /api/v1/events`, `GET /api/v1/latest|daily|stats|trend|baseline|…` — see [its API guide](jetson/data_manager/API.md)
 
 ## Notes
 
@@ -133,33 +129,6 @@ Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first bu
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
 6/min was recovered by both breathing sources.
 
-## Health-data hub (`jetson/hub`) — for the doctor, and the patient
-
-Local SQLite on the Jetson (persistent volume `afferent-data`); nothing leaves the hardware.
-Collects the finger readings from the UNO Q over Wendy Net (pulse, HRV, breathing — only while a
-finger is detected), takes expression sessions and PHQ-9 check-ins from the app, and serves:
-
-- `GET /report/clinician?days=14` — printable report: PHQ-9 with item 9 flagged at the top, data
-  coverage, daily trends (resting pulse, HRV, breathing) with last-7-vs-previous-7 days, facial
-  behaviour averages, and how every number is computed. No diagnosis.
-- `GET /report/patient?days=7` — the same week in plain words, with support lines if item 9 > 0.
-- `GET /fhir?days=14` — FHIR R4 Bundle for a clinic's record system: daily resting heart rate (LOINC
-  40443-4), respiratory rate (9279-1), HRV RMSSD (local code — no LOINC exists), PHQ-9 total (44261-6)
-  with the nine items as components and an item-9 risk note. Pseudonymous Patient, Device = finger clip.
-- `GET /summary` (all numbers as JSON) · `POST /sessions` (exported session) · `POST /phq9 {"answers": [...]}`
-
-From a laptop: `wendy net forward 8090:18090 --device <jetson>` → `http://localhost:8090/report/clinician`.
-Tests: `cd jetson/hub && python3 -m unittest discover tests`.
-
-**Doctor Q&A with a local LLM** — `POST /ask {"question": "..."}` (llama.cpp + Qwen2.5-3B 4-bit, on the
-Jetson's CPU, inside the hub container). The model never sees the database: the hub picks the facts the
-question needs (labelled lines like `[T:hrv_rmssd]`), the model must cite them, and every number in
-the answer is checked against the facts its sentence cites. One corrective retry, then the facts are
-shown verbatim instead — an unsupported number never reaches the doctor unmarked. Deterministic rules:
-PHQ-9 item 9 > 0 is always shown first; "does the patient have depression?" gets "these data cannot
-diagnose" + the latest PHQ-9. `?demo=1` uses a synthetic 14-day patient (never stored).
-Speed: ~8–13 s per answer when the CPU is free, 37–64 s while `afferent-vision` runs both cameras.
-
 ## Team access
 
 Both boards are enrolled in our Wendy Cloud org, so any org member can reach them from
@@ -179,19 +148,65 @@ cd uno-q/modulino-hub && wendy run --device "$UNOQ" --detach --yes
 
 When plugged in over USB-C, `wendy discover` finds the boards directly (faster deploys).
 
+## Contributing
+
+All repo content — code, comments, docs, commit messages — is in English.
+
 ## Afferent app, hub and design (afferent-app)
 
-Home maintenance companion after TMS for depression: a two-minute wordless game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and a local hub with a clinician dashboard. All patient data in the demo is simulated. Developed on the `afferent-app` branch and merged here.
+Home maintenance companion after TMS for depression (Junction 2026, Aalto "Beyond the Clinic").
+A two-minute wordless morning game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and local analytics with a clinician dashboard.
+Supportive, not a treatment. All patient data in the demo is SIMULATED.
 
-- `hub/` Python hub: API, analytics, bedside simulator, serves the game and dashboard
-- `demo/` the game (web, wrapped by Capacitor), `design/` specs, tokens and mockups, `art/` art pipeline
-- `ios/App/` and `android/` Capacitor shells for the game (separate from the native `ios/Afferent` app)
-- `contracts/` API and session schemas; `STATUS.md`, `GameDesign.md`, `Statistics.md` and the other top-level docs
+Live demo: https://afferent-demo.david-noel-vinu.workers.dev
 
-Run it:
+### Run
 
-```sh
-./start.sh --reset   # needs Python 3, creates hub/.venv on first run
+```
+./start.sh --reset
 ```
 
-Then open `http://localhost:8000/clinic/` (clinician dashboard) or `http://localhost:8000/app/?input=auto&clock=morning` (game, autoplay). Full instructions, options, the iPhone build and tests are in [`APP_README.md`](APP_README.md).
+Needs Python 3. Creates `hub/.venv` on first run and prints the LAN addresses for the phone.
+
+- Clinic dashboard: http://localhost:8000/clinic/
+- Game: http://localhost:8000/app/?input=auto&clock=morning
+- Patient view: http://localhost:8000/app/patient.html?patient=anna
+
+`./start.sh --help` lists the options. Reset the demo data with `curl -X POST localhost:8000/api/demo/reset`.
+
+Tests:
+
+```
+cd hub && .venv/bin/python -m pytest -q
+cd hub && .venv/bin/python -m afferent_hub.analytics.validate
+```
+
+### iPhone app (Capacitor)
+
+```
+npm install
+npm run sync
+npm run open
+```
+
+In Xcode select the iPhone, set the signing team, Run. In the app, Settings > Hub address: the LAN address from `./start.sh`, same Wi-Fi as the hub.
+
+### Android app
+
+```
+npm install
+npm run build:android
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+`npm run open:android` opens the project in Android Studio instead.
+
+### Layout
+
+- `demo/` the game and patient view (Capacitor web root)
+- `hub/` FastAPI hub: API, analytics, clinic dashboard, bedside link
+- `hub/afferent_hub/team/` teammates' hub code, copied byte-identical (never edit; source branch, commit and blob per file in `manifest.json`); glue in `hub/afferent_hub/team_adapters/`, features switched by `AFFERENT_TEAM_*` and `AFFERENT_DATA_MANAGER_URL`. Re-sync: `git fetch junction && (cd hub && .venv/bin/python -m afferent_hub.team_adapters.resync alex_hub)` (or `data_manager`)
+- `contracts/` JSON schemas and fixtures shared by game and hub
+- `design/` tokens, fonts and the final concept art
+- `art/` image and music generation plans and `generate.py`
+- `ios/App/`, `android/` Capacitor native projects (separate from the native `ios/Afferent` app)

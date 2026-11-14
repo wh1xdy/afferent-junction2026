@@ -1,0 +1,14 @@
+# Keep images/videos/checkpoints out of the build context (privacy + size).
+data/
+work_dirs/
+cache/
+**/*.pth
+**/*.onnx
+**/*.mp4
+**/*.jpg
+**/*.jpeg
+**/*.png
+**/*.zip
+**/__pycache__
+.pytest_cache
+verda/config.env

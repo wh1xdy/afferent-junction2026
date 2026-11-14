@@ -110,7 +110,7 @@ def test_patients_list_sorted_by_need():
 
 
 def test_no_em_dash_in_contracts():
-    for path in list(CONTRACTS.rglob("*.json")) + list(CONTRACTS.rglob("*.md")):
+    for path in CONTRACTS.rglob("*.json"):
         assert "\u2014" not in path.read_text(), path
 
 

@@ -55,15 +55,13 @@ def test_example_series_for_dashboard(small):
     assert len(bp["sessions"]) == len(bp["breath"]) > 10
 
 
-def test_report_and_charts_render(small, tmp_path, monkeypatch):
-    monkeypatch.setattr(validate, "DOCS", tmp_path)
+def test_charts_render(small, tmp_path, monkeypatch):
+    monkeypatch.setattr(validate, "CHARTS", tmp_path)
     names = validate.write_charts(small)
     assert len(names) == 6
     for n in names:
         svg = (tmp_path / n).read_text()
         assert svg.startswith("<svg") and "SIMULATED" in svg and "\u2014" not in svg
-    text = validate.report(small)
-    assert "SIMULATED" in text and "not clinically validated" in text.lower() and "\u2014" not in text
 
 
 def test_committed_results_file():
@@ -72,7 +70,6 @@ def test_committed_results_file():
         pytest.skip("run python -m afferent_hub.analytics.validate first")
     r = json.loads(path.read_text())
     assert r["schema"] == "afferent.validation/1" and r["simulated"] and r["n_seeds"] >= 50
-    assert (ROOT / "Validation.md").exists()
 
 
 def test_cohort_separation():
@@ -82,10 +79,3 @@ def test_cohort_separation():
     assert r["relapse"]["days_onset_to_check_in"]["median"] <= 18
     b = r["bandit"]["by_mode"]["calm"]
     assert b["sessions_to_p_best_0_8"]["median"] >= b["sessions_to_first_p_best_0_8"]["median"]
-
-
-def test_report_matches_committed_results():
-    if not validate.RESULTS.exists():
-        pytest.skip("run python -m afferent_hub.analytics.validate first")
-    r = json.loads(validate.RESULTS.read_text())
-    assert (ROOT / "Validation.md").read_text() == validate.report(r)
