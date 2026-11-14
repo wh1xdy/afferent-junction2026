@@ -26,6 +26,7 @@ class GaitSample:
     trunk_inclination: float | None    # deg
     arm_angles: tuple[float | None, float | None]  # L/R shoulder->wrist vs trunk
     floor_pos: tuple[float, float] | None          # metres, if calibrated
+    orientation: str = "unknown"       # body orientation for filtering
 
 
 @dataclass
@@ -244,10 +245,18 @@ def analyze_gait(samples: list[GaitSample],
             and res.step_length_m > 0):
         res.bounce_over_step = res.bounce_mid_hip / res.step_length_m
 
+    # Only use profile/three_quarter orientations for trunk inclination
+    # (face/back views cannot measure anteroposterior lean); use median.
+    _valid_ori = ("profile", "three_quarter")
     incl = [s.trunk_inclination for s in samples
-            if s.trunk_inclination is not None]
+            if s.trunk_inclination is not None
+            and s.orientation in _valid_ori]
+    if not incl:
+        # Fallback: use all orientations if none match the filter
+        incl = [s.trunk_inclination for s in samples
+                if s.trunk_inclination is not None]
     if incl:
-        res.mean_trunk_inclination_deg = float(np.mean(incl))
+        res.mean_trunk_inclination_deg = float(np.median(incl))
 
     # --- arm swing: per-stride peak-to-peak of the signed shoulder->wrist
     # angle. Arm swing period = one stride = 2 steps, so windows use freq/2.

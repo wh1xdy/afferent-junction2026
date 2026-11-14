@@ -63,6 +63,22 @@ def test_mean_trunk_inclination():
     assert res.mean_trunk_inclination_deg == pytest.approx(5.0, abs=0.5)
 
 
+def test_mean_trunk_inclination_filters_orientation():
+    """Only profile/three_quarter samples should be used for trunk incl.
+    Face-view samples where the angle is near 0 should be excluded."""
+    samples = _samples()
+    for i, s in enumerate(samples):
+        if i % 2 == 0:
+            s.orientation = "face"
+            s.trunk_inclination = 0.0  # face view: near-zero artifact
+        else:
+            s.orientation = "profile"
+            # keep original 5.0 deg
+    res = gait.analyze_gait(samples)
+    # Should use only the profile samples (5.0 deg), not average with face (0 deg)
+    assert res.mean_trunk_inclination_deg == pytest.approx(5.0, abs=0.5)
+
+
 def test_too_few_samples():
     res = gait.analyze_gait(_samples(n=5))
     assert res.n_samples == 5

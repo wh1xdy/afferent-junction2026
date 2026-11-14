@@ -12,11 +12,13 @@ import numpy as np
 from . import keypoints as kp
 
 ANGLE_NAMES = (
-    "neck_flexion",        # head forward: shoulder->ear vs vertical
-    "trunk_inclination",   # mid-hip -> mid-shoulder vs vertical
-    "shoulder_asymmetry",  # shoulder line tilt vs horizontal (deg)
-    "head_lateral_tilt",   # eye line tilt vs horizontal (deg)
-    "slump_index",         # shoulder-hip vertical distance / upright ref
+    "neck_flexion",              # head forward: shoulder->ear vs vertical
+    "trunk_inclination",         # mid-hip -> mid-shoulder vs vertical (anteroposterior, profile)
+    "trunk_lateral_inclination", # same computation, valid face/back (lateral lean)
+    "shoulder_asymmetry",        # shoulder line tilt vs horizontal (deg)
+    "head_lateral_tilt",         # eye line tilt vs horizontal (deg)
+    "slump_index",               # shoulder-hip vertical distance / upright ref
+    "head_trunk_angle",          # angle between trunk axis and shoulder->ear
 )
 
 # Section 17 validity table: angle -> 'yes' | 'approx' | 'no' per orientation.
@@ -24,30 +26,38 @@ _VALIDITY: dict[str, dict[str, str]] = {
     "face": {
         "neck_flexion": "no",
         "trunk_inclination": "no",
+        "trunk_lateral_inclination": "yes",  # lateral lean visible from front
         "shoulder_asymmetry": "yes",
         "head_lateral_tilt": "yes",
-        "slump_index": "yes",   # relative height, orientation-free
+        "slump_index": "yes",
+        "head_trunk_angle": "yes",  # lateral head/trunk, relative -> camera-invariant
     },
     "three_quarter": {
         "neck_flexion": "approx",
         "trunk_inclination": "approx",
+        "trunk_lateral_inclination": "no",
         "shoulder_asymmetry": "no",
         "head_lateral_tilt": "no",
         "slump_index": "yes",
+        "head_trunk_angle": "approx",
     },
     "profile": {
         "neck_flexion": "yes",
         "trunk_inclination": "yes",
+        "trunk_lateral_inclination": "no",
         "shoulder_asymmetry": "no",
         "head_lateral_tilt": "no",
         "slump_index": "yes",
+        "head_trunk_angle": "yes",  # forward flexion of head on trunk
     },
     "back": {
         "neck_flexion": "no",
         "trunk_inclination": "no",
+        "trunk_lateral_inclination": "yes",  # lateral lean visible from back
         "shoulder_asymmetry": "yes",
         "head_lateral_tilt": "no",
         "slump_index": "yes",
+        "head_trunk_angle": "no",
     },
     "unknown": {a: "no" for a in ANGLE_NAMES},
 }
@@ -175,6 +185,45 @@ def trunk_inclination_deg(kpts: np.ndarray) -> float | None:
     return None if not math.isfinite(a) else a
 
 
+def head_trunk_angle_deg(kpts: np.ndarray) -> float | None:
+    """Angle between trunk axis (hip->shoulder) and shoulder->ear.
+
+    0 = head stacked on the trunk; grows as the head tilts away.
+    In profile view this measures forward head flexion relative to the
+    trunk (camera-invariant). In front view it measures lateral head
+    tilt on the trunk.
+
+    Uses the single best-confidence ear when only one is visible
+    (typical profile view) rather than averaging both ears."""
+    ms, mh = mid_shoulder(kpts), mid_hip(kpts)
+    if ms is None or mh is None:
+        return None
+    trunk = ms - mh  # hip -> shoulder
+    tn = np.linalg.norm(trunk)
+    if tn < 1e-6:
+        return None
+    # Pick the ear with the best confidence; fall back to mid_ear.
+    le = kpts[kp.LEFT_EAR]
+    re = kpts[kp.RIGHT_EAR]
+    le_ok = np.isfinite(le[0]) and le[2] > 0.1
+    re_ok = np.isfinite(re[0]) and re[2] > 0.1
+    if le_ok and re_ok:
+        ear = le[:2] if le[2] >= re[2] else re[:2]
+    elif le_ok:
+        ear = le[:2]
+    elif re_ok:
+        ear = re[:2]
+    else:
+        return None
+    neck_vec = ear - ms  # shoulder -> ear
+    nn = np.linalg.norm(neck_vec)
+    if nn < 1e-6:
+        return None
+    cos = float(np.dot(trunk, neck_vec) / (tn * nn))
+    cos = max(-1.0, min(1.0, cos))
+    return math.degrees(math.acos(cos))
+
+
 def knee_angle_deg(kpts: np.ndarray, side: str = "left") -> float | None:
     """Knee flexion angle at the knee (hip-knee-ankle), 180 = straight."""
     if side == "left":
@@ -276,16 +325,28 @@ def classify_orientation(kpts: np.ndarray, conf_thr: float = 0.3) -> str:
 
 
 def compute_frame_angles(kpts: np.ndarray, orientation: str,
-                         ref_shoulder_hip_px: float | None = None
+                         ref_shoulder_hip_px: float | None = None,
+                         ref_trunk_angle_deg: float | None = None,
                          ) -> dict[str, float | None]:
-    """All posture angles for one frame; None where invalid for orientation."""
+    """All posture angles for one frame; None where invalid for orientation.
+
+    If *ref_trunk_angle_deg* (upright calibration offset) is provided,
+    trunk inclination values are expressed as deviations from that
+    reference instead of from the image vertical — this compensates for
+    camera tilt and perspective.
+    """
     validity = valid_angles(orientation)
+    trunk_incl = trunk_inclination_deg(kpts)
+    if trunk_incl is not None and ref_trunk_angle_deg is not None:
+        trunk_incl -= ref_trunk_angle_deg
     raw = {
         "neck_flexion": neck_flexion_deg(kpts),
-        "trunk_inclination": trunk_inclination_deg(kpts),
+        "trunk_inclination": trunk_incl,
+        "trunk_lateral_inclination": trunk_incl,  # same calc, different validity
         "shoulder_asymmetry": shoulder_asymmetry_deg(kpts),
         "head_lateral_tilt": head_lateral_tilt_deg(kpts),
         "slump_index": slump_index(kpts, ref_shoulder_hip_px),
+        "head_trunk_angle": head_trunk_angle_deg(kpts),
     }
     out: dict[str, float | None] = {}
     for name in ANGLE_NAMES:
