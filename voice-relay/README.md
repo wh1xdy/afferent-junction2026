@@ -37,7 +37,7 @@ psychotherapy or a substitute for care.
   *Journal of Consulting Psychology, 21*(2), 95–103. https://doi.org/10.1037/h0045357
 
 Once a day the phone asks its home hub for a wellbeing read (`GET /api/patients/{pid}/wellbeing`,
-see the main README) and may pass it in the auth message as `context`:
+see [docs/home-hub.md](../docs/home-hub.md#daily-wellbeing-read-for-the-voice-companion)) and may pass it in the auth message as `context`:
 `{indicator: "ok"|"watch"|"bad", date, facts: […], suggest_doctor}`. The relay validates and
 truncates it (`clean_context`), then appends it to the system instruction under a fixed header — the
 phone can colour today's session, never rewrite the prompt. On a `bad` day the companion is asked to

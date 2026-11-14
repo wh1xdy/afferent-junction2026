@@ -43,8 +43,8 @@ scenarios) in `decline.py`.
 
 ## What the companion receives
 
-When the report is `low`, the hub's daily `voice_context` (see the *Voice companion* section
-of the main README) becomes `indicator: "bad"`, the decline facts come first, and
+When the report is `low`, the hub's daily `voice_context` (see the wellbeing read in
+[home-hub.md](home-hub.md#daily-wellbeing-read-for-the-voice-companion)) becomes `indicator: "bad"`, the decline facts come first, and
 `suggest_doctor` is true:
 
 ```json

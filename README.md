@@ -1,479 +1,352 @@
-# afferent — Junction 2026
+# Afferent
 
-Two WendyOS boards working together over Wendy Net:
+Home support after TMS treatment for depression. Junction 2026, Aalto "Beyond the Clinic".
 
-| Board | App | Role |
-|---|---|---|
-| NVIDIA Jetson Orin Nano | [`jetson/vision`](jetson/vision) | Logitech C920 + YOLOv8n on the GPU. Finds `modulino-hub` on the mesh, beeps when a person enters the frame. |
-| NVIDIA Jetson Orin Nano | [`jetson/presence`](jetson/presence) | Wi-Fi (ARP) + BLE: is the patient home, outings, isolation alert, guest visits — mobility and social-withdrawal markers. See its README for deploy + test steps. |
-| NVIDIA Jetson Orin Nano | [`jetson/data_manager`](jetson/data_manager) | Long-running SQLite store for every sensor (climate, CO2, heart rate, posture, presence, guest visits): apps push samples/intervals over HTTP, the API serves raw data, daily aggregates, trends and baseline deviations. See its [API guide](jetson/data_manager/API.md). |
-| Arduino UNO Q | [`uno-q/modulino-hub`](uno-q/modulino-hub) | STM32 sketch reads Modulino **Knob** + **Thermo**, a **PulseSensor** on A1, drives **Buzzer** and a **KY-016 RGB LED**; the Linux side bridges them to an HTTP service on the mesh. |
+## What Afferent is
 
+Afferent is for people who have had TMS (transcranial magnetic stimulation) for depression and are back at
+home between and after their treatment sessions. A calm phone app offers a short, wordless session each
+morning (or a wind-down at night): kindle a lantern, rest a moment, play two minutes of gentle games. A
+small bedside sensor box with two finger clips reads pulse, heart-rate variability and breathing, and the
+games, the light and the music respond to the body as it is that day. The measurements stay at home on a
+small hub, and the patient decides when to show a summary to their clinic.
+
+> Research prototype. Not a CE-marked medical device. Not for clinical use. Supportive, not a treatment.
+> All patient data in the demo is simulated.
+
+[`STATUS.md`](STATUS.md) is the short list of what exists and the rules the code follows.
+
+## How it works
+
+```mermaid
+flowchart LR
+  box["Sensor box (UNO Q)<br/>two finger clips, thermometer,<br/>buzzer, LED"]
+  phone["Phone app<br/>iOS / Android (Capacitor)"]
+  subgraph jetson["Jetson at home (Wendy Net mesh)"]
+    hub["Home hub<br/>afferent-home-hub"]
+    dm["Data manager<br/>:8100"]
+    side["Presence, posture,<br/>camera apps"]
+  end
+  relay["Voice relay<br/>(Cloud Run)"]
+  live["Gemini Live<br/>(Vertex AI)"]
+  doc["Clinician's browser"]
+
+  box -- "Bluetooth LE: pulse, HRV, breathing" --> phone
+  box <-- "/state: pulse, room climate, LED" --> hub
+  box -- "quality-gated readings" --> dm
+  side --> dm
+  hub -- "reads history" --> dm
+  phone <-- "Wi-Fi + hub token: sessions, room, transcripts" --> hub
+  phone -- "Talk: audio while a conversation is open" --> relay
+  relay --> live
+  phone -- "Show to my doctor: ciphertext only" --> relay
+  doc -- "QR link /d/id#key, unlocked in the browser" --> relay
 ```
- C920 ─► Jetson: YOLO ──"person"──► Wendy Net (BLE / USB via Mac) ──► UNO Q Linux ──Bridge──► STM32 ──Qwiic──► Buzzer
-                   ▲                                                       │
-                   └──── knob position → confidence, knob press → arm ─────┘  (+ Thermo °C / %RH)
-```
 
-## Heartbeat
+- **Phone app** (`demo/` web layer, `ios/App`, `android/`): the morning session, the patient's week, the
+  check-in, Talk, and "Show to my doctor".
+- **Sensor box** (`uno-q/modulino-hub`): an Arduino UNO Q. The STM32 samples the clips; the Linux side fuses
+  them, advertises "Afferent Finger" over Bluetooth, serves `/state` on the mesh and pushes measured
+  readings to the data manager. Details: [`uno-q/SENSORS.md`](uno-q/SENSORS.md).
+- **Home hub** (`hub/`, deployed by `jetson/home_hub`): sessions, analytics, the week view, the shared
+  dashboard, Talk transcripts and the daily wellbeing read. It uses the real UNO Q as its bedside unit.
+  Every route except `/api/health` needs the hub token. [docs/home-hub.md](docs/home-hub.md).
+- **Data manager** (`jetson/data_manager`): one SQLite store on the Jetson for every sensor (finger clips,
+  room, presence, posture), with daily aggregates and baselines. [API](jetson/data_manager/API.md).
+- **The clinic** gets nothing live. On "Show to my doctor" the phone encrypts the dashboard, uploads only
+  ciphertext to the relay and shows a QR code for `https://<relay>/d/<id>#<key>`; the key after `#` never
+  leaves the browser, and the link ends after 7 days or when the patient takes it back. Without a relay the
+  home hub serves it on the home network only. [docs/handover.md](docs/handover.md).
+- **Voice relay** (`voice-relay/`, Cloud Run): holds the cloud credentials for Talk, the voice companion,
+  and keeps the locked dashboards. [`voice-relay/README.md`](voice-relay/README.md).
+- **Other work** on the same mesh: home presence from Wi-Fi and Bluetooth (`jetson/presence`), posture and
+  movement markers (`posture-analysis/`), speech drift from Talk transcripts (`Transcription_analyzer/`),
+  the Jetson camera app (`jetson/vision`). These feed the data manager; [docs/boards.md](docs/boards.md).
 
-PulseSensor on A1 (`+` 3.3V, `-` GND — never 5V, the output would exceed the ADC input).
-Tape it to a fingertip: firm enough not to move, not so tight it blocks blood flow.
+## What the app does
 
-- The STM32 samples A1 at ~45 Hz (14-bit) and detects each beat from the steep upstroke.
-- Linux computes the pulse period by autocorrelation every second and sends it back;
-  the sketch ignores the dicrotic second bump (half a period) and only beeps/flashes once
-  the period is reliable, so it stays silent without a finger.
-- Every beat: 880 Hz beep + red flash on the KY-016 (`R` D9, `G` D10, `B` D11, `-` GND).
-  Dim blue = searching for a rhythm. Verified against a smartwatch (75–85 vs 72–76 BPM).
+**A session.** Hold to kindle the lantern → a 6 s rest with the lantern (resting pulse, eye and blink
+baselines) → a start-mood check-in → a short reaction round → the Fork (an effort choice) → about two
+minutes of games, with the Lanterns task among them → dawn → the end sheet with the end mood. Greetings
+follow the time of day, instructions stay until the first touch, and waiting at the dots between games
+("Tap the light to go on") does not use up play time. A soft loading screen shows only while the art and
+the first frame load.
 
-## Camera pulse (rPPG)
+**It responds to the body**, from the finger clips or a trusted camera pulse, always against the person's
+own values:
 
-The Jetson also estimates heart rate contact-free from **two cameras**: the C920 (`cam1`, also
-used for YOLO) and the Arduino USB Camera (`cam2`, `/dev/video2`, 1280x720). Per camera:
-YOLOv8n-pose finds the eyes, forehead + cheeks are averaged (skin pixels only) at 20 Hz, and
-POS (Wang et al. 2017) on the last 10 s gives the dominant frequency in 45–180 BPM. The two
-spectra are fused, weighted by each camera's SNR. Auto exposure / white balance / focus are
-locked (50 Hz mains), and gain follows the *face* brightness (no clipping).
+- **Heartbeat:** the fire beats in a lub-dub at the real pulse, with stronger first beats and a ring of
+  light when a pulse appears. With no reading it only breathes; it never beats on a guess.
+- **Calm biofeedback:** in calm moments the aurora and the glow grow as breathing nears 6 a minute and as
+  HRV rises above the session's own start value. Visual only; nothing is recorded.
+- **Games by state:** stressed (pulse up, HRV down or faster breathing) → calm breathing games; energised
+  (pulse up, HRV steady, calm breathing) → puzzles; tired eyes by day → gentle wake-up games; tired at
+  night → wind-down. A new state must hold for 3 s before the games change.
+- **Live vitals overlay** (on by default, Settings › Sensors): pulse, HRV, breathing, the state and why
+  ("Pulse up, HRV down → calmer breathing game"), plus the music and room rows. A missing reading says "no
+  reading"; a simulated one is labelled.
+- **Music that follows the heart:** generated in D, it starts at the real pulse and moves at most 1 bpm per
+  12 s, never more than 10 bpm from the heart, leading gently towards calm. It needs a real pulse and never
+  plays on simulated data.
 
-Validated against the finger sensor (same person, ~35 s, 12 readings): fused camera
-76–83 BPM vs finger 76–84 BPM, mean absolute difference 1.8 BPM, max 4 BPM.
+**Haptics.** One vocabulary for the whole app (touch, tick, hit, bright, miss, land, rise, success,
+complete, rhythm, heart, plus hold, drag and breath) through `demo/js/haptics.js`, on Core Haptics on iOS
+and a matching Android plugin. Every control answers a tap with one touch or tick (`demo/js/gui/feel.js`).
+Calm and night play softer. Settings has a Vibration switch and a Heartbeat touch level (Off, Soft, Medium,
+Strong).
 
-Requirements, honestly: a still face, 0.5–1 m away, lit by **white** light. Coloured (purple)
-stage lighting has almost no green, where the pulse signal lives — use the Arduino camera's
-ring light. `snr` below 0 dB means "don't trust it". Keep the heartbeat LED off
-(`POST /led/beat?on=0`, the default): a light flashing at heart rate on the face fakes the result.
+**Clip check.** Before a session: "Put a finger in each clip", a live check with a clear OK, and the camera
+pulse as fallback when the clips give nothing. Only a real, fresh, quality-gated reading counts as OK.
 
-Diagnostics: `GET /rppg` (per-camera skin pixels, brightness, clipping, gain) and
-`GET /rppg/frame?cam=cam1|cam2` (latest frame with the measured skin regions drawn).
+**Heart Duel** (Settings › Sessions › Together). Two people, one clip each, both hearts beat live, and
+whoever calms down first wins. Outside sessions only; nothing is saved or sent. A standalone Mac version
+is in `fun/heart-duel`.
 
-## Open the UI (no display needed)
+**Room climate.** The box's thermometer reaches the phone through the home hub. "Your signals" shows it,
+and on a warm night (above 19.5 °C) one quiet line suggests a cooler room before the wind-down. The
+patient's week and the shared dashboard show the nights.
+
+**Talk.** A voice companion ("Hey, how are you feeling?" on the start screen) that listens more than it
+asks. On a day the hub reads as bad, it gently suggests, once, talking to the doctor.
+
+**Settings** opens on seven categories, each with its own page: Sound and feel, Sensors, Sessions,
+Mornings and check-in (morning reminder, the PHQ-9 check-in every 14 days), Share with your clinic, Home
+hub (address with a Paste button and a "Key missing" warning) and Help and about. A Developer section for
+the team is hidden (tap the version line 7 times). More in [docs/app.md](docs/app.md).
+
+## Privacy and safety rules
+
+These are in the code and its tests; please keep them.
+
+- **Nothing is sent or streamed live to a clinician.** The patient hands data over when they choose to:
+  the encrypted link, a printed code or a file. On the home hub the real patient is left out of the clinic
+  view entirely.
+- **Face images never leave the phone.** Camera frames, images, face meshes and raw blendshapes stay in the
+  native layer and are not stored; only per-second numbers reach the web layer.
+- **Quality and freshness gates.** A finger reading counts for 3 s. Quality below 0.3, or no quality, is not
+  a measurement. Missing stays missing, never 0. The box holds a settling or doubled pulse until it is
+  steady for 6 s and leaves out a noisy clip next to a clean one. The camera pulse is its own number, needs
+  trust 40 or more and never drives the game.
+- **Simulated data never counts as real.** It is never shown or stored as real (it is marked SIMULATED),
+  and a session never mixes simulated and real pulse. Simulated sensors are off by default on phones and
+  on in the browser demo.
+- **Talk audio** goes to Google only while a conversation is open; the relay keeps no audio or text.
+  Transcripts stay on the phone and the home hub.
+- **Secrets stay out of the repo.** The hub token is kept in `~/.afferent/` files on the deploying Mac and
+  reaches the phone only through its pairing link; the data manager token and the relay code come from the
+  environment at deploy or build time.
+
+**Crisis and support.** A "Talk to someone" button on every main screen opens the help numbers: Emergency
+112, MIELI Crisis Helpline 09 2525 0111 (in Finnish, 24 h), Medical Helpline 116117, and the clinic's number
+once the care team adds it, with the line "Afferent is not an emergency service and is not watched around
+the clock." Answers to the PHQ-9 self-harm question lead to a support or crisis screen with the same
+numbers. The lowest mood at both the start and the end of a session brings a gentle offer to talk. Opening
+the help sheet leaves a talk request on the patient's own home hub (kept on the phone until the hub has
+it). The voice companion's instructions always include the support button and 112.
+
+## Hardware
+
+- **Two finger clips:** PulseSensor-type optical sensors in 3D-printed fingertip holders (finger 1 on A1,
+  finger 2 on A2). Clip 2 has a light-touch tip, and the holders are printed dark with high infill so room
+  light cannot leak in. OpenSCAD source, S/M/L STLs and print notes in [`hardware/`](hardware/README.md).
+- **Sensor box:** Arduino UNO Q with a Modulino Thermo (room temperature and humidity), a Modulino Buzzer
+  and a KY-016 RGB LED (the "bedside light"). A Modulino Knob is supported but may be unplugged in the case.
+- **Jetson Orin Nano** with one camera (Logitech C920), running the home hub, the data manager and the
+  presence, posture and camera apps.
+- **No bed sensor.** The app's bed-presence switch is always off and never offered.
+
+A low-estimate bill of materials (about €440 for a minimal setup) is in [`hardware/`](hardware/README.md).
+
+## Run it
+
+Needs Node 22+ and Python 3.12+. For the boards: the Wendy CLI
+(`curl -fsSL https://install.wendy.dev/cli.sh | bash`, then `wendy auth login` with the team's org).
+
+### Web demo in a browser
 
 ```sh
-wendy net forward 3005:3005 --device <jetson>   # keep running
-open http://localhost:3005
+./start.sh --reset      # creates hub/.venv on first run, seeds the simulated demo roster
 ```
 
-## Finger pulse over Bluetooth
+Then open the game at http://localhost:8000/app/, the patient view at `/app/patient.html?patient=anna` and
+the clinic dashboard at `/clinic/`. Simulated sensors are on in the browser, so no hardware is needed.
+`./start.sh --help` lists the options (a real UNO Q, no simulator, another port);
+[docs/app.md](docs/app.md#the-demo-hub-and-developer-options) has the query options. An older snapshot of
+the web app is hosted at https://afferent-demo.david-noel-vinu.workers.dev (not updated with every change).
 
-Two PulseSensors: finger 1 on **A1**, finger 2 on **A2** (each `+` 3.3V, `-` GND), each with its
-own beat detector (beep 880 Hz / 660 Hz, LED red / blue when `led_beat` is on).
-The UNO Q advertises **"Afferent Finger"** with the standard BLE Heart Rate Service (0x180D,
-measurement 0x2A37 = finger 1, body location = finger) plus a custom service `AFF0`/`AFF1`
-carrying `[bpm finger 1, bpm finger 2]`, notified on every locked beat. The iPhone app
-(`ios/`) connects automatically and shows `Finger 83 · Δ 1` under the camera reading.
-Any heart-rate app that talks to chest straps can read it too.
-
-## Controls
-
-- **Turn the knob**: YOLO confidence threshold (0.40 at position 0, ±0.01 per click).
-- **Press the knob**: arm / disarm the person alarm (high beep = armed, low beep = disarmed).
-- A person entering the frame while armed → 988 Hz beep (3 s cooldown).
-
-## Deploy
-
-Both boards are enrolled in the same Wendy Cloud org with Wendy Net enabled
-(`wendy net configure --participate=true --ethernet=true --infrastructure-wifi=true --ble=true`).
+### iPhone
 
 ```sh
-# UNO Q: compiles + flashes the STM32 sketch, then deploys the Linux app
-cd uno-q/modulino-hub && wendy run --device <uno-q> --detach --yes
-
-# Jetson
-cd jetson/vision && wendy run --device <jetson> --detach --yes
-```
-
-Both apps use `"mode": "mesh"` networking, so their ports are reachable only inside
-Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a laptop).
-
-## Laptop POC
-
-[`posture-analysis/posture`](posture-analysis/posture) — Dockerised webcam pipeline for posture, gait
-and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
-README for setup; the project plan is in [`docs/plan_posture_depression.md`](docs/plan_posture_depression.md).
-
-## HTTP
-
-- UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
-  `GET /ppg` (raw 30 s), `POST /buzz?freq=880&ms=200`, `POST /heartbeat?on=0|1`,
-  `POST /led?r=0&g=255&b=0&ms=500`
-- Jetson `afferent-vision` (mesh, port 3005): web UI `/`, `GET /rppg` (camera + finger BPM), `GET /hub`, `POST /hub/buzz`
-- Jetson `afferent-data-manager` (mesh, port 8100): `POST /api/v1/samples`, `POST /api/v1/events`, `GET /api/v1/latest|daily|stats|trend|baseline|…` — see [its API guide](jetson/data_manager/API.md)
-
-## Notes
-
-- Modulinos sit on the STM32's Qwiic bus; Linux reaches them only through `arduino-bridge`.
-- The sketch profile in `sketch.yaml` must list every library dependency explicitly.
-- Hackathon Wi-Fi isolates clients, so the boards talk over BLE (or USB through the laptop).
-- `jetson/vision` is based on Wendy's `camera-feed-yolo` template (JetPack 7 CUDA fix included).
-
-## iPhone app (`ios/`)
-
-On-device, nothing leaves the phone. Three tabs:
-
-- **Pulse** — camera pulse (POS + trust score) with the screen as a variable light (starts from the
-  room's darkness, then a slow ≤2 %/s loop keeps the face lit), plus the finger reading from the UNO Q
-  over Bluetooth (fused value, per-sensor detail, Δ to the camera).
-- **Expressions** — 60 s ARKit/TrueDepth session: 52 blendshapes at 60 Hz → smile, sadness,
-  frown/anger, disgust, surprise, contempt as FACS-style composites; micro-expressions (40–500 ms)
-  against the person's own baseline; one facial action = one event (overlap resolution); no onsets
-  while looking > 25° away. Eyes: blinks, gaze shifts, looking away (per-person gaze calibration
-  corrects ARKit's under-estimated eye rotation). Camera pulse pinned to the 3D face mesh, breathing
-  rate (heart-rate rhythm from the finger sensors, else TrueDepth head motion — the clearer one is
-  shown), distance coaching, activation score. Debug mode: face mesh, eye arrows, pulse regions,
-  raw blendshapes. Sessions export as JSON → `ios/tools/analyze_session.py`.
-- **Check-in** — PHQ-9 with crisis resources (112, Mieli 09 2525 0111, Självmordslinjen 90101, 1177).
-  Support for follow-up, not a diagnosis.
-
-Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first build read 0 for every
-left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
-6/min was recovered by both breathing sources.
-
-## Health-data hub (`jetson/hub`), the patient's own
-
-**The hub never talks to a doctor.** It sends nothing to anyone and only the patient can read it: no
-clinician login, token, live view or chatbot. A doctor sees what the patient hands over in person, the
-printed handover report or the FHIR file the patient downloaded.
-
-Local SQLite on the Jetson (persistent volume `afferent-data`). It collects the finger readings from the
-UNO Q over Wendy Net and takes expression sessions and PHQ-9 check-ins from the app.
-
-- `GET /report/handover?days=14`: "Report for my doctor", the page the patient prints. PHQ-9 with item 9
-  at the top, a fixed-template summary (no language model), coverage, daily trends for resting pulse, HRV
-  (RMSSD) and breathing rate, and how every number is computed. No diagnosis.
-- `GET /report/patient?days=7`: "Your week", the same period in plain words.
-- `GET /fhir?days=14`: FHIR R4 Bundle as a download the patient can hand to a clinic.
-- `GET /summary` (all numbers as JSON), `POST /sessions` (a session marked simulated is refused),
-  `POST /phq9 {"answers": [...]}`.
-- `?demo=1`: a synthetic 14-day patient, no token, read-only, marked SIMULATED on every output.
-
-One access token, the patient's (`jetson/hub/auth.py`). The hub generates it on first start, keeps it in
-the volume and prints it to its log that one time; `--env AFFERENT_PATIENT_TOKEN=…` sets it instead. APIs
-take `Authorization: Bearer <token>`; the two HTML reports also take `?token=` and swap it for a 12 h
-cookie. `/health` answers `{"ok": true}` to anyone and adds the collector counters with the token.
-
-```sh
-wendy device logs afferent-hub --tail 200 --no-follow --device <jetson>    # the token, after the first start
-wendy net forward 8090:18090 --device <jetson>
-open "http://localhost:8090/report/handover?token=$PATIENT"
-curl -H "Authorization: Bearer $PATIENT" -OJ localhost:8090/fhir
-```
-
-Collector (`store_state()` in `app.py`), every 5 s from the UNO Q's `/state`. Only what was measured on
-the patient just now is stored, labelled `finger_ppg`; the rest stays missing, never 0:
-
-- pulse: presence `active`, quality reported and at least 0.3, newest beat at most 3 s old. Otherwise it
-  is counted in `collector.skipped_low_quality` or `skipped_stale` and not stored.
-- HRV and breathing rate: only after 6 s of presence `active`.
-- nothing from the fingers while the two clips are on two different people (`finger.two_hearts`).
-
-Tests: `cd jetson/hub && python3 -m unittest discover tests`. The collector rules have run in tests only,
-not against the UNO Q.
-
-## Team access
-
-Both boards are enrolled in our Wendy Cloud org, so any org member can reach them from
-anywhere — no USB cable or shared Wi-Fi needed:
-
-```sh
-curl -fsSL https://install.wendy.dev/cli.sh | bash   # install the CLI
-wendy auth login                                     # sign in with your invited account
-wendy cloud discover                                 # lists `jetson` and `uno-q` with cloud:// selectors
-
-JETSON='cloud://api.wendy.dev:443/tenant/e064d3cd-1e43-45af-adf2-37b0afe5e3da/asset/149628ce-6c13-44b8-9b2a-ec527e20caf7'
-UNOQ='cloud://api.wendy.dev:443/tenant/e064d3cd-1e43-45af-adf2-37b0afe5e3da/asset/a933500b-ab5a-4086-a2cc-a68ec015719a'
-
-wendy --device "$UNOQ" device apps list
-cd uno-q/modulino-hub && wendy run --device "$UNOQ" --detach --yes
-```
-
-When plugged in over USB-C, `wendy discover` finds the boards directly (faster deploys).
-
-## Contributing
-
-All repo content — code, comments, docs, commit messages — is in English.
-
-## Afferent app, hub and design (afferent-app)
-
-Home maintenance companion after TMS for depression (Junction 2026, Aalto "Beyond the Clinic").
-A two-minute wordless morning game that measures and adapts to the body, a bedside unit and phone that observe everyday life, and local analytics with a clinician dashboard.
-Supportive, not a treatment. All patient data in the demo is SIMULATED.
-
-Live demo: https://afferent-demo.david-noel-vinu.workers.dev
-
-### Run
-
-```
-./start.sh --reset
-```
-
-Needs Python 3. Creates `hub/.venv` on first run and prints the LAN addresses for the phone.
-
-- Clinic dashboard: http://localhost:8000/clinic/
-- Game: http://localhost:8000/app/
-- Patient view: http://localhost:8000/app/patient.html?patient=anna
-- `?input=auto` (opt-in, never the default): autoplay story, only for unattended demos
-
-`./start.sh --help` lists the options. Reset the demo data with `curl -X POST localhost:8000/api/demo/reset`.
-
-Tests:
-
-```
-cd hub && .venv/bin/python -m pytest -q
-cd hub && .venv/bin/python -m afferent_hub.analytics.validate
-```
-
-### iPhone app (Capacitor)
-
-```
 npm install
-npm run sync
-npm run open
+npm run sync            # copies design/ into demo/, writes demo/js/voice-config.js, runs cap sync
+npm run open            # Xcode: pick the iPhone, set your signing team, Run
 ```
 
-In Xcode select the iPhone, set the signing team, Run. In the app, Settings > Hub address: the LAN address from `./start.sh`, same Wi-Fi as the hub.
+From the command line, with your own team and bundle id (the committed id is `fi.junction.afferent`; the
+override is not saved in the project):
 
-### Android app
-
+```sh
+xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+  -destination 'platform=iOS,name=<your iPhone>' -derivedDataPath build/ios -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=<team id> PRODUCT_BUNDLE_IDENTIFIER=<your.bundle.id> build
+xcrun devicectl device install app --device '<your iPhone>' build/ios/Build/Products/Debug-iphoneos/App.app
 ```
+
+The app needs iOS 17. Developer Mode must be on, and the first launch asks to trust the developer
+certificate. `npm run sync` also writes the voice relay settings (below), so run it with those variables
+set, or the build has no relay.
+
+### Android
+
+With JDK 21 and the Android SDK on the path (Homebrew setup in [docs/app.md](docs/app.md#android)):
+
+```sh
 npm install
-npm run build:android
+npm run build:android   # npm run sync, then ./gradlew assembleDebug
 adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-`npm run open:android` opens the project in Android Studio instead.
+`npm run open:android` opens Android Studio instead. CI (`.github/workflows/mobile-build.yml`) builds a
+debug APK and an unsigned iOS simulator build on every pull request that touches the app.
 
-Toolchain, before any Gradle or adb command (JDK 21 and the Android SDK from Homebrew; `android/local.properties` with `sdk.dir=` also works and is never committed):
+### Sensor box (UNO Q)
 
-```
-export JAVA_HOME=/opt/homebrew/opt/openjdk@21; export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
-export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
-```
-
-- Tests: `cd android && ./gradlew testDebugUnitTest`. After a change in `demo/`, `npm run sync` first, or the APK carries the old web layer.
-- Native, with the same plugin names, calls and events as on iOS: `AfferentFinger` (the finger clips over Bluetooth: pulse, per-finger pulse, breathing rate, RMSSD) and `AfferentPresence` (Home and visitors). Haptics and the morning reminder come from the Capacitor npm plugins. Both Bluetooth plugins stop scanning and let go of the board a few seconds after the app leaves the foreground (as iOS does by suspending the app) and look again when it is back.
-- Not available on Android: ARKit and the TrueDepth camera. Eye input uses the front camera with the MediaPipe model bundled in the app (no network, source `mediapipe`); what it cannot measure arrives as "not available" (null), never as zero.
-- State: builds and passes its unit tests. Not yet run on an Android phone or against the UNO Q.
-
-### Real sensors in the app
-
-The two finger clips on the UNO Q feed the app with pulse, per-finger pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
-
-- Phone, direct: the `AfferentFinger` plugin (iOS and Android, same calls and events) reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading; RMSSD byte `255` = above 254 ms, shown as no reading).
-- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone only.
-
-Nothing live goes to the clinic. The patient hands data over in person (a code that links to their dashboard, a printed code or a file; see "Show to my doctor" below). The Jetson hub (`jetson/hub`, above) stores the finger readings for the patient's own report and serves only the patient.
-
-Rules, the same on both paths:
-
-- A reading counts for 3 s, counted from the age of the value. Presence and contact expire the same way when the sensor goes quiet.
-- A fused pulse with reported quality below 0.3, or with no reported quality, is not shown, not recorded and does not drive the game. Quality is never invented; a missing value stays missing. The camera pulse (`rppg`) has the same 3 s rule, is its own number and never drives the game (below).
-- With both paths live, the one that has a usable pulse is used, Bluetooth first. A Bluetooth reading without usable quality never hides the hub pulse.
-- Real and simulated are never mixed inside a session. The session decides at its start: with a live sensor it uses real readings only, without one it runs on the simulated pulse to its end and clips put on later do not count in it, so put the clips on first. A frame the hub flags `simulated` has `source: simulated` on both sides, and anything simulated is marked in `simulated_fields`.
-- The app first asks for Bluetooth when the patient opens Settings, Your signals or the clip check, or starts a session with the pulse stone switch on, not at launch.
-
-For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`.
-
-Camera pulse on the phone: the `AfferentPulse` plugin estimates the pulse from the front camera (POS rPPG, `ios/Afferent/FacePulse.swift` and `PulseEstimator.swift`, the reference app's own files compiled into the app), labelled `rppg`. It reads the frames of the app's one ARKit face session (`ios/App/App/FaceSession.swift`), the same session and the same delegate that give `AfferentEyes` its eyes and the face measures theirs; the session runs while any of the three wants it. Per frame it reads the skin patches inside the callback and keeps no frame; the estimate runs once a second off the frame queue. It runs while the phone camera switch is on and the app is visible (`demo/js/campulse.js`), needs ARKit face tracking, and sends one `pulse` event a second into `A.Sensors.feedNativePulse` with `source` (`rppg`), `bpm`, `quality` (the trust score / 100), `trust` {score, label, reasons} from the estimator unchanged, and `light` (mean skin luma, `dark`/`ok`/`bright`, the frame's exposure time; `iso` is null because ARKit does not give it). Without a reading `bpm`, `quality` and `trust` are null or absent, never 0. Rules: it is its own number ("Pulse, camera estimate" on Your signals, `vitals.camera_pulse` in the session), it never feeds `pulse()` and never drives the game, a reading counts for 3 s, and below trust 40 (the app's "unreliable") no bpm is shown or recorded. Exposure and white balance are locked 2.8 s after a start when the camera offers a lockable device; the ARKit face camera never does, so it then measures under auto exposure (`exposure: 'auto'` in the event) and starts its window over whenever the exposure time or offset moves. A second in which no new samples came in (face blown out, for example) sends no bpm instead of the last one (`AfferentPulseGate.swift`). Every event and `status()` say why there is no camera pulse when there is none (`reason`: `no_face`, `exposure_not_locked`, `too_dark`, `too_bright`, `moving`, `warming_up`, `weak_signal`, with `warmup_s_left` while waiting); the web layer has it as `A.Sensors.cameraWhy(now)`. The camera bpm and trust score are not in `live_metrics`: they reach the home hub only in the session document at the end of a session. Frames stay on the phone and are not stored. Estimator and gate tests: `cd ios/App/TeamTests && swift test`. There is one camera plugin, `AfferentPulse`, for the pulse and the face measures, and no second capture session. The app needs iOS 17, so every iPhone it runs on has an A12 chip or later, and Apple documents ARKit face tracking on those with or without a TrueDepth camera. Where face tracking is not supported (an iPad without a Neural Engine) "Your signals" says "Not available on this phone" for the camera pulse and the game falls back to touch.
-
-Face measures from the phone camera: `A.Face` in `demo/js/face.js` starts them on the same `AfferentPulse` plugin (`faceStart`, `faceStop`, `faceStatus`; events `faceState`, `face` once a second, `micro` per brief facial movement) while the Phone camera setting is on and the app is visible. Pulse and face measures start and stop on their own. They need a TrueDepth camera: ARKit tracks faces without one, but the session says `arkit_truedepth`, so on such a phone the state is `unavailable`: no Face group and no `vitals.face`, while eyes and camera pulse still run. The measures are named by what the face does: smiling, facial movement, blinks, looking away, brief facial movements by face region, breathing from head motion. They are shown under Face on "Your signals" and stored per session in the optional `vitals.face` block; shares and rates are over tracked seconds and null below 30 of them. Camera frames, images, face meshes and the raw blendshape stream stay in the native layer; the web layer only gets the per-second numbers. The face numbers go to the patient's own home hub in the session document at the end of a session, like every other vitals block, and from there to a doctor only through the QR handover: the hub keeps them in its store, and its clinic routes (`/api/patients/{id}`, `/api/sessions/{id}`, the clinic export) leave the face block out. No face number is in a live message, and none drives the game. Without the plugin the app shows and stores nothing about faces. Tests: `node demo/tests/face.test.js`. The plugin's face half is `ios/App/App/FaceMeasures.swift`; the measures are the Swift package `ios/App/FaceCore` (`cd ios/App/FaceCore && swift test`), ported from `ios/Afferent`. Gaze calibration: `calibrationStart`, `calibrationPoint({ x, y, hold_ms })` once per dot, `calibrationFinish`, `calibrationStatus`, `calibrationClear`, documented at the top of `FaceMeasures.swift`. The fit is the reference app's (gain and offset per axis, stored under `afferent.gazeCalibration`), run on dots whose place on the glass is known: the screen's size comes from the panel's pixel count and the pixel density of the hardware model, not from an assumed size. A fit that is not good enough is reported and not stored.
-
-Breathing task: while the clips give a real breathing rate that is at most 3 s old, the task draws a ring around the guide and one line ("You: 9 breaths a minute · Guide: 6"); without one the task is unchanged, and Settings > Sensors > Breathing pace turns it off. The sensor derives the rate from its last 40 s of heart rhythm, so it describes a pace, not a breath; the average shown after the task, on the "Your signals" sheet and in `tasks[].extra.breathing` covers the task and the 40 s before it. Logic in `demo/js/breathing.js`, tests in `demo/tests/breathing.test.js`.
-
-Clip check (`demo/js/clipcheck.js`, `demo/css/clipcheck.css`): before a session the app says "Put a finger in each clip", shows a live check of the clips (which clip reads, a signal meter, the pulse) and a clear OK, and offers the camera pulse when the clips give nothing (no box after 10 s, no reading after 12 s, never a steady pulse after 25 s, or at once when Bluetooth or the clips are off). OK means a real reading through the app's own gate: `A.Breathing.reading` of `A.Sensors.fingerFrame` (finger_ppg, not simulated, finger detected, quality reported and at least 0.3, at most 3 s old) with a pulse, or a trusted camera pulse from `A.Sensors.cameraPulse`; a simulated frame never passes and no reading is not OK. The two pulses are shown side by side, never merged. It opens when the lantern is kindled and the clips give no pulse yet (the patient can begin anyway or step back; Settings › Before a session › Ask before each session turns the question off), once on first run as an offer on the start screen, and from Settings › Before a session › Check the finger clips. It runs before `A.startSession` (`main.js`), never inside a session. Nothing is sent: this phone keeps only the outcome (`afferent.clipcheck`: OK or not, clips or camera, when) for the Settings line. Tests: `node demo/tests/clipcheck.test.js`.
-
-What the app claims matches the hardware: the "pulse stone" is the two finger clips, the "bedside light" is one small LED, and there is no bed sensor, so the `presence` switch is always off and never offered (`demo/tests/hardware.test.js`).
-
-Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`). Off unless the patient turns it on. The bedside unit heard over Bluetooth means home; its silence means "could not look", so leaving home is only decided when the saved home Wi-Fi (two devices or more) is gone too. Learning who is usually around counts watched time only: app open and Bluetooth on.
-
-### Show to my doctor: a link to the dashboard
-
-The code the patient shows is a link to their dashboard, not the numbers themselves. Nothing goes to a clinician by itself: the patient chooses to show the code.
-
-- The phone builds the same dashboard as the Share tab (`demo/js/qrexport.js`, `demo/js/dashboard_gen.js`) and locks it on the phone (`demo/js/handover.js`): AES-GCM under a fresh random 256-bit key. Only the locked bytes go to the voice relay (`POST /share`, with the relay's access code). The code holds `https://<relay>/d/<id>#<key>`. A browser never sends what follows `#`, so the relay never sees the key or anything it could read.
-- The doctor's browser opens the viewer at `/d/<id>` (`voice-relay/viewer.html`), fetches the locked bytes, unlocks them there and shows the dashboard in a sandboxed frame (scripts only, no same origin, no other sites). A wrong or cut key, an ended link and a link taken back each get a plain message.
-- A link lasts 7 days. The patient can take it back from the code view or from Settings (Export to your clinic), with the revoke token the relay gave at upload; the key itself is never stored.
-- No relay set up or reachable: the paired home hub publishes the dashboard (`/api/export/publish`) and the code holds its `/shared/<id>` address, labelled "On this network only". It opens without the hub token, for 7 days or until the next publish, sandboxed in its own origin; the pairing token is never in the link. A hub from before this answers only `/api/export/dashboard`, which needs the token. With neither, the sheet offers Save file and the Share sheet.
-- The relay address and code are the voice companion's (`demo/js/voice-config.js`, `npm run voiceconfig`, or typed on the phone). The relay keeps shares in memory (deploy with one instance, see `voice-relay/README.md`).
-- The phone no longer makes the signed data code. `demo/js/qrpayload.js` stays: it draws the QR matrix, caches the summary, and the clinic still imports signed codes made earlier (printed ones are valid 30 days). The clinic's Scan offers to open a dashboard link instead.
-- Tests: `node demo/tests/handover.test.js`, `node demo/tests/qrshow.test.js`, `pytest voice-relay/test_main.py`.
-
-### Sensor numbers in the handover
-
-No sensor number is sent or streamed to the clinic page. Its socket only says which stored document changed (`session_added`: ids, day, status; `analytics_updated`: the list row). The page has two inputs: the stored session documents on the patient's own hub, which it reads over HTTP and re-reads when a session has been stored (Signals in the patient detail), and the code the patient shows or prints (Signals in the imported view).
-
-This holds for the clinic page, not for the hub's network. `GET /api/bedside/state` gives the current pulse and `physio` to the hub's own machine only, but `/ws/app` relays the current readings to any client that connects as the phone, and the stored documents have no login. Closing that needs a pairing token for the phone: not decided yet.
-
-The dashboard behind "Show to my doctor" shows three weekly numbers from the finger clips for its 8 weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms). The signed code format (`demo/js/qrpayload.js`), which the clinic still imports for codes made earlier, carries the same three.
-
-- Built in `hub/afferent_hub/qr.py` (`vitals_block`) from the `vitals` blocks of the stored sessions: per day the last played session, per week the median, as for the other measures. The pulse is the session mean of the fused finger pulse, with the clips on during play. It is not `morning_pulse`, which is the bedside morning reading of `daily.v1` and has no real source today.
-- The recorder (`demo/js/record.js`) keeps a finger reading only when its reported quality is 0.3 or more; a weaker stretch is a gap. A session counts only when its finger block reports quality, that quality never fell below 0.3, and it has at least 10 s of readings; the clinic's Signals section applies the same rule to a stored session. A week without such a session has no value (never 0). Simulated sessions are used only when there is no measured one, and the number is then marked simulated.
-- In the code they are map key 18, and the version stays 1. A code made before this still decodes (no key 18: "carries no finger sensor numbers"). A code made after it decodes in an older reader, which shows everything else and ignores key 18; the signature covers the whole body either way. New numbers go into a new key, never into `FEATURES`, whose fixed lengths older readers check.
-- Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
-- "Print or save as PDF" now prints the link code and when it ends; the weekly numbers are on the dashboard, not on paper.
-
-### Room climate
-
-The bedside unit's Modulino Thermo measures the bedroom's temperature and humidity. It reaches the phone through the home hub, not over Bluetooth: the finger clips' packet carries no room climate, so this needs no firmware redeploy and no change to the native plugins.
-
-- **Live, to the phone.** The hub turns every `thermo` event from the bedside source (UNO Q `/state` `climate`, about once a minute; or the simulator) into a `room` message for the app of the patient the unit belongs to: `{ temp_c, humidity_pct, source: "modulino_thermo" | "simulated", simulated, age_s }`, and sends the last one right after `hello`. Nothing goes to the clinic socket. On the phone `A.Sensors.room(now)` gives `{ celsius, humidity, source, at }` only for a measured reading at most 150 s old, never a simulated one (`A.Sensors.roomFrame(now)` includes simulated ones, which "Your signals" shows labelled). The line for the live vitals overlay is `A.Room.line(A.Sensors.room(now))`: "Room 21.5 °C · 40 %".
-- **One gentle response.** At night, on the start screen before the wind-down games, a measured room warmer than 19.5 °C gets one quiet line: "Your room is 22.5 °C tonight. Sleep often comes more easily a little cooler, around 16 to 19 °C." Nothing else changes and nothing is asked of the patient (`demo/js/room.js`). The session records the measured room in `context.room_temp_c`.
-- **Over the weeks.** The UNO Q hands the data manager one mean per minute (`env.temperature_c`, `env.humidity_pct`, source `modulino-hub`). The hub reads them as hourly buckets and takes the night of each date, 23:00 to 07:00, when at least 4 of its 8 hours have a reading (`hub/afferent_hub/room.py`). Without the data manager, and for the demo roster, the daily records' own `room` fields are used and marked simulated where the record says so.
-- **Patient view** (`patient-view` `room`, Week tab): each night of the week, the typical night and the 16 to 19 °C band. **Shared dashboard** (Share, `demo/js/qrexport.js`): a "Bedroom at night (8 weeks)" card with the weekly medians of the night temperature and humidity, the nights with a reading and the simulated mark, from `GET /api/patients/<id>/room-nights`. The "Show to my doctor" code links to this same dashboard, room card included; `qr-body` itself does not carry the room. "What your clinic sees" lists it. It is context next to the vitals, not part of the index.
-
-### Talk transcripts on the hub
-
-When a Talk conversation ends, the phone sends the transcript to the hub over the app link
-(`{type: "transcript"}` on `/ws/app`) and keeps it in a local outbox until the hub acks it
-(`demo/js/voice.js`). Audio itself only ever goes to Google while the conversation is open;
-the transcript stays on the phone (last 20 conversations) and on the hub — nothing goes to
-the clinic or the data manager.
-
-The hub appends each transcript as **one JSON line** to a rotating log
-(`hub/afferent_hub/transcripts.py`):
-
-- Directory: `AFFERENT_TRANSCRIPTS_DIR`, default `hub/data/transcripts/` — next to
-  `afferent.db` on the hub's disk (the Jetson when the hub runs there).
-- Ring buffer: `transcript-000001.jsonl`, `transcript-000002.jsonl`, …; a new file starts
-  past `AFFERENT_TRANSCRIPT_FILE_MB` (10 MB), and once the directory passes
-  `AFFERENT_TRANSCRIPT_TOTAL_MB` (500 MB) the oldest files are removed — the current file
-  is never removed.
-- A resent `transcript_id` (ack lost on disconnect) is deduplicated in-process and the ack
-  carries `duplicate: true`; the id also stays inside each row for post-hoc dedupe across
-  a hub restart.
-
-Each line is a self-contained record:
-
-```json
-{"transcript_id": "3f6b…", "patient_id": "anna",
- "t_iso": "2026-11-14T15:30:00.000Z", "received_iso": "2026-11-14T17:36:43+02:00",
- "turns": [{"role": "user", "text": "I feel a bit tired today"},
-           {"role": "agent", "text": "I hear you. Did you sleep alright?"}]}
-```
-
-| Field | Meaning |
-|---|---|
-| `transcript_id` | uuid from the phone; dedupe key |
-| `patient_id` | patient the conversation belongs to |
-| `t_iso` | when the conversation ended, phone clock (UTC ISO 8601) |
-| `received_iso` | when the hub wrote the row, hub clock |
-| `turns` | ordered list; `role` is `user` or `agent`, `text` is that turn's full transcript |
-
-### Daily wellbeing read for the voice companion
-
-Once a day the phone asks the hub how its patient seems to be doing — `{type: "voice_context"}`
-on `/ws/app`, answered by `{type: "voice_context", ...}` — and anyone on the hub can read the
-same thing at `GET /api/patients/{pid}/wellbeing` (`hub/afferent_hub/wellbeing.py`, wired in
-`service.py`).
-
-The answer:
-
-```json
-{"type": "voice_context", "patient_id": "anna", "date": "2026-11-15",
- "indicator": "bad", "suggest_doctor": true,
- "facts": ["skipped the morning practice on 4 of the last 7 days",
-           "went outside on 0 of the last 5 days"]}
-```
-
-- `indicator` is `ok`, `watch` or `bad`, from the hub's own data: the analytics state
-  (`check_in`/`booster` → bad, `watch` → watch) and the last PHQ-9 band (`moderate` or worse
-  → bad, `mild` → watch, an overdue check-in → watch).
-- `facts` are short clauses. The hub adds its own (missed practice, the last questionnaire);
-  when the indicator is `bad` it also asks the data manager (`AFFERENT_DATA_MANAGER_URL`)
-  for presence facts — outings, time at home and visitors over the last two weeks. Every
-  sensor read is best-effort: a quiet data manager means fewer facts, never an error.
-- `suggest_doctor` is `indicator == "bad"`.
-
-The phone caches the answer for the day (`demo/js/voice.js`) and hands it to the voice relay
-inside the auth message (`{auth, context}`); the relay (`voice-relay/main.py`) validates it
-and appends it to the system instruction. So on a bad day the companion gently acknowledges
-that things have not been easy, reminds the person the app and their care team are there
-exactly for that, and suggests — once, without pushing — that they talk to their doctor.
-
-The companion's conversation design, references, and limitations are documented in
-[`voice-relay/README.md`](voice-relay/README.md).
-
-### Personal decline alert
-
-Full guide: [docs/decline_alert.md](docs/decline_alert.md).
-
-The hub compares daily outings, visitor time, HRV and posture against the patient's own
-reference: the median of the previous 14 full days versus the mean of the latest 3 full days.
-Outings, visitor time and HRV are higher-is-better; posture is lower-is-better and its score
-is the reference divided by the recent mean. A score below 80% makes the indicator low and
-adds a short fact to the voice companion context.
-At least 5 reference days are needed. These initial values are arbitrary placeholders to
-be tuned; they are not clinical thresholds.
-
-**How it runs.** The analyzer runs inside the hub process, not as a separate script:
-
-- On demand: `GET /api/patients/{pid}/decline`, every `voice_context` request (WebSocket or
-  `GET /api/patients/{pid}/wellbeing`), and every app `hello`.
-- Automatically: a hub background task checks the bound patient every
-  `AFFERENT_DECLINE_INTERVAL_S` seconds (default `3600`; `0` disables it). When the level
-  changes, it pushes a fresh `voice_context` to the patient's app; an app connecting during
-  an active alert also receives the context. The companion uses it at the start of the next
-  Talk conversation, not during a conversation already in progress.
-
-Measured analysis needs the data manager. On the Jetson, `AFFERENT_DATA_MANAGER_URL=auto`
-finds it over mDNS.
-
-| Environment variable | Default | Meaning |
-|---|---:|---|
-| `AFFERENT_DATA_MANAGER_URL` | empty | Data manager URL; use `auto` on the Jetson |
-| `AFFERENT_DECLINE_THRESHOLD` | `0.8` | Relative level below which an indicator is low |
-| `AFFERENT_DECLINE_REF_DAYS` | `14` | Full days used for the personal reference |
-| `AFFERENT_DECLINE_RECENT_DAYS` | `3` | Latest full days compared with the reference |
-| `AFFERENT_DECLINE_INTERVAL_S` | `3600` | Background check interval in seconds; `0` disables it |
-
-**Demo API — for demos and testing only**
-
-> This is not part of the product. Demo scenarios and scores override what the companion is
-> told; overrides are in memory, are lost on restart, and never write to the data manager or
-> hub database. Synthetic data is generated on the fly. Always `DELETE` the override after a
-> demo. On the home hub these routes, like every API route, require the hub token.
-
-| Scenario | Description | Expected result |
-|---|---|---|
-| `stable` | Everything at the usual level | No low indicators |
-| `withdrawal` | Social withdrawal: fewer outings and visits | Outings 50%, visits 30%; low |
-| `stress` | Lower heart-rate variability | HRV 70%; low |
-| `slumped` | More slumped posture | Posture 70%; low |
-| `global_decline` | Every indicator down | All four at 60%; low |
-| `borderline` | Slightly down but above the 80% threshold | Outings and visits 88%; okay |
-| `recovering` | Better than usual | All four at 115%; okay |
+`wendy run` compiles and flashes the STM32 sketch, then deploys the Linux app. The data manager's address
+and token go in with `--env` on every deploy and are never written to `wendy.json` or the repo:
 
 ```sh
-BASE=http://localhost:8000
-curl "$BASE/api/demo/decline/scenarios"
-curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' \
-  -d '{"scenario":"withdrawal"}'
-curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' \
-  -d '{"scores":{"outings":0.55}}'
-curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' -d '{}'
-curl "$BASE/api/patients/anna/decline"
-curl -X DELETE "$BASE/api/demo/decline"
+cd uno-q/modulino-hub
+read -s DATA_MANAGER_TOKEN        # paste the token; not shown, not in the shell history
+wendy run --device <uno-q> --detach --yes \
+  --env "DATA_MANAGER_URL=http://<data manager address>:8100" \
+  --env "DATA_MANAGER_TOKEN=$DATA_MANAGER_TOKEN"
 ```
+
+`GET /state` has a `data_manager` block to check that readings arrive (`last_error` `HTTP 401` = wrong
+token). More in [`uno-q/SENSORS.md`](uno-q/SENSORS.md#readings-to-the-data-manager-on-the-jetson).
 
 ### Home hub on the Jetson
 
-The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the real UNO Q as bedside and the data manager all run on the mesh. The Mac is needed only as the doorway for a browser or the phone (below).
+The data manager already runs on the Jetson (mesh port 8100, token required); do not deploy a second copy.
+Deploy the hub and pair:
 
-- Deploy: `jetson/home_hub/deploy.sh`. It copies the tracked files of `hub/`, `demo/`, `contracts/`, `design/` (without test folders) into the git-ignored `stage/` and runs `wendy run`; an untracked file in those folders stops it. The SQLite database is on the volume `afferent-home-hub` and survives a redeploy. The image pins its packages (`jetson/home_hub/constraints.txt`) and runs the hub as a non-root user.
-- Pairing token: every `/api/*` and `/ws/*` route except `/api/health` needs the hub token. The first deploy makes it in `~/.afferent/home-hub.token` (mode 600) and passes it to the app; it is never in the repo. `jetson/home_hub/pair.sh` prints the pairing link (it holds the token; open it, do not paste it anywhere). A browser opens the link once and gets a cookie; the phone app keeps the token in its hub address (`<ip>/k/<token>`). Requests from other web origins and DNS names are refused, and `/ws/bedside` is closed while the bedside is the UNO Q.
-- Browser on the Mac: `wendy net forward 18000:18000 --device 169.254.246.159:50052` (keep it running), then open the link from `jetson/home_hub/pair.sh`: it lands on the patient view (`/app/patient.html`); the game is `/app/`. `/clinic/` shows only the simulated demo roster and scanned codes: the real patient reaches the clinic view only through the QR code she shows. The forward allows about 8 connections at once across all forwards, so keep to one browser tab.
-- Phone: Personal Hotspot over the USB cable (mobile data on), so the Mac gets an address on the "iPhone USB" port. Terminal 1: the forward above. Terminal 2: `IP=$(ipconfig getifaddr en8); echo $IP; socat TCP-LISTEN:8000,bind=$IP,fork,reuseaddr TCP:127.0.0.1:18000`. Then `jetson/home_hub/pair.sh $IP` gives the Hub address for the app's Settings. The relay listens only on the cable link. Not yet tried end to end with the phone. Run `wendy auth refresh-certs` before a demo.
-- Bedside: `AFFERENT_BEDSIDE=unoq:auto` finds the UNO Q over mDNS (`role=modulino-hub`, `.mesh.local.` host names only) and looks it up again when the link is lost. No simulator runs here.
-- Data manager: `AFFERENT_DATA_MANAGER_URL=auto` finds it the same way (`role=data-manager`); one that answers is kept, and only the device in `AFFERENT_DATA_MANAGER_DEVICE` (default: this Jetson) is used, since the bearer token goes to it. The token comes from `AFFERENT_DATA_MANAGER_TOKEN` or `~/.afferent/data-manager.token` at deploy time. Routes: `/api/sensors/<name>`, `/api/patients/<id>/sensors/room`.
-- Real and simulated: the patient `AFFERENT_BEDSIDE_PATIENT` (default `anna`, the id the app sends) starts empty with `simulated: false` and only ever holds what was recorded; before the first session the hub reports "Not enough data yet" and no state, also in the QR code. A session the app marks simulated marks that day and names the simulated fields. The other demo patients are seeded and marked Simulated. `AFFERENT_HOME_DEMO_ROSTER=0` leaves them out, and removes them if an earlier start seeded them; the real patient's data stays. `POST /api/demo/reset` and `/api/demo/profile` are refused here.
-- Other values: `AFFERENT_HOME_PATIENT_NAME`, `AFFERENT_HOME_TMS_END` (YYYY-MM-DD, default the day of the first start), `AFFERENT_HUB_ORIGINS`, `AFFERENT_HUB_HOSTS`, `AFFERENT_TZ` (default `Europe/Helsinki`), `WENDY_DEVICE`.
+```sh
+WENDY_DEVICE=<jetson> jetson/home_hub/deploy.sh   # first deploy makes ~/.afferent/home-hub.token (mode 600)
+wendy net forward 18000:18000 --device <jetson>  # keep running
+jetson/home_hub/pair.sh                           # pairing link for a browser on this Mac
+```
 
-### Layout
+`deploy.sh` reads the data manager token from `~/.afferent/data-manager.token` (or
+`AFFERENT_DATA_MANAGER_TOKEN`). The pairing link holds the hub token: open it, never paste it into a chat,
+an issue or a commit.
 
-- `demo/` the game and patient view (Capacitor web root)
-- `hub/` FastAPI hub: API, analytics, clinic dashboard, bedside link
-- `hub/afferent_hub/team/` teammates' hub code, copied byte-identical (never edit; source branch, commit and blob per file in `manifest.json`); glue in `hub/afferent_hub/team_adapters/`, features switched by `AFFERENT_TEAM_*` and `AFFERENT_DATA_MANAGER_URL`. Re-sync: `git fetch junction && (cd hub && .venv/bin/python -m afferent_hub.team_adapters.resync alex_hub)` (or `data_manager`)
-- `contracts/` JSON schemas and fixtures shared by game and hub
-- `design/` tokens, fonts and the final concept art
-- `art/` image and music generation plans and `generate.py`
-- `ios/App/`, `android/` Capacitor native projects (separate from the native `ios/Afferent` app)
+For a phone on the same Wi-Fi as the Mac, keep the forward running and relay it on the Mac's Wi-Fi address:
+
+```sh
+IP=$(ipconfig getifaddr en0)      # the Mac's Wi-Fi address (en0 on most Macs)
+socat TCP-LISTEN:8000,bind=$IP,fork,reuseaddr TCP:127.0.0.1:18000
+jetson/home_hub/pair.sh $IP       # prints the Hub address; it must end in /k/<token>
+```
+
+In the app: Settings › Home hub › Paste, then Connect. Everything else (USB hotspot instead of Wi-Fi, the
+environment variables, real versus simulated patients) is in [docs/home-hub.md](docs/home-hub.md).
+
+### Voice relay
+
+The app reads the relay's address and access code from `demo/js/voice-config.js`, which git ignores. Write
+it from the environment, never into a committed file:
+
+```sh
+VOICE_RELAY_URL=https://<relay>.run.app VOICE_RELAY_CODE=<access code> npm run voiceconfig   # or npm run sync
+```
+
+Or type both on the phone: Talk › Start talking. To deploy the relay (Google Cloud project with billing,
+`gcloud` signed in), from `voice-relay/`:
+
+```sh
+gcloud run deploy afferent-voice --source . --region europe-north1 \
+  --service-account afferent-voice@<project>.iam.gserviceaccount.com \
+  --allow-unauthenticated --timeout 3600 --min-instances 1 --max-instances 1 \
+  --set-env-vars RELAY_CODE=<access code>,GOOGLE_CLOUD_PROJECT=<project>,VERTEX_LOCATION=us-central1
+```
+
+Exactly one instance, because shared dashboards are kept in memory. First-time setup (APIs, service
+account) and the checks are in [`voice-relay/README.md`](voice-relay/README.md#deploy-once-10-min).
+
+## Tests
+
+```sh
+# Web app and clinic page (node only; voiceconfig once, keyboard.test.js loads its output)
+npm run voiceconfig
+for f in demo/tests/*.test.js hub/tests/*.test.js; do node "$f" > /dev/null || echo "FAIL $f"; done
+# Hub (start.sh makes hub/.venv; the dev requirements add zeroconf for the mDNS tests)
+hub/.venv/bin/pip install -r hub/requirements-dev.txt
+(cd hub && .venv/bin/python -m pytest -q)
+(cd hub && .venv/bin/python -m afferent_hub.analytics.validate)   # synthetic validation, rewrites its results
+# Sensor box and the Jetson apps
+(cd uno-q/modulino-hub && python3 -m unittest discover tests)
+(cd jetson/data_manager && python3 -m unittest discover -s tests)
+(cd jetson/presence && python3 -m unittest discover -s tests)
+(cd jetson/hub && python3 -m unittest discover tests)
+# Voice relay (a fake Vertex, no Google account needed)
+(cd voice-relay && pip install -r requirements.txt pytest httpx && pytest test_main.py)
+# Native
+(cd ios/App/TeamTests && swift test)     # camera pulse estimator and gate
+(cd ios/App/FaceCore && swift test)      # face measures
+(cd ios/App/FingerTests && swift test)   # Bluetooth packet parser
+(cd android && ./gradlew testDebugUnitTest)
+(cd fun/heart-duel && node --test)
+```
+
+The reference iPhone app has its own tests (`ios/README.md`). `posture-analysis/` and
+`Transcription_analyzer/` document theirs in their READMEs.
+
+## Repo layout
+
+| Folder | What |
+|---|---|
+| `demo/` | the phone app's web layer (Capacitor web root): game, patient view, tests in `demo/tests` |
+| `ios/` | `ios/App`: the Capacitor iOS app and its native plugins; `ios/Afferent`: the native reference app |
+| `android/` | the Capacitor Android app and its native plugins |
+| `hub/` | FastAPI hub: API, analytics, clinic dashboard, bedside link, handover export |
+| `jetson/` | Wendy apps for the Jetson: `home_hub` (deploys `hub/`), `data_manager`, `presence`, `vision`, `hub` |
+| `uno-q/` | the sensor box app `modulino-hub` (STM32 sketch + Linux side) and `SENSORS.md` |
+| `voice-relay/` | Cloud Run relay for Talk and the locked dashboards, with the doctor's viewer |
+| `contracts/` | JSON schemas and fixtures shared by the app and the hub |
+| `design/` | design tokens, fonts, icon and the final concept art |
+| `art/` | the plans for the generated images and music (`generate.py`, `music_plan.json`) |
+| `hardware/` | printable finger clip holders and the bill of materials |
+| `posture-analysis/` | posture, gait and expressivity markers from a camera, its controller and training |
+| `Transcription_analyzer/` | speech-drift scoring of Talk transcripts |
+| `fun/` | Heart Duel for the Mac |
+| `tools/` | helper scripts: music import, clinic demo exports |
+| `docs/` | longer write-ups (below) |
+| `bibliography/` | references for the posture and expression work |
+
+All repo content (code, comments, docs, commit messages) is in English.
+
+## Further reading
+
+- [docs/app.md](docs/app.md): sensors in the app, camera pulse, face measures, clip check, room climate,
+  Android, developer options. [docs/handover.md](docs/handover.md): "Show to my doctor".
+- [docs/home-hub.md](docs/home-hub.md): the hub on the Jetson, transcripts, the wellbeing read;
+  [docs/decline_alert.md](docs/decline_alert.md): the personal decline alert.
+- [docs/boards.md](docs/boards.md): the boards, the Jetson camera app, the patient's own health-data hub
+  (`jetson/hub`), the reference iPhone app. [`uno-q/SENSORS.md`](uno-q/SENSORS.md): the sensor box's API.
+- [`BUG_BURN_DOWN.md`](BUG_BURN_DOWN.md) and `docs/bugburn/`: the bug audit. The posture and expression work:
+  [plan](docs/plan_posture_depression.md), [capture](docs/capture_plan.md),
+  [review](docs/implementation_review.md), [training](docs/verda_training.md).
+
+## Licenses and credits
+
+- Code: [MIT](LICENSE). Sounds in `demo/audio/`: CC0 and public-domain recordings, each with source,
+  author and changes in [`demo/audio/CREDITS.md`](demo/audio/CREDITS.md).
+- Images and music tracks were generated for this project; the plans are in `art/`, and
+  `tools/music_import.py` cuts and normalises the tracks.
+- Fonts: Fraunces, Google Sans Flex, Jost and JetBrains Mono (SIL Open Font License; texts in
+  `design/fonts/` and `demo/fonts/`), Material Symbols (Apache-2.0).
+- Vendored: qrcode-generator, jsQR, fflate, noble-curves/hashes
+  ([`demo/vendor/qr/LICENSES.md`](demo/vendor/qr/LICENSES.md)); MediaPipe Tasks Vision and its face
+  landmarker model (Apache-2.0, `demo/vendor/mediapipe/`).
+- The companion's listening design draws on Rogers and Farson
+  ([references](voice-relay/README.md#listening-design-and-references)).
