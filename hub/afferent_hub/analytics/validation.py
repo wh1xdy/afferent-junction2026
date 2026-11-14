@@ -52,7 +52,8 @@ def p_best_trace(sessions: list[dict], mode: str, arm: str) -> list[float]:
     return p_best_traces(sessions, mode)[arm]
 
 def p_best_traces(sessions: list[dict], mode: str) -> dict[str, list[float]]:
-    ids = bandit.MODE_ARMS[mode]
+    from ..synthetic import TASKS_BY_MODE
+    ids = TASKS_BY_MODE[mode]
     c = {a: [0, 0] for a in ids}
     out = []
     played = sorted((s for s in sessions if s.get("status") in bandit.PLAYED),
