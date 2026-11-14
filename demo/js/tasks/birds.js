@@ -112,12 +112,12 @@
             const hop = rm() ? 0 : (1 - J.ease.outSoft(p)) * 3 - Math.sin(clamp((at - this.okAt) / 0.3, 0, 1) * Math.PI) * 0.6;
             const x = cx + (rm() ? 0 : (1 - J.ease.outSoft(p)) * 60 * U) + out * 80 * U, y = by - 2 * U - out * 40 * U;
             bird(ctx, x, y, 20 * U, KINDS[c.kind], p * (1 - out), at, hop);
-            onBird = [x, y - 5 * U]; // the body's centre
+            onBird = [x, y - 5 * U, p * (1 - out)]; // the body's centre, and how visible the bird is
             if (at - this.okAt < 0.6) glow(ctx, cx, by - 20 * U, 60 * U, C.glow, 0.5 * (1 - (at - this.okAt) / 0.6));
           }
           K.progress(ctx, b, this.trials.length, Math.max(0, this.i + (c ? 0 : 1)), U);
           const first = this.trials.find(t => t.match);
-          if (c && c === first && c.tap === null && !rm()) tapCue(ctx, onBird[0], onBird[1], U, at, 0.85);
+          if (c && c === first && c.tap === null && !rm()) tapCue(ctx, onBird[0], onBird[1], U, at, 0.85 * onBird[2]);
           ctx.restore();
         },
       });
