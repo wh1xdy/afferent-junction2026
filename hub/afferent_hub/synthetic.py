@@ -16,7 +16,7 @@ except Exception:
 
 DEFAULT_ONSET = 28
 RAMP_DAYS = 21
-CLINIC = {"label": "Your clinic (demo placeholder)", "number": "09 000 0000"}
+CLINIC = {"name": "Your clinic", "number": None}
 SENSORS = {"phone_camera": True, "pulse_stone": True, "bedside_camera": False, "bedside_light": True,
            "presence": True, "phone_motion": True}
 ARM_RATES = {"calm/breath": 0.75, "calm/loyly": 0.45, "wake/fireflies": 0.62, "wake/beacon": 0.42,

@@ -68,7 +68,7 @@
           <label class="li state"><span class="ms" aria-hidden="true">schedule</span><span class="txt"><span class="hl">Usual wake time</span></span><input type="time" id="obWake" class="time-val" step="900"></label>
           ${toggle('obAim', 'Aim for a week of mornings', 'wb_twilight')}
         </div>
-        <p class="ob-note">One short summary a day goes to your clinic, nothing more. Most mornings is plenty.</p>
+        <p class="ob-note">Your clinic sees your morning results and your check-in answers. Camera images never leave your phone. Most mornings is plenty.</p>
         <div class="ob-go"><button id="obGo" class="btn filled block state" type="button">Let's begin</button></div>
       </div>`;
     phone.append(card);

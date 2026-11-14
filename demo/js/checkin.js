@@ -181,21 +181,24 @@
 
   const contacts = (kind) => {
     const c = cfg().clinic;
+    const clinicTel = typeof c?.number === 'string' ? c.number.replace(/[^\d+]/g, '') : '';
     const list = [
       ['Emergency', '112', null, '112'],
       ['MIELI Crisis Helpline', '09 2525 0111', 'in Finnish, 24 h', '0925250111'],
       ['Medical Helpline', '116117', '24 h', '116117'],
-      [c?.name || 'Your clinic', c?.number || '09 000 0000', c?.number ? (c.hours || 'office hours') : 'office hours, demo placeholder', (c?.number || '0900000000').replace(/[^\d+]/g, '')],
+      clinicTel ? [c.name || 'Your clinic', c.number, c.hours || 'office hours', clinicTel] : ['Your clinic', 'Number added by your care team', null, null],
     ];
     const main = kind === 'crisis' ? 0 : 1;
     const box = el('div', 'ci-contacts');
     list.forEach(([label, number, hours, tel], i) => {
-      const a = el('a', 'ci-contact' + (i === main ? ' main' : ''));
-      a.href = 'tel:' + tel;
-      a.setAttribute('aria-label', `Call ${i === 3 && !c?.name ? 'your clinic' : label}, ${number}${hours ? ', ' + hours : ''}`);
+      const a = el(tel ? 'a' : 'div', 'ci-contact' + (i === main ? ' main' : '') + (tel ? '' : ' plain'));
       const t = el('span', 'ci-ct');
       t.append(el('span', 'ci-cl', label), el('span', 'ci-cn', hours ? `${number} · ${hours}` : number));
-      a.append(t, html('span', 'ci-call', CALL));
+      if (tel) {
+        a.href = 'tel:' + tel;
+        a.setAttribute('aria-label', `Call ${i === 3 && !c?.name ? 'your clinic' : label}, ${number}${hours ? ', ' + hours : ''}`);
+        a.append(t, html('span', 'ci-call', CALL));
+      } else a.append(t);
       box.append(a);
     });
     return box;
