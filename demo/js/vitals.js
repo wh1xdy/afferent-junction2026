@@ -7,13 +7,13 @@
   const PRESENCE = { idle: 'Resting. Place a finger in the clip to start.', probing: 'Looking for your finger', active: 'Measuring' };
   const LINK = {
     scanning: 'Looking for the finger sensor', connecting: 'Looking for the finger sensor',
-    unauthorized: 'Bluetooth is off for Afferent in Settings', off: 'Switched off',
+    unauthorized: 'Bluetooth is off for Afferent in Settings', off: 'Not connected',
   };
   const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in the clip to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
   const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', rppg: 'Camera', simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
-  const NO_QUALITY = 'This sensor version does not report signal quality yet, so the game does not use this pulse.';
+  const NO_QUALITY = 'This sensor version does not report signal quality, so its pulse is not shown or used.';
   const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
 
   const sensorLines = ph => {
@@ -21,7 +21,7 @@
     const link = S.fingerLink.state;
     if (ph?.source) {
       const hub = ph.transport === 'hub_http';
-      const state = PRESENCE[ph.presence] || (hub ? VIA_HUB : ph.pulse_bpm != null ? PRESENCE.active : PLACE);
+      const state = PRESENCE[ph.presence] || (hub ? VIA_HUB : ph.contact ? PRESENCE.active : PLACE);
       return [ph.simulated ? `${SIM}. ${state}` : state, ...(hub && state !== VIA_HUB ? [VIA_HUB] : [])];
     }
     return [link === 'connected' ? PLACE : LINK[link] || NO_SENSOR];
@@ -31,14 +31,14 @@
 
   const pulseRow = (ph, p, now) => {
     const unsteady = !!ph?.source && ph.quality_reported && ph.quality != null && ph.quality < MIN_QUALITY;
-    if (ph?.pulse_bpm != null && !unsteady) return row('ecg_heart', 'Pulse', int(ph.pulse_bpm), [BPM, ph.simulated ? SIM : SOURCE.finger_ppg]);
+    if (ph?.pulse_bpm != null) return row('ecg_heart', 'Pulse', int(ph.pulse_bpm), [BPM, ph.simulated ? SIM : SOURCE.finger_ppg]);
     if (p.bpm != null && !(p.source === 'simulated' && S.realProducer(now))) return row('ecg_heart', 'Pulse', int(p.bpm), [BPM, SOURCE[p.source]]);
     return row('ecg_heart', 'Pulse', null, [unsteady ? 'Finger sensor. Waiting for a steady signal' : NONE]);
   };
 
   const fingerRows = ph => {
     if (!ph?.source) return [];
-    const sim = ph.simulated ? SIM : null, measuring = ph.presence === 'active' || ph.pulse_bpm != null;
+    const sim = ph.simulated ? SIM : null, measuring = ph.presence === 'active' || !!ph.contact;
     const [a, b] = ph.finger_bpm, wait = text => measuring ? text : NONE;
     return [
       a == null && b == null ? row('back_hand', 'Finger 1 and finger 2', null, [NONE])

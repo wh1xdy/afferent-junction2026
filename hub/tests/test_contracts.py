@@ -134,6 +134,15 @@ def test_session_finger_example_is_labelled_simulated():
         assert f"vitals.{block}" in doc["simulated_fields"], block
 
 
+def test_fixtures_with_finger_data_have_the_pulse_stone_switch_on():
+    # with the switch off the phone records nothing of the finger sensor
+    for name in ("session_finger_example.json", "session_example.json"):
+        doc = load(FIX / name)
+        vitals = doc.get("vitals") or {}
+        if any(vitals.get(k) for k in ("finger", "breathing", "hrv", "series")):
+            assert doc["sensors"]["pulse_stone"] is True, name
+
+
 def test_session_example_has_no_sensor_blocks(session_schema):
     doc = load(FIX / "session_example.json")
     assert errors(session_schema, doc) == []
