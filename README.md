@@ -258,17 +258,17 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 
 The two finger clips on the UNO Q feed the app with pulse, per-finger pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
 
-- Phone, direct: the `AfferentFinger` plugin reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading; RMSSD byte `255` = above 254 ms, shown as no reading).
+- Phone, direct: the `AfferentFinger` plugin (iOS and Android, same calls and events) reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading; RMSSD byte `255` = above 254 ms, shown as no reading).
 - Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone only.
 
-Nothing live goes to the clinic. The patient hands data over in person (signed QR code, printed report or file).
+Nothing live goes to the clinic. The patient hands data over in person (signed QR code, printed report or file). The Jetson hub (`jetson/hub`, above) stores the finger readings for the patient's own report and serves only the patient.
 
 Rules, the same on both paths:
 
 - A reading counts for 3 s, counted from the age of the value. Presence and contact expire the same way when the sensor goes quiet.
-- A fused pulse with reported quality below 0.3, or with no reported quality, is not shown, not recorded and does not drive the game. Quality is never invented; a missing value stays missing.
+- A fused pulse with reported quality below 0.3, or with no reported quality, is not shown, not recorded and does not drive the game. Quality is never invented; a missing value stays missing. The face pulse from the iPhone camera (`rppg`) has the same 3 s and 0.3 rules.
 - With both paths live, the one that has a usable pulse is used, Bluetooth first. A Bluetooth reading without usable quality never hides the hub pulse.
-- Real and simulated are never mixed inside a session. A frame the hub flags `simulated` has `source: simulated` on both sides, and anything simulated is marked in `simulated_fields`.
+- Real and simulated are never mixed inside a session. The session decides at its start: with a live sensor it uses real readings only, without one it runs on the simulated pulse to its end and clips put on later do not count in it, so put the clips on first. A frame the hub flags `simulated` has `source: simulated` on both sides, and anything simulated is marked in `simulated_fields`.
 - The app first asks for Bluetooth when the patient opens Settings or Your signals or starts a session with the pulse stone switch on, not at launch.
 
 For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`.
