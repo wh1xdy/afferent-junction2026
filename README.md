@@ -222,6 +222,20 @@ For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `
 
 Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`). Off unless the patient turns it on. The bedside unit heard over Bluetooth means home; its silence means "could not look", so leaving home is only decided when the saved home Wi-Fi (two devices or more) is gone too. Learning who is usually around counts watched time only: app open and Bluetooth on.
 
+### Sensor numbers in the handover
+
+No sensor number is sent or streamed to the clinic page. Its socket only says which stored document changed (`session_added`: ids, day, status; `analytics_updated`: the list row). The page has two inputs: the stored session documents on the patient's own hub, which it reads over HTTP and re-reads when a session has been stored (Signals in the patient detail), and the code the patient shows or prints (Signals in the imported view).
+
+This holds for the clinic page, not for the hub's network. `GET /api/bedside/state` gives the current pulse and `physio` to the hub's own machine only, but `/ws/app` relays the current readings to any client that connects as the phone, and the stored documents have no login. Closing that needs a pairing token for the phone: not decided yet.
+
+The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numbers from the finger clips for its 8 weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms).
+
+- Built in `hub/afferent_hub/qr.py` (`vitals_block`) from the `vitals` blocks of the stored sessions: per day the last played session, per week the median, as for the other measures. The pulse is the session mean of the fused finger pulse, with the clips on during play. It is not `morning_pulse`, which is the bedside morning reading of `daily.v1` and has no real source today.
+- The recorder (`demo/js/record.js`) keeps a finger reading only when its reported quality is 0.3 or more; a weaker stretch is a gap. A session counts only when its finger block reports quality, that quality never fell below 0.3, and it has at least 10 s of readings; the clinic's Signals section applies the same rule to a stored session. A week without such a session has no value (never 0). Simulated sessions are used only when there is no measured one, and the number is then marked simulated.
+- In the code they are map key 18, and the version stays 1. A code made before this still decodes (no key 18: "carries no finger sensor numbers"). A code made after it decodes in an older reader, which shows everything else and ignores key 18; the signature covers the whole body either way. New numbers go into a new key, never into `FEATURES`, whose fixed lengths older readers check.
+- Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
+- The printed page lists the same weekly numbers under the code.
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)

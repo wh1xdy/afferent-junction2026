@@ -267,8 +267,7 @@ class Hub:
                         self.store.checkins(pid), self.store.flags(pid))
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics),
-                              "analytics": analytics})
+        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics)})
 
     def _today_daily(self, pid: str, day: int, session: dict) -> dict:
         rec = self.store.daily_day(pid, day)

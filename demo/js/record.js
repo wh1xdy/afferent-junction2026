@@ -104,7 +104,8 @@
     },
   });
 
-  const SERIES_STEP_S = 5, SERIES_MAX = 240;
+  const SERIES_STEP_S = 5, SERIES_MAX = 240, MIN_QUALITY = 0.3;
+  const NO_ROW = { pulse: null, q: null, f1: null, f2: null, br: null, rmssd: null, sdnn: null, vsb: null };
   const physioTrack = t0 => ({
     t0, next: t0, seconds: 0, rows: [], cam: [], pres: { idle: 0, probing: 0, active: 0 }, presSeen: false, meta: null, qualityReported: false, otherSource: 0, via: {},
     series: { t_s: [], pulse_bpm: [], breathing_per_min: [], rmssd_ms: [] },
@@ -117,13 +118,14 @@
         this.meta = this.meta || { source: f.source, transport: f.transport };
         this.via[f.transport] = (this.via[f.transport] || 0) + 1;
         this.qualityReported = this.qualityReported || !!f.quality_reported;
-        this.rows.push({ pulse: f.pulse_bpm, q: f.quality, f1: f.finger_bpm?.[0] ?? null, f2: f.finger_bpm?.[1] ?? null, br: f.breathing_per_min, rmssd: f.rmssd_ms, sdnn: f.sdnn_ms, vsb: f.rmssd_vs_baseline });
+        const usable = f.quality_reported === true && f.quality != null && f.quality >= MIN_QUALITY;
+        this.rows.push(usable ? { pulse: f.pulse_bpm, q: f.quality, f1: f.finger_bpm?.[0] ?? null, f2: f.finger_bpm?.[1] ?? null, br: f.breathing_per_min, rmssd: f.rmssd_ms, sdnn: f.sdnn_ms, vsb: f.rmssd_vs_baseline } : NO_ROW);
         if (f.presence in this.pres) { this.pres[f.presence]++; this.presSeen = true; }
       }
       if (c) this.cam.push({ bpm: c.bpm, score: c.trust_score, label: c.trust_label });
-      const se = this.series;
+      const se = this.series, row = f ? this.rows[this.rows.length - 1] : NO_ROW;
       if (tick % SERIES_STEP_S === 0 && se.t_s.length < SERIES_MAX) {
-        se.t_s.push(Math.round(now - this.t0)); se.pulse_bpm.push(r1(f?.pulse_bpm)); se.breathing_per_min.push(r1(f?.breathing_per_min)); se.rmssd_ms.push(r1(f?.rmssd_ms));
+        se.t_s.push(Math.round(now - this.t0)); se.pulse_bpm.push(r1(row.pulse)); se.breathing_per_min.push(r1(row.br)); se.rmssd_ms.push(r1(row.rmssd));
       }
     },
     summary() {

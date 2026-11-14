@@ -322,5 +322,49 @@
   "presence": true,
   "phone_presence": true,
   "phone_motion": true
+ },
+ "vitals": {
+  "weekly": {
+   "pulse_bpm": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "breathing_per_min": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   "rmssd_ms": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ]
+  },
+  "days": {
+   "pulse_bpm": 0,
+   "breathing_per_min": 0,
+   "rmssd_ms": 0
+  },
+  "simulated": {
+   "pulse_bpm": false,
+   "breathing_per_min": false,
+   "rmssd_ms": false
+  }
  }
 }

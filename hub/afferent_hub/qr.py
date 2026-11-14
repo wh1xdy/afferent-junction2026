@@ -2,7 +2,7 @@ import datetime as dt
 
 from . import views
 from .analytics import stats
-from .analytics.features import FEATURES
+from .analytics.features import FEATURES, index_sessions
 
 VERSION = 1
 PERIOD_DAYS = 56
@@ -12,6 +12,12 @@ CAPS = {"phq": 8, "safety": 8, "talk": 10}
 STATES = ("stable", "watch", "check_in", "booster")
 SHOWN_TIERS = ("low", "moderate", "high", "incomplete", "not_answered")
 FEATURE_KEYS = [f["key"] for f in FEATURES]
+VITALS = (("pulse_bpm", "finger", "pulse_bpm"), ("breathing_per_min", "breathing", "rate_per_min"),
+          ("rmssd_ms", "hrv", "rmssd_ms"))
+VITAL_KEYS = [v[0] for v in VITALS]
+VITAL_SOURCES = ("finger_ppg", "simulated")
+MIN_VITAL_QUALITY = 0.3
+MIN_VITAL_SAMPLES = 10
 
 def _minute(iso: str | None) -> int | None:
     try:
@@ -19,6 +25,48 @@ def _minute(iso: str | None) -> int | None:
     except (TypeError, ValueError):
         return None
     return t.hour * 60 + t.minute
+
+def _named(session: dict, block: str) -> bool:
+    name = f"vitals.{block}"
+    fields = session.get("simulated_fields") or []
+    return any(f in ("*", "vitals", name) or str(f).startswith(name + ".") for f in fields)
+
+def session_vital(session: dict, block: str, stat: str) -> tuple[float, bool] | None:
+    v = session.get("vitals") if isinstance(session.get("vitals"), dict) else {}
+    finger, b = v.get("finger") or {}, v.get(block) or {}
+    if finger.get("source") not in VITAL_SOURCES or b.get("source") not in VITAL_SOURCES:
+        return None
+    quality = finger.get("quality") or {}
+    q, q_min = quality.get("mean"), quality.get("min")
+    if (finger.get("quality_reported") is not True or q is None or q < MIN_VITAL_QUALITY
+            or q_min is None or q_min < MIN_VITAL_QUALITY):
+        return None
+    st = b.get(stat) or {}
+    if st.get("mean") is None or (st.get("samples") or 0) < MIN_VITAL_SAMPLES:
+        return None
+    sim = "simulated" in (finger["source"], b["source"]) or _named(session, "finger") or _named(session, block)
+    return float(st["mean"]), sim
+
+def vitals_block(sessions: list[dict], nd: int) -> dict:
+    by_day = index_sessions(sessions, nd)
+    lo = nd - PERIOD_DAYS + 1
+    out = {"weekly": {}, "days": {}, "simulated": {}}
+    for key, block, stat in VITALS:
+        real, sim = {}, {}
+        for d in range(max(lo, 0), nd + 1):
+            for s in by_day.get(d, []):
+                v = session_vital(s, block, stat) if s.get("status") in views.PLAYED else None
+                if v is not None:
+                    (sim if v[1] else real)[d] = v[0]
+        use = real or sim
+        weeks = []
+        for k in range(WEEKS):
+            m = stats.median([use.get(d) for d in range(lo + 7 * k, lo + 7 * k + 7)])
+            weeks.append(None if m is None else round(m, 1))
+        out["weekly"][key] = weeks
+        out["days"][key] = len(use)
+        out["simulated"][key] = bool(use) and not real
+    return out
 
 def phq_baseline(patient: dict, history: list[dict]) -> tuple[int | None, str, list[dict]]:
     pb = patient.get("phq_baseline") if isinstance(patient.get("phq_baseline"), dict) else {}
@@ -132,7 +180,8 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
     safety, safety_omitted = _safety(checkins, nd)
     talk, talk_omitted = _talk(patient, flags, lo, nd)
 
-    sim = bool(patient.get("simulated", True) or analytics.get("simulated")
+    vitals = vitals_block(sessions, nd)
+    sim = bool(patient.get("simulated", True) or analytics.get("simulated") or any(vitals["simulated"].values())
                or any(s.get("simulated") for s in sessions if (s.get("day_index") or 0) >= lo))
     played = {s["day_index"] for s in sessions if s.get("day_index") in period_days and s.get("status") in views.PLAYED}
     played |= {d["day_index"] for d in daily if d.get("day_index") in period_days and d.get("played")}
@@ -170,6 +219,7 @@ def build(patient: dict, privacy: dict, sessions: list[dict], daily: list[dict],
         "pauses": [{"from_day": p["from_day"], "until_day": p["until_day"], "source": p["source"]}
                    for p in pauses if p["until_day"] >= lo and p["from_day"] <= nd],
         "sensors": {s[0]: bool(sensors.get(s[0], False)) for s in views.SENSORS},
+        "vitals": vitals,
     }
     omitted = {"safety_entries": safety_omitted, "talk_requests": talk_omitted, "phq_totals": phq_omitted}
     if any(omitted.values()):

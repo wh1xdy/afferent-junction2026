@@ -444,7 +444,7 @@ const tests = {
     assert.ok(v.finger.pulse_bpm.samples >= 7 && v.finger.pulse_bpm.samples <= 10, `samples ${v.finger.pulse_bpm.samples}`);
     assert.ok(v.finger.seconds - v.finger.pulse_bpm.samples >= 9, 'the seconds with weak signal have no pulse sample');
     assert.deepStrictEqual([...new Set(v.series.pulse_bpm)], [72, null]);
-    assert.deepStrictEqual([v.pulse_max_bpm, v.finger.quality.min], [72, 0.12]);
+    assert.deepStrictEqual([v.pulse_max_bpm, v.finger.quality.min], [72, 0.6], 'quality is that of the kept readings');
 
     ({ A, tick } = load()); S = A.Sensors;
     S.enabled.simulator = false;
@@ -452,7 +452,7 @@ const tests = {
     s = start(A);
     run(A, tick, s, 10, null, () => ble(A, aff4()));
     v = finish(A, s).vitals;
-    assert.deepStrictEqual([v.finger.quality_reported, v.finger.pulse_bpm.samples, v.finger.finger_1_bpm.mean, v.pulse_mean_bpm], [false, 0, 71, null]);
+    assert.deepStrictEqual([v.finger.quality_reported, v.finger.pulse_bpm.samples, v.finger.finger_1_bpm.mean, v.pulse_mean_bpm], [false, 0, null, null]);
     assert.ok(v.series.pulse_bpm.every(x => x === null), v.series.pulse_bpm.join());
 
     ({ A, tick } = load()); S = A.Sensors;
@@ -587,6 +587,64 @@ const tests = {
     delete A.Presence;
     F.onReading(hrm());   // presence.js not loaded: no error
     assert.strictEqual(A.Sensors.fingerBle.pulse_bpm, 72);
+  },
+
+  'p: a finger reading below quality 0.3, or without a reported quality, is not recorded as a measurement'() {
+    let { A, tick } = load(), S = A.Sensors;
+    const good = () => S.feedFingerHub(hubFrame({ pulse_bpm: 62, quality: 0.9, finger_bpm: [61, 63] }));
+    const weak = () => S.feedFingerHub(hubFrame({ pulse_bpm: 170, quality: 0.05, finger_bpm: [168, 172], breathing_per_min: 30, rmssd_ms: 250, sdnn_ms: 200, rmssd_vs_baseline: 3 }));
+    good();
+    let s = start(A);
+    run(A, tick, s, 30, null, good);
+    run(A, tick, s, 15, null, weak);
+    let doc = finish(A, s), v = doc.vitals, f = v.finger;
+    assert.ok(f.seconds >= 42, `seconds ${f.seconds}`);
+    assert.ok(f.pulse_bpm.samples >= 27 && f.pulse_bpm.samples <= f.seconds - 13, `kept ${f.pulse_bpm.samples} of ${f.seconds}`);
+    assert.deepStrictEqual([f.pulse_bpm.mean, f.pulse_bpm.max, f.finger_1_bpm.max, f.finger_2_bpm.max], [62, 62, 61, 63]);
+    assert.deepStrictEqual([f.quality.mean, f.quality.min, f.quality.samples], [0.9, 0.9, f.pulse_bpm.samples], 'quality is that of the kept readings');
+    assert.deepStrictEqual([f.quality_reported, f.fingers_abs_diff_bpm], [true, 2]);
+    assert.deepStrictEqual([v.breathing.rate_per_min.max, v.breathing.rate_per_min.samples], [6, f.pulse_bpm.samples]);
+    assert.deepStrictEqual([v.hrv.rmssd_ms.max, v.hrv.sdnn_ms.max, v.hrv.rmssd_vs_baseline.max], [46, 40, -0.1]);
+    assert.deepStrictEqual([v.pulse_max_bpm, v.pulse_mean_bpm], [62, 62], 'the game never saw the weak readings either');
+    const n = v.series.t_s.length;
+    assert.ok(n >= 8, `series length ${n}`);
+    for (const [k, kept] of [['pulse_bpm', 62], ['breathing_per_min', 6], ['rmssd_ms', 46]]) {
+      assert.ok(v.series[k].every(x => x === null || x === kept), `${k}: ${v.series[k].join()}`);
+      assert.deepStrictEqual(v.series[k].slice(-2), [null, null], `${k}: a weak stretch is a gap`);
+      assert.strictEqual(v.series[k][0], kept);
+    }
+    assert.ok(f.presence_s.active >= 42, 'how long a finger was detected does not depend on quality');
+
+    // quality 0.3 itself is kept
+    ({ A, tick } = load()); S = A.Sensors;
+    const edge = () => S.feedFingerHub(hubFrame({ quality: 0.3 }));
+    edge(); s = start(A);
+    run(A, tick, s, 12, null, edge);
+    v = finish(A, s).vitals;
+    assert.deepStrictEqual([v.finger.pulse_bpm.mean, v.finger.quality.min, v.finger.pulse_bpm.samples], [72, 0.3, v.finger.seconds]);
+
+    // a sensor version that does not report quality (4-byte AFF1): the clips were on, nothing is a measurement
+    ({ A, tick } = load()); S = A.Sensors;
+    connect(A); ble(A, aff4());
+    s = start(A);
+    run(A, tick, s, 12, null, () => ble(A, aff4()));
+    doc = finish(A, s); v = doc.vitals; f = v.finger;
+    assert.deepStrictEqual([f.source, f.transport, f.quality_reported], ['finger_ppg', 'ble', false]);
+    assert.ok(f.seconds >= 10);
+    for (const k of ['pulse_bpm', 'quality', 'finger_1_bpm', 'finger_2_bpm']) assert.deepStrictEqual(f[k], { mean: null, min: null, max: null, first: null, last: null, samples: 0 }, k);
+    assert.deepStrictEqual([f.fingers_abs_diff_bpm, v.breathing, v.hrv, v.pulse_mean_bpm], [null, null, null, null]);
+    for (const k of ['pulse_bpm', 'breathing_per_min', 'rmssd_ms']) assert.ok(v.series[k].length && v.series[k].every(x => x === null), k);
+
+    // quality reported once but missing on a later reading: that reading is not kept
+    ({ A, tick } = load()); S = A.Sensors;
+    const unknown = () => S.feedFingerHub(hubFrame({ pulse_bpm: 170, quality: null, quality_reported: true }));
+    good();
+    s = start(A);
+    run(A, tick, s, 6, null, good);
+    run(A, tick, s, 6, null, unknown);
+    v = finish(A, s).vitals;
+    assert.deepStrictEqual([v.finger.pulse_bpm.max, v.finger.quality.min], [62, 0.9]);
+    assert.ok(v.finger.seconds - v.finger.pulse_bpm.samples >= 4);
   },
 };
 
