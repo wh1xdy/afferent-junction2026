@@ -138,6 +138,21 @@ const tests = {
     assert.strictEqual(t.calls.length, 0);
   },
 
+  async 'wording: iOS keeps "iPhone Settings", Android says "phone Settings"'() {
+    const said = async platform => {
+      const t = load({ bridge: 'ios', platform });
+      const toasts = [];
+      t.A.Shell = { toast: m => toasts.push(m) };
+      t.radio.status = { ...t.radio.status, lan: 'denied' };
+      await t.A.Presence.enable();
+      await t.steps(1);
+      t.A.Presence.rememberWifi();
+      return toasts[0];
+    };
+    assert.strictEqual(await said('ios'), 'Local Network is off for Afferent in iPhone Settings.');
+    assert.strictEqual(await said('android'), 'Local Network is off for Afferent in phone Settings.');
+  },
+
   async 'native build without the plugin: unavailable, loads without an error and never starts'() {
     const t = load({ bridge: 'none' });
     assert.strictEqual(t.A.Presence.available, false);

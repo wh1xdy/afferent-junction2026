@@ -201,6 +201,18 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 `npm run open:android` opens the project in Android Studio instead.
 
+Toolchain, before any Gradle or adb command (JDK 21 and the Android SDK from Homebrew; `android/local.properties` with `sdk.dir=` also works and is never committed):
+
+```
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21; export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+```
+
+- Tests: `cd android && ./gradlew testDebugUnitTest`. After a change in `demo/`, `npm run sync` first, or the APK carries the old web layer.
+- Native, with the same plugin names, calls and events as on iOS: `AfferentFinger` (the finger clips over Bluetooth: pulse, per-finger pulse, breathing rate, RMSSD) and `AfferentPresence` (Home and visitors). Haptics and the morning reminder come from the Capacitor npm plugins.
+- Not available on Android: ARKit and the TrueDepth camera. Eye input uses the front camera with the MediaPipe model bundled in the app (no network, source `mediapipe`); what it cannot measure arrives as "not available" (null), never as zero.
+- State: builds and passes its unit tests. Not yet run on an Android phone or against the UNO Q.
+
 ### Real sensors in the app
 
 The two finger clips on the UNO Q feed the app with pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
