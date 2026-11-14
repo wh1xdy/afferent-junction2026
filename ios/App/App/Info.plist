@@ -54,6 +54,8 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Afferent reads eye openness, blinks, head tilt, how bright it is and your pulse from tiny colour changes in your face, as numbers. Camera frames never leave the phone.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Afferent listens only while you talk with the voice companion. Your voice is sent to Google Gemini to answer you.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Afferent talks to your Afferent hub on your home network. With Home and visitors on, it also checks that your home devices (TV, speakers, printer) are on the same Wi-Fi.</string>
 	<key>UIApplicationSceneManifest</key>
