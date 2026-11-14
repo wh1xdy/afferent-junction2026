@@ -70,7 +70,12 @@ def test_cohort_separation():
     assert r["stable"]["false_check_in_episodes"] <= 2
     assert r["relapse"]["days_onset_to_check_in"]["median"] <= 18
     b = r["bandit"]["by_mode"]["calm"]
-    stay, first = b["sessions_to_p_best_0_8"]["median"], b["sessions_to_first_p_best_0_8"]["median"]
-    assert stay is not None, (f"no simulated patient's P(best) for the best calm task reached "
-                              f"{r['bandit']['target_p_best']} and stayed there (first crossing median: {first})")
-    assert first is not None and stay >= first
+    assert b["sessions_to_p_best_0_8"]["median"] >= b["sessions_to_first_p_best_0_8"]["median"]
+
+def test_p_best_is_over_the_arms_the_simulator_offers():
+    from afferent_hub import synthetic
+    from afferent_hub.analytics import bandit
+    for mode, ids in synthetic.TASKS_BY_MODE.items():
+        if mode in bandit.MODE_ARMS:
+            assert set(ids) <= set(bandit.MODE_ARMS[mode]), mode
+            assert set(validation.p_best_traces([], mode)) == set(ids), mode
