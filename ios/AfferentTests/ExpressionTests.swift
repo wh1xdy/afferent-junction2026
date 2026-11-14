@@ -59,7 +59,7 @@ final class ExpressionTests: XCTestCase {
         }
         let sum = s.summary
         XCTAssertEqual(s.gazeShifts, 10)                     // 5 excursions x (out + back)
-        XCTAssertEqual(sum.gazeAwayShare, 0.25, accuracy: 0.05)      // baseline pitch -6 is "at the screen"
+        XCTAssertEqual(sum.gazeAwayShare, 0.25, accuracy: 0.05)      // running median pitch -6 = "at the screen"
         let act = Activation.from(sum, restingBpm: 105)
         XCTAssertTrue(act.notes.contains { $0.contains("pulse") })
     }
@@ -82,6 +82,15 @@ final class ExpressionTests: XCTestCase {
                     "mouthUpperUpRight": frown ? 0.08 : 0.01], t: t)
         }
         XCTAssertEqual(s.events.map(\.kind), [.sad])
+    }
+
+    func testWideEyesWithoutBrowsIsNotSurprise() {
+        // real data: looking away gave eyeWide 0.3-0.4 with outer brows ~0
+        let lookAway = ExpressionKind.values(["eyeWideLeft": 0.4, "eyeWideRight": 0.4])
+        XCTAssertLessThan(lookAway[.surprise]!, 0.05)
+        let raised = ExpressionKind.values(["browOuterUpLeft": 0.86, "browOuterUpRight": 0.86,
+                                            "eyeWideLeft": 0.78, "eyeWideRight": 0.78, "browInnerUp": 0.5])
+        XCTAssertGreaterThan(raised[.surprise]!, raised[.sad]!)
     }
 
     func testARKitNamesAreNormalized() {
