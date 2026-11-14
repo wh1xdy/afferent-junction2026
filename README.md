@@ -129,6 +129,47 @@ Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first bu
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
 6/min was recovered by both breathing sources.
 
+## Health-data hub (`jetson/hub`), the patient's own
+
+**The hub never talks to a doctor.** It sends nothing to anyone and only the patient can read it: no
+clinician login, token, live view or chatbot. A doctor sees what the patient hands over in person, the
+printed handover report or the FHIR file the patient downloaded.
+
+Local SQLite on the Jetson (persistent volume `afferent-data`). It collects the finger readings from the
+UNO Q over Wendy Net and takes expression sessions and PHQ-9 check-ins from the app.
+
+- `GET /report/handover?days=14`: "Report for my doctor", the page the patient prints. PHQ-9 with item 9
+  at the top, a fixed-template summary (no language model), coverage, daily trends for resting pulse, HRV
+  (RMSSD) and breathing rate, and how every number is computed. No diagnosis.
+- `GET /report/patient?days=7`: "Your week", the same period in plain words.
+- `GET /fhir?days=14`: FHIR R4 Bundle as a download the patient can hand to a clinic.
+- `GET /summary` (all numbers as JSON), `POST /sessions` (a session marked simulated is refused),
+  `POST /phq9 {"answers": [...]}`.
+- `?demo=1`: a synthetic 14-day patient, no token, read-only, marked SIMULATED on every output.
+
+One access token, the patient's (`jetson/hub/auth.py`). The hub generates it on first start, keeps it in
+the volume and prints it to its log that one time; `--env AFFERENT_PATIENT_TOKEN=…` sets it instead. APIs
+take `Authorization: Bearer <token>`; the two HTML reports also take `?token=` and swap it for a 12 h
+cookie. `/health` answers `{"ok": true}` to anyone and adds the collector counters with the token.
+
+```sh
+wendy device logs afferent-hub --tail 200 --no-follow --device <jetson>    # the token, after the first start
+wendy net forward 8090:18090 --device <jetson>
+open "http://localhost:8090/report/handover?token=$PATIENT"
+curl -H "Authorization: Bearer $PATIENT" -OJ localhost:8090/fhir
+```
+
+Collector (`store_state()` in `app.py`), every 5 s from the UNO Q's `/state`. Only what was measured on
+the patient just now is stored, labelled `finger_ppg`; the rest stays missing, never 0:
+
+- pulse: presence `active`, quality reported and at least 0.3, newest beat at most 3 s old. Otherwise it
+  is counted in `collector.skipped_low_quality` or `skipped_stale` and not stored.
+- HRV and breathing rate: only after 6 s of presence `active`.
+- nothing from the fingers while the two clips are on two different people (`finger.two_hearts`).
+
+Tests: `cd jetson/hub && python3 -m unittest discover tests`. The collector rules have run in tests only,
+not against the UNO Q.
+
 ## Team access
 
 Both boards are enrolled in our Wendy Cloud org, so any org member can reach them from
