@@ -293,7 +293,7 @@
   };
 
   const HAP = { tick: ['sel', 6], light: ['LIGHT', 10], medium: ['MEDIUM', 16], heavy: ['HEAVY', 24], success: ['SUCCESS', [10, 70, 14, 70, 22]] };
-  const hs = { tick: -9, impact: -9, sel: false };
+  const hs = { tick: -9, impact: -9, sel: false, end: 0 };
   const plugin = () => { const Cap = window.Capacitor; return Cap?.isNativePlatform?.() ? Cap.Plugins?.Haptics : null; };
   const fire = name => {
     const spec = HAP[name];
@@ -305,7 +305,11 @@
     try {
       const Hp = plugin();
       if (Hp) {
-        if (name === 'tick') { if (!hs.sel) { hs.sel = true; Hp.selectionStart?.(); } Hp.selectionChanged?.(); }
+        if (name === 'tick') {
+          if (!hs.sel) { hs.sel = true; Hp.selectionStart?.(); }
+          Hp.selectionChanged?.();
+          clearTimeout(hs.end); hs.end = setTimeout(() => { hs.sel = false; Hp.selectionEnd?.(); }, 400);
+        }
         else if (name === 'success') Hp.notification?.({ type: 'SUCCESS' });
         else Hp.impact?.({ style: spec[0] });
       } else navigator.vibrate?.(spec[1]);
