@@ -93,6 +93,30 @@ final class ExpressionTests: XCTestCase {
         XCTAssertGreaterThan(raised[.surprise]!, raised[.sad]!)
     }
 
+    func testGazeCalibrationUndoesUnderestimation() {
+        // ARKit reports only 40 % of the real eye rotation, plus a 3 deg offset
+        var pairs: [(eye: Angles, camera: Angles)] = []
+        for i in 0..<240 {
+            let t = Double(i) / 30
+            let cam = Angles(yaw: 20 * sin(t), pitch: 12 * cos(0.7 * t))    // head moving around
+            pairs.append((Angles(yaw: 0.4 * cam.yaw + 3, pitch: 0.4 * cam.pitch - 2), cam))
+        }
+        let cal = GazeCalibration.fit(pairs)!
+        XCTAssertEqual(cal.gainYaw, 2.5, accuracy: 0.05)
+        XCTAssertEqual(cal.gainPitch, 2.5, accuracy: 0.05)
+        XCTAssertLessThan(cal.residualDeg!, 0.5)
+        let corrected = cal.apply(Angles(yaw: 0.4 * 15 + 3, pitch: 0.4 * -8 - 2))
+        XCTAssertEqual(corrected.yaw, 15, accuracy: 0.3)
+        XCTAssertEqual(corrected.pitch, -8, accuracy: 0.3)
+    }
+
+    func testAnglesRoundTrip() {
+        let a = Angles(yaw: 23, pitch: -11)
+        let b = GazeMath.angles(GazeMath.direction(a))
+        XCTAssertEqual(b.yaw, a.yaw, accuracy: 0.01)
+        XCTAssertEqual(b.pitch, a.pitch, accuracy: 0.01)
+    }
+
     func testARKitNamesAreNormalized() {
         XCTAssertEqual(ExpressionTracker.normalized("mouthSmile_L"), "mouthSmileLeft")
         XCTAssertEqual(ExpressionTracker.normalized("eyeBlink_R"), "eyeBlinkRight")

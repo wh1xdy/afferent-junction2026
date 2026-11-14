@@ -16,6 +16,24 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     @Published var exportURL: URL?
     @Published var gazeNow: (yaw: Double, pitch: Double) = (0, 0)
     @Published var topShapes: [(String, Double)] = []
+    @Published var calibration = GazeCalibration.load()
+    @Published var calibrating = false
+    @Published var calibrationProgress = 0.0
+    private var calPairs: [(eye: Angles, camera: Angles)] = []
+    private var calStart: TimeInterval?
+    static let calibrationSeconds = 8.0
+
+    func startCalibration() {
+        calPairs.removeAll()
+        calStart = nil
+        calibrationProgress = 0
+        calibrating = true
+    }
+
+    func resetCalibration() {
+        calibration = .identity
+        calibration.save()
+    }
     @Published var showDebug = false
 
     let supported = ARFaceTrackingConfiguration.isSupported
@@ -53,7 +71,10 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         let doc: [String: Any] = [
             "format": "afferent-expressions-v1",
             "hz": 60,
-            "columns": ["t", "gaze_yaw_deg", "gaze_pitch_deg"] + keys,
+            "columns": ["t", "gaze_yaw_deg", "gaze_pitch_deg", "eye_yaw_raw", "eye_pitch_raw",
+                        "cam_yaw", "cam_pitch"] + keys,
+            "calibration": ["gainYaw": calibration.gainYaw, "offsetYaw": calibration.offsetYaw,
+                            "gainPitch": calibration.gainPitch, "offsetPitch": calibration.offsetPitch],
             "frames": rec.map { $0.map { (Double($0) * 1000).rounded() / 1000 } },
             "events": expr.events.map { ["kind": $0.kind.rawValue, "start": $0.start, "duration": $0.duration, "peak": $0.peak] },
             "summary": ["seconds": s.seconds, "smileShare": s.smileShare, "expressivity": s.expressivity,
@@ -74,9 +95,23 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         }
         var b: [String: Double] = [:]
         for (k, v) in face.blendShapes { b[Self.normalized(k.rawValue)] = v.doubleValue }
-        let g = Self.gaze(face, frame)
+        let g = gaze(face, frame)
         let vals = ExpressionKind.values(b)
         let tracked = face.isTracked
+        if calibrating && tracked {
+            if calStart == nil { calStart = frame.timestamp }
+            calPairs.append((Self.eyeAngles(face), Self.cameraAngles(face, frame)))
+            let p = (frame.timestamp - (calStart ?? frame.timestamp)) / Self.calibrationSeconds
+            if p >= 1 {
+                let fitted = GazeCalibration.fit(calPairs)
+                DispatchQueue.main.async {
+                    self.calibrating = false
+                    if let f = fitted { self.calibration = f; f.save() }
+                }
+            } else {
+                DispatchQueue.main.async { self.calibrationProgress = p }
+            }
+        }
         // debug view works before a session starts too
         guard running else {
             DispatchQueue.main.async {
@@ -93,7 +128,9 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         expr.feed(b, t: t)
         if tracked { expr.feedGaze(yaw: g.yaw, pitch: g.pitch, t: t) }
         if keys.isEmpty { keys = b.keys.sorted() }
-        rec.append([Float(t - (t0 ?? t)), Float(g.yaw), Float(g.pitch)] + keys.map { Float(b[$0] ?? 0) })
+        let raw = Self.eyeAngles(face), cam = Self.cameraAngles(face, frame)
+        rec.append([Float(t - (t0 ?? t)), Float(g.yaw), Float(g.pitch), Float(raw.yaw), Float(raw.pitch),
+                    Float(cam.yaw), Float(cam.pitch)] + keys.map { Float(b[$0] ?? 0) })
         let newMicro = expr.events.dropFirst(before).last { $0.isMicro }
         let el = t - (t0 ?? t)
         DispatchQueue.main.async {
@@ -117,14 +154,22 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     }
 
     /// Gaze relative to the camera, in degrees (0,0 = looking straight into the lens).
-    static func gaze(_ face: ARFaceAnchor, _ frame: ARFrame) -> (yaw: Double, pitch: Double) {
-        let g = simd_normalize(face.lookAtPoint)
+    /// direction to the camera in the face frame
+    static func cameraAngles(_ face: ARFaceAnchor, _ frame: ARFrame) -> Angles {
         let cam = simd_mul(simd_inverse(face.transform), frame.camera.transform.columns.3)
-        let c = simd_normalize(SIMD3<Float>(cam.x, cam.y, cam.z))
-        let deg = 180 / Double.pi
-        let yaw = (Double(atan2(g.x, g.z)) - Double(atan2(c.x, c.z))) * deg
-        let pitch = (Double(atan2(g.y, g.z)) - Double(atan2(c.y, c.z))) * deg
-        return (yaw, pitch)
+        return GazeMath.angles(SIMD3<Float>(cam.x, cam.y, cam.z))
+    }
+
+    /// ARKit's (uncorrected) eye direction in the face frame, both eyes averaged
+    static func eyeAngles(_ face: ARFaceAnchor) -> Angles {
+        GazeMath.angles(GazeMath.eyeForward(face.leftEyeTransform) + GazeMath.eyeForward(face.rightEyeTransform))
+    }
+
+    /// Calibrated gaze relative to the camera, in degrees (0,0 = looking into the lens).
+    func gaze(_ face: ARFaceAnchor, _ frame: ARFrame) -> (yaw: Double, pitch: Double) {
+        let e = calibration.apply(Self.eyeAngles(face))
+        let c = Self.cameraAngles(face, frame)
+        return (e.yaw - c.yaw, e.pitch - c.pitch)
     }
 }
 
@@ -148,6 +193,7 @@ struct FaceTrackingView: UIViewRepresentable {
     }
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.visible = eyeDebug
+        context.coordinator.calibration = tracker.calibration
     }
     static func dismantleUIView(_ uiView: ARSCNView, coordinator: EyeArrows) { uiView.session.pause() }
 }
@@ -156,6 +202,7 @@ struct FaceTrackingView: UIViewRepresentable {
 /// transform (+z = gaze direction) and a dot at lookAtPoint, where the two gaze rays meet.
 final class EyeArrows: NSObject, ARSCNViewDelegate {
     var visible = false { didSet { root?.isHidden = !visible } }
+    var calibration = GazeCalibration.identity
     private var root: SCNNode?
     private let left = EyeArrows.arrow(color: .cyan)
     private let right = EyeArrows.arrow(color: .magenta)
@@ -208,9 +255,16 @@ final class EyeArrows: NSObject, ARSCNViewDelegate {
     func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
         guard let face = anchor as? ARFaceAnchor else { return }
         mesh?.update(from: face.geometry)
-        left.simdTransform = face.leftEyeTransform
-        right.simdTransform = face.rightEyeTransform
-        focus.simdPosition = face.lookAtPoint
+        // arrow at each eye, along the calibrated gaze direction (ARKit's own eye rotation is too small)
+        for (node, t) in [(left, face.leftEyeTransform), (right, face.rightEyeTransform)] {
+            let dir = GazeMath.direction(calibration.apply(GazeMath.angles(GazeMath.eyeForward(t))))
+            node.simdPosition = simd_make_float3(t.columns.3)
+            node.simdOrientation = simd_quatf(from: SIMD3<Float>(0, 0, 1), to: dir)
+        }
+        // focus: 30 cm along the averaged calibrated gaze from between the eyes
+        let mid = (simd_make_float3(face.leftEyeTransform.columns.3) + simd_make_float3(face.rightEyeTransform.columns.3)) / 2
+        let e = calibration.apply(GazeMath.angles(GazeMath.eyeForward(face.leftEyeTransform) + GazeMath.eyeForward(face.rightEyeTransform)))
+        focus.simdPosition = mid + GazeMath.direction(e) * 0.3
     }
 }
 
@@ -265,6 +319,23 @@ struct ExpressionView: View {
     /// what the face tracking sees right now: gaze + the strongest raw blendshapes
     private var debugPanel: some View {
         VStack(alignment: .leading, spacing: 2) {
+            if tracker.calibrating {
+                Text("Keep looking at the phone and slowly move your head around…")
+                    .font(.caption.weight(.semibold)).foregroundStyle(.purple)
+                ProgressView(value: tracker.calibrationProgress).tint(.purple)
+            } else {
+                HStack {
+                    Button("Calibrate gaze") { tracker.startCalibration() }
+                        .font(.caption.weight(.semibold)).buttonStyle(.bordered).tint(.purple)
+                    if let r = tracker.calibration.residualDeg {
+                        Text(String(format: "gain %.1f×/%.1f×  error %.0f°", tracker.calibration.gainYaw, tracker.calibration.gainPitch, r))
+                            .font(.caption2.monospacedDigit())
+                        Button("Reset") { tracker.resetCalibration() }.font(.caption2)
+                    } else {
+                        Text("not calibrated").font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
             Text(String(format: "gaze yaw %+.0f°  pitch %+.0f°", tracker.gazeNow.yaw, tracker.gazeNow.pitch))
                 .font(.caption.monospacedDigit().weight(.semibold))
             ForEach(tracker.topShapes, id: \.0) { name, v in
