@@ -67,6 +67,7 @@
   // The plain start screen: nothing over it (a sheet, a page, a menu, the check-in, the QR sheets, onboarding, the clip
   // check), the kindle neither held nor lit (its own swell plays then), no text field in use, the app in front. Read from
   // the page at each beat, so no other file has to report it, and the touch comes back by itself once it is plain again.
+  // Only what shows counts: a menu left open inside a closed page does not hold the touch back.
   const BUSY = ['#start.off', '#phone.card-open', '[aria-modal="true"]:not(.hidden):not([hidden])', '[role="menu"]:not(.hidden):not([hidden])',
     '.ci:not(.hidden)', '.qx', '#begin.holding', '#begin.lit'].join(', ');
   const NOT_TEXT = /^(checkbox|radio|range|button|submit|reset|color|file|image|hidden)$/i;
@@ -75,7 +76,7 @@
     const d = typeof document !== 'undefined' ? document : null;
     if (!d) return true;
     if (d.hidden || typing(d.activeElement)) return false;
-    try { return !d.querySelector?.(BUSY); } catch { return false; }
+    try { return ![...(d.querySelectorAll?.(BUSY) || [])].some(el => !el.closest?.('.hidden, [hidden]')); } catch { return false; }
   };
   const homeTouch = () => !A.session && plainHome() && !(st.bpm > FAST_BPM && st.lubs % 2);
 

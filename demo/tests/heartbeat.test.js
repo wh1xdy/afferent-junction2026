@@ -400,7 +400,8 @@ const tests = {
   },
 
   'q: the start screen touch: very soft, at each real beat, only while the start screen is plain, gone within a second of the reading'() {
-    // A page of fake elements with just enough of querySelector for heartbeat.js: #id, .class, [attr="v"], [attr] and :not(...).
+    // A page of fake elements with just enough of querySelectorAll and closest for heartbeat.js: #id, .class, [attr="v"],
+    // [attr] and :not(...).
     const fakeDoc = () => {
       const els = [], doc = { hidden: false, activeElement: null, els };
       const one = (el, part) => {
@@ -408,14 +409,20 @@ const tests = {
         return toks.every(t => t.startsWith(':not(') ? !one(el, t.slice(5, -1)) : t[0] === '#' ? el.id === t.slice(1) : t[0] === '.' ? el.cls.includes(t.slice(1))
           : (([, k, v]) => v === undefined ? k in el.attrs : el.attrs[k] === v.replace(/"/g, ''))(t.slice(1, -1).match(/^([\w-]+)(?:=(.*))?$/)));
       };
-      doc.querySelector = sel => els.find(el => sel.split(',').some(p => one(el, p.trim()))) || null;
-      doc.add = (id, cls = [], attrs = {}) => { const el = { id, cls, attrs }; els.push(el); return el; };
+      const is = (el, sel) => sel.split(',').some(p => one(el, p.trim()));
+      doc.querySelectorAll = sel => els.filter(el => is(el, sel));
+      doc.add = (id, cls = [], attrs = {}, parent = null) => {
+        const el = { id, cls, attrs, parent: parent && els.find(e => e.id === parent) };
+        el.closest = sel => { for (let e = el; e; e = e.parent) if (is(e, sel)) return e; return null; };
+        els.push(el);
+        return el;
+      };
       // the start screen as index.html has it, everything over it closed
       doc.add('phone'); doc.add('start', ['screen', 'start', 'fade']); doc.add('begin', ['kindle', 'state']);
       doc.add('settings', ['screen', 'settings', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
       doc.add('info', ['layer', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
       doc.add('ci', ['ci', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
-      doc.add('pauseMenu', ['pause-menu', 'hidden'], { role: 'menu' });
+      doc.add('pauseMenu', ['pause-menu', 'hidden'], { role: 'menu' }, 'settings');
       return doc;
     };
     const el = (doc, id) => doc.els.find(e => e.id === id);
@@ -457,7 +464,10 @@ const tests = {
     paused('a sheet is open', toggle('info', 'hidden', true));
     paused('Settings is open', toggle('settings', 'hidden', true));
     paused('the check-in is open', toggle('ci', 'hidden', true));
-    paused('a menu is open', toggle('pauseMenu', 'hidden', true));
+    paused('a menu is open', (doc, on) => { toggle('settings', 'hidden', true)(doc, on); toggle('pauseMenu', 'hidden', true)(doc, on); });
+    const left = fakeDoc();
+    el(left, 'pauseMenu').cls.splice(1, 1);
+    assert.ok(home({ doc: left }).calls.length >= 11, 'a menu left open inside the closed Settings does not hold it back');
     paused('a card is open', toggle('phone', 'card-open'));
     paused('the start screen is off', toggle('start', 'off'));
     paused('the QR sheet is open', (doc, on) => { if (on) doc.add('qrSheet', ['qx', 'qs-root']); else doc.els.splice(doc.els.findIndex(e => e.id === 'qrSheet'), 1); });
