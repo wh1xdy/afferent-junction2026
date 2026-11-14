@@ -4,9 +4,9 @@ from . import stats
 from .features import PLAYED, get
 
 MODE_ARMS = {
-    "calm": ["breath", "loyly"],
-    "wake": ["fireflies", "beacon", "bells"],
-    "fatigue": ["shutters", "bells", "beacon"],
+    "calm": ["breath", "loyly", "stars"],
+    "wake": ["fireflies", "beacon", "bells", "shutters"],
+    "fatigue": ["shutters", "bells", "beacon", "fireflies"],
     "rest": ["breath"],
 }
 FLOW = ["threads", "stars"]

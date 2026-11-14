@@ -27,10 +27,6 @@
     ctx.beginPath(); ctx.roundRect(x - gw * 0.56, top + gh - s * 0.02, gw * 1.12, s * 0.09, s * 0.03); ctx.fill();
   };
 
-  const tray = (ctx, b, n, c = WARM) => {
-    for (let i = 0; i < n; i++) glow(ctx, b.x + b.w * (0.5 + (i - (n - 1) / 2) * 0.07), b.y + b.h * 0.93, 9, c, 0.9);
-  };
-
   A.makeCheckin = () => base('checkin', 6, {
     kind: 'checkin', choice: null, pickedAt: null, decisionMs: null, autoAt: 1.3 + R() * 1.1, bar: () => null,
     update(dt, now) { if (this.choice !== null && now - this.pickedAt > 0.8) finish(this, now); },
@@ -83,6 +79,7 @@
           start(i) {
             const hardSide = R() < 0.5 ? -1 : 1;
             this.round = { i, reward: rewards[i], hardSide, phase: 'choose', t: 0, path: null, spec: null, lights: [], cur: -1, nextAt: 0, autoAt: 1.1 + R() * 1.1 };
+            A.present('fork', this, 'round', { i }, A.now());
           },
           choose(path, now) {
             const r = this.round, hard = path === 'hard';
@@ -90,19 +87,18 @@
             const pts = pathPts(hard ? r.hardSide : -r.hardSide, hard);
             r.lights = path === 'none' ? [] : Array.from({ length: r.spec.lights }, (_, k) => ({ p: along(pts, (k + 1) / r.spec.lights), on: null, born: null, gone: false }));
             r.nextAt = r.t + 0.35;
-            if (path !== 'none') Au.piano(hard ? 6 : 4, 0.14);
+            A.present('fork', this, 'choose', { path, hard }, now);
           },
           update(dt, now) {
             if (!this.round) this.start(0);
             const r = this.round;
             r.t += dt;
-            this.sparks = this.sparks.filter(s => now - s.born < 1.1);
             if (r.phase === 'choose' && r.t >= 6) this.choose('none', now);
             if (r.phase === 'path') {
               const L = r.lights, c = L[r.cur];
-              if (c && !c.on && !c.gone && r.t - c.born > r.spec.life) { c.gone = true; this.errors++; r.nextAt = r.t + r.spec.gap; }
+              if (c && !c.on && !c.gone && r.t - c.born > r.spec.life) { c.gone = true; this.errors++; r.nextAt = r.t + r.spec.gap; A.present('fork', this, 'expire', { light: c }, now); }
               if ((!c || c.on || c.gone) && r.t >= r.nextAt) {
-                if (r.cur < L.length - 1) { r.cur++; L[r.cur].born = r.t; r.autoTap = r.t + (profile() === 'bad_day' ? 0.5 + R() * 0.3 : 0.32 + R() * 0.2); }
+                if (r.cur < L.length - 1) { r.cur++; L[r.cur].born = r.t; A.present('fork', this, 'light', { light: L[r.cur], i: r.cur + 1, n: L.length }, now); r.autoTap = r.t + (profile() === 'bad_day' ? 0.5 + R() * 0.3 : 0.32 + R() * 0.2); }
                 else this.reward(now);
               }
             }
@@ -115,9 +111,7 @@
             r.phase = 'reward'; r.rewardAt = r.t;
             this.choices.push({ choice: r.i + 1, path: r.path, reward: r.reward, decision_ms: r.decisionMs, completed: done, task_ms: Math.round((r.t - r.pathAt) * 1000), hard_side: r.hardSide < 0 ? 'left' : 'right' });
             this.glows += got;
-            for (let k = 0; k < got; k++) this.sparks.push({ born: now + k * 0.12, k, n: got });
-            Au.piano(7 + got, 0.16);
-            A.session?.kick(0.35 + 0.15 * got);
+            A.present('fork', this, 'reward', { got, done }, now);
           },
           down(u, v, now) {
             const r = this.round;
@@ -125,8 +119,8 @@
             if (r.phase === 'choose') { this.choose((u < 0.5 ? -1 : 1) === r.hardSide ? 'hard' : 'easy', now); return; }
             if (r.phase !== 'path') return;
             const c = r.lights[r.cur];
-            if (c && !c.on && !c.gone && dist(c.p[0], c.p[1], u, v) < r.spec.hit) { c.on = r.t; this.items++; Au.piano(3 + (this.items % 6), 0.1); r.nextAt = r.t + r.spec.gap; }
-            else this.errors++;
+            if (c && !c.on && !c.gone && dist(c.p[0], c.p[1], u, v) < r.spec.hit) { c.on = r.t; this.items++; r.nextAt = r.t + r.spec.gap; A.present('fork', this, 'hit', { light: c, i: r.cur + 1, n: r.lights.length }, now); }
+            else { this.errors++; A.present('fork', this, 'miss', { u, v }, now); }
           },
           auto(dt, now) {
             const r = this.round;
@@ -138,70 +132,9 @@
             const c = r.lights[r.cur];
             if (r.phase === 'path' && c && !c.on && !c.gone && r.t >= r.autoTap) this.down(c.p[0] + (R() - 0.5) * 0.02, c.p[1], now);
           },
-          draw(ctx, b, now) {
-            const r = this.round;
-            if (!r) return;
-            const X = u => b.x + u * b.w, Y = v => b.y + v * b.h, k = Math.min(b.w, b.h);
-            const sel = side => r.phase === 'choose' ? 1 : (r.path === 'hard') === (side === r.hardSide) ? 1 : 0.25;
-            for (const side of [-1, 1]) {
-              const hard = side === r.hardSide, a = sel(side) * (r.phase === 'reward' && !(r.path === 'hard') === hard ? 0.6 : 1);
-              const pts = pathPts(side, hard);
-              ctx.save();
-              const grd = ctx.createLinearGradient(0, Y(hard ? 0.1 : 0.55), 0, Y(0.95));
-              grd.addColorStop(0, rgb(VIOLET, 0.75 * a)); grd.addColorStop(0.6, rgb(VIOLET, 0.32 * a)); grd.addColorStop(1, rgb(DEEP, 0.1 * a));
-              ctx.fillStyle = grd;
-              ctx.beginPath();
-              if (hard) {
-                ctx.moveTo(X(0.5 + side * 0.0), Y(0.97)); ctx.lineTo(X(0.5 + side * 0.17), Y(0.45)); ctx.lineTo(X(0.5 + side * 0.22), Y(0.38));
-                ctx.lineTo(X(0.5 + side * 0.28), Y(0.07)); ctx.lineTo(X(0.5 + side * 0.36), Y(0.24)); ctx.lineTo(X(0.5 + side * 0.41), Y(0.3)); ctx.lineTo(X(0.5 + side * 0.56), Y(0.97));
-              } else { ctx.moveTo(X(0.5 + side * 0.02), Y(0.97)); ctx.bezierCurveTo(X(0.5 + side * 0.2), Y(0.62), X(0.5 + side * 0.34), Y(0.52), X(0.5 + side * 0.56), Y(0.66)); ctx.lineTo(X(0.5 + side * 0.56), Y(0.97)); }
-              ctx.closePath(); ctx.fill();
-              if (hard) {
-                ctx.fillStyle = rgb(SILVER, 0.55 * a);
-                ctx.beginPath(); ctx.moveTo(X(0.5 + side * 0.28), Y(0.07)); ctx.lineTo(X(0.5 + side * 0.325), Y(0.165)); ctx.lineTo(X(0.5 + side * 0.3), Y(0.15)); ctx.lineTo(X(0.5 + side * 0.28), Y(0.18)); ctx.lineTo(X(0.5 + side * 0.255), Y(0.15)); ctx.lineTo(X(0.5 + side * 0.24), Y(0.16)); ctx.closePath(); ctx.fill();
-              } else {
-                ctx.strokeStyle = rgb(SILVER, 0.22 * a); ctx.lineWidth = 1.5;
-                ctx.beginPath(); ctx.moveTo(X(0.5 + side * 0.12), Y(0.74)); ctx.bezierCurveTo(X(0.5 + side * 0.24), Y(0.6), X(0.5 + side * 0.36), Y(0.53), X(0.5 + side * 0.56), Y(0.66)); ctx.stroke();
-              }
-              ctx.strokeStyle = rgb(FLAME, 0.4 * a); ctx.lineWidth = 2; ctx.setLineDash([1.5, 7]); ctx.lineCap = 'round';
-              ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]))); ctx.stroke();
-              ctx.setLineDash([]); ctx.restore();
-              const n = hard ? FORK_HARD.lights : FORK_EASY.lights, active = r.phase !== 'choose' && (r.path === 'hard') === hard;
-              if (!active) for (let i = 0; i < n; i++) { const p = along(pts, (i + 1) / n); glow(ctx, X(p[0]), Y(p[1]), 8, FLAME, 0.45 * a); ctx.fillStyle = rgb(FLAME, 0.6 * a); ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 1.6, 0, 6.28); ctx.fill(); }
-              const end = pts[pts.length - 1], m = hard ? r.reward : 1, gone = r.phase === 'reward' && active;
-              for (let i = 0; i < m && !gone; i++) {
-                const ox = (i - (m - 1) / 2) * k * 0.075, bob = calm() ? 0 : 2 * Math.sin(now * 2 + i);
-                const ox2 = X(end[0]) + ox, oy = Y(end[1]) - k * 0.075 + bob;
-                glow(ctx, ox2, oy, k * 0.085, WARM, (0.7 + 0.2 * Math.sin(now * 3 + i)) * a);
-                glow(ctx, ox2, oy, k * 0.03, GLOW, 0.9 * a);
-                ctx.fillStyle = rgb(WHITE, 0.95 * a); ctx.beginPath(); ctx.arc(ox2, oy, k * 0.011, 0, 6.28); ctx.fill();
-              }
-            }
-            lantern(ctx, X(0.5), Y(0.885), k * 0.075, WARM, 0.9, now, 3);
-            if (r.phase === 'path' || r.phase === 'reward') {
-              r.lights.forEach((l, i) => {
-                const x = X(l.p[0]), y = Y(l.p[1]);
-                if (l.on) glow(ctx, x, y, 12, WARM, 0.85);
-                else if (l.gone) glow(ctx, x, y, 8, FLAME, 0.12);
-                else if (i === r.cur) {
-                  const age = r.t - l.born, pulse = calm() ? 0.9 : 0.75 + 0.25 * Math.sin(age * 9);
-                  glow(ctx, x, y, k * r.spec.hit * 1.1 * ease(age / 0.2), GLOW, pulse);
-                  ctx.fillStyle = rgb(WHITE, 0.9); ctx.beginPath(); ctx.arc(x, y, 4, 0, 6.28); ctx.fill();
-                } else glow(ctx, x, y, 7, FLAME, 0.22);
-              });
-            }
-            const landed = this.sparks.filter(s => now - s.born < 0.9).length;
-            for (const s of this.sparks) {
-              const p = clamp((now - s.born) / 0.9, 0, 1);
-              if (p <= 0 || p >= 1) continue;
-              const hard = r.path === 'hard', end = pathPts(hard ? r.hardSide : -r.hardSide, hard).pop();
-              const tx = b.x + b.w * (0.5 + (this.glows - s.n + s.k - (this.glows - 1) / 2) * 0.07), ty = Y(0.93);
-              const ox = (s.k - (s.n - 1) / 2) * k * 0.075, sx = X(end[0]) + ox, sy = Y(end[1]) - k * 0.07;
-              glow(ctx, lerp(sx, tx, ease(p)), lerp(sy, ty, ease(p)) - Math.sin(p * Math.PI) * 30, 14, WARM, 1 - 0.3 * p);
-            }
-            tray(ctx, b, this.glows - landed);
-          },
+          draw(ctx, b, now) { A.PRESENT.fork?.draw?.(this, ctx, b, now); },
         });
+        A.present('fork', g, 'init');
         return g;
       },
     },
@@ -213,7 +146,7 @@
         const sched = { rich: pick('rich', 3), lean: pick('lean', 1) };
         const bias = { good_day: 0.15, live: 0.08, bad_day: -0.15 }[profile()] ?? 0.08;
         const richSide = R() < 0.5 ? 'left' : 'right';
-        return base('lanterns', 60, {
+        const g = base('lanterns', 60, {
           kind: 'measurement', larger, sched, richSide, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
           next(now) {
             this.i++;
@@ -221,14 +154,14 @@
             const L = this.larger[this.i];
             if (this.sched[L].has(this.i)) this.pending[L]++;
             this.tr = { L, richSide, t: 0, phase: 'ready', resp: null, autoAt: null };
+            A.present('lanterns', this, 'trial', { i: this.i }, now);
           },
           update(dt, now) {
             if (!this.tr && this.i < 12) this.next(now);
             const tr = this.tr;
             if (!tr) return;
             tr.t += dt;
-            this.sparks = this.sparks.filter(s => now - s.born < 1);
-            if (tr.phase === 'ready' && tr.t >= 0.32) { tr.phase = 'cue'; tr.cueT = tr.t; tr.autoAt = tr.t + (profile() === 'bad_day' ? 0.75 + R() * 0.45 : 0.55 + R() * 0.4); }
+            if (tr.phase === 'ready' && tr.t >= 0.32) { tr.phase = 'cue'; tr.cueT = tr.t; tr.autoAt = tr.t + (profile() === 'bad_day' ? 0.75 + R() * 0.45 : 0.55 + R() * 0.4); A.present('lanterns', this, 'cue', { tr }, now); }
             if (tr.phase === 'cue' && tr.t - tr.cueT >= 2.6) this.respond(null, now);
             if (tr.phase === 'fb' && tr.t - tr.fbT >= (tr.rewarded ? 0.75 : 0.4)) this.next(now);
           },
@@ -241,11 +174,7 @@
             if (resp !== null) this.items++;
             this.missedRun = resp === null ? this.missedRun + 1 : 0;
             Object.assign(tr, { phase: 'fb', fbT: tr.t, resp: side, rewarded });
-            if (rewarded) {
-              this.sparks.push({ born: now, side });
-              Au.piano(8, 0.16);
-              A.session?.kick(0.6);
-            } else if (resp !== null) Au.piano(2, 0.06);
+            A.present('lanterns', this, 'respond', { side, resp, rewarded }, now);
           },
           down(u, v, now) {
             const tr = this.tr;
@@ -267,36 +196,13 @@
             }
             return c;
           },
-          draw(ctx, b, now) {
-            const tr = this.tr, X = u => b.x + u * b.w, Y = v => b.y + v * b.h, s0 = Math.min(b.w * 0.2, b.h * 0.3);
-            for (const side of ['left', 'right']) {
-              const rich = (tr ? tr.richSide : richSide) === side, c = rich ? WARM : SILVER;
-              let scale = 1, a = 0.5;
-              if (tr) {
-                const isLarger = (tr.L === 'rich') === rich;
-                if (tr.phase === 'ready') a = 0.4 + 0.15 * ease(tr.t / 0.32);
-                if (tr.phase === 'cue') {
-                  const ct = tr.t - tr.cueT, on = ct < 0.4;
-                  a = on ? 1 : 0.6 + (calm() ? 0 : 0.08 * Math.sin(now * 3));
-                  if (on && isLarger) scale = 1.08;
-                }
-                if (tr.phase === 'fb') {
-                  const ft = tr.t - tr.fbT, chosen = tr.resp === side;
-                  a = chosen ? (tr.rewarded ? 1.25 - 0.3 * ease(ft / 0.75) : 1 - 0.3 * ease(ft / 0.4)) : 0.6 - 0.4 * ease(ft / 0.15);
-                }
-              }
-              lantern(ctx, X(side === 'left' ? 0.3 : 0.7), Y(0.47), s0 * scale, c, a, now, side === 'left' ? 1 : 4);
-            }
-            for (const sp of this.sparks) {
-              const p = clamp((now - sp.born) / 0.85, 0, 1), sx = X(sp.side === 'left' ? 0.3 : 0.7);
-              glow(ctx, sx, Y(0.47), s0 * (1.2 + 1.5 * ease(p)), WARM, 0.5 * (1 - p));
-              for (let k = 0; k < 6; k++) glow(ctx, sx + Math.sin(k * 2.1) * s0 * 0.6 * p, Y(0.4) - p * s0 * (0.8 + 0.25 * k), 5, GLOW, 1 - p);
-            }
-            const done = this.trials.length;
-            for (let i = 0; i < 12; i++) glow(ctx, b.x + b.w * (0.5 + (i - 5.5) * 0.045), b.y + b.h * 0.93, 5, FLAME, i < done ? 0.75 : 0.12);
-          },
+          draw(ctx, b, now) { A.PRESENT.lanterns?.draw?.(this, ctx, b, now); },
         });
+        A.present('lanterns', g, 'init');
+        return g;
       },
     },
   };
+
+  A.FORK = { FORK_EASY, FORK_HARD, pathPts, along };
 })();
