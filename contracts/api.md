@@ -472,6 +472,8 @@ The key `camera_pulse` in `live_metrics` and the relayed `live`; `null` when the
 
 A block whose values are simulated says so: `source: "simulated"` in `finger`, `breathing` and `hrv`, and its dotted name (`vitals.finger`, ...) in `simulated_fields`. `fixtures/session_finger_example.json` has all five blocks, all simulated. `hub/tests/test_session_js_contract.py` validates a document built by the real JS recorder (`demo/tests/emit_session.js`) against the schema.
 
+The breathing task writes one more block, `tasks[].extra.breathing` (`source` always `finger_ppg`, `method` `pulse_rhythm`, `guide_per_min`, `seconds`, and statistics of `rate_per_min` and `pulse_bpm` over the task), only when real finger sensor readings covered at least 5 s and a third of the task. A simulated value is never written there. `demo/tests/emit_breath_task.js` prints such a task from the real game code and `hub/tests/test_session_js_contract.py` validates it.
+
 The compact session rows of `GET /api/patients/{id}` (`sessions[]`) gain `vitals`, `pulse_source` and `simulated_fields`, so the clinic view can show the last session's sensor summary.
 
 #### The `pulse_stone` switch
@@ -481,6 +483,7 @@ It covers the whole finger sensor (pulse, breathing rate, HRV). Off: the phone s
 #### Wording
 
 - Phone, outside play only (the "Your signals" sheet from the start screen and Settings): calm, plain numbers with their unit. Nothing about the body during play (`design/vitals-ux.md`); an in-play overlay exists only behind a Developer switch, default off.
+- The breathing task's measured pace belongs to that in-play overlay: with the switch on, and only while the finger sensor gives a real reading at most 3 s old, a ring around the guide settles as the measured pace nears the guide's, and one line says "You: 9 breaths a minute · Guide: 6" with the source ("Finger sensor"). Until the sensor has a rate the line says "measuring…". The rate comes from the heart rhythm and follows the breathing by tens of seconds, so nothing is drawn per breath. After the task one factual line gives the average and the pulse at the start and at the end. No score, no judgement. Without a real reading the task is unchanged and says nothing; a simulated value never stands in. The "Your signals" sheet shows the same average outside play ("Breathing with the guide").
 - Clinic view, section "Signals": every value with its source, unit and age. Source texts: "finger sensor (PPG), Bluetooth via the phone", "finger sensor (PPG), hub HTTP", "phone camera (rPPG)". Simulated values carry the Simulated badge and never the word live.
 - HRV is "HRV (RMSSD)" in the clinic view and plain words for the patient (the privacy row of the pulse stone says "beat-to-beat variation"). It is a measured number. It is never called a stress level or strain and never used for a diagnosis or a treatment decision.
 - Monitoring and follow-up support, never a diagnosis.

@@ -288,3 +288,51 @@ def test_sensor_data_stays_out_of_daily_and_the_patient_view():
     stone = next(s for s in view["privacy"]["sensors"] if s["id"] == "pulse_stone")
     assert stone["label"] == "Pulse stone"
     assert stone["shares"] == "Pulse, breathing rate and beat-to-beat variation as numbers from the finger sensor."
+
+
+# The breathing task's measured rate, tasks[].extra.breathing (Decisions I53): written only from real finger
+# readings, so the block has no simulated source.
+
+TASK_BREATHING = {
+    "source": "finger_ppg", "method": "pulse_rhythm", "guide_per_min": 6, "seconds": 20,
+    "rate_per_min": {"mean": 8.4, "min": 7, "max": 11, "first": 11, "last": 7, "samples": 16},
+    "pulse_bpm": {"mean": 71.2, "min": 69, "max": 74, "first": 74, "last": 70, "samples": 20},
+}
+
+
+def with_task_breathing(change=None):
+    doc = load(FIX / "session_example.json")
+    task = next(t for t in doc["tasks"] if t["id"] == "breath")
+    task["extra"] = {"breathing": json.loads(json.dumps(TASK_BREATHING))}
+    if change:
+        change(task["extra"]["breathing"])
+    return doc
+
+
+def test_task_breathing_valid_and_optional(session_schema):
+    assert errors(session_schema, with_task_breathing()) == []
+    assert errors(session_schema, with_task_breathing(lambda b: b.update(pulse_bpm=dict(EMPTY_STAT)))) == []
+    doc = load(FIX / "session_example.json")
+    assert all("breathing" not in (t.get("extra") or {}) for t in doc["tasks"])
+    assert errors(session_schema, doc) == []
+
+
+@pytest.mark.parametrize("key", sorted(TASK_BREATHING))
+def test_task_breathing_rejects_missing_required_key(session_schema, key):
+    assert errors(session_schema, with_task_breathing(lambda b: b.pop(key)))
+
+
+@pytest.mark.parametrize("key,value", [
+    ("source", "simulated"), ("source", "ky039"), ("source", "rppg"), ("source", None),
+    ("method", "chest_band"), ("guide_per_min", 0), ("guide_per_min", None), ("seconds", -1), ("seconds", 20.5),
+    ("rate_per_min", 8.4), ("rate_per_min", None), ("pulse_bpm", None),
+])
+def test_task_breathing_rejects_wrong_value(session_schema, key, value):
+    assert errors(session_schema, with_task_breathing(lambda b: b.update({key: value})))
+
+
+def test_task_breathing_rejects_unknown_key_and_loose_stat(session_schema):
+    assert errors(session_schema, with_task_breathing(lambda b: b.update(stress_level=3)))
+    assert errors(session_schema, with_task_breathing(lambda b: b.update(score=80)))
+    assert errors(session_schema, with_task_breathing(lambda b: b["rate_per_min"].pop("samples")))
+    assert errors(session_schema, with_task_breathing(lambda b: b["rate_per_min"].update(median=8)))
