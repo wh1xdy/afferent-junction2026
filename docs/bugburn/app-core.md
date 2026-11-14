@@ -66,6 +66,10 @@ from 4daecf6). `hub/tests/test_session_js_contract.py` and `test_contracts.py` (
   publish to `/api/export/publish` and the `/ws/clinic` refresh all used this address.
 - **Fix:** read `afferent.hub` raw and normalize as `patient.js` does, keeping the key.
 - **Verification:** `node demo/tests/qrexport.test.js` → `3 ok, 0 failed` (a and b failed before the fix).
+- **After the merge with main:** #82 (Show to my doctor as a link) rewrote `qrexport.js` with the same fix (`apiBase`
+  keeps the key, the saved address is read raw) and shows only the bare address, so main's version was kept and test
+  `a` expects the bare address on screen. The normaliser both files carried is now one helper, `A.hubApiBase` in
+  `util.js` (test `d`).
 
 ### 5–7. Low, not fixed
 - **5:** `new Date('YYYY-MM-DD')` is UTC midnight; with a negative UTC offset every `dayDate()` on the generated

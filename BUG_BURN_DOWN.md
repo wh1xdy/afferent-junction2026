@@ -39,7 +39,9 @@ platform-only for a non-target platform, or out of scope (vendored code).
 - **Reproduce:** `pytest tests/test_unoq_http.py tests/test_unoq_auto.py` → 25 failed, 2 errors, `ProactorEventLoop has no attribute _ssock`.
 - **Root cause:** the autouse `no_network` fixture replaced every `socket.connect`; on Windows `socket.socketpair()`
   (asyncio's self-pipe) is emulated with a loopback connect, so no event loop could be created.
-- **Fix:** the guard lets loopback through and still refuses anything else; `test_unoq_auto.py` reuses it instead of its own copy.
+- **Fix:** the guard lets through only the connect made inside `socket.socketpair()` and still refuses anything else,
+  loopback included; `test_unoq_auto.py` reuses it instead of its own copy. (Review follow-up: the first version let
+  every loopback connect through.)
 - **Verification:** both files pass.
 
 ### 4. Manifest test path separators — Low — Fixed
