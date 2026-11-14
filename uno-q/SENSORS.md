@@ -56,6 +56,10 @@ repository sends 6 bytes; the first four are unchanged, so a client that reads o
 - Capacitor plugin for the game app: `ios/App/App/AfferentFinger.swift` (connects only to a
   peripheral named `Afferent Finger`, subscribes without reading, so every value it reports is a
   fresh notification).
+- Android twin with the same JavaScript interface:
+  `android/app/src/main/java/fi/junction/afferent/AfferentFingerPlugin.kt` (rules in
+  `AfferentFingerLink.kt`, bytes in `AfferentFingerParser.kt`). Its logic is unit-tested on the
+  build machine; it has not been run on a phone or against the board yet.
 
 ## HTTP (Wendy Net, port 18080 on the mesh; 8080 inside the container)
 
