@@ -15,8 +15,9 @@
     if (r.static) return `<div class="li static${two}">${lead(r)}${text(r)}${r.val != null ? `<span class="val"${r.valId ? ` id="${r.valId}"` : ''}>${r.val}</span>` : ''}</div>`;
     return `<button type="button" class="li state${two}" ${r.attrs || ''}>${lead(r)}${text(r)}${r.val != null ? `<span class="val">${r.val}</span>` : ''}${r.chevron ? '<span class="ms trail" aria-hidden="true">chevron_right</span>' : ''}</button>`;
   };
+  const head = g => `<h3 class="subhead t-label">${g.title}${g.hint ? `<button type="button" class="icon-btn state" aria-label="${g.hint}" title="${g.hint}" data-hint><span class="ms">info</span></button>` : ''}</h3>`;
   const group = g => `<section class="set-group"${g.id ? ` id="${g.id}"` : ''}>
-    <h3 class="subhead t-label">${g.title}${g.hint ? `<button type="button" class="icon-btn state" aria-label="${g.hint}" title="${g.hint}" data-hint><span class="ms">info</span></button>` : ''}</h3>
+    ${g.bare ? '' : head(g)}
     <div class="group">${g.rows.map(row).join('')}</div>
   </section>`;
 
@@ -64,7 +65,7 @@
       { icon: 'description', label: 'What is in an export', sup: 'A summary: lanterns, play times, sensor numbers', supId: 'sharingState', static: true },
     ] },
     // The address comes from the hub screen and is long (it carries the hub's key after /k/), so it can be pasted in one tap.
-    { page: 'hub', title: 'Home hub', rows: [{ html: `<form id="hubForm" class="hub-card">
+    { page: 'hub', title: 'Home hub', bare: true, rows: [{ html: `<form id="hubForm" class="hub-card">
       <div class="hub-row"><div class="field"><input id="hubAddr" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000/k/…"><label for="hubAddr">Hub address</label></div><button type="button" id="hubPaste" class="btn tonal small state">Paste</button></div>
       <p id="hubState" class="hub-state t-body-m" role="status" data-state="none">Not set</p>
       <p class="t-body-s muted hub-help">The address is on the hub screen. It ends in /k/ and a code.</p>
@@ -139,17 +140,16 @@
   const SUMMARY = {
     sound: () => `${on('soundSw') ? 'Sound on' : 'Sound off'} · ${on('hapticSw') ? 'Vibration on' : 'Vibration off'}`,
     sensors: () => {
-      const all = [...document.querySelectorAll('#setPage-sensors [data-sensor]')], stone = all.find(x => x.getAttribute('data-sensor') === 'pulse_stone');
-      const clips = !stone?.checked ? 'Finger clips off' : A.Sensors?.fingerLink?.state === 'connected' ? 'Finger clips connected' : 'Finger clips not connected';
-      return `${clips} · ${all.filter(x => x.checked).length} of ${all.length} on`;
+      const stone = document.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
+      return !stone?.checked ? 'Finger clips off' : A.Sensors?.fingerLink?.state === 'connected' ? 'Finger clips connected' : 'Finger clips not connected';
     },
     session: () => `Clip check: ${lower(said('clipState')) || 'not checked yet'}`,
     mornings: () => {
       const pause = said('pauseVal');
-      return [on('checkinSw') ? 'Check-in every 14 days' : 'Check-in off',
+      return [on('checkinSw') ? 'Check-in on' : 'Check-in off',
         pause && pause !== 'Off' ? `Paused ${lower(pause)}` : on('remindSw') ? `Reminder at ${$('wakeIn')?.value || '07:00'}` : 'No reminder'].join(' · ');
     },
-    clinic: () => (/paused/i.test(said('sharingState')) ? 'Sharing is paused' : 'A summary, only when you show it'),
+    clinic: () => (/paused/i.test(said('sharingState')) ? 'Sharing is paused' : 'Only when you show it'),
     hub: () => said('hubState') || 'Not set',
     about: () => `How it works · Afferent ${A.config?.appVersion || ''}`.trim(),
   };

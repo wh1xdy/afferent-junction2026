@@ -237,6 +237,7 @@
 .set-page .title:focus { outline: none; }
 @keyframes pageIn { from { transform: translateX(100%); } to { transform: none; } }
 /* Home hub: the address with a Paste button, and what the hub says under it */
+.set-page .set-group:first-child > .group:first-child { margin-top: 16px; }
 .hub-card { display: flex; flex-direction: column; gap: 10px; padding: 22px 16px 12px; }
 .hub-row { display: flex; align-items: center; gap: 8px; }
 .hub-row .field { flex: 1; min-width: 0; }
