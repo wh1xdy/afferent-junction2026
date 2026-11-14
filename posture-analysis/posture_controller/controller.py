@@ -218,6 +218,36 @@ def _wait_model_ready(job: dict, timeout: float = MODEL_READY_TIMEOUT_S) -> None
     raise TimeoutError(f"model was not ready within {timeout:g}s")
 
 
+def _wait_inbox(job: dict, timeout: float = ANALYZER_RUN_TIMEOUT_S):
+    deadline = time.monotonic() + timeout
+    previous = None
+    while time.monotonic() < deadline:
+        try:
+            code, status = _analyzer_json("/status")
+        except Exception:
+            time.sleep(MODE_POLL_S)
+            continue
+        if code == 200:
+            inbox = status.get("inbox")
+            if not isinstance(inbox, dict) or not inbox.get("enabled"):
+                return None
+            state = str(inbox.get("state") or "unknown")
+            detail = str(inbox.get("detail") or "")
+            current = (state, detail)
+            if current != previous:
+                message = f"inbox state={state}"
+                if detail:
+                    message += f": {detail}"
+                _job_log(job, "wait_inbox", message)
+                previous = current
+            if state == "done":
+                return inbox
+            if state == "error":
+                raise RuntimeError(f"inbox failed: {detail or 'unknown error'}")
+        time.sleep(MODE_POLL_S)
+    raise TimeoutError(f"analyzer inbox did not finish within {timeout:g}s")
+
+
 def _run_batch(job: dict, rescore: bool) -> dict:
     code, response = _analyzer_json("/analyze", "POST", {"rescore": rescore})
     if code == 409:
@@ -273,11 +303,25 @@ def _transcription_job(job: dict, run: bool, rescore: bool,
         _wendy("device", "apps", "start", ANALYZER_APP, "--detach")
         _wait_analyzer_health(job)
         if run:
-            _job_log(job, "wait_model", "waiting for model readiness")
-            _wait_model_ready(job)
-            result = _run_batch(job, rescore)
-            if result.get("last_error"):
-                raise RuntimeError(f"analyzer batch failed: {result['last_error']}")
+            inbox_result = _wait_inbox(job)
+            if inbox_result is None:
+                _job_log(job, "wait_model", "waiting for model readiness")
+                _wait_model_ready(job)
+                result = _run_batch(job, rescore)
+                if result.get("last_error"):
+                    raise RuntimeError(
+                        f"analyzer batch failed: {result['last_error']}")
+            else:
+                result = inbox_result
+                if rescore:
+                    _job_log(job, "rescore", "running requested rescore batch")
+                    rescore_result = _run_batch(job, True)
+                    if rescore_result.get("last_error"):
+                        raise RuntimeError(
+                            "analyzer rescore failed: "
+                            f"{rescore_result['last_error']}")
+                    result = {"inbox": inbox_result,
+                              "rescore": rescore_result}
         else:
             result = {"started": True}
         if return_to_posture:

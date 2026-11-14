@@ -21,6 +21,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -59,6 +60,12 @@ def create_app(cfg_path: str | None = None) -> FastAPI:
         if (fetcher is not None and cfg.model.auto_fetch
                 and not fetcher.ready):
             fetcher.fetch()
+        if cfg.hub_transcripts_dir:
+            app.state.inbox_thread = threading.Thread(
+                target=runner.consume_inbox,
+                name="hub-transcript-inbox",
+                daemon=True)
+            app.state.inbox_thread.start()
         app.state.scheduler_task = asyncio.create_task(
             nightly_loop(cfg, runner))
 

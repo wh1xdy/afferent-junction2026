@@ -1,7 +1,12 @@
 # Jetson edge deployment — llama-server backend; posture_controller swaps GPU apps.
 transcripts_dir: /data/transcripts
+hub_transcripts_dir: /hub-data/transcripts
+inbox_settle_s: 2.0
+inbox_retry_s: 30.0
 db_path: /data/analyzer.db
 target_speaker: target
+exclusive_probe_urls:
+  - http://10.99.0.2:8000/api/status
 max_window_turns: 120
 window_overlap: 15
 window_max_chars: 9000
@@ -9,14 +14,14 @@ baseline_days: 28
 
 model:
   backend: llamaserver
-  path: /data/models/Qwen3-8B-Q4_K_M.gguf
+  path: /app/models/Qwen3-8B-Q4_K_M.gguf
   # Base model only: on the held-out test split the run-1/run-2 adapters do
   # not beat it (training/work_dirs/run2/eval). Set to an adapter GGUF to opt in.
   lora_path: ""
   n_ctx: 5120                               # prompt <= ~3.5k tokens + output
   n_gpu_layers: -1                          # all layers on the Orin iGPU
   server_args: ["-fa", "-ctk", "q8_0", "-ctv", "q8_0"]
-  auto_fetch: true
+  auto_fetch: false
   min_free_gb: 5.8
   temperature: 0.2
   max_tokens: 1200                          # base model writes long evidence

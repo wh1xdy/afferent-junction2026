@@ -33,16 +33,38 @@ Downloaded videos land in `jetson_downloads/` (gitignored).
 ## GPU mode and app swapping
 
 The Orin Nano has 8 GB of unified memory. The posture camera pipeline and the
-Qwen3-8B analyzer cannot safely hold the GPU/RAM at the same time. The controller
-therefore serializes the swap:
+Qwen3-8B analyzer must never compute at the same time. The controller is the
+mode switch and serializes the swap:
 
 1. Stop `afferent-posture` and wait until Wendy reports it is no longer running.
-2. Start `afferent-transcription-analyzer`; wait for `/health` and, for a batch,
-   wait until `/status` reports the model `ready` (first launch may fetch about
-   5 GB).
-3. Optionally POST `/analyze` and wait for its result.
+2. Start `afferent-transcription-analyzer` and wait for `/health`. If
+   `/status` reports the shared-volume inbox enabled, the analyzer claims and
+   analyzes hub transcripts automatically; the controller waits for the inbox
+   state to become `done` or `error`. Otherwise, a batch waits for model
+   readiness and uses `POST /analyze`.
+3. An optional rescore runs the regular `POST /analyze` batch after the inbox
+   finishes.
 4. Stop the analyzer and start posture again. Failures also attempt to restore
    posture unless the request explicitly asks to stay in transcription mode.
+
+The hub writes JSONL files into its `afferent-home-hub` Wendy persistent
+volume. The analyzer mounts that same volume at `/hub-data`; no transcript
+HTTP upload is needed for this flow. Claimed files end in `.analyzing`. After
+successful analysis the source file is deleted from the hub volume; files
+with parse or scoring errors are renamed `.failed` for inspection. Claims
+left by a crash are retried on the next analyzer start.
+
+The Jetson image includes the Qwen3-8B base GGUF because Wendy mesh-mode apps
+have no internet egress. Before deploying, download
+`Qwen/Qwen3-8B-GGUF:Qwen3-8B-Q4_K_M.gguf` on a development machine and copy it
+to `Transcription_analyzer/analyzer/models/`; see the analyzer README for the
+exact command. Runtime model fetching is disabled in the Jetson config.
+
+The analyzer also probes the posture status API before loading its model and
+at most every 10 seconds during a batch. Any HTTP response below 500 blocks
+computation; an in-progress batch aborts and unloads the model, leaving inbox
+claims for retry after the controller switches to transcription. The 5.8 GB
+memory preflight is an independent guard, not the mutual-exclusion mechanism.
 
 The dashboard's **Run transcription analysis** button runs the full sequence
 and returns to posture. **Switch to transcription (stay)** starts the analyzer
