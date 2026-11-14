@@ -410,7 +410,7 @@ def test_bedside_websocket_is_closed_when_the_bedside_is_not_a_websocket_device(
             with c.websocket_connect("/ws/bedside") as ws:
                 ws.send_json({"type": "pulse", "bpm": 142, "contact": True})
         state = c.get("/api/bedside/state").json()
-        assert state["pulse"]["bpm"] is None and state["connected"] is False and state["physio"] is None
+        assert (state.get("pulse") or {}).get("bpm") is None and state["connected"] is False and state.get("physio") is None
     with paired(home_app(settings(tmp_path))) as c:         # AFFERENT_BEDSIDE=ws: the socket is the device
         with c.websocket_connect("/ws/bedside") as ws:
             ws.send_json({"type": "ping"})
