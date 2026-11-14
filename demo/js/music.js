@@ -13,6 +13,16 @@
   const MAX_HRTF = 6, STINGER_BUDGET = 4, MIN_GAP = 8;
   const ROUTE_KEY = 'afferent.audio.route';
   const safe = f => (...a) => { try { return f(...a); } catch (e) { console.warn('music', e); } };
+  // Music that follows the heart (biomusic.js plays it). It needs a real pulse: quality 0.3 or more, at most 3 s old,
+  // never a simulated one, for 2 s before it starts. Its tempo starts at the pulse and moves at most 1 bpm in 12 s,
+  // never more than 10 bpm away from the heart. Without a reading for 6 s the mode's own music comes back.
+  const BIO = { START_S: 2, LOSE_S: 6, RATE: 1 / 12, LEAD: 10, XF: 6, MIN: 44, MAX: 140, FRESH_S: 3, MIN_Q: 0.3, TAU: 4, RESUME_S: 60 };
+  const BIO_MODES = new Set(['calm', 'flow', 'wake', 'fatigue', 'rest']), BIO_PHASES = new Set(['walk', 'game']);
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const r1 = x => Math.round(x * 10) / 10;
+  // What the "Live vitals" panel reads: following (the music follows a real pulse right now), bpm (the music's tempo),
+  // target (the tempo it is leading towards). bpm and target are null while no generated music plays.
+  const BioOut = A.MusicBio = { following: false, bpm: null, target: null };
 
   const hold = (p, t) => {
     if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t);
@@ -25,7 +35,7 @@
   const M = A.Music = {
     ctx: null, bus: {}, tracks: {}, buf: {}, missing: [], ready: false, manifest: null,
     route: 'speaker', latency: 0, hrtfUsed: 0, routeFns: [],
-    s: null, bed: null, want: null, gen: 0, colours: {}, pending: null, lastSwap: -99, swayAt: 0,
+    s: null, bed: null, want: null, gen: 0, colours: {}, pending: null, lastSwap: -99, swayAt: 0, bios: [],
 
     init() {
       if (this.ctx) return this.ctx;
@@ -131,6 +141,7 @@
     padKey(mode) { return mode && this.find(t => t.role === 'bed' && t.mode === mode && (t.layer || 'pad') === 'pad'); },
     motionKey(mode) { return mode && this.find(t => t.role === 'bed' && t.mode === mode && t.layer && t.layer !== 'pad'); },
     owns(mode) {
+      if (this.bed?.bio) return true;
       const k = this.padKey(this.s?.measuring ? 'kaamos' : mode);
       return !!(k && this.buf[k]);
     },
@@ -198,10 +209,14 @@
 
     grid() {
       const b = this.bed, s = this.s, mode = s?.measuring ? 'kaamos' : s?.mode || 'flow';
+      const lat = (this.ctx?.outputLatency || this.ctx?.baseLatency || 0) + this.latency;
+      if (b?.bio) {
+        const y = b.synth;
+        return { bpm: y.bpm, beatsPerBar: 4, t0: y.t0, nextBeat: t => y.nextBeat(t), nextBar: t => y.nextBar(t), latency: lat };
+      }
       const [bpm, beatsPerBar] = b?.grid ? [b.grid.bpm, b.grid.beatsPerBar] : TEMPO[mode] || TEMPO.flow;
       const t0 = b?.grid?.t0 ?? s?.t0 ?? 0, beat = 60 / bpm, bar = beat * beatsPerBar;
       const up = (t, step) => t0 + Math.ceil((t - t0) / step - 1e-6) * step;
-      const lat = (this.ctx?.outputLatency || this.ctx?.baseLatency || 0) + this.latency;
       return { bpm, beatsPerBar, t0, nextBeat: t => up(t, beat), nextBar: t => up(t, bar), latency: lat };
     },
 
@@ -209,6 +224,7 @@
       return {
         night, t0: t, phase: 'fadein', mode: null, measuring: true, colours: 0, stingers: 0, opened: false,
         panel: false, breath: false, stingerUntil: 0, tier: 0, k: 0, modeAt: t, restCycles: 0, dawnAt: null, ended: false, kaamosDone: false,
+        bio: { hr: null, hrAt: -99, since: null, bpm: null, aim: null, at: null, endAt: -99 },
       };
     },
     homeDb(night) { return night ? -21 : -18; },
@@ -320,6 +336,12 @@
     async swap(key, kind, opt = {}) {
       const s = this.s;
       if (!s || s.ended) return;
+      if (!opt.handback && BIO_MODES.has(key) && !s.measuring) {
+        const now = this.ctx.currentTime, cur = this.bed?.bio && !this.bed.leaving && this.bed.out == null ? this.bed : null;
+        // While the music follows the heart a new mode only changes its voice; with a pulse ready it starts instead of the bed.
+        if (cur) { this.gen++; this.want = key; cur.mode = key; cur.synth.setVoice(this.bioVoice(key, s.night)); this.lastSwap = now; return; }
+        if (this.bioReady(s, now)) { this.want = key; this.takeover(now, kind); return; }
+      }
       const gen = ++this.gen;
       this.want = key;
       await this.listed;
@@ -383,6 +405,94 @@
       v.srcs.forEach(src => { try { src.stop(end + 0.1); } catch {} });
       clearTimeout(v.unplug);
       v.unplug = setTimeout(() => [...v.srcs, ...v.fades].forEach(n => { try { n.disconnect(); } catch {} }), (end - now + 0.3) * 1000);
+    },
+
+    // The pulse that may drive the music: the same rule as the breathing task's (breathing.js). The reading must come
+    // from a sensor (never the simulator, nor a session locked to it), with a quality of 0.3 or more, at most 3 s old.
+    realPulse() {
+      const S = A.Sensors, t = A.now?.();
+      if (!S?.pulse || !Number.isFinite(t) || S.pulseMode === 'simulated') return null;
+      const p = S.pulse(t);
+      if (!p || !p.source || p.source === 'simulated' || !(p.quality >= BIO.MIN_Q)) return null;
+      if (Number.isFinite(p.at) && t - p.at >= BIO.FRESH_S) return null;
+      return Number.isFinite(p.bpm) && p.bpm >= 40 && p.bpm <= 150 ? p.bpm : null;
+    },
+    restPulse() { return A.session?.rest ?? A.Hub?.config?.baseline_pulse_bpm ?? A.config?.baselinePulse ?? 68; },
+    // Play only: never on the start screen, in the measurements, at dawn or with the sound off.
+    bioOk(s) {
+      return !!A.BioSynth && Au.on !== false && !!s && !s.ended && !s.home && s.opened && !s.measuring && s.dawnAt == null
+        && BIO_PHASES.has(s.phase) && BIO_MODES.has(s.mode);
+    },
+    bioReady(s, now) { return this.bioOk(s) && s.bio.since != null && now - s.bio.since >= BIO.START_S; },
+    // Stressed: calm. Energised: bright. Tired by day: lift. Tired at night: drone. Anything else at night: calm.
+    bioVoice(mode, night) { return mode === 'rest' ? 'drone' : night || mode === 'calm' ? 'calm' : mode === 'flow' ? 'bright' : 'lift'; },
+    // Where the tempo leads (the iso principle): down to the rest pulse when stressed or at night, a little under the
+    // heart when energised, up to the mode's tempo when tired by day.
+    bioAim(mode, night, hr, rest) {
+      if (mode === 'rest') return Math.max(TEMPO.rest[0], Math.min(rest, hr) - 6);
+      if (night || mode === 'calm') return Math.max(TEMPO.calm[0], Math.min(rest, hr - 4));
+      if (mode === 'flow') return Math.max(rest, hr - 5);
+      return Math.max(hr, TEMPO[mode][0]);
+    },
+
+    // The generated music takes the bed's place: the bed fades out on its next bar while the music fades in.
+    takeover(now, kind) {
+      const s = this.s, b = s.bio, old = this.bed, ctx = this.ctx, mode = s.mode;
+      this.gen++; this.pending = null; this.want = mode;
+      const file = !!old && !old.procedural, g = this.grid();
+      const when = file ? Math.max(now + 0.05, kind === 'answer' ? g.nextBeat(now) : g.nextBar(now)) : now + 0.05, xf = file ? BIO.XF : 3;
+      // It starts at the heart. Back within a minute, it carries on where it was if that lies between the heart and
+      // where it leads, so a measurement in between does not undo the way down.
+      b.aim = clamp(this.bioAim(mode, s.night, b.hr, this.restPulse()), BIO.MIN, BIO.MAX);
+      const goal = clamp(b.aim, b.hr - BIO.LEAD, b.hr + BIO.LEAD);
+      const back = b.bpm != null && now - b.endAt < BIO.RESUME_S ? clamp(b.bpm, Math.min(b.hr, goal), Math.max(b.hr, goal)) : b.hr;
+      b.bpm = clamp(back, BIO.MIN, BIO.MAX);
+      const fade = ctx.createGain(), w = this.widthNode();
+      fade.gain.value = 0; fade.connect(w.input); w.output.connect(this.bus.beds);
+      const synth = A.BioSynth.create(ctx, { out: fade, at: when, bpm: b.bpm, voice: this.bioVoice(mode, s.night), night: s.night, seed: (R() * 2147483647) | 0 });
+      fade.gain.setValueCurveAtTime(eq(true), when, xf);
+      const v = { key: 'bio', bio: true, procedural: false, mode, synth, srcs: synth.srcs, fades: [fade], w, fadeEnd: when + xf };
+      if (file) this.fadeBed(old, when, xf);
+      this.bed = v; this.bios.push(v); this.lastSwap = now;
+      this.width(); this.keep();
+    },
+
+    // The mode's own music comes back, as after any other change of bed.
+    handback(now) {
+      const s = this.s, v = this.bed;
+      v.leaving = true; s.bio.endAt = now;
+      this.pending = null;
+      this.swap(s.measuring ? 'kaamos' : s.mode, 'drift', { handback: true });
+    },
+
+    // Every tick: read the pulse, start or stop the generated music, move its tempo, schedule its beats.
+    follow(now) {
+      const s = this.s;
+      this.bios = this.bios.filter(v => v.out == null || now < v.out + 0.5);
+      let cur = this.bed?.bio ? this.bed : null, hr = null;
+      if (s && !s.ended && !s.home) {
+        const b = s.bio, dt = b.at == null ? 0 : clamp(now - b.at, 0, 0.5);
+        b.at = now;
+        hr = this.realPulse();
+        if (hr != null) {
+          b.hr = b.hr == null || now - b.hrAt > BIO.LOSE_S ? hr : A.ema(b.hr, hr, dt, BIO.TAU);
+          b.hrAt = now; b.since ??= now;
+        } else b.since = null;
+        const ok = this.bioOk(s);
+        if (!cur && ok && this.bioReady(s, now) && !this.pending && this.want === s.mode && (!this.bed || this.bed.procedural || now - this.lastSwap >= MIN_GAP)) this.takeover(now, 'drift');
+        else if (cur && !cur.leaving && this.want === cur.mode && !this.pending && (!ok || now - b.hrAt >= BIO.LOSE_S)) this.handback(now);
+        cur = this.bed?.bio ? this.bed : null;
+        if (cur && hr != null && ok) {
+          b.aim = clamp(this.bioAim(cur.mode, s.night, b.hr, this.restPulse()), BIO.MIN, BIO.MAX);
+          const goal = clamp(b.aim, b.hr - BIO.LEAD, b.hr + BIO.LEAD), max = BIO.RATE * dt;
+          b.bpm = clamp(b.bpm + clamp(goal - b.bpm, -max, max), BIO.MIN, BIO.MAX);
+        }
+      }
+      BioOut.following = !!cur && !cur.leaving && hr != null && this.bioOk(s);
+      BioOut.bpm = cur && s ? r1(s.bio.bpm) : null;
+      BioOut.target = cur && s ? r1(s.bio.aim) : null;
+      const opt = { breath: !!s?.breath, reduced: !!A.config?.reducedMotion };
+      for (const v of this.bios) v.synth.step(now, v === cur && s ? s.bio.bpm : v.synth.bpm, { ...opt, until: v.out });
     },
 
     widthNode() {
@@ -632,6 +742,7 @@
       if (!this.ctx) return;
       const s = this.s, now = this.ctx.currentTime;
       if (on !== this.lastOn) { this.lastOn = on; ease(this.bus.mix.gain, on ? 1 : 0, 0.1, now); }
+      this.follow(now);
       if (!s) return;
       this.flush();
       if (now - this.swayAt >= 0.1) { this.swayAt = now; this.sway(now); }
@@ -664,6 +775,7 @@
         mode: this.s?.mode ?? null, measuring: !!this.s?.measuring, bed: this.bed?.key ?? null, procedural: !this.bed || !!this.bed.procedural,
         loaded: Object.keys(this.buf), missing: this.manifest ? this.missing : ['manifest'], memMB: Math.round(mem * 10) / 10,
         route: this.route, state: this.ctx?.state ?? 'none', colours: this.s?.colours ?? 0,
+        bio: this.bed?.bio ? { voice: this.bed.synth.voice, ...BioOut } : null,
       };
     },
   };
