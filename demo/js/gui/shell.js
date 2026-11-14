@@ -66,7 +66,7 @@
     ] },
     // The address comes from the hub screen and is long (it carries the hub's key after /k/), so it can be pasted in one tap.
     { page: 'hub', title: 'Home hub', bare: true, rows: [{ html: `<form id="hubForm" class="hub-card">
-      <div class="hub-row"><div class="field"><input id="hubAddr" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000/k/…"><label for="hubAddr">Hub address</label></div><button type="button" id="hubPaste" class="btn tonal small state">Paste</button></div>
+      <div class="hub-row"><div class="field"><input id="hubAddr" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="192.168.1.20:8000/k/…"><label for="hubAddr">Hub address</label></div><button type="button" id="hubPaste" class="btn tonal small state">Paste</button></div>
       <p id="hubState" class="hub-state t-body-m" role="status" data-state="none">Not set</p>
       <p class="t-body-s muted hub-help">The address is on the hub screen. It ends in /k/ and a code.</p>
       <div class="hub-actions"><button class="btn filled small state" type="submit">Connect</button></div>
