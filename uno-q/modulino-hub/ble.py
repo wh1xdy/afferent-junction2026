@@ -9,6 +9,8 @@ The standard service carries the fused reading of both sensors. Each sensor is o
   AFF0 / AFF1  notify/read  v2, 6 bytes:
       [bpm finger 1, bpm finger 2, breaths/min, RMSSD ms, quality %, presence code]
       bytes 0..3: 0 = no reading (unchanged from the 4-byte v1, so old clients keep working)
+      byte 3:     RMSSD 1..254 ms; 255 = above 254 ms, which one byte cannot carry. It is a
+                  marker, not a reading of 255 ms: a client shows "no reading" (/state has the number)
       byte 4:     fused rhythm quality * 100 (0..100), 255 = not available
       byte 5:     1 idle, 2 probing, 3 active, 0 unknown
   breaths/min comes from the heart-rate rhythm (respiratory sinus arrhythmia)
@@ -31,6 +33,7 @@ AFF_BOTH = "0000aff1-0000-1000-8000-00805f9b34fb"
 
 PRESENCE_CODE = {'idle': 1, 'probing': 2, 'active': 3}      # AFF1 byte 5; 0 = unknown
 QUALITY_NA = 255                                            # AFF1 byte 4 when there is no quality
+RMSSD_OVER = 255                                            # AFF1 byte 3: RMSSD above 254 ms, not a reading
 
 
 def _u8(v):
@@ -41,6 +44,16 @@ def _u8(v):
         return 0
 
 
+def rmssd_byte(rmssd_ms):
+    """RMSSD in ms -> AFF1 byte 3: 0 = no reading, 1..254 = ms, RMSSD_OVER = above 254 ms.
+    The byte used to saturate, so 310 ms reached the phone as a measured "255 ms"."""
+    try:
+        v = int(round(float(rmssd_ms)))
+    except (TypeError, ValueError):
+        return 0
+    return RMSSD_OVER if v > 254 else max(0, v)
+
+
 def pack_aff1(bpm, breath, rmssd, quality, mode) -> bytearray:
     """AFF1 v2 payload. bpm = [finger 1, finger 2]; quality 0..1 or None; mode = presence mode."""
     fingers = list(bpm or [])[:2] + [0, 0]
@@ -48,7 +61,7 @@ def pack_aff1(bpm, breath, rmssd, quality, mode) -> bytearray:
         q = QUALITY_NA if quality is None else max(0, min(100, int(round(float(quality) * 100))))
     except (TypeError, ValueError):
         q = QUALITY_NA
-    return bytearray([_u8(fingers[0]), _u8(fingers[1]), _u8(breath), _u8(rmssd),
+    return bytearray([_u8(fingers[0]), _u8(fingers[1]), _u8(breath), rmssd_byte(rmssd),
                       q, PRESENCE_CODE.get(mode, 0)])
 
 
@@ -119,7 +132,7 @@ class HeartRateBroadcaster:
             self._notify()
 
     def update_hrv(self, rmssd_ms):
-        v = max(0, min(255, int(round(rmssd_ms))))
+        v = rmssd_byte(rmssd_ms)
         if v != self._rmssd:
             self._rmssd = v
             self._notify()

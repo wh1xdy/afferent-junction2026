@@ -86,6 +86,21 @@ class PackAff1(unittest.TestCase):
     def test_rmssd_is_rounded(self):
         self.assertEqual(ble.pack_aff1([0, 0], 0, 45.6, None, None)[3], 46)
 
+    def test_rmssd_above_the_byte_is_a_marker_not_a_reading_of_255(self):
+        self.assertEqual(ble.RMSSD_OVER, 255)
+        self.assertEqual(ble.pack_aff1([0, 0], 0, 254.4, None, None)[3], 254, "the largest real reading")
+        for over in (254.6, 255, 255.4, 310.4, 2000):
+            self.assertEqual(ble.pack_aff1([0, 0], 0, over, None, None)[3], ble.RMSSD_OVER)
+        self.assertEqual(ble.rmssd_byte(None), 0)
+        self.assertEqual(ble.rmssd_byte(0.4), 0)
+        b = recorder()
+        b.update_hrv(310.4)
+        self.assertEqual(b.pushed[-1][0][3], ble.RMSSD_OVER)
+        b.update_hrv(400)                                    # still above range: nothing new to say
+        self.assertEqual(len(b.pushed), 1)
+        b.update_hrv(120.2)
+        self.assertEqual(b.pushed[-1][0][3], 120)
+
     def test_no_bless_import_at_module_level(self):
         # pack_aff1 must be usable without Bluetooth: bless is imported only inside _start
         self.assertNotIn("bless", sys.modules)

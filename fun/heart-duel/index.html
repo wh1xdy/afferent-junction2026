@@ -329,7 +329,7 @@ const HeartDuel = (() => {
       if (beat && (changed || !otherChanged)) p.beatAt = nowMs;
     }
     tr.breath = b[2] === 0 ? null : b[2];
-    tr.hrv = b[3] === 0 ? null : b[3];
+    tr.hrv = b[3] === 0 || b[3] === 255 ? null : b[3];   // 255 = above 254 ms, not a reading
     tr.prev = b;
     tr.packetAt = nowMs;
     return tr;

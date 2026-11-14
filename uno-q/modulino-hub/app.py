@@ -459,7 +459,7 @@ def _forget_beats():
 def reset_live_metrics():
     """No finger: forget the live breathing and HRV numbers. update_breathing / update_hrv run
     only while sensing, so without this /state kept the last values for as long as nobody wore
-    the clip. The personal RMSSD baseline (and the history behind it) is kept."""
+    the clip. The running RMSSD median (and the history behind it) is kept."""
     with lock:
         breathing.update(per_minute=None, snr=None, channel=None)
         hrv.update(rmssd_ms=None, sdnn_ms=None, mean_bpm=None, pairs=0, channel=None, vs_baseline=None)
@@ -592,7 +592,8 @@ def rsa_debug(c):
 # the local median of their neighbours (missed / double beats), are dropped.
 hrv = {"rmssd_ms": None, "sdnn_ms": None, "mean_bpm": None, "pairs": 0, "channel": None,
        "baseline_rmssd_ms": None, "vs_baseline": None}
-_hrv_history = collections.deque(maxlen=600)          # (t, rmssd), ~10 min, for a personal baseline
+_hrv_history = collections.deque(maxlen=600)          # (t, rmssd), ~10 min, for the running median
+                                                      # (of this sensor, whoever wears it: not per person)
 
 
 def refine_beat(c, t_ms):

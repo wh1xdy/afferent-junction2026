@@ -11,7 +11,8 @@ struct FingerAff1: Equatable {
     let finger2: Int?
     /// breaths per minute, from the heart-rate rhythm
     let breathing: Int?
-    /// HRV: RMSSD in milliseconds
+    /// HRV: RMSSD in milliseconds, 1...254. nil also when the board sent 255, which means
+    /// "above 254 ms" (one byte cannot carry it) and is not a reading of 255 ms.
     let rmssd: Int?
     /// fused rhythm quality 0...1. nil when the payload has no quality byte (4-byte v1 firmware)
     /// or the board says "not available" (255). Unknown is never reported as a number.
@@ -25,6 +26,8 @@ struct FingerAff1: Equatable {
 enum AfferentFingerParser {
     /// The only peripheral this app reads a finger pulse from.
     static let deviceName = "Afferent Finger"
+    /// AFF1 byte 3 when RMSSD is above 254 ms (uno-q/modulino-hub/ble.py RMSSD_OVER).
+    static let rmssdOverRange = 255
 
     /// Heart Rate Measurement (0x2A37): flags bit 0 = 16-bit value. 0 = no reading -> nil.
     static func heartRate(_ data: Data?) -> Int? {
@@ -41,7 +44,8 @@ enum AfferentFingerParser {
     }
 
     /// AFF1: [finger 1 bpm, finger 2 bpm, breaths/min, RMSSD ms, quality %, presence code].
-    /// Bytes 0...3: 0 = no reading. Byte 4: 0...100, 255 (or anything above 100) = not available.
+    /// Bytes 0...3: 0 = no reading. Byte 3 (RMSSD): 255 = above 254 ms -> nil, never "255 ms".
+    /// Byte 4: 0...100, 255 (or anything above 100) = not available.
     /// Byte 5: 1 idle, 2 probing, 3 active, anything else = unknown.
     /// nil below 2 bytes; a byte that was not sent gives a nil field.
     static func aff1(_ data: Data?) -> FingerAff1? {
@@ -51,6 +55,8 @@ enum AfferentFingerParser {
             guard i < b.count, b[i] > 0 else { return nil }
             return Int(b[i])
         }
+        var rmssd = reading(3)
+        if rmssd == rmssdOverRange { rmssd = nil }
         var quality: Double?
         if b.count >= 5, b[4] <= 100 {
             quality = Double(b[4]) / 100.0
@@ -65,7 +71,7 @@ enum AfferentFingerParser {
             }
         }
         return FingerAff1(finger1: reading(0), finger2: reading(1), breathing: reading(2),
-                          rmssd: reading(3), quality: quality, presence: presence, length: b.count)
+                          rmssd: rmssd, quality: quality, presence: presence, length: b.count)
     }
 
     /// True only for our own board: the advertised name or the peripheral's name is exactly
