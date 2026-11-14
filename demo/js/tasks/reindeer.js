@@ -84,7 +84,10 @@
             const env = clamp(T / 0.5, 0, 1) * clamp((MOVE - T) / 0.5, 0, 1);
             this.move(dt, A.ease(env));
             if (T >= MOVE) { this.go('pick', now); sfx('reindeer_stop'); }
-          } else if (this.phase === 'pick' && T >= PICK_MAX) this.endRound(now);
+          } else if (this.phase === 'pick' && T >= PICK_MAX) {
+            if (this.b) { const F = this.field(this.b); for (const d of this.deer) if (d.tgt && d.pick === null) { const p = this.px(d, F); J.verdict('miss', p.x, p.y - F.s * 0.3, F.s * 1.2); } }
+            this.endRound(now);
+          }
           else if (this.phase === 'reveal' && T >= REVEAL) this.go('intro', now);
         },
 
@@ -100,6 +103,7 @@
           best.pick = best.tgt; best.litAt = J.at;
           this.picks.push({ round: this.r, ok: best.tgt, rt });
           const p = this.px(best, F);
+          J.verdict(best.tgt ? 'right' : 'wrong', p.x, p.y - F.s * 0.3, F.s * 1.2);
           if (best.tgt) {
             fx.burst(p.x, p.y - F.s * 0.6, 10, C.glow, 140 * F.U, { kind: 'spark', size: [4 * F.U, 1] });
             J.bloom(p.x, p.y, F.s * 3, C.warm, 0.35, 0.12, 0.4);

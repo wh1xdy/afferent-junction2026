@@ -153,6 +153,8 @@
           const tg = this.target();
           this.errors++; s.counted = true; s.wob = this.at ?? J.at;
           if (tg) tg.breathe = this.at ?? J.at;
+          J.verdict('wrong', s.x, s.y, s.hit);
+          if (tg) J.verdict('miss', tg.x, tg.y, tg.hit);
           this.gaps.push(s.rank - (tg ? tg.rank : this.n));
           this.flags.wrong = true;
           hap('miss'); sfx('stars_wrong');
@@ -161,6 +163,7 @@
         commit(s, t, how) {
           const at = this.at ?? J.at, i = this.items, prev = this.lastLit(), U = this.lay().U;
           s.on = at; s.inside = false; s.counted = false;
+          J.verdict('right', s.x, s.y, s.hit);
           if (how === 'tap') s.snap = null;
           this.items++; this.next++; if (i > 0) this.inputs.add(how); this.lastIn = this.t; this.hintAt = this.t;
           let grade = null;

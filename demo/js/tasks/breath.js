@@ -95,6 +95,7 @@
           this.touched = true; this.downAt = this.at ?? A.now(); this.drift = 0;
           J.hap('touch');
           const p = this.geo();
+          J.verdict('ok', p.x, p.y, 44 * p.u);
           J.bloom(p.x, p.y, 70 * p.u, this.endless ? C.ice : C.glow, 0.28, 0.15, 0.5);
           J.sfx('breath_wind', { on: true });
         },

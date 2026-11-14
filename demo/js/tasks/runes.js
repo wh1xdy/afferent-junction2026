@@ -70,11 +70,15 @@
           return { U, tiles, btns };
         },
 
+        mark(kind, mirror) { if (this.b) { const Q = this.layout(this.b).btns[mirror ? 1 : 0]; J.verdict(kind, Q.cx, Q.cy, Q.h * 0.75); } },
+
         respond(mirror, t) {
           const c = this.cur();
           if (!c || c.resp !== null) return;
           c.resp = mirror; c.rt = Math.max(0, t - c.on); c.ok = mirror === c.mirror;
           this.flashAt = J.at; this.flashOk = c.ok; this.flashSide = mirror ? 1 : -1;
+          this.mark(c.ok ? 'right' : 'wrong', mirror);
+          if (!c.ok) this.mark('miss', c.mirror);
           const b = this.b;
           if (c.ok) {
             if (b) { const L = this.layout(b), P = L.tiles[1]; fx.burst(P.cx, P.cy, 10, C.glow, 130 * L.U, { kind: 'spark', size: [4 * L.U, 1] }); J.bloom(P.cx, P.cy, P.w * 0.8, C.warm, 0.3, 0.12, 0.4); }
@@ -92,7 +96,7 @@
             if (this.i + 1 >= this.trials.length) { this.sync(); finish(this, now); hap('complete'); sfx('runes_done'); J.border(1); J.spill(0.35); return; }
             this.i++; this.state = 'fix'; this.stateAt = this.t;
           } else if (this.state === 'fix' && T >= FIX) { this.state = 'show'; this.stateAt = this.t; const c = this.trials[this.i]; c.on = now; c.onAt = J.at; }
-          else if (this.state === 'show' && T >= LIMIT) { this.trials[this.i].ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); }
+          else if (this.state === 'show' && T >= LIMIT) { this.trials[this.i].ok = false; this.state = 'gap'; this.stateAt = this.t; this.sync(); this.mark('miss', this.trials[this.i].mirror); }
         },
 
         down(u, v, t) {

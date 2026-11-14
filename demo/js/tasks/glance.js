@@ -78,6 +78,7 @@
             this.state = 'test'; this.stateAt = this.t; s.on = now; s.onAt = J.at;
           } else if (this.state === 'test' && T >= LIMIT) {
             s.timedOut = true; s.correct = false; this.answerAt = J.at; this.state = 'gap'; this.stateAt = this.t; this.sync();
+            if (this.b) { const P = this.pos(s, s.target, this.b); J.verdict('miss', P.x, P.y - P.s * 0.5, P.s * 1.3); }
           }
         },
 
@@ -91,6 +92,8 @@
           const P = best >= 0 ? this.pos(s, best, b) : null;
           if (!P || bd > P.s * 2.2) return;
           s.pick = best; s.rt = Math.max(0, t - s.on); s.correct = best === s.target; this.answerAt = J.at;
+          J.verdict(s.correct ? 'right' : 'wrong', P.x, P.y - P.s * 0.5, P.s * 1.3);
+          if (!s.correct) { const Q = this.pos(s, s.target, b); J.verdict('miss', Q.x, Q.y - Q.s * 0.5, Q.s * 1.3); }
           if (s.correct) {
             fx.burst(P.x, P.y - P.s * 0.7, 12, C.gold, 140 * P.U, { kind: 'spark', size: [4 * P.U, 1] }); J.bloom(P.x, P.y - P.s * 0.6, P.s * 4, C.glow, 0.4, 0.12, 0.4);
             hap('hit'); sfx('glance_hit', { piano: [3 + (this.items % 5), 0.12] });

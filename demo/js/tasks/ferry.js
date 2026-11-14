@@ -36,6 +36,7 @@
         settle(c, now) {
           c.end = now; this.phase = 'reveal'; this.revealAt = J.at; this.revealT = now;
           const b = this.b, U = b ? unit(b) : 1;
+          if (b) J.verdict(c.miss ? 'miss' : Math.abs(c.err) <= GOOD ? 'right' : 'wrong', b.x + XP * b.w, b.y + LANE * b.h - 22 * U, 26 * U);
           if (c.miss) { sfx('ferry_miss'); hap('miss'); }
           else {
             const q = clamp(1 - Math.abs(c.err) / 0.35, 0, 1);

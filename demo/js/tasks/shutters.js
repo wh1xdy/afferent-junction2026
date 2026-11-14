@@ -295,6 +295,8 @@
           if (w.st !== 'ready') return;
           if (w.m !== 'pair' && g.past && w.pull >= w.commit * this.L(w).travel) { this.commit(w, t, false); return; }
           this.errors++;
+          const L = this.L(w);
+          J.verdict('wrong', L.cx, L.cy, Math.min(L.ow, L.oh) * 0.32);
           w.sp = { p: { x: w.pull, v: 0 }, s: { x: w.sep, v: 0 }, x: { x: w.bx, v: 0 }, y: { x: w.by, v: 0 } };
           sfx('shutters.tock');
         },
@@ -322,6 +324,7 @@
           if (last) this.sun = this.N;
           w.warm = this.warmNow();
           const cx = L.cx, cy = L.cy;
+          J.verdict(auto ? 'miss' : 'right', cx, cy, Math.min(L.ow, L.oh) * 0.32);
           if (!auto) {
             const sparks = (grade === 'barely' ? 6 : 12) * (fever ? 1.6 : 1);
             fx.burst(cx, w.m === 'pair' ? cy : L.oy, Math.round(sparks), mixc(C.gold, C.sun, 0.5), 200 * U);
