@@ -455,6 +455,18 @@ test('nothing raw travels: forbidden keys and names never reach the code', () =>
   assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 19));
 });
 
+test('matrix: a link or a wi-fi join string with lowercase and non-ascii letters still draws and scans back', () => {
+  for (const text of ['http://192.168.1.20:8000/api/export/dashboard', 'WIFI:T:WPA;S:Mökki;P:pa55;;']) {
+    const m = QR.matrix(text, 'M'), px = 3, quiet = 4, side = (m.size + 2 * quiet) * px;
+    const data = new Uint8ClampedArray(side * side * 4).fill(255);
+    for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) {
+      const r0 = Math.floor(y / px) - quiet, c0 = Math.floor(x / px) - quiet;
+      if (r0 >= 0 && c0 >= 0 && r0 < m.size && c0 < m.size && m.isDark(r0, c0)) data.fill(0, (y * side + x) * 4, (y * side + x) * 4 + 3);
+    }
+    assert.strictEqual(jsQR(data, side, side)?.data, text);
+  }
+});
+
 test('scan: jsQR reads the drawn matrix at 3 px per module', () => {
   for (const [j, ecl] of [[fixture(), 'M'], [worstCase(), 'M'], [fixture(), 'Q']]) {
     const r = QR.encode(j, { key, now: NOW, paper: ecl === 'Q' });

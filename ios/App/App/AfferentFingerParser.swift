@@ -19,7 +19,10 @@ struct FingerAff1: Equatable {
     let quality: Double?
     /// "idle" | "probing" | "active". nil for a v1 payload or code 0 (unknown).
     let presence: String?
-    /// number of bytes received: 4 = v1 firmware, 6 = v2
+    /// true: the board says the two clips are on two different people (Heart Duel), so the
+    /// fused pulse, HRV and breathing are not one person's. nil for a v1/v2 payload (unknown).
+    let twoHearts: Bool?
+    /// number of bytes received: 4 = v1 firmware, 6 = v2, 7 = v3
     let length: Int
 }
 
@@ -28,6 +31,8 @@ enum AfferentFingerParser {
     static let deviceName = "Afferent Finger"
     /// AFF1 byte 3 when RMSSD is above 254 ms (uno-q/modulino-hub/ble.py RMSSD_OVER).
     static let rmssdOverRange = 255
+    /// AFF1 byte 6, bit 0: two people on the clips (uno-q/modulino-hub/ble.py FLAG_TWO_HEARTS).
+    static let flagTwoHearts: UInt8 = 0x01
 
     /// Heart Rate Measurement (0x2A37): flags bit 0 = 16-bit value. 0 = no reading -> nil.
     static func heartRate(_ data: Data?) -> Int? {
@@ -43,10 +48,11 @@ enum AfferentFingerParser {
         return v
     }
 
-    /// AFF1: [finger 1 bpm, finger 2 bpm, breaths/min, RMSSD ms, quality %, presence code].
+    /// AFF1: [finger 1 bpm, finger 2 bpm, breaths/min, RMSSD ms, quality %, presence code, flags].
     /// Bytes 0...3: 0 = no reading. Byte 3 (RMSSD): 255 = above 254 ms -> nil, never "255 ms".
     /// Byte 4: 0...100, 255 (or anything above 100) = not available.
     /// Byte 5: 1 idle, 2 probing, 3 active, anything else = unknown.
+    /// Byte 6 (v3): bit 0 = two people on the clips; without the byte nobody knows -> nil.
     /// nil below 2 bytes; a byte that was not sent gives a nil field.
     static func aff1(_ data: Data?) -> FingerAff1? {
         guard let data = data, data.count >= 2 else { return nil }
@@ -70,8 +76,10 @@ enum AfferentFingerParser {
             default: presence = nil
             }
         }
+        let twoHearts: Bool? = b.count >= 7 ? b[6] & flagTwoHearts != 0 : nil
         return FingerAff1(finger1: reading(0), finger2: reading(1), breathing: reading(2),
-                          rmssd: rmssd, quality: quality, presence: presence, length: b.count)
+                          rmssd: rmssd, quality: quality, presence: presence, twoHearts: twoHearts,
+                          length: b.count)
     }
 
     /// True only for our own board: the advertised name or the peripheral's name is exactly
@@ -90,7 +98,7 @@ enum AfferentFingerParser {
     }
 
     /// AFF1 notification: {kind: "aff1", finger_bpm: [f1, f2], breathing_per_min, rmssd_ms,
-    /// quality, presence, payload_len, t_ms}
+    /// quality, presence, two_hearts, payload_len, t_ms}
     static func aff1Event(_ r: FingerAff1, tMs: Double) -> [String: Any] {
         func js(_ value: Any?) -> Any { return value ?? NSNull() }
         return [
@@ -100,6 +108,7 @@ enum AfferentFingerParser {
             "rmssd_ms": js(r.rmssd),
             "quality": js(r.quality),
             "presence": js(r.presence),
+            "two_hearts": js(r.twoHearts),
             "payload_len": r.length,
             "t_ms": tMs,
         ]

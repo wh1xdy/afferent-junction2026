@@ -350,7 +350,8 @@
     const id = ecl + text;
     if (matrices.has(id)) return matrices.get(id);
     const q = lib('qrcode')(0, ecl);
-    q.addData(text, 'Alphanumeric');
+    if (/^[0-9A-Z $%*+\-./:]*$/.test(text)) q.addData(text, 'Alphanumeric');
+    else q.addData(String.fromCharCode(...new TextEncoder().encode(text)), 'Byte');
     q.make();
     const size = q.getModuleCount();
     const m = { text, ecl, size, version: (size - 17) / 4, isDark: (r, c) => q.isDark(r, c) };

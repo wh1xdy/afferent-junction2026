@@ -1,0 +1,68 @@
+/* Heart Duel (Settings, Together): demo/js/duel.js. Player 1 wears the lantern colour, player 2 the frost colour of the theme. */
+.duel { z-index: 7; background: var(--af-grain), var(--md-sys-color-surface); background-size: var(--af-grain-size), auto; color: var(--md-sys-color-on-surface); animation: rise var(--af-dur-enter) var(--af-ease-in); }
+.duel-body { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 0 calc(var(--af-safe-r) + var(--af-gutter)) 12px calc(var(--af-safe-l) + var(--af-gutter)); scrollbar-width: none; }
+.duel-body::-webkit-scrollbar { display: none; }
+
+.duel-link { display: flex; align-items: center; gap: 8px; min-height: 32px; margin: 0 4px 10px; color: var(--md-sys-color-on-surface-variant); }
+.duel-link .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--md-sys-color-outline); }
+.duel-link[data-ok] .dot { background: var(--md-sys-color-tertiary); box-shadow: 0 0 8px color-mix(in srgb, var(--md-sys-color-tertiary) 60%, transparent); }
+.duel-link .txt { flex: 1; min-width: 0; }
+.duel-two {
+  display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 12px 0 8px; border-radius: 14px; flex: none;
+  background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container);
+  font: 600 13px/20px var(--af-font-ui); letter-spacing: 0.1px;
+}
+.duel-two[hidden] { display: none; }
+.duel-two .ms { font-size: 16px; }
+
+.duel-players { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.duel-player {
+  --tone: var(--md-sys-color-primary);
+  position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0;
+  padding: 14px 10px 16px; border-radius: 28px; background: var(--md-sys-color-surface-container);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--md-sys-color-on-surface) 4%, transparent);
+}
+.duel-player[data-p="1"] { --tone: var(--md-sys-color-secondary); }
+.duel-name { margin: 0; color: var(--tone); font-size: 12px; line-height: 16px; letter-spacing: var(--af-label-track); text-transform: uppercase; }
+.duel-heart { --beat: 1; display: grid; place-items: center; width: 96px; height: 96px; margin: 6px 0 2px; }
+.duel-heart svg {
+  width: 76px; height: 76px; display: block; fill: var(--tone); transform: scale(var(--beat)); transform-origin: 50% 55%;
+  filter: drop-shadow(0 0 calc(14px * var(--af-glow-strength)) color-mix(in srgb, var(--tone) 55%, transparent));
+}
+.duel-player:not([data-state="live"]) .duel-heart svg { fill: var(--md-sys-color-surface-container-highest); filter: none; transform: none; }
+.duel-bpm { font: 300 54px/58px var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; color: var(--md-sys-color-on-surface); }
+.duel-player:not([data-state="live"]) .duel-bpm { color: var(--md-sys-color-outline); }
+.duel-line { min-height: 18px; margin-top: 2px; color: var(--md-sys-color-on-surface-variant); text-wrap: balance; }
+.duel-player[data-state="still"] .duel-line, .duel-player[data-state="lost"] .duel-line { color: var(--md-sys-color-error); }
+.duel-goal { margin-top: 6px; color: var(--md-sys-color-on-surface-variant); font-size: 12px; line-height: 16px; text-wrap: balance; }
+.duel-goal[hidden], .duel-hold[hidden] { display: none; }
+.duel-hold { align-self: stretch; height: 4px; margin: 10px 6px 0; border-radius: 2px; overflow: hidden; background: var(--md-sys-color-surface-container-highest); }
+.duel-hold > span { --v: 0; display: block; height: 100%; border-radius: inherit; background: var(--tone); transform: scaleX(var(--v)); transform-origin: left center; transition: transform 120ms linear; }
+
+.duel-game {
+  margin-top: 10px; padding: 18px 20px 20px; border-radius: 28px; text-align: center;
+  background: var(--md-sys-color-surface-container-low); box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant);
+}
+.duel-phase { margin: 0; color: var(--md-sys-color-primary); }
+.duel-big { display: flex; align-items: baseline; justify-content: center; gap: 8px; margin: 4px 0 0; }
+.duel-big[hidden] { display: none; }
+.duel-big .num { font: 300 46px/54px var(--af-font-brand); font-variant-numeric: tabular-nums; color: var(--md-sys-color-on-surface); }
+.duel-big .unit { font: 600 12px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: var(--md-sys-color-on-surface-variant); }
+.duel-text { margin: 6px 0 0; color: var(--md-sys-color-on-surface-variant); text-wrap: pretty; }
+.duel-text[hidden] { display: none; }
+.duel-meter { height: 6px; margin-top: 16px; border-radius: 3px; overflow: hidden; background: var(--md-sys-color-surface-container-highest); }
+.duel-meter[hidden] { display: none; }
+.duel-meter > span { --v: 0; display: block; height: 100%; background: var(--md-sys-color-primary); transform: scaleX(var(--v)); transform-origin: left center; }
+.duel-result { margin-top: 6px; }
+.duel-result[hidden] { display: none; }
+.duel-win { margin: 0; color: var(--md-sys-color-on-surface); text-wrap: balance; }
+.duel-result[data-winner="0"] .duel-win { color: var(--md-sys-color-primary); }
+.duel-result[data-winner="1"] .duel-win { color: var(--md-sys-color-secondary); }
+.duel-why { margin: 6px 0 0; color: var(--md-sys-color-on-surface-variant); text-wrap: pretty; }
+.duel-foot { margin: 14px 12px 0; text-align: center; color: var(--md-sys-color-on-surface-variant); }
+
+.duel-actions { padding: 8px calc(var(--af-safe-r) + var(--af-gutter)) calc(var(--safe-bottom) + 20px) calc(var(--af-safe-l) + var(--af-gutter)); }
+.duel-actions .btn[hidden] { display: none; }
+
+:root[data-motion="reduced"] .duel { animation: fadeIn 150ms linear; }
+@media (prefers-reduced-motion: reduce) { .duel { animation: fadeIn 150ms linear; } .duel-hold > span { transition: none; } }

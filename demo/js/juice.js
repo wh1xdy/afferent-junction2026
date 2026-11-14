@@ -82,34 +82,17 @@
   };
   const disc = (ctx, x, y, r, c, a = 1) => { ctx.fillStyle = rgb(c, a); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.283); ctx.fill(); };
 
-  const HAND = typeof Image === 'function' ? Object.assign(new Image(), { src: 'assets/hand-cursor.png' }) : null;
-  const HAND_TIP = [0.338, 0.027];
-  const finger = (ctx, x, y, s, a) => {
+  // Where to touch: a soft warm dot with a halo. press 0..1 tightens the ring and brightens the halo, so a tap or a
+  // hold reads without drawing a hand. (x, y) is the touch point itself.
+  const touch = (ctx, x, y, U, a = 1, press = 0) => {
     if (a <= 0.01) return;
-    if (HAND?.complete && HAND.naturalWidth) {
-      const h = s * 1.45, w = h * HAND.naturalWidth / HAND.naturalHeight;
-      ctx.save();
-      ctx.globalAlpha *= a;
-      ctx.drawImage(HAND, x - w * HAND_TIP[0], y - h * HAND_TIP[1], w, h);
-      ctx.restore();
-      return;
-    }
-    const k = s / 30;
-    ctx.save();
-    ctx.translate(x, y); ctx.rotate(-0.4); ctx.scale(k, k);
-    ctx.globalAlpha *= a;
-    ctx.shadowColor = rgb(C.night950, 0.7); ctx.shadowBlur = 10;
-    ctx.fillStyle = rgb(C.silver100, 0.95);
-    ctx.beginPath();
-    ctx.roundRect(-4.8, 0, 9.6, 19, 4.8);
-    ctx.roundRect(-6.5, 9, 25, 25, 9);
-    ctx.roundRect(-13, 15, 10, 15, 5);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = rgb(C.silver400, 0.7); ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(6, 17); ctx.lineTo(16, 17); ctx.moveTo(6, 23); ctx.lineTo(16, 23); ctx.stroke();
-    ctx.restore();
+    const p = clamp(press, 0, 1);
+    glow(ctx, x, y, (18 + 8 * p) * U, C.flame, 0.32 * a * (0.55 + 0.45 * p));
+    ring(ctx, x, y, (11 - 2.5 * p) * U, C.silver100, 0.42 * a * (1 - 0.35 * p), 1.5 * U);
+    disc(ctx, x, y, (5 + 1.5 * p) * U, C.silver100, 0.9 * a);
   };
+  // Old name, kept for callers that pass a fingertip point and size.
+  const finger = (ctx, x, y, s, a) => touch(ctx, x, y, s / 32, a, 0.5);
 
 
   const tapCue = (ctx, x, y, U, now, a = 1) => {
@@ -119,7 +102,7 @@
     const rp = clamp((p - 0.35) / 0.65, 0, 1);
     if (rp > 0 && !rm()) ring(ctx, x, y, (8 + 30 * ease(rp)) * U, C.flame, 0.75 * a * (1 - rp), 2.4 * U);
     glow(ctx, x, y, 22 * U, C.flame, 0.45 * a * press);
-    finger(ctx, x + 2 * U, y + (2 + 12 * (1 - press)) * U, 32 * U, a);
+    touch(ctx, x, y, U, a, press);
   };
 
   const dragCue = (ctx, path, U, now, a = 1, dur = 2.6) => {
@@ -132,7 +115,7 @@
     for (let i = 0; i <= 24; i++) { const [px, py] = path(m * i / 24); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
     ctx.stroke(); ctx.restore();
     glow(ctx, x, y, 18 * U, C.flame, 0.45 * a * vis);
-    finger(ctx, x + 2 * U, y + 2 * U, 32 * U, a * vis);
+    touch(ctx, x, y, U, a * vis, 1);
   };
   const line = (x0, y0, x1, y1) => m => [lerp(x0, x1, m), lerp(y0, y1, m)];
 
@@ -356,7 +339,7 @@
   };
 
   const J = A.J = {
-    C, spr, sprite, glow, ring, disc, dist, unit, finger, tapCue, dragCue, line, dots, base, finish, idle,
+    C, spr, sprite, glow, ring, disc, dist, unit, finger, touch, tapCue, dragCue, line, dots, base, finish, idle,
     fx, light, bloom, border, borderWarmth, stinger, spill, flash, hap, beat, sfx, rm, size, stats,
     ease: EASE, bezier, spring, squash, wobble, hitstop, slowmo,
     at: 0, timeScale: 1, st,
@@ -383,5 +366,5 @@
       }
     },
   };
-  A.MINI = { glow, dist, base, finish, unit, ring, disc, finger, tapCue, dragCue, line, dots, idle, C };
+  A.MINI = { glow, dist, base, finish, unit, ring, disc, finger, touch, tapCue, dragCue, line, dots, idle, C };
 })();
