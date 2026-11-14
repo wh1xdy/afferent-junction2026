@@ -34,7 +34,7 @@
       { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
         <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
       { icon: 'ios_share', label: 'Show to my doctor', href: 'patient.html#settings', id: 'qrBtn' },
-      { icon: 'dashboard', label: 'Clinic dashboard', sup: 'Wi-Fi + link', href: 'patient.html#share', id: 'exportBtn' },
+      { icon: 'insights', label: 'Clinic dashboard', sup: 'Wi-Fi + link', href: 'patient.html#share', id: 'exportBtn' },
       { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
       { icon: 'description', label: 'What is in an export', sup: 'Lanterns, play times, sensor numbers', static: true },
     ] },
