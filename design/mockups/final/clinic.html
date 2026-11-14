@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" data-sky="clinic">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afferent Clinic</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/clinic.css">
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="Sections">
+    <div class="mark" aria-hidden="true"><span data-lantern="flame" data-glow="1"></span></div>
+    <a class="dest active state" href="clinic.html" aria-current="page"><span class="pill"><span class="ms fill">group</span></span><span class="label-m">Patients</span></a>
+    <a class="dest state" href="#"><span class="pill"><span class="ms">insights</span></span><span class="label-m">Validation</span></a>
+    <a class="dest state" href="#"><span class="pill"><span class="ms">upload_file</span></span><span class="label-m">Exports</span></a>
+    <span class="sp"></span>
+    <a class="dest state" href="#"><span class="pill"><span class="ms">settings</span></span><span class="label-m">Settings</span></a>
+  </nav>
+
+  <div class="main">
+    <header class="head">
+      <div class="t">
+        <h1 class="headline-s">Who might need a call</h1>
+        <div class="stamp body-m"><span class="ms">file_save</span>Export of Sat 14 Nov, 07:12 · 6 patients after TMS</div>
+      </div>
+      <label class="search"><span class="ms">search</span><span class="body-l">Search patients</span></label>
+      <span class="sim-badge">Simulated data</span>
+      <button class="icon-btn state" aria-label="Demo tools"><span class="ms">more_vert</span></button>
+    </header>
+
+    <div class="panes">
+      <section class="list" aria-label="Patients">
+        <div class="filters" role="radiogroup" aria-label="Filter">
+          <button class="chip sel state" role="radio" aria-checked="true"><span class="ms">done_all</span>All<b>6</b></button>
+          <button class="chip state" role="radio" aria-checked="false"><span class="ms">shield</span>Safety<b>1</b></button>
+          <button class="chip state" role="radio" aria-checked="false"><span class="ms">call</span>Need a call<b>1</b></button>
+          <button class="chip state" role="radio" aria-checked="false"><span class="ms">schedule</span>Watch<b>1</b></button>
+          <button class="chip state" role="radio" aria-checked="false"><span class="ms">check</span>Stable<b>3</b></button>
+        </div>
+        <div id="rows"></div>
+      </section>
+
+      <section class="detail" id="detail" aria-live="polite"></section>
+    </div>
+  </div>
+</div>
+<script src="js/ui.js"></script>
+<script>
+(() => {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-' + n).trim();
+  const wave = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+  const P = {
+    juha: { n: 'Juha', state: 'safety', ew: 'call', value: 1.02, delta: +0.31, last: 'Fri 22:41', week: 9, played: 5,
+      series: wave(28, i => 0.1 + Math.max(0, i - 12) * 0.06 + Math.sin(i * 1.7) * 0.08) },
+    anna: { n: 'Anna', state: 'booster', value: 1.80, delta: +0.50, last: 'Fri 07:52', week: 9, played: 6, talk: true,
+      series: wave(28, i => (i < 12 ? 0.05 * Math.sin(i * 1.3) : (i - 12) * 0.112) + Math.sin(i * 2.1) * 0.05) },
+    sofia: { n: 'Sofia', state: 'watch', value: 0.62, delta: +0.20, last: 'Fri 08:18', week: 4, played: 7, note: 'Check-in overdue',
+      series: wave(28, i => 0.15 + i * 0.016 + Math.sin(i * 1.1) * 0.08) },
+    leena: { n: 'Leena', state: 'stable', value: 0.34, delta: +0.04, last: 'Fri 21:42', week: 12, played: 6, series: wave(28, i => 0.3 + Math.sin(i * 0.9) * 0.08) },
+    eero: { n: 'Eero', state: 'stable', value: -0.12, delta: -0.06, last: 'Fri 06:57', week: 6, played: 7, series: wave(28, i => -0.1 + Math.sin(i * 1.4) * 0.07) },
+    mikko: { n: 'Mikko', state: 'stable', value: -0.25, delta: -0.02, last: 'Thu 07:58', week: 15, played: 5, series: wave(28, i => -0.25 + Math.sin(i * 0.7) * 0.06) },
+  };
+  P.anna.series[27] = 1.80; P.anna.series[20] = 1.30; P.juha.series[27] = 1.02;
+  const ST = {
+    safety: ['shield', 'Safety: moderate'], booster: ['medical_services', 'Booster talk'], call: ['call', 'Consider a call'],
+    watch: ['schedule', 'Watch'], stable: ['check', 'Stable'],
+  };
+  const groups = [['Safety answers', 'shield', ['juha']], ['Might need a call', 'call', ['anna']], ['Watch', 'schedule', ['sofia']], ['Stable', 'check', ['leena', 'eero', 'mikko']]];
+  const sel = new URLSearchParams(location.search).get('p') || 'anna';
+  const fmt = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+
+  const spark = (s, st) => {
+    const w = 104, h = 32, lo = -0.6, hi = 2, y = v => h - ((v - lo) / (hi - lo)) * h;
+    const pts = s.slice(-14).map((v, i) => `${(i / 13 * (w - 4) + 2).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const c = st === 'stable' ? css('stable') : st === 'watch' ? css('watch') : css('primary');
+    return `<svg width="${w}" height="${h}" aria-hidden="true"><rect x="0" y="${y(0.45)}" width="${w}" height="${y(-0.45) - y(0.45)}" fill="${css('on-surface')}" opacity="0.07" rx="3"/><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="${w - 2}" cy="${y(s[s.length - 1])}" r="2.6" fill="${c}"/></svg>`;
+  };
+
+  document.getElementById('rows').innerHTML = groups.map(([g, ic, ids]) => `<div class="sec label-l"><span class="ms">${ic}</span>${g}</div>` + ids.map(id => {
+    const p = P[id], [i, l] = ST[p.state];
+    return `<a class="row state ${id === sel ? 'sel' : ''}" href="clinic.html?p=${id}" ${id === sel ? 'aria-current="true"' : ''}>
+      <span class="av ${p.state}">${p.n[0]}</span>
+      <span class="who"><span class="n" style="display:block">${p.n}</span><span class="s">${p.note || (id === 'juha' ? 'Check-in Fri 14:20' : 'Played ' + p.last)}</span></span>
+      ${spark(p.series, p.ew || p.state)}
+      <span class="val">${p.value.toFixed(2)}<small>${fmt(p.delta)} in 7 d</small></span>
+      <span class="st ${p.state}"><span class="ms">${i}</span>${l}</span></a>`;
+  }).join('')).join('');
+
+  const p = P[sel];
+  const banner = sel === 'juha'
+    ? `<div class="banner safety"><span class="ms">shield</span><div class="t"><p class="title-m">Safety answer: moderate</p><p class="body-m note">Check-in Fri 13 Nov, 14:20. PHQ-9 item 9: 2 (more than half the days). C-SSRS not asked; tier from item 9. Crisis screen shown.</p></div><span class="tag"><span class="ms">description</span>Follow your clinic protocol</span></div>`
+    : sel === 'anna'
+    ? `<div class="banner booster"><span class="ms">medical_services</span><div class="t"><p class="title-m">Consider a booster discussion</p><p class="body-m note">Above the booster line for 3 days. The clinician decides.</p></div>${p.talk ? '<span class="tag"><span class="ms">chat_bubble</span>Asked to talk</span>' : ''}</div>`
+    : `<div class="banner" style="background:var(--md-sys-color-surface-container)"><span class="ms">${ST[p.state][0]}</span><div class="t"><p class="title-m">${ST[p.state][1]}</p><p class="body-m note">Within the usual range or close to it.</p></div></div>`;
+  const phq = sel === 'juha' ? [6, 7, 9, 13] : sel === 'anna' ? [5, 6, 8, 9] : [4, 5, 4, 5];
+  const drivers = sel === 'juha'
+    ? [['Sleep regularity', 0.28], ['Mood lantern', 0.24], ['Effort choice', 0.12], ['Reaction time', -0.04]]
+    : [['Sleep regularity', 0.35], ['Effort choice', 0.29], ['Mood lantern', 0.12], ['Reaction time', -0.05]];
+  document.getElementById('detail').innerHTML = `
+    <div class="dh"><span class="av ${p.state}">${p.n[0]}</span><div class="t"><div style="display:flex;gap:10px;align-items:center"><span class="headline-s">${p.n}</span><span class="sim-badge">Simulated</span></div><div class="body-m muted">Week ${p.week} · ${p.played} of 7 days played</div></div>
+      <button class="btn outlined small state"><span class="ms">description</span>Weekly summary</button><button class="icon-btn tonal state" aria-label="Mark as seen"><span class="ms">done_all</span></button></div>
+    ${banner}
+    <div class="panel" style="display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0,1fr)"><div class="ph"><span class="title-m">Early-warning index</span><span class="body-m muted">28 days</span><span class="kpi"><span class="display-s">${p.value.toFixed(2)}</span><span class="up"><span class="ms">${p.delta >= 0 ? 'trending_up' : 'trending_down'}</span>${fmt(p.delta)} in 7 d</span></span></div><div id="chart" style="min-height:0"></div></div>
+    <div class="trio">
+      <div class="panel"><div class="ph"><span class="title-m">Main drivers</span></div>${drivers.map(([k, v]) => `<div class="drv"><span>${k}</span><span class="bar"><i class="${v < 0 ? 'neg' : ''}" style="${v < 0 ? `right:50%;width:${Math.abs(v) / 0.36 * 50}%` : `left:50%;width:${v / 0.36 * 50}%`}"></i></span><span class="val" style="font-size:14px">${fmt(v)}</span></div>`).join('')}</div>
+      <div class="panel"><div class="ph"><span class="title-m">PHQ-9</span></div>
+        <div class="phq">${phq.map((v, i) => `<span class="${i === phq.length - 1 ? 'last' : ''}" style="height:${v / 27 * 100 + 8}%"><em>${v}</em></span>`).join('')}</div>
+        <div class="body-m"><b style="font-weight:500">${phq[3]}</b> · ${phq[3] - phq[0] >= 0 ? '+' : ''}${phq[3] - phq[0]} from discharge</div><div class="body-s muted">PHQ-8 ${phq[3] - (sel === 'juha' ? 2 : 0)} · due Thu 26 Nov</div></div>
+      <div class="panel"><div class="fact"><div class="k">Last session</div><div class="v">${p.last}</div></div><div class="fact"><div class="k">Data complete</div><div class="v">${Math.round(p.played / 7 * 100)}%</div></div><div class="fact" style="margin:0"><div class="k">Last export</div><div class="v">Sat 07:12</div></div></div>
+    </div>`;
+
+  const box = document.getElementById('chart');
+  const W = Math.floor(box.getBoundingClientRect().width), H = Math.max(120, Math.floor(box.getBoundingClientRect().height)), L = 28, R = 12, T = 12, B = 22;
+  const lo = -0.75, hi = 2.1, x = i => L + i / 27 * (W - L - R), y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const s = p.series, pts = s.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const glow = css('lantern-glow'), on = css('on-surface'), onv = css('on-surface-variant');
+  box.innerHTML = `<svg class="chart" width="${W}" height="${H}" role="img" aria-label="Early-warning index, 28 days, now ${p.value.toFixed(2)}">
+    <defs><linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${glow}" stop-opacity="0.22"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></linearGradient><filter id="g"><feGaussianBlur stdDeviation="3"/></filter></defs>
+    <rect x="${L}" y="${y(0.45)}" width="${W - L - R}" height="${y(-0.45) - y(0.45)}" fill="${on}" opacity="0.06"/>
+    <text x="${L + 6}" y="${y(-0.45) - 6}" fill="${onv}" font-size="11">Usual range</text>
+    ${[[1.5, 'Booster 1.5', css('booster')], [1.0, 'Call 1.0', css('call')]].map(([v, t, c]) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="${c}" stroke-dasharray="4 4" opacity="0.8"/><text x="${L + 6}" y="${y(v) - 5}" fill="${c}" font-size="11" font-weight="500">${t}</text>`).join('')}
+    ${[-0.5, 0, 1, 2].map(v => `<text x="${L - 8}" y="${y(v) + 4}" fill="${onv}" font-size="11" text-anchor="end">${v}</text>`).join('')}
+    ${[[0, '17 Oct'], [7, '24 Oct'], [14, '31 Oct'], [21, '7 Nov'], [27, 'Today']].map(([i, t]) => `<text x="${x(i)}" y="${H - 4}" fill="${onv}" font-size="11" text-anchor="${i === 27 ? 'end' : 'middle'}">${t}</text>`).join('')}
+    <polygon points="${x(0)},${y(lo)} ${pts} ${x(27)},${y(lo)}" fill="url(#f)"/>
+    <polyline points="${pts}" fill="none" stroke="${glow}" stroke-width="4" opacity="0.45" filter="url(#g)"/>
+    <polyline points="${pts}" fill="none" stroke="${glow}" stroke-width="2" stroke-linejoin="round"/>
+    <circle cx="${x(27)}" cy="${y(s[27])}" r="4.5" fill="${glow}"/></svg>`;
+})();
+</script>
+</body>
+</html>

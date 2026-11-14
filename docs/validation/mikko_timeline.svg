@@ -1,0 +1,231 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 540" width="880" height="540" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif" role="img" aria-label="Mikko: composite early-warning index and CUSUM">
+<title>Mikko: composite early-warning index and CUSUM</title>
+<rect width="880" height="540" rx="14" fill="#070A14"/>
+<text x="28.0" y="38.0" font-size="17" fill="#E8EEF5" text-anchor="start" font-weight="600" >Mikko: composite index and CUSUM</text>
+<text x="28.0" y="60.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >Simulated stable control. No suggestion over 8 weeks.</text>
+<rect x="752" y="22" width="100" height="22" rx="11" fill="rgba(183,156,255,0.14)"/>
+<text x="802.0" y="37.0" font-size="11" fill="#B79CFF" text-anchor="middle" font-weight="600" letter-spacing="1">SIMULATED</text>
+<rect x="70.0" y="96" width="178.8" height="170" fill="rgba(185,202,214,0.10)"/>
+<text x="159.4" y="258.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >baseline, days 0 to 13</text>
+<line x1="70.0" y1="266.0" x2="840.0" y2="266.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="270.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >-1</text>
+<line x1="70.0" y1="223.5" x2="840.0" y2="223.5" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="227.5" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >0</text>
+<line x1="70.0" y1="181.0" x2="840.0" y2="181.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="185.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >1</text>
+<line x1="70.0" y1="138.5" x2="840.0" y2="138.5" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="142.5" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >2</text>
+<line x1="70.0" y1="96.0" x2="840.0" y2="96.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="100.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >3</text>
+<text x="70.0" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >0</text>
+<text x="166.2" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >7</text>
+<text x="262.5" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >14</text>
+<text x="358.8" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >21</text>
+<text x="455.0" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >28</text>
+<text x="551.2" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >35</text>
+<text x="647.5" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >42</text>
+<text x="743.8" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >49</text>
+<text x="840.0" y="284.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >56</text>
+<text x="70.0" y="88.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >Composite (weighted robust z, positive = worse than usual)</text>
+<path d="M70.0,207.8 L83.8,210.3 L97.5,220.5 L111.2,220.5 L125.0,222.7 L138.8,221.4 L152.5,223.9 L166.2,223.1 L180.0,222.2 L193.8,223.1 L207.5,218.4 L221.2,224.3 L235.0,225.2 L248.8,225.6 L262.5,227.3 L276.2,231.2 L290.0,233.7 L303.8,228.6 L317.5,225.6 L331.2,223.9 L345.0,220.1 L358.8,218.8 L372.5,214.2 L386.2,219.7 L400.0,223.1 L413.8,224.8 L427.5,229.0 L441.2,232.8 L455.0,240.5 L468.8,239.7 L482.5,238.4 L496.2,241.8 L510.0,236.2 L523.8,235.8 L537.5,235.8 L551.2,235.4 L565.0,231.2 L578.8,234.1 L592.5,238.8 L606.2,237.9 L620.0,236.2 L633.8,236.2 L647.5,240.5 L661.2,238.4 L675.0,234.6 L688.8,231.2 L702.5,230.3 L716.2,228.2 L730.0,225.6 L743.8,223.5 L757.5,220.9 L771.2,227.8 L785.0,228.2 L798.8,234.6 L812.5,237.1 L826.2,233.7 L840.0,233.7" fill="none" stroke="#FFD9A0" stroke-width="7" stroke-opacity="0.18" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M70.0,207.8 L83.8,210.3 L97.5,220.5 L111.2,220.5 L125.0,222.7 L138.8,221.4 L152.5,223.9 L166.2,223.1 L180.0,222.2 L193.8,223.1 L207.5,218.4 L221.2,224.3 L235.0,225.2 L248.8,225.6 L262.5,227.3 L276.2,231.2 L290.0,233.7 L303.8,228.6 L317.5,225.6 L331.2,223.9 L345.0,220.1 L358.8,218.8 L372.5,214.2 L386.2,219.7 L400.0,223.1 L413.8,224.8 L427.5,229.0 L441.2,232.8 L455.0,240.5 L468.8,239.7 L482.5,238.4 L496.2,241.8 L510.0,236.2 L523.8,235.8 L537.5,235.8 L551.2,235.4 L565.0,231.2 L578.8,234.1 L592.5,238.8 L606.2,237.9 L620.0,236.2 L633.8,236.2 L647.5,240.5 L661.2,238.4 L675.0,234.6 L688.8,231.2 L702.5,230.3 L716.2,228.2 L730.0,225.6 L743.8,223.5 L757.5,220.9 L771.2,227.8 L785.0,228.2 L798.8,234.6 L812.5,237.1 L826.2,233.7 L840.0,233.7" fill="none" stroke="#FFD9A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="70.0" cy="207.8" r="7" fill="transparent"><title>day 0: composite 0.37</title></circle>
+<circle cx="83.8" cy="210.3" r="7" fill="transparent"><title>day 1: composite 0.31</title></circle>
+<circle cx="97.5" cy="220.5" r="7" fill="transparent"><title>day 2: composite 0.07</title></circle>
+<circle cx="111.2" cy="220.5" r="7" fill="transparent"><title>day 3: composite 0.07</title></circle>
+<circle cx="125.0" cy="222.7" r="7" fill="transparent"><title>day 4: composite 0.02</title></circle>
+<circle cx="138.8" cy="221.4" r="7" fill="transparent"><title>day 5: composite 0.05</title></circle>
+<circle cx="152.5" cy="223.9" r="7" fill="transparent"><title>day 6: composite -0.01</title></circle>
+<circle cx="166.2" cy="223.1" r="7" fill="transparent"><title>day 7: composite 0.01</title></circle>
+<circle cx="180.0" cy="222.2" r="7" fill="transparent"><title>day 8: composite 0.03</title></circle>
+<circle cx="193.8" cy="223.1" r="7" fill="transparent"><title>day 9: composite 0.01</title></circle>
+<circle cx="207.5" cy="218.4" r="7" fill="transparent"><title>day 10: composite 0.12</title></circle>
+<circle cx="221.2" cy="224.3" r="7" fill="transparent"><title>day 11: composite -0.02</title></circle>
+<circle cx="235.0" cy="225.2" r="7" fill="transparent"><title>day 12: composite -0.04</title></circle>
+<circle cx="248.8" cy="225.6" r="7" fill="transparent"><title>day 13: composite -0.05</title></circle>
+<circle cx="262.5" cy="227.3" r="7" fill="transparent"><title>day 14: composite -0.09</title></circle>
+<circle cx="276.2" cy="231.2" r="7" fill="transparent"><title>day 15: composite -0.18</title></circle>
+<circle cx="290.0" cy="233.7" r="7" fill="transparent"><title>day 16: composite -0.24</title></circle>
+<circle cx="303.8" cy="228.6" r="7" fill="transparent"><title>day 17: composite -0.12</title></circle>
+<circle cx="317.5" cy="225.6" r="7" fill="transparent"><title>day 18: composite -0.05</title></circle>
+<circle cx="331.2" cy="223.9" r="7" fill="transparent"><title>day 19: composite -0.01</title></circle>
+<circle cx="345.0" cy="220.1" r="7" fill="transparent"><title>day 20: composite 0.08</title></circle>
+<circle cx="358.8" cy="218.8" r="7" fill="transparent"><title>day 21: composite 0.11</title></circle>
+<circle cx="372.5" cy="214.2" r="7" fill="transparent"><title>day 22: composite 0.22</title></circle>
+<circle cx="386.2" cy="219.7" r="7" fill="transparent"><title>day 23: composite 0.09</title></circle>
+<circle cx="400.0" cy="223.1" r="7" fill="transparent"><title>day 24: composite 0.01</title></circle>
+<circle cx="413.8" cy="224.8" r="7" fill="transparent"><title>day 25: composite -0.03</title></circle>
+<circle cx="427.5" cy="229.0" r="7" fill="transparent"><title>day 26: composite -0.13</title></circle>
+<circle cx="441.2" cy="232.8" r="7" fill="transparent"><title>day 27: composite -0.22</title></circle>
+<circle cx="455.0" cy="240.5" r="7" fill="transparent"><title>day 28: composite -0.40</title></circle>
+<circle cx="468.8" cy="239.7" r="7" fill="transparent"><title>day 29: composite -0.38</title></circle>
+<circle cx="482.5" cy="238.4" r="7" fill="transparent"><title>day 30: composite -0.35</title></circle>
+<circle cx="496.2" cy="241.8" r="7" fill="transparent"><title>day 31: composite -0.43</title></circle>
+<circle cx="510.0" cy="236.2" r="7" fill="transparent"><title>day 32: composite -0.30</title></circle>
+<circle cx="523.8" cy="235.8" r="7" fill="transparent"><title>day 33: composite -0.29</title></circle>
+<circle cx="537.5" cy="235.8" r="7" fill="transparent"><title>day 34: composite -0.29</title></circle>
+<circle cx="551.2" cy="235.4" r="7" fill="transparent"><title>day 35: composite -0.28</title></circle>
+<circle cx="565.0" cy="231.2" r="7" fill="transparent"><title>day 36: composite -0.18</title></circle>
+<circle cx="578.8" cy="234.1" r="7" fill="transparent"><title>day 37: composite -0.25</title></circle>
+<circle cx="592.5" cy="238.8" r="7" fill="transparent"><title>day 38: composite -0.36</title></circle>
+<circle cx="606.2" cy="237.9" r="7" fill="transparent"><title>day 39: composite -0.34</title></circle>
+<circle cx="620.0" cy="236.2" r="7" fill="transparent"><title>day 40: composite -0.30</title></circle>
+<circle cx="633.8" cy="236.2" r="7" fill="transparent"><title>day 41: composite -0.30</title></circle>
+<circle cx="647.5" cy="240.5" r="7" fill="transparent"><title>day 42: composite -0.40</title></circle>
+<circle cx="661.2" cy="238.4" r="7" fill="transparent"><title>day 43: composite -0.35</title></circle>
+<circle cx="675.0" cy="234.6" r="7" fill="transparent"><title>day 44: composite -0.26</title></circle>
+<circle cx="688.8" cy="231.2" r="7" fill="transparent"><title>day 45: composite -0.18</title></circle>
+<circle cx="702.5" cy="230.3" r="7" fill="transparent"><title>day 46: composite -0.16</title></circle>
+<circle cx="716.2" cy="228.2" r="7" fill="transparent"><title>day 47: composite -0.11</title></circle>
+<circle cx="730.0" cy="225.6" r="7" fill="transparent"><title>day 48: composite -0.05</title></circle>
+<circle cx="743.8" cy="223.5" r="7" fill="transparent"><title>day 49: composite 0.00</title></circle>
+<circle cx="757.5" cy="220.9" r="7" fill="transparent"><title>day 50: composite 0.06</title></circle>
+<circle cx="771.2" cy="227.8" r="7" fill="transparent"><title>day 51: composite -0.10</title></circle>
+<circle cx="785.0" cy="228.2" r="7" fill="transparent"><title>day 52: composite -0.11</title></circle>
+<circle cx="798.8" cy="234.6" r="7" fill="transparent"><title>day 53: composite -0.26</title></circle>
+<circle cx="812.5" cy="237.1" r="7" fill="transparent"><title>day 54: composite -0.32</title></circle>
+<circle cx="826.2" cy="233.7" r="7" fill="transparent"><title>day 55: composite -0.24</title></circle>
+<circle cx="840.0" cy="233.7" r="7" fill="transparent"><title>day 56: composite -0.24</title></circle>
+<text x="70.0" y="308.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >One-sided CUSUM of the composite</text>
+<line x1="70.0" y1="468.0" x2="840.0" y2="468.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="472.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >0</text>
+<line x1="70.0" y1="393.0" x2="840.0" y2="393.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="397.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >5</text>
+<line x1="70.0" y1="318.0" x2="840.0" y2="318.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="322.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >10</text>
+<text x="70.0" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >0</text>
+<text x="166.2" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >7</text>
+<text x="262.5" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >14</text>
+<text x="358.8" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >21</text>
+<text x="455.0" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >28</text>
+<text x="551.2" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >35</text>
+<text x="647.5" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >42</text>
+<text x="743.8" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >49</text>
+<text x="840.0" y="486.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >56</text>
+<line x1="70.0" y1="445.5" x2="840.0" y2="445.5" stroke="#FFD27A" stroke-width="1" stroke-dasharray="4 4"/>
+<text x="836.0" y="440.5" font-size="11" fill="#FFD27A" text-anchor="end" font-weight="400" ></text>
+<line x1="70.0" y1="423.0" x2="840.0" y2="423.0" stroke="#F2B544" stroke-width="1" stroke-dasharray="4 4"/>
+<text x="836.0" y="418.0" font-size="11" fill="#F2B544" text-anchor="end" font-weight="400" ></text>
+<line x1="70.0" y1="348.0" x2="840.0" y2="348.0" stroke="#FF8A70" stroke-width="1" stroke-dasharray="4 4"/>
+<text x="836.0" y="343.0" font-size="11" fill="#FF8A70" text-anchor="end" font-weight="400" ></text>
+<text x="76.0" y="343.0" font-size="11" fill="#FF8A70" text-anchor="start" font-weight="400" >Booster discussion 8</text>
+<text x="76.0" y="418.0" font-size="11" fill="#F2B544" text-anchor="start" font-weight="400" >Check-in call 3  /  Watch 1.5</text>
+<path d="M70.0,468.0 L83.8,468.0 L97.5,468.0 L111.2,468.0 L125.0,468.0 L138.8,468.0 L152.5,468.0 L166.2,468.0 L180.0,468.0 L193.8,468.0 L207.5,468.0 L221.2,468.0 L235.0,468.0 L248.8,468.0 L262.5,468.0 L276.2,468.0 L290.0,468.0 L303.8,468.0 L317.5,468.0 L331.2,468.0 L345.0,468.0 L358.8,468.0 L372.5,468.0 L386.2,468.0 L400.0,468.0 L413.8,468.0 L427.5,468.0 L441.2,468.0 L455.0,468.0 L468.8,468.0 L482.5,468.0 L496.2,468.0 L510.0,468.0 L523.8,468.0 L537.5,468.0 L551.2,468.0 L565.0,468.0 L578.8,468.0 L592.5,468.0 L606.2,468.0 L620.0,468.0 L633.8,468.0 L647.5,468.0 L661.2,468.0 L675.0,468.0 L688.8,468.0 L702.5,468.0 L716.2,468.0 L730.0,468.0 L743.8,468.0 L757.5,468.0 L771.2,468.0 L785.0,468.0 L798.8,468.0 L812.5,468.0 L826.2,468.0 L840.0,468.0" fill="none" stroke="#FFD9A0" stroke-width="7" stroke-opacity="0.18" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M70.0,468.0 L83.8,468.0 L97.5,468.0 L111.2,468.0 L125.0,468.0 L138.8,468.0 L152.5,468.0 L166.2,468.0 L180.0,468.0 L193.8,468.0 L207.5,468.0 L221.2,468.0 L235.0,468.0 L248.8,468.0 L262.5,468.0 L276.2,468.0 L290.0,468.0 L303.8,468.0 L317.5,468.0 L331.2,468.0 L345.0,468.0 L358.8,468.0 L372.5,468.0 L386.2,468.0 L400.0,468.0 L413.8,468.0 L427.5,468.0 L441.2,468.0 L455.0,468.0 L468.8,468.0 L482.5,468.0 L496.2,468.0 L510.0,468.0 L523.8,468.0 L537.5,468.0 L551.2,468.0 L565.0,468.0 L578.8,468.0 L592.5,468.0 L606.2,468.0 L620.0,468.0 L633.8,468.0 L647.5,468.0 L661.2,468.0 L675.0,468.0 L688.8,468.0 L702.5,468.0 L716.2,468.0 L730.0,468.0 L743.8,468.0 L757.5,468.0 L771.2,468.0 L785.0,468.0 L798.8,468.0 L812.5,468.0 L826.2,468.0 L840.0,468.0" fill="none" stroke="#FFD9A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="70.0" cy="468.0" r="7" fill="transparent"><title>day 0: CUSUM 0.00</title></circle>
+<circle cx="83.8" cy="468.0" r="7" fill="transparent"><title>day 1: CUSUM 0.00</title></circle>
+<circle cx="97.5" cy="468.0" r="7" fill="transparent"><title>day 2: CUSUM 0.00</title></circle>
+<circle cx="111.2" cy="468.0" r="7" fill="transparent"><title>day 3: CUSUM 0.00</title></circle>
+<circle cx="125.0" cy="468.0" r="7" fill="transparent"><title>day 4: CUSUM 0.00</title></circle>
+<circle cx="138.8" cy="468.0" r="7" fill="transparent"><title>day 5: CUSUM 0.00</title></circle>
+<circle cx="152.5" cy="468.0" r="7" fill="transparent"><title>day 6: CUSUM 0.00</title></circle>
+<circle cx="166.2" cy="468.0" r="7" fill="transparent"><title>day 7: CUSUM 0.00</title></circle>
+<circle cx="180.0" cy="468.0" r="7" fill="transparent"><title>day 8: CUSUM 0.00</title></circle>
+<circle cx="193.8" cy="468.0" r="7" fill="transparent"><title>day 9: CUSUM 0.00</title></circle>
+<circle cx="207.5" cy="468.0" r="7" fill="transparent"><title>day 10: CUSUM 0.00</title></circle>
+<circle cx="221.2" cy="468.0" r="7" fill="transparent"><title>day 11: CUSUM 0.00</title></circle>
+<circle cx="235.0" cy="468.0" r="7" fill="transparent"><title>day 12: CUSUM 0.00</title></circle>
+<circle cx="248.8" cy="468.0" r="7" fill="transparent"><title>day 13: CUSUM 0.00</title></circle>
+<circle cx="262.5" cy="468.0" r="7" fill="transparent"><title>day 14: CUSUM 0.00</title></circle>
+<circle cx="276.2" cy="468.0" r="7" fill="transparent"><title>day 15: CUSUM 0.00</title></circle>
+<circle cx="290.0" cy="468.0" r="7" fill="transparent"><title>day 16: CUSUM 0.00</title></circle>
+<circle cx="303.8" cy="468.0" r="7" fill="transparent"><title>day 17: CUSUM 0.00</title></circle>
+<circle cx="317.5" cy="468.0" r="7" fill="transparent"><title>day 18: CUSUM 0.00</title></circle>
+<circle cx="331.2" cy="468.0" r="7" fill="transparent"><title>day 19: CUSUM 0.00</title></circle>
+<circle cx="345.0" cy="468.0" r="7" fill="transparent"><title>day 20: CUSUM 0.00</title></circle>
+<circle cx="358.8" cy="468.0" r="7" fill="transparent"><title>day 21: CUSUM 0.00</title></circle>
+<circle cx="372.5" cy="468.0" r="7" fill="transparent"><title>day 22: CUSUM 0.00</title></circle>
+<circle cx="386.2" cy="468.0" r="7" fill="transparent"><title>day 23: CUSUM 0.00</title></circle>
+<circle cx="400.0" cy="468.0" r="7" fill="transparent"><title>day 24: CUSUM 0.00</title></circle>
+<circle cx="413.8" cy="468.0" r="7" fill="transparent"><title>day 25: CUSUM 0.00</title></circle>
+<circle cx="427.5" cy="468.0" r="7" fill="transparent"><title>day 26: CUSUM 0.00</title></circle>
+<circle cx="441.2" cy="468.0" r="7" fill="transparent"><title>day 27: CUSUM 0.00</title></circle>
+<circle cx="455.0" cy="468.0" r="7" fill="transparent"><title>day 28: CUSUM 0.00</title></circle>
+<circle cx="468.8" cy="468.0" r="7" fill="transparent"><title>day 29: CUSUM 0.00</title></circle>
+<circle cx="482.5" cy="468.0" r="7" fill="transparent"><title>day 30: CUSUM 0.00</title></circle>
+<circle cx="496.2" cy="468.0" r="7" fill="transparent"><title>day 31: CUSUM 0.00</title></circle>
+<circle cx="510.0" cy="468.0" r="7" fill="transparent"><title>day 32: CUSUM 0.00</title></circle>
+<circle cx="523.8" cy="468.0" r="7" fill="transparent"><title>day 33: CUSUM 0.00</title></circle>
+<circle cx="537.5" cy="468.0" r="7" fill="transparent"><title>day 34: CUSUM 0.00</title></circle>
+<circle cx="551.2" cy="468.0" r="7" fill="transparent"><title>day 35: CUSUM 0.00</title></circle>
+<circle cx="565.0" cy="468.0" r="7" fill="transparent"><title>day 36: CUSUM 0.00</title></circle>
+<circle cx="578.8" cy="468.0" r="7" fill="transparent"><title>day 37: CUSUM 0.00</title></circle>
+<circle cx="592.5" cy="468.0" r="7" fill="transparent"><title>day 38: CUSUM 0.00</title></circle>
+<circle cx="606.2" cy="468.0" r="7" fill="transparent"><title>day 39: CUSUM 0.00</title></circle>
+<circle cx="620.0" cy="468.0" r="7" fill="transparent"><title>day 40: CUSUM 0.00</title></circle>
+<circle cx="633.8" cy="468.0" r="7" fill="transparent"><title>day 41: CUSUM 0.00</title></circle>
+<circle cx="647.5" cy="468.0" r="7" fill="transparent"><title>day 42: CUSUM 0.00</title></circle>
+<circle cx="661.2" cy="468.0" r="7" fill="transparent"><title>day 43: CUSUM 0.00</title></circle>
+<circle cx="675.0" cy="468.0" r="7" fill="transparent"><title>day 44: CUSUM 0.00</title></circle>
+<circle cx="688.8" cy="468.0" r="7" fill="transparent"><title>day 45: CUSUM 0.00</title></circle>
+<circle cx="702.5" cy="468.0" r="7" fill="transparent"><title>day 46: CUSUM 0.00</title></circle>
+<circle cx="716.2" cy="468.0" r="7" fill="transparent"><title>day 47: CUSUM 0.00</title></circle>
+<circle cx="730.0" cy="468.0" r="7" fill="transparent"><title>day 48: CUSUM 0.00</title></circle>
+<circle cx="743.8" cy="468.0" r="7" fill="transparent"><title>day 49: CUSUM 0.00</title></circle>
+<circle cx="757.5" cy="468.0" r="7" fill="transparent"><title>day 50: CUSUM 0.00</title></circle>
+<circle cx="771.2" cy="468.0" r="7" fill="transparent"><title>day 51: CUSUM 0.00</title></circle>
+<circle cx="785.0" cy="468.0" r="7" fill="transparent"><title>day 52: CUSUM 0.00</title></circle>
+<circle cx="798.8" cy="468.0" r="7" fill="transparent"><title>day 53: CUSUM 0.00</title></circle>
+<circle cx="812.5" cy="468.0" r="7" fill="transparent"><title>day 54: CUSUM 0.00</title></circle>
+<circle cx="826.2" cy="468.0" r="7" fill="transparent"><title>day 55: CUSUM 0.00</title></circle>
+<circle cx="840.0" cy="468.0" r="7" fill="transparent"><title>day 56: CUSUM 0.00</title></circle>
+<rect x="63.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 0: stable</title></rect>
+<rect x="77.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 1: stable</title></rect>
+<rect x="91.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 2: stable</title></rect>
+<rect x="104.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 3: stable</title></rect>
+<rect x="118.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 4: stable</title></rect>
+<rect x="132.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 5: stable</title></rect>
+<rect x="146.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 6: stable</title></rect>
+<rect x="159.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 7: stable</title></rect>
+<rect x="173.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 8: stable</title></rect>
+<rect x="187.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 9: stable</title></rect>
+<rect x="201.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 10: stable</title></rect>
+<rect x="214.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 11: stable</title></rect>
+<rect x="228.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 12: stable</title></rect>
+<rect x="242.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 13: stable</title></rect>
+<rect x="256.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 14: stable</title></rect>
+<rect x="269.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 15: stable</title></rect>
+<rect x="283.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 16: stable</title></rect>
+<rect x="297.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 17: stable</title></rect>
+<rect x="311.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 18: stable</title></rect>
+<rect x="324.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 19: stable</title></rect>
+<rect x="338.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 20: stable</title></rect>
+<rect x="352.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 21: stable</title></rect>
+<rect x="366.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 22: stable</title></rect>
+<rect x="379.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 23: stable</title></rect>
+<rect x="393.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 24: stable</title></rect>
+<rect x="407.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 25: stable</title></rect>
+<rect x="421.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 26: stable</title></rect>
+<rect x="434.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 27: stable</title></rect>
+<rect x="448.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 28: stable</title></rect>
+<rect x="462.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 29: stable</title></rect>
+<rect x="476.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 30: stable</title></rect>
+<rect x="489.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 31: stable</title></rect>
+<rect x="503.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 32: stable</title></rect>
+<rect x="517.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 33: stable</title></rect>
+<rect x="531.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 34: stable</title></rect>
+<rect x="544.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 35: stable</title></rect>
+<rect x="558.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 36: stable</title></rect>
+<rect x="572.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 37: stable</title></rect>
+<rect x="586.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 38: stable</title></rect>
+<rect x="599.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 39: stable</title></rect>
+<rect x="613.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 40: stable</title></rect>
+<rect x="627.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 41: stable</title></rect>
+<rect x="641.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 42: stable</title></rect>
+<rect x="654.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 43: stable</title></rect>
+<rect x="668.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 44: stable</title></rect>
+<rect x="682.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 45: stable</title></rect>
+<rect x="696.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 46: stable</title></rect>
+<rect x="709.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 47: stable</title></rect>
+<rect x="723.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 48: stable</title></rect>
+<rect x="737.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 49: stable</title></rect>
+<rect x="751.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 50: stable</title></rect>
+<rect x="764.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 51: stable</title></rect>
+<rect x="778.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 52: stable</title></rect>
+<rect x="792.4" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 53: stable</title></rect>
+<rect x="806.1" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 54: stable</title></rect>
+<rect x="819.9" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 55: stable</title></rect>
+<rect x="833.6" y="494" width="12.8" height="8" rx="2" fill="#4FC3D9" fill-opacity="0.85"><title>day 56: stable</title></rect>
+<text x="62.0" y="502.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >state</text>
+<text x="840.0" y="524.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >day since TMS end</text>
+</svg>

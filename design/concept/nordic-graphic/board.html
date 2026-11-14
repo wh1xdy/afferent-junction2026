@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raita concept board</title>
+<style>
+@font-face{font-family:"Familjen Grotesk";src:url(fonts/FamiljenGrotesk-latin.woff2) format("woff2");font-weight:400 700;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Familjen Grotesk";src:url(fonts/FamiljenGrotesk-latin-ext.woff2) format("woff2");font-weight:400 700;unicode-range:U+0100-02AF,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Figtree";src:url(fonts/Figtree-latin.woff2) format("woff2");font-weight:300 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Figtree";src:url(fonts/Figtree-latin-ext.woff2) format("woff2");font-weight:300 900;unicode-range:U+0100-02AF,U+1E00-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"JetBrains Mono";src:url(../../fonts/JetBrainsMono-latin.woff2) format("woff2");font-weight:400 500}
+:root{
+  --ink:#0E1433;--indigo:#1B2457;--violet:#3D2F80;--snow:#F3F0E8;--paper:#FBF8F1;
+  --gold:#FFC23D;--gold-deep:#B07A00;--ice:#4FB3F0;--fjord:#1C4FA0;--aurora:#36D39A;--pine:#0B5C4B;--apricot:#FF9A62;--lilac:#B8A4FF;
+  --glow:#FFD37A;--daylight:#FFF3DC;
+  --d-surface:#0E1433;--d-c-low:#141B3E;--d-c:#182047;--d-c-high:#1F2853;--d-c-highest:#27305F;--d-on:#F3F0E8;--d-on-var:#C3C2D9;--d-outline:#8C8BA8;--d-outline-var:#3A4170;
+  --l-surface:#FBF8F1;--l-c:#F3F0E8;--l-c-high:#EDE9DF;--l-c-highest:#E6E1D5;--l-on:#0E1433;--l-on-var:#464A66;--l-outline:#767A96;--l-outline-var:#C9C8D6;
+  --display:"Familjen Grotesk",system-ui,sans-serif;--ui:"Figtree",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+.board{width:1680px;margin:0 auto}
+h1,h2,h3{font-family:var(--display);margin:0;letter-spacing:-0.02em}
+p{margin:0}
+.cap{font:600 11px/16px var(--ui);letter-spacing:.12em;text-transform:uppercase}
+section{padding:72px 72px}
+.sec-head{display:flex;align-items:baseline;gap:24px;margin-bottom:36px}
+.sec-head .n{font:700 15px var(--display);color:var(--ink);background:var(--gold);border-radius:999px;width:34px;height:34px;display:grid;place-items:center;flex:none}
+.sec-head h2{font-size:44px;font-weight:600;line-height:1}
+.sec-head p{font-size:17px;color:#464A66;max-width:640px;margin-left:auto}
+
+.hero{background:var(--ink);color:var(--snow);display:grid;grid-template-columns:1fr 600px;gap:64px;padding:72px 72px 0;position:relative;overflow:hidden}
+.hero .left{display:flex;flex-direction:column;padding-bottom:72px}
+.lockup{display:flex;align-items:center;gap:18px}
+.lockup img{height:52px}
+.lockup .wm{font:700 46px/1 var(--display);letter-spacing:-0.035em}
+.hero .tag{margin-top:12px;color:var(--d-on-var)}
+.hero h1{font-size:112px;line-height:.92;font-weight:700;margin-top:84px;letter-spacing:-0.045em}
+.hero h1 em{font-style:normal;color:var(--gold)}
+.hero .story{font-size:21px;line-height:1.5;color:var(--d-on-var);margin-top:36px;max-width:720px}
+.hero .story b{color:var(--snow);font-weight:600}
+.stripes{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:56px}
+.stripes span{height:14px;border-radius:999px;display:block}
+.hero .art{align-self:end;border-radius:300px 300px 0 0;overflow:hidden;height:900px}
+.hero .art img{width:100%;height:100%;object-fit:cover;display:block}
+
+.principles{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.pr{background:var(--snow);border-radius:28px;padding:28px;min-height:220px;display:flex;flex-direction:column;gap:12px}
+.pr .k{font:700 40px/1 var(--display);letter-spacing:-0.04em}
+.pr h3{font-size:22px;font-weight:600;line-height:1.15}
+.pr p{font-size:15px;line-height:1.5;color:#464A66}
+.pr.dark{background:var(--ink);color:var(--snow)}.pr.dark p{color:var(--d-on-var)}
+
+.keyart{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.ka figure{margin:0}
+.ka img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:28px;display:block}
+.ka figcaption{margin-top:14px;font-size:15px;line-height:1.45;color:#464A66}
+.ka figcaption b{display:block;font:600 19px var(--display);color:var(--ink);margin-bottom:4px;letter-spacing:-0.01em}
+.ka .pill{display:inline-block;font:600 11px var(--ui);letter-spacing:.08em;text-transform:uppercase;background:var(--gold);color:var(--ink);padding:3px 9px;border-radius:999px;margin-left:6px;vertical-align:2px}
+
+.passes{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;align-items:end}
+.passes .p svg{width:100%;display:block;border-radius:24px}
+.passes .p .lbl{display:flex;justify-content:space-between;align-items:baseline;margin-top:12px}
+.passes .p .lbl b{font:600 20px var(--display)}
+.passes .p .lbl i{font-style:normal;font-size:13px;color:#464A66}
+.passes .p .lamp{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px;color:#464A66}
+.passes .p .lamp span{width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 1px var(--l-outline-var)}
+.note{margin-top:28px;font-size:15px;line-height:1.55;color:#464A66;max-width:1240px}
+
+.pal{display:grid;grid-template-columns:1.05fr 1.6fr 0.75fr;gap:20px}
+.pg h3{font-size:13px;font-family:var(--ui);font-weight:600;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px;color:#464A66}
+.sw{display:grid;gap:10px}
+.sw.c2{grid-template-columns:1fr 1fr}
+.chip{border-radius:22px;padding:18px 18px 16px;min-height:150px;display:flex;flex-direction:column;justify-content:flex-end}
+.chip b{font:600 20px var(--display);letter-spacing:-0.01em}
+.chip code{font:500 13px var(--mono);opacity:.85;margin-top:2px}
+.chip small{font-size:13px;line-height:1.4;margin-top:8px;opacity:.85}
+.duo{display:grid;grid-template-rows:2fr 1fr;border-radius:22px;overflow:hidden;min-height:190px}
+.duo>div{padding:14px 18px;display:flex;flex-direction:column;justify-content:flex-end}
+.ramp{display:flex;height:56px;border-radius:999px;overflow:hidden;margin-top:20px}
+.ramp span{flex:1}
+
+.typo{display:grid;grid-template-columns:1.25fr 1fr;gap:20px}
+.tcard{background:var(--snow);border-radius:28px;padding:36px}
+.tcard.dark{background:var(--ink);color:var(--snow)}
+.spec-big{font:700 168px/0.85 var(--display);letter-spacing:-0.05em}
+.scale{display:grid;grid-template-columns:150px 1fr 140px;gap:8px 20px;align-items:baseline;margin-top:8px}
+.scale .r{font:500 12px var(--mono);color:var(--d-on-var)}
+.scale .m{font:500 12px var(--mono);color:var(--d-on-var);text-align:right}
+.alpha{font:500 30px/1.25 var(--display);letter-spacing:-0.01em;margin-top:22px}
+.alpha2{font:400 22px/1.4 var(--ui);margin-top:10px}
+
+.shapes{display:grid;grid-template-columns:repeat(6,1fr);gap:16px}
+.shp{background:var(--snow);border-radius:28px;padding:22px;display:flex;flex-direction:column;gap:10px}
+.shp svg{width:100%;height:150px}
+.shp b{font:600 19px var(--display)}
+.shp span{font-size:13.5px;line-height:1.45;color:#464A66}
+.uishapes{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px}
+.us{border:1.5px solid var(--l-outline-var);border-radius:28px;padding:22px;display:flex;gap:18px;align-items:center}
+.us span{font-size:14px;line-height:1.45;color:#464A66}
+.us b{display:block;color:var(--ink);font:600 16px var(--ui);margin-bottom:2px}
+
+.phones{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;align-items:start}
+.phwrap{width:351px;height:760px;position:relative}
+.phone{width:390px;height:844px;transform:scale(.9);transform-origin:0 0;border-radius:48px;overflow:hidden;position:relative;box-shadow:0 0 0 10px #0B0F24,0 30px 60px rgba(14,20,51,.35);font-family:var(--ui)}
+.phcap{margin-top:30px;font-size:14.5px;line-height:1.5;color:#464A66;max-width:350px}
+.phcap b{display:block;font:600 19px var(--display);color:var(--ink);margin-bottom:4px}
+.sb{position:absolute;top:0;left:0;right:0;height:50px;display:flex;justify-content:space-between;align-items:center;padding:14px 30px 0;font:600 15px var(--ui);z-index:5}
+.bg{position:absolute;inset:0;background-size:cover;background-position:center}
+.iconbtn{width:44px;height:44px;border-radius:999px;display:grid;place-items:center}
+.btn{height:56px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:600 17px var(--ui);letter-spacing:.01em}
+.text-btn{height:48px;display:flex;align-items:center;justify-content:center;font:600 15px var(--ui)}
+
+.motion{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.mo{background:var(--ink);color:var(--snow);border-radius:28px;padding:24px;display:flex;flex-direction:column;gap:10px}
+.mo svg{width:100%;height:170px}
+.mo b{font:600 20px var(--display)}
+.mo span{font-size:14px;line-height:1.5;color:var(--d-on-var)}
+.mo code{font:500 12px var(--mono);color:var(--gold)}
+.tokens{display:grid;grid-template-columns:repeat(4,1fr);gap:10px 24px;margin-top:22px;font-size:14px;color:#464A66}
+.tokens div{display:flex;justify-content:space-between;border-bottom:1px solid var(--l-outline-var);padding:8px 0}
+.tokens code{font:500 12.5px var(--mono);color:var(--ink)}
+
+.brand{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:20px}
+.bcard{border-radius:28px;padding:32px;display:flex;flex-direction:column;gap:20px}
+.icons{display:flex;align-items:flex-end;gap:22px}
+.icons img{display:block}
+.expl{display:flex;gap:16px}
+.expl figure{margin:0;font-size:12.5px;color:#464A66}
+.expl img{width:120px;border-radius:26px;display:block;margin-bottom:6px}
+
+.m3{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.roles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.role{border-radius:14px;padding:12px 12px 10px;min-height:76px;display:flex;flex-direction:column;justify-content:space-between;font-size:12.5px;font-weight:600}
+.role code{font:500 11px var(--mono);opacity:.8}
+
+.prompt{background:var(--ink);color:var(--snow);border-radius:28px;padding:32px;font:400 14.5px/1.65 var(--mono)}
+.prompt .cap{color:var(--gold);margin-bottom:12px}
+.uniq{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.uq{border-radius:28px;padding:30px;display:flex;flex-direction:column;gap:12px}
+.uq h3{font-size:26px;font-weight:600;line-height:1.1}
+.uq p{font-size:15.5px;line-height:1.55}
+footer{background:var(--ink);color:var(--d-on-var);padding:36px 72px;display:flex;justify-content:space-between;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="board">
+
+<header class="hero">
+  <div class="left">
+    <div class="lockup"><img src="mark.svg" alt=""><span class="wm">afferent</span></div>
+    <div class="cap tag">Design concept · nordic-graphic · "Raita"</div>
+    <h1>Every morning<br>is a <em>print run.</em></h1>
+    <p class="story">The polar night is the bare screen: one ink, deep indigo, with a single gold lantern. <b>Each minigame you finish pulls one colour back through the screen</b>: gold, then ice, then aurora, then dawn. When the last pass lands, the sun lifts over the fell and the picture is complete. And every morning you keep the ritual, <b>your fabric grows by one stripe</b> in the colours you reached. Raita is Finnish for stripe.</p>
+    <div class="stripes">
+      <span style="background:var(--gold);width:100%"></span>
+      <span style="background:var(--ice);width:86%"></span>
+      <span style="background:var(--aurora);width:72%"></span>
+      <span style="background:var(--apricot);width:58%"></span>
+      <span style="background:var(--lilac);width:44%"></span>
+    </div>
+  </div>
+  <div class="art"><img src="../../../art/raw/concept/concept_ng_hero_hq.png" alt=""></div>
+</header>
+
+<section>
+  <div class="sec-head"><div class="n">1</div><h2>Principles</h2><p>Bold, graphic, modern Scandinavian. Confident like a Marimekko bolt, layered like an Alto sky, clean like a Google app.</p></div>
+  <div class="principles">
+    <div class="pr dark"><div class="k" style="color:var(--gold)">01</div><h3>Printed, not painted</h3><p>Flat shapes, crisp edges, no outlines, no brush texture. One fine print grain over everything. Every frame could hang on a wall.</p></div>
+    <div class="pr"><div class="k">02</div><h3>Six shapes build the world</h3><p>Circle, dome, band, spike, dash, hood. Every prop, glyph and UI element is made from them. Nothing else gets in.</p></div>
+    <div class="pr"><div class="k">03</div><h3>One pass per task</h3><p>Each finished minigame prints one colour back. Colour is earned and never taken away; a miss only slows the pull.</p></div>
+    <div class="pr"><div class="k">04</div><h3>Big and few</h3><p>Oversized forms (the sun is half the screen wide), at most six colours per frame, at least 40% calm sky. Scale is the drama, not detail.</p></div>
+    <div class="pr"><div class="k">05</div><h3>Circle means light</h3><p>Sun, moon, lantern, the task Disc, the streak sun. A circle is always warm, alive or touchable. Hard rectangles never are.</p></div>
+    <div class="pr"><div class="k">06</div><h3>Banded gradients</h3><p>Skies are 5 to 8 flat bands with soft 2 px seams, never airbrush. Bands are how colour returns: they re-ink one by one.</p></div>
+    <div class="pr"><div class="k">07</div><h3>App-native calm</h3><p>Material 3 underneath, Raita tokens on top. All type is set in code; art carries no text. Two taps from bed to play.</p></div>
+    <div class="pr dark"><div class="k" style="color:var(--aurora)">08</div><h3>The fabric remembers</h3><p>The streak is a textile, one stripe per morning. A missed morning prints a quiet indigo rest stripe. The fabric never tears.</p></div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head"><div class="n">2</div><h2>Key art</h2><p>Generated with the STYLE prompt below (gpt-image-1.5). The first two are high quality, the others medium.</p></div>
+  <div class="keyart">
+    <div class="ka"><figure><img src="../../../art/raw/concept/concept_ng_hero_hq.png" alt=""><figcaption><b>Morning session <span class="pill">high</span></b>The last pass lands: sun disc over the fell, banded sky, gold dashes on the ice, aurora fading as a ribbon.</figcaption></figure></div>
+    <div class="ka"><figure><img src="../../../art/raw/concept/concept_ng_transition_hq.png" alt=""><figcaption><b>Night to dawn <span class="pill">high</span></b>The dawn pull: a clean colour edge sweeps from the east with a gold leading line. The cloak takes the newest colour.</figcaption></figure></div>
+    <div class="ka"><figure><img src="../../../art/raw/concept/concept_ng_bite_v2.png" alt=""><figcaption><b>Minigame: Bite</b>The daily reaction core. Concentric rings on the ice say "watch here" without a word; the moon path is a stack of dashes.</figcaption></figure></div>
+    <div class="ka"><figure><img src="../../../art/raw/concept/concept_ng_start.png" alt=""><figcaption><b>Start style frame</b>Pass 0, before Begin. One ember, one aurora ribbon, the lower 38% left empty for the streak and the Begin button.</figcaption></figure></div>
+  </div>
+</section>
+
+<section style="background:var(--snow)">
+  <div class="sec-head"><div class="n">3</div><h2>Night to dawn in four passes</h2><p>The colour-return system as print passes. Drawn here in code from the six shapes: the style is procedural-friendly by design, so canvas can render it at 60 fps with any subset of images.</p></div>
+  <div class="passes" id="passes"></div>
+  <p class="note">Order keeps the existing colour-return groups (yellow, blue, green, dawn). Each pass: the colour layer is revealed by a hard-edged circle that grows from the lantern (1.2 s, emphasized decelerate), the sky bands re-ink top to bottom with a 90 ms stagger, and the layer lands with a 2 px registration snap. The hooded figure's cloak always wears the newest pass colour. The bedside light steps one notch warmer and brighter with every pass, so the room wakes with the picture.</p>
+</section>
+
+<section>
+  <div class="sec-head"><div class="n">4</div><h2>Palette</h2><p>One ink family, four pass colours, two lights. No red anywhere: attention is apricot. Every pass colour reads above 7:1 on night ink.</p></div>
+  <div class="pal">
+    <div class="pg"><h3>Ink · pass 0</h3>
+      <div class="sw c2">
+        <div class="chip" style="background:var(--ink);color:var(--snow)"><b>Night ink</b><code>#0E1433</code><small>Dark surface, silhouettes, the hood, text on light</small></div>
+        <div class="chip" style="background:var(--indigo);color:var(--snow)"><b>Indigo</b><code>#1B2457</code><small>Night sky bands, icon ground, containers</small></div>
+        <div class="chip" style="background:var(--violet);color:var(--snow)"><b>Violet</b><code>#3D2F80</code><small>Horizon at night, light secondary</small></div>
+        <div class="chip" style="background:var(--snow);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--l-outline-var)"><b>Snow</b><code>#F3F0E8</code><small>Snow, moon, text on dark</small></div>
+      </div>
+    </div>
+    <div class="pg"><h3>Passes · colour comes home</h3>
+      <div class="sw" style="grid-template-columns:repeat(4,1fr)">
+        <div class="duo"><div style="background:var(--gold);color:var(--ink)"><span class="cap">Pass 1 · Kulta</span><b style="font:600 20px var(--display)">Gold</b><code style="font:500 13px var(--mono)">#FFC23D</code></div><div style="background:var(--gold-deep);color:var(--snow)"><code style="font:500 12px var(--mono)">#B07A00</code></div></div>
+        <div class="duo"><div style="background:var(--ice);color:var(--ink)"><span class="cap">Pass 2 · Jää</span><b style="font:600 20px var(--display)">Ice</b><code style="font:500 13px var(--mono)">#4FB3F0</code></div><div style="background:var(--fjord);color:var(--snow)"><code style="font:500 12px var(--mono)">Fjord #1C4FA0</code></div></div>
+        <div class="duo"><div style="background:var(--aurora);color:var(--ink)"><span class="cap">Pass 3 · Revontuli</span><b style="font:600 20px var(--display)">Aurora</b><code style="font:500 13px var(--mono)">#36D39A</code></div><div style="background:var(--pine);color:var(--snow)"><code style="font:500 12px var(--mono)">Pine #0B5C4B</code></div></div>
+        <div class="duo"><div style="background:var(--apricot);color:var(--ink)"><span class="cap">Pass 4 · Aamu</span><b style="font:600 20px var(--display)">Apricot</b><code style="font:500 13px var(--mono)">#FF9A62</code></div><div style="background:var(--lilac);color:var(--ink)"><code style="font:500 12px var(--mono)">Lilac #B8A4FF</code></div></div>
+      </div>
+      <p style="font-size:14px;line-height:1.5;color:#464A66;margin-top:14px">Gold: lantern, sun, birch light, primary action. Ice: lake, sea, secondary. Aurora: spruce, aurora ribbons, tertiary. Apricot and lilac: the dawn sky, attention (never alarm).</p>
+    </div>
+    <div class="pg"><h3>Light</h3>
+      <div class="sw">
+        <div class="chip" style="background:radial-gradient(circle at 84% 28%,#FFD37A 0,#FFD37A 26px,rgba(255,211,122,.35) 27px,rgba(255,211,122,.35) 40px,#1B2457 41px);color:var(--snow);min-height:150px"><b>Lantern glow</b><code>#FFD37A</code><small>Glow sprites; the only warm pixel at pass 0</small></div>
+        <div class="chip" style="background:var(--daylight);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--l-outline-var);min-height:110px"><b>Daylight</b><code>#FFF3DC</code><small>Bedside wake light at dawn</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="ramp" title="Dawn sky bands">
+    <span style="background:#0E1433"></span><span style="background:#1B2457"></span><span style="background:#2A3A8F"></span><span style="background:#4A4BB0"></span><span style="background:#8C7BE0"></span><span style="background:#B8A4FF"></span><span style="background:#E9A6C9"></span><span style="background:#FF9A62"></span><span style="background:#FFB44C"></span><span style="background:#FFC23D"></span>
+  </div>
+  <p class="note" style="margin-top:12px">Dawn sky as ten flat bands, top to bottom. Pink sits only between lilac and apricot, as a seam, never as a field.</p>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head"><div class="n">5</div><h2>Typography</h2><p>Two bundled OFL families: a Swedish grotesk for the confident moments, a Google-clean sans for everything you read. Type is always set in code.</p></div>
+  <div class="typo">
+    <div class="tcard dark">
+      <div class="cap" style="color:var(--gold)">Display · Familjen Grotesk 400 to 700 · OFL · by Familjen, Stockholm</div>
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-top:20px">
+        <div class="spec-big" style="color:var(--gold)">13</div>
+        <div style="padding-bottom:16px"><div style="font:600 44px/1 var(--display);letter-spacing:-0.025em">Good morning.</div><div style="font:500 28px/1.2 var(--display);color:var(--d-on-var);margin-top:10px;letter-spacing:-0.015em">mornings in a row</div></div>
+      </div>
+      <div class="alpha">Aa Bb Cc Dd Ee Ff Gg Hh Ii Jj Kk Ll Mm Nn Oo Pp Qq Rr Ss Tt Uu Vv Ww Xx Yy Zz Åå Ää Öö 0123456789</div>
+      <div class="cap" style="color:var(--gold);margin-top:34px">UI · Figtree 300 to 900 · OFL · by Erik Kennedy</div>
+      <div class="alpha2">Begin · Not today · Your fabric · Rest well. Slow breathing often settles you.</div>
+      <div class="cap" style="color:var(--d-on-var);margin-top:28px">Mono · JetBrains Mono · already bundled · debug and protocol only</div>
+    </div>
+    <div class="tcard">
+      <div class="cap" style="color:#464A66;margin-bottom:12px">M3 type scale, Raita mapping</div>
+      <div class="scale" style="--c:#464A66">
+        <span class="r" style="color:#464A66">displayLarge</span><span style="font:700 57px/60px var(--display);letter-spacing:-0.03em">13</span><span class="m" style="color:#464A66">57/60 · 700</span>
+        <span class="r" style="color:#464A66">displayMedium</span><span style="font:600 44px/48px var(--display);letter-spacing:-0.025em">Rest well.</span><span class="m" style="color:#464A66">44/48 · 600</span>
+        <span class="r" style="color:#464A66">headlineMedium</span><span style="font:500 28px/34px var(--display);letter-spacing:-0.015em">Your fabric</span><span class="m" style="color:#464A66">28/34 · 500</span>
+        <span class="r" style="color:#464A66">titleLarge</span><span style="font:600 22px/28px var(--ui)">This week</span><span class="m" style="color:#464A66">22/28 · 600</span>
+        <span class="r" style="color:#464A66">titleMedium</span><span style="font:600 16px/24px var(--ui)">Lantern Song</span><span class="m" style="color:#464A66">16/24 · 600</span>
+        <span class="r" style="color:#464A66">bodyLarge</span><span style="font:400 16px/24px var(--ui)">Five mornings this week.</span><span class="m" style="color:#464A66">16/24 · 400</span>
+        <span class="r" style="color:#464A66">labelLarge</span><span style="font:600 15px/20px var(--ui)">Begin</span><span class="m" style="color:#464A66">15/20 · 600</span>
+        <span class="r" style="color:#464A66">labelSmall</span><span style="font:600 11px/16px var(--ui);letter-spacing:.08em;text-transform:uppercase">Mon Tue Wed</span><span class="m" style="color:#464A66">11/16 · 600 caps</span>
+      </div>
+      <p style="font-size:14px;line-height:1.5;color:#464A66;margin-top:22px">Display is tight (-0.015 to -0.03em) and only ever one line. Numbers use tabular figures. Fonts in <code style="font:500 12.5px var(--mono)">design/concept/nordic-graphic/fonts/</code>, latin and latin-ext, variable weight, offline.</p>
+    </div>
+  </div>
+</section>
+
+<section style="background:var(--snow)">
+  <div class="sec-head"><div class="n">6</div><h2>Shape language</h2><p>Six primitives for the world; the same geometry for the interface. Round for light and touch, straight bands for land and time.</p></div>
+  <div class="shapes">
+    <div class="shp" style="background:var(--paper)"><svg viewBox="0 0 200 150"><circle cx="100" cy="78" r="62" fill="#FFC23D"/></svg><b>Circle</b><span>Sun, moon, lantern, task Disc, float. Light and touch.</span></div>
+    <div class="shp" style="background:var(--paper)"><svg viewBox="0 0 200 150"><path d="M0 150 C30 60 170 60 200 150Z" fill="#1B2457"/><path d="M40 150 C70 90 150 80 200 120 L200 150Z" fill="#F3F0E8"/></svg><b>Dome</b><span>Fells, snow mounds, islands. Always wider than tall.</span></div>
+    <div class="shp" style="background:var(--paper)"><svg viewBox="0 0 200 150"><rect y="10" width="200" height="22" fill="#3D2F80"/><rect y="38" width="200" height="22" fill="#8C7BE0"/><rect y="66" width="200" height="22" fill="#FF9A62"/><rect y="94" width="200" height="22" fill="#FFC23D"/><rect y="122" width="200" height="22" fill="#4FB3F0"/></svg><b>Band</b><span>Sky, water, time. Horizontal only. The streak stripe.</span></div>
+    <div class="shp" style="background:var(--paper)"><svg viewBox="0 0 200 150"><path d="M40 140 L62 30 L84 140Z M86 140 L112 10 L138 140Z M134 140 L154 54 L174 140Z" fill="#0B5C4B"/></svg><b>Spike</b><span>Spruce, reeds, waymarkers. Tall isosceles, flat base.</span></div>
+    <div class="shp" style="background:var(--paper)"><svg viewBox="0 0 200 150"><rect x="64" y="0" width="22" height="150" fill="#F3F0E8" stroke="#E6E1D5"/><rect x="114" y="0" width="22" height="150" fill="#F3F0E8" stroke="#E6E1D5"/><g fill="#0E1433"><rect x="64" y="22" width="10" height="4" rx="2"/><rect x="74" y="52" width="12" height="4" rx="2"/><rect x="64" y="90" width="8" height="4" rx="2"/><rect x="114" y="36" width="12" height="4" rx="2"/><rect x="126" y="74" width="10" height="4" rx="2"/><rect x="114" y="112" width="9" height="4" rx="2"/></g><g fill="#F3F0E8"><rect x="8" y="128" width="40" height="5" rx="2.5"/><rect x="152" y="128" width="40" height="5" rx="2.5"/><rect x="20" y="138" width="26" height="5" rx="2.5"/></g></svg><b>Dash</b><span>Birch marks, reflections, ripples. Rounded short bars.</span></div>
+    <div class="shp" style="background:var(--paper)"><svg viewBox="380 400 260 290"><path d="M404 664 C410 612 430 566 450 540 C440 506 444 466 462 414 C488 438 518 470 530 512 C536 530 534 542 530 550 C550 586 562 626 568 664 C522 680 450 680 404 664 Z" fill="#0E1433"/><path d="M528 562 L598 538" stroke="#0E1433" stroke-width="12" stroke-linecap="round"/><circle cx="604" cy="568" r="34" fill="#FFD37A" opacity=".5"/><circle cx="604" cy="568" r="18" fill="#FF9A62"/></svg><b>Hood</b><span>The wanderer. Bell cloak, pointed hood, no face, lantern forward.</span></div>
+  </div>
+  <div class="uishapes">
+    <div class="us"><div style="width:120px;height:44px;border-radius:999px;background:var(--gold);flex:none"></div><span><b>Full round</b>Buttons, chips, streak stripes, nav indicator.</span></div>
+    <div class="us"><div style="width:84px;height:64px;border-radius:28px;background:var(--ink);flex:none"></div><span><b>28 px (M3 extra-large)</b>Cards, sheets, the quote card.</span></div>
+    <div class="us"><div style="width:72px;height:72px;border-radius:50%;background:var(--ice);flex:none;box-shadow:0 0 0 6px var(--paper),0 0 0 8px var(--ice)"></div><span><b>The Disc</b>Every minigame opens in a circle grown from the lantern.</span></div>
+    <div class="us"><div style="width:84px;height:64px;border-radius:0;background:linear-gradient(#FFC23D 0 25%,#4FB3F0 0 50%,#36D39A 0 75%,#FF9A62 0);flex:none"></div><span><b>No outlines, no shadows</b>Depth comes from value and layering, never drop shadows.</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><div class="n">7</div><h2>UI theme on Material 3</h2><p>M3 structure and components (buttons, cards, navigation bar, type scale), Raita colour roles and shapes on top. Night scheme in the game, Morning scheme in the patient view and dashboard by day.</p></div>
+  <div class="phones">
+
+    <div>
+      <div class="phwrap"><div class="phone" style="background:var(--ink);color:var(--snow)">
+        <div class="bg" style="background-image:url(../../../art/raw/concept/concept_ng_start.png)"></div>
+        <div class="sb"><span>6:42</span><span style="display:flex;gap:6px;align-items:center"><svg width="18" height="12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#F3F0E8"/><rect x="5" y="5" width="3" height="7" rx="1" fill="#F3F0E8"/><rect x="10" y="2" width="3" height="10" rx="1" fill="#F3F0E8"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#F3F0E8"/></svg><svg width="26" height="12"><rect x="0.5" y="0.5" width="22" height="11" rx="3" fill="none" stroke="#F3F0E8" opacity=".6"/><rect x="2" y="2" width="15" height="8" rx="2" fill="#F3F0E8"/></svg></span></div>
+        <div style="position:absolute;top:58px;left:16px;right:16px;display:flex;justify-content:space-between">
+          <div class="iconbtn" style="background:rgba(14,20,51,.5)"><img src="mark.svg" style="width:26px"></div>
+          <div class="iconbtn" style="background:rgba(14,20,51,.5)"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#F3F0E8" stroke-width="2" stroke-linecap="round"><path d="M3 6h16M3 11h16M3 16h16"/><circle cx="8" cy="6" r="2.2" fill="#0E1433"/><circle cx="14" cy="11" r="2.2" fill="#0E1433"/><circle cx="7" cy="16" r="2.2" fill="#0E1433"/></svg></div>
+        </div>
+        <div style="position:absolute;left:24px;right:24px;bottom:40px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <svg width="54" height="40" viewBox="0 0 54 40"><clipPath id="sh"><rect width="54" height="30"/></clipPath><circle cx="27" cy="30" r="25" fill="#FFC23D" clip-path="url(#sh)"/><rect x="0" y="33" width="54" height="7" rx="3.5" fill="#4FB3F0"/></svg>
+            <div><div style="font:700 57px/50px var(--display);letter-spacing:-0.03em;color:var(--gold)">12</div></div>
+            <div style="font:500 17px/1.2 var(--display);color:var(--snow);padding-top:8px">mornings<br>in a row</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:22px">
+            <div><div style="height:72px;border-radius:999px;background:linear-gradient(#FFC23D 0 25%,#4FB3F0 0 50%,#36D39A 0 75%,#FF9A62 0)"></div></div>
+            <div><div style="height:72px;border-radius:999px;background:linear-gradient(#FFC23D 0 33%,#4FB3F0 0 66%,#36D39A 0)"></div></div>
+            <div><div style="height:72px;border-radius:999px;background:linear-gradient(#FFC23D 0 25%,#4FB3F0 0 50%,#36D39A 0 75%,#FF9A62 0)"></div></div>
+            <div><div style="height:72px;border-radius:999px;background:linear-gradient(#FFC23D 0 50%,#4FB3F0 0)"></div></div>
+            <div><div style="height:72px;border-radius:999px;background:linear-gradient(#FFC23D 0 25%,#4FB3F0 0 50%,#36D39A 0 75%,#FF9A62 0)"></div></div>
+            <div><div style="height:72px;border-radius:999px;background:linear-gradient(#FFC23D 0 25%,#4FB3F0 0 50%,#36D39A 0 75%,#FF9A62 0)"></div></div>
+            <div><div style="height:72px;border-radius:999px;box-shadow:inset 0 0 0 2px #FFC23D,0 0 18px rgba(255,211,122,.55)"></div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-top:8px;text-align:center;font:600 11px var(--ui);letter-spacing:.08em;color:var(--d-on-var)"><span>T</span><span>F</span><span>S</span><span>S</span><span>M</span><span>T</span><span style="color:var(--gold)">W</span></div>
+          <div class="btn" style="background:var(--gold);color:#2A1C00;margin-top:26px">Begin</div>
+          <div class="text-btn" style="color:var(--snow);margin-top:6px">Not today</div>
+        </div>
+      </div></div>
+      <p class="phcap"><b>Start: the streak at rest</b>Big gold count in Familjen Grotesk, a half-sun glyph instead of a flame, and this week as fabric stripes coloured by how far each morning got. Today's stripe waits as a glowing outline. Begin is a filled M3 button in gold.</p>
+    </div>
+
+    <div>
+      <div class="phwrap"><div class="phone" style="background:var(--ink);color:var(--snow)">
+        <div class="bg" style="background-image:url(../../../art/raw/concept/concept_ng_start.png);filter:saturate(.6) brightness(.55)"></div>
+        <div class="sb"><span>6:44</span><span></span></div>
+        <div style="position:absolute;top:58px;right:16px" class="iconbtn"><svg width="20" height="20" viewBox="0 0 20 20" stroke="#C3C2D9" stroke-width="2" stroke-linecap="round"><path d="M5 5l10 10M15 5L5 15"/></svg></div>
+        <div style="position:absolute;left:50%;top:150px;width:346px;height:346px;margin-left:-173px;border-radius:50%;overflow:hidden;box-shadow:0 0 0 6px rgba(255,194,61,.9),0 0 60px rgba(255,211,122,.35);background:url(../../../art/raw/concept/concept_ng_bite_v2.png) 42% 72%/230% auto"></div>
+        <div style="position:absolute;left:50%;top:150px;width:346px;height:346px;margin-left:-173px;border-radius:50%;pointer-events:none">
+          <svg viewBox="0 0 346 346" width="346" height="346" style="position:absolute;inset:0"><circle cx="203" cy="248" r="34" fill="none" stroke="#FFC23D" stroke-width="3" opacity=".9"/><circle cx="203" cy="248" r="52" fill="none" stroke="#FFC23D" stroke-width="2" opacity=".45"/></svg>
+        </div>
+        <div style="position:absolute;left:0;right:0;top:530px;display:flex;justify-content:center;gap:14px">
+          <span style="width:16px;height:16px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px rgba(255,211,122,.7)"></span>
+          <span style="width:16px;height:16px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px rgba(255,211,122,.7)"></span>
+          <span style="width:16px;height:16px;border-radius:50%;background:var(--gold);box-shadow:0 0 12px rgba(255,211,122,.7)"></span>
+          <span style="width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 2px #8C8BA8"></span>
+          <span style="width:16px;height:16px;border-radius:50%;box-shadow:inset 0 0 0 2px #8C8BA8"></span>
+        </div>
+        <svg style="position:absolute;left:58px;bottom:64px" width="200" height="140" viewBox="380 400 260 290"><path d="M404 664 C410 612 430 566 450 540 C440 506 444 466 462 414 C488 438 518 470 530 512 C536 530 534 542 530 550 C550 586 562 626 568 664 C522 680 450 680 404 664 Z" fill="#2C3466"/><path d="M528 562 L598 538" stroke="#2C3466" stroke-width="12" stroke-linecap="round"/><circle cx="604" cy="568" r="50" fill="#FFD37A" opacity=".35"/><circle cx="604" cy="568" r="18" fill="#FFC23D"/></svg>
+        <svg style="position:absolute;left:0;top:0" width="390" height="844"><path d="M152 742 Q 190 600 236 496" fill="none" stroke="#FFD37A" stroke-width="2" stroke-dasharray="2 9" stroke-linecap="round" opacity=".7"/></svg>
+      </div></div>
+      <p class="phcap"><b>Task: Bite in the Disc</b>Minigames open in a circle grown from the lantern (dotted path), so the world and the figure stay visible around it. No panel, no text. Progress is five catch dots under the Disc; the target ring in gold says where to look.</p>
+    </div>
+
+    <div>
+      <div class="phwrap"><div class="phone" style="background:var(--ink);color:var(--snow)">
+        <div class="bg" style="background-image:url(../../../art/raw/concept/concept_ng_hero_hq.png);background-position:center 30%"></div>
+        <div class="sb"><span>6:46</span><span></span></div>
+        <div style="position:absolute;top:84px;left:24px;right:24px"><div style="font:600 44px/48px var(--display);letter-spacing:-0.025em">Good morning.</div></div>
+        <div style="position:absolute;left:16px;right:16px;bottom:28px;background:var(--l-c);color:var(--ink);border-radius:28px;padding:24px 24px 18px">
+          <div style="font:500 23px/30px var(--display);letter-spacing:-0.012em">"In the midst of winter, I found there was, within me, an invincible summer."</div>
+          <div style="font:500 14px var(--ui);color:#464A66;margin-top:10px">Albert Camus</div>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--l-outline-var)">
+            <div style="width:48px;height:22px;border-radius:999px;background:linear-gradient(90deg,#FFC23D 0 25%,#4FB3F0 0 50%,#36D39A 0 75%,#FF9A62 0)"></div>
+            <div style="font:600 15px var(--ui);flex:1">13 mornings<div style="font:400 13px var(--ui);color:#464A66">A new stripe in your fabric</div></div>
+            <div class="btn" style="background:var(--ink);color:var(--snow);height:44px;padding:0 22px;font-size:15px">Done</div>
+          </div>
+        </div>
+      </div></div>
+      <p class="phcap"><b>End: dawn and a quote</b>Text waits until the sun has crested and sits over clear sky. One quote card in the Morning scheme, the streak count ticking up by one, today's stripe shown with every pass reached.</p>
+    </div>
+
+    <div>
+      <div class="phwrap"><div class="phone" style="background:var(--l-surface);color:var(--ink)">
+        <div class="sb" style="color:var(--ink)"><span>9:12</span><span></span></div>
+        <div style="position:absolute;top:62px;left:24px;right:24px;display:flex;align-items:center;justify-content:space-between"><div style="font:500 28px/34px var(--display);letter-spacing:-0.015em">Your fabric</div><img src="mark.svg" style="height:26px"></div>
+        <div style="position:absolute;top:116px;left:16px;right:16px;background:var(--ink);border-radius:28px;padding:20px 20px 18px;color:var(--snow)">
+          <div style="display:flex;align-items:baseline;gap:10px"><span style="font:700 44px/1 var(--display);color:var(--gold);letter-spacing:-0.03em">13</span><span style="font:500 16px var(--display)">mornings in a row</span></div>
+          <div id="fabric" style="display:flex;flex-direction:column;gap:4px;margin-top:16px"></div>
+          <div style="font:400 13px var(--ui);color:var(--d-on-var);margin-top:12px">One stripe per morning, coloured by how far the dawn got. Rest days stay in the fabric as quiet stripes.</div>
+        </div>
+        <div style="position:absolute;top:556px;left:16px;right:16px">
+          <div style="font:600 11px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:#464A66;margin:0 8px 8px">This week</div>
+          <div style="background:var(--l-c);border-radius:28px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 18px"><span style="width:36px;height:36px;border-radius:50%;background:var(--gold);flex:none"></span><div style="flex:1"><div style="font:600 16px/22px var(--ui)">5 mornings</div><div style="font:400 14px var(--ui);color:#464A66">Dawn reached on 4 of them</div></div></div>
+            <div style="height:1px;background:var(--l-outline-var);margin:0 18px"></div>
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 18px"><span style="width:36px;height:36px;border-radius:50%;background:var(--aurora);flex:none"></span><div style="flex:1"><div style="font:600 16px/22px var(--ui)">Lantern Song</div><div style="font:400 14px var(--ui);color:#464A66">Played 3 times, slow and steady</div></div></div>
+          </div>
+        </div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:80px;background:var(--l-c-high);display:grid;grid-template-columns:repeat(3,1fr);padding-top:12px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font:500 12px var(--ui);color:#464A66"><span style="width:56px;height:30px;display:grid;place-items:center"><svg width="22" height="22" viewBox="0 0 22 22"><clipPath id="nh"><rect width="22" height="15"/></clipPath><circle cx="11" cy="15" r="9" fill="none" stroke="#464A66" stroke-width="2" clip-path="url(#nh)"/><rect x="1" y="17" width="20" height="2.5" rx="1.25" fill="#464A66"/></svg></span>Today</div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font:600 12px var(--ui);color:var(--ink)"><span style="width:56px;height:30px;border-radius:999px;background:#FFE7A8;display:grid;place-items:center"><svg width="22" height="22" viewBox="0 0 22 22"><rect x="2" y="3" width="18" height="3.4" rx="1.7" fill="#0E1433"/><rect x="2" y="9.3" width="18" height="3.4" rx="1.7" fill="#0E1433"/><rect x="2" y="15.6" width="12" height="3.4" rx="1.7" fill="#0E1433"/></svg></span>Fabric</div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font:500 12px var(--ui);color:#464A66"><span style="width:56px;height:30px;display:grid;place-items:center"><svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#464A66" stroke-width="2" stroke-linecap="round"><path d="M3 6h16M3 11h16M3 16h16"/><circle cx="8" cy="6" r="2.2" fill="#F3F0E8"/><circle cx="14" cy="11" r="2.2" fill="#F3F0E8"/><circle cx="7" cy="16" r="2.2" fill="#F3F0E8"/></svg></span>Settings</div>
+        </div>
+      </div></div>
+      <p class="phcap"><b>Patient view: the fabric</b>Morning scheme, M3 navigation bar with a gold-tint active indicator. The streak becomes a textile you can scroll back through: a memento, not a score. Neutral, supportive copy only.</p>
+    </div>
+  </div>
+
+  <div class="m3" style="margin-top:56px">
+    <div>
+      <div class="cap" style="color:#464A66;margin-bottom:12px">Night scheme · game, start, end</div>
+      <div class="roles">
+        <div class="role" style="background:#FFC23D;color:#2A1C00">primary<code>#FFC23D</code></div>
+        <div class="role" style="background:#5C4300;color:#FFDF9E">primaryContainer<code>#5C4300</code></div>
+        <div class="role" style="background:#8FD0FF;color:#00344F">secondary<code>#8FD0FF</code></div>
+        <div class="role" style="background:#1C4FA0;color:#D6ECFF">secondaryContainer<code>#1C4FA0</code></div>
+        <div class="role" style="background:#5FE3AE;color:#00382A">tertiary<code>#5FE3AE</code></div>
+        <div class="role" style="background:#0B5C4B;color:#B6F5DA">tertiaryContainer<code>#0B5C4B</code></div>
+        <div class="role" style="background:#FFB38A;color:#4A1D00">attention (no red)<code>#FFB38A</code></div>
+        <div class="role" style="background:#0E1433;color:#F3F0E8;box-shadow:inset 0 0 0 1px #3A4170">surface<code>#0E1433</code></div>
+        <div class="role" style="background:#141B3E;color:#C3C2D9">containerLow<code>#141B3E</code></div>
+        <div class="role" style="background:#182047;color:#C3C2D9">container<code>#182047</code></div>
+        <div class="role" style="background:#1F2853;color:#C3C2D9">containerHigh<code>#1F2853</code></div>
+        <div class="role" style="background:#27305F;color:#C3C2D9">containerHighest<code>#27305F</code></div>
+      </div>
+    </div>
+    <div>
+      <div class="cap" style="color:#464A66;margin-bottom:12px">Morning scheme · patient view, dashboard by day</div>
+      <div class="roles">
+        <div class="role" style="background:#1C4FA0;color:#FFFFFF">primary<code>#1C4FA0</code></div>
+        <div class="role" style="background:#FFC23D;color:#2A1C00">primaryContainer<code>#FFC23D</code></div>
+        <div class="role" style="background:#3D2F80;color:#FFFFFF">secondary<code>#3D2F80</code></div>
+        <div class="role" style="background:#E4DDFF;color:#1E1250">secondaryContainer<code>#E4DDFF</code></div>
+        <div class="role" style="background:#0B6B55;color:#FFFFFF">tertiary<code>#0B6B55</code></div>
+        <div class="role" style="background:#B6F5DA;color:#00382A">tertiaryContainer<code>#B6F5DA</code></div>
+        <div class="role" style="background:#8E3F12;color:#FFFFFF">attention (no red)<code>#8E3F12</code></div>
+        <div class="role" style="background:#FBF8F1;color:#0E1433;box-shadow:inset 0 0 0 1px #C9C8D6">surface<code>#FBF8F1</code></div>
+        <div class="role" style="background:#F7F4EC;color:#464A66;box-shadow:inset 0 0 0 1px #E6E1D5">containerLow<code>#F7F4EC</code></div>
+        <div class="role" style="background:#F3F0E8;color:#464A66">container<code>#F3F0E8</code></div>
+        <div class="role" style="background:#EDE9DF;color:#464A66">containerHigh<code>#EDE9DF</code></div>
+        <div class="role" style="background:#E6E1D5;color:#464A66">containerHighest<code>#E6E1D5</code></div>
+      </div>
+    </div>
+  </div>
+  <p class="note">Full role set with on-colours, outlines and inverse roles in <code style="font:500 13px var(--mono)">theme.json</code>. WCAG: onPrimary on primary 10.3:1, onSurface on surface 15.8:1 (night) and 17.0:1 (morning), onSurfaceVariant 9.0:1 and 7.1:1. Clinician dashboard: Morning scheme by default, tabular Figtree numbers, state chips stable ice, watch gold, check-in apricot, booster lilac, always with the text label.</p>
+</section>
+
+<section style="background:var(--snow)">
+  <div class="sec-head"><div class="n">8</div><h2>Motion</h2><p>M3 easing for every UI move; four signature moves for the world. Nothing shakes, nothing flashes, everything breathes at six per minute.</p></div>
+  <div class="motion">
+    <div class="mo">
+      <svg viewBox="0 0 300 170"><rect width="300" height="170" rx="16" fill="#1B2457"/><clipPath id="pc"><circle cx="90" cy="120" r="112"/></clipPath><g clip-path="url(#pc)"><rect width="300" height="170" rx="16" fill="#FFC23D"/><rect y="100" width="300" height="70" fill="#F3F0E8"/></g><circle cx="90" cy="120" r="112" fill="none" stroke="#FFD37A" stroke-width="3"/><circle cx="90" cy="120" r="56" fill="none" stroke="#FFD37A" stroke-width="1.5" stroke-dasharray="3 6" opacity=".6"/><circle cx="90" cy="120" r="8" fill="#FF9A62"/></svg>
+      <b>The Pull</b><span>A finished task prints its colour: a hard-edged circle grows from the lantern with a thin gold leading line.</span><code>1200 ms · emphasizedDecelerate</code>
+    </div>
+    <div class="mo">
+      <svg viewBox="0 0 300 170"><rect width="300" height="170" rx="16" fill="#0E1433"/><path d="M40 150 C90 50 210 50 260 150Z" fill="#4FB3F0" opacity=".55" transform="translate(6 -4)"/><path d="M40 150 C90 50 210 50 260 150Z" fill="#4FB3F0"/><path d="M150 26 v20 M140 36 h20" stroke="#F3F0E8" stroke-width="2"/><circle cx="150" cy="36" r="7" fill="none" stroke="#F3F0E8" stroke-width="2"/></svg>
+      <b>Registration snap</b><span>The new colour lands 2 px off and snaps into register with a tiny overshoot: the felt "click" of a print pass.</span><code>140 ms · 2 px · standard</code>
+    </div>
+    <div class="mo">
+      <svg viewBox="0 0 300 170"><rect width="300" height="170" rx="16" fill="#0E1433"/><g><rect x="0" y="0" width="300" height="24" fill="#3D2F80"/><rect x="0" y="28" width="300" height="24" fill="#8C7BE0"/><rect x="0" y="56" width="300" height="24" fill="#B8A4FF"/><rect x="0" y="84" width="210" height="24" fill="#FF9A62"/><rect x="0" y="112" width="120" height="24" fill="#FFB44C"/><rect x="0" y="140" width="40" height="24" fill="#FFC23D"/></g></svg>
+      <b>Band re-ink</b><span>Sky bands change colour one at a time, top to bottom, each as a short wipe. Alto's sky, printed.</span><code>90 ms stagger · 600 ms per band</code>
+    </div>
+    <div class="mo">
+      <svg viewBox="0 0 300 170"><rect width="300" height="170" rx="16" fill="#1B2457"/><circle cx="150" cy="128" r="58" fill="#FFC23D" opacity=".25"/><circle cx="150" cy="104" r="58" fill="#FFC23D" opacity=".5"/><circle cx="150" cy="80" r="58" fill="#FFC23D"/><path d="M0 170 V128 C80 96 220 96 300 128 V170Z" fill="#F3F0E8"/></svg>
+      <b>Sun lift</b><span>After the dawn pull, the sun disc rises behind the fell while the lantern hands its light over. The bedside light follows.</span><code>6000 ms · easeInOut · lamp 4000 ms</code>
+    </div>
+  </div>
+  <div class="tokens">
+    <div><span>UI enter</span><code>emphasizedDecelerate 400 ms</code></div>
+    <div><span>UI exit</span><code>emphasizedAccelerate 200 ms</code></div>
+    <div><span>Disc open / close</span><code>500 ms / 380 ms</code></div>
+    <div><span>Streak count tick</span><code>roll 600 ms, once</code></div>
+    <div><span>Breath pacer</span><code>in 4000 · out 6000 ms</code></div>
+    <div><span>Lantern pulse</span><code>fixed 1000 ms, never the heart</code></div>
+    <div><span>Dawn pull (east to west)</span><code>2400 ms</code></div>
+    <div><span>Reduced motion</span><code>600 ms fades, no snap</code></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><div class="n">9</div><h2>Logo and app icon</h2><p>The wanderer in front of a rising sun: the whole story in four shapes. Vector, so it stays sharp at 29 px and works in one colour.</p></div>
+  <div class="brand">
+    <div class="bcard" style="background:var(--ink);color:var(--snow)">
+      <div class="cap" style="color:var(--gold)">App icon · icon.svg</div>
+      <div class="icons"><img src="icon.svg" style="width:220px;border-radius:50px"><img src="icon.svg" style="width:96px;border-radius:22px"><img src="icon.svg" style="width:60px;border-radius:14px"><img src="icon.svg" style="width:29px;border-radius:7px"></div>
+      <p style="font-size:14px;line-height:1.5;color:var(--d-on-var)">Indigo ground, gold sun, snow dome, the hood with an apricot lantern. Full-bleed square, the OS applies the mask.</p>
+    </div>
+    <div class="bcard" style="background:var(--snow)">
+      <div class="cap" style="color:#464A66">Lockup</div>
+      <div class="lockup" style="color:var(--ink)"><img src="mark.svg" style="height:58px"><span class="wm" style="font-size:52px">afferent</span></div>
+      <div class="lockup" style="background:var(--ink);color:var(--snow);padding:18px 22px;border-radius:22px;align-self:flex-start"><img src="mark.svg" style="height:36px"><span class="wm" style="font-size:32px">afferent</span></div>
+      <p style="font-size:14px;line-height:1.5;color:#464A66">Wordmark in Familjen Grotesk 700, lowercase, -0.035em. The mark sits on an ice band: the first stripe of the fabric.</p>
+    </div>
+    <div class="bcard" style="border:1.5px solid var(--l-outline-var)">
+      <div class="cap" style="color:#464A66">Generated explorations, not chosen</div>
+      <div class="expl">
+        <figure><img src="../../../art/raw/concept/concept_ng_icon_a.png">Stripes sun: reads as retro synthwave</figure>
+        <figure><img src="../../../art/raw/concept/concept_ng_icon_b.png">Figure: turned into a witch hat</figure>
+        <figure><img src="../../../art/raw/concept/concept_ng_icon_c.png">Arc: reads as a wifi glyph</figure>
+      </div>
+      <p style="font-size:14px;line-height:1.5;color:#464A66">The image model could not hold the hood silhouette at icon scale, so the icon is drawn by hand as SVG from the same six shapes.</p>
+    </div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="sec-head"><div class="n">10</div><h2>Illustration style</h2><p>Reusable STYLE prefix for generate.py (plan_ng.json), plus the rules the procedural renderer follows.</p></div>
+  <div class="prompt">
+    <div class="cap">STYLE</div>
+    Bold flat graphic illustration in a modern Scandinavian poster style, like a screenprinted Finnish textile or a mid-century Nordic travel poster: large confident flat colour shapes with crisp clean vector edges, no outlines, no brush strokes, no watercolour, no paper texture, only a very fine even print grain. Skies are smooth gradients built from wide horizontal bands that blend softly into each other. Strong readable silhouettes and oversized simple forms (a huge sun or moon disc, big rounded fells, tall flat triangular spruces, white birch trunks with short black dashes), minimal detail, generous empty space, a calm balanced composition, orthographic side view with a low horizon. The only character is a small faceless hooded wanderer built from two simple shapes: a tall rounded cloak and a pointed hood, no face, no visible hands, carrying a small lantern. Limited palette, at most six colours per image, chosen from: night ink #0E1433, deep indigo #1B2457, violet #3D2F80, snow #F3F0E8, gold #FFC23D, ice blue #4FB3F0, deep fjord #1C4FA0, aurora green #36D39A, deep pine #0B5C4B, apricot #FF9A62, lilac #B8A4FF. No red anywhere. No text, no letters, no numbers, no logos, no signature, no watermark, no faces.
+    <div class="cap" style="margin-top:22px">Add per asset</div>
+    "The hood interior is solid dark, with no eyes and no face." (the model otherwise adds a glint for an eye) · For game layers: "paint local colour at full saturation; the game removes colour, not the artist."
+  </div>
+</section>
+
+<section style="background:var(--snow)">
+  <div class="sec-head"><div class="n">11</div><h2>What makes it ours</h2><p>Three ideas no other wellbeing app or Nordic game uses together.</p></div>
+  <div class="uniq">
+    <div class="uq" style="background:var(--ink);color:var(--snow)"><div class="cap" style="color:var(--gold)">The world</div><h3>Dawn as a print run</h3><p style="color:var(--d-on-var)">Night is one ink; every minigame pulls one colour back through the screen. The player literally prints their morning. The metaphor explains colour return without a word, and every frame looks like a poster worth sharing.</p></div>
+    <div class="uq" style="background:var(--gold);color:var(--ink)"><div class="cap">The streak</div><h3>A fabric, not a flame</h3><p>Duolingo's pull of "keep it going", made kind: each morning weaves one stripe in the colours you reached. Rest days stay as quiet stripes. After a month you own a textile that is only yours, and nothing ever breaks.</p></div>
+    <div class="uq" style="background:var(--ice);color:var(--ink)"><div class="cap">The room</div><h3>The picture lights the bedroom</h3><p>Each pass steps the bedside light warmer and brighter; the dawn pull lands as a 60% daylight fade. The game and the wake-up light are one sunrise, on the screen and in the room.</p></div>
+  </div>
+</section>
+
+<footer><span>afferent · Raita, nordic-graphic concept · Junction 2026, Aalto "Beyond the Clinic"</span><span>Fonts: Familjen Grotesk, Figtree, JetBrains Mono (OFL 1.1) · Supportive companion, not a treatment</span></footer>
+</div>
+
+<script>
+(function(){
+  const S={ink:'#0E1433',indigo:'#1B2457',violet:'#3D2F80',snow:'#F3F0E8',gold:'#FFC23D',ice:'#4FB3F0',fjord:'#1C4FA0',aurora:'#36D39A',pine:'#0B5C4B',apricot:'#FF9A62',lilac:'#B8A4FF',glow:'#FFD37A'};
+  const passes=[
+    {name:'Night',fi:'pass 0 · ink',lamp:'#FFD37A',lv:'5%'},
+    {name:'Gold',fi:'pass 1 · Kulta',lamp:'#FFC98A',lv:'12%'},
+    {name:'Ice',fi:'pass 2 · Jää',lamp:'#FFDDB0',lv:'22%'},
+    {name:'Aurora',fi:'pass 3 · Revontuli',lamp:'#FFE9C8',lv:'35%'},
+    {name:'Dawn',fi:'pass 4 · Aamu',lamp:'#FFF3DC',lv:'60%'}
+  ];
+  const skies=[
+    ['#0E1433','#111839','#141C40','#182047','#1B2457','#20295F','#252E66'],
+    ['#0E1433','#111839','#141C40','#182047','#1B2457','#2A2A5E','#3D3160'],
+    ['#0E1433','#10193F','#13204E','#17295E','#1C326E','#22407E','#2A4C8A'],
+    ['#0E1433','#10193F','#13204E','#17295E','#1C326E','#22407E','#2A4C8A'],
+    ['#2A3A8F','#4A4BB0','#8C7BE0','#B8A4FF','#E9A6C9','#FF9A62','#FFC23D']
+  ];
+  function scene(p){
+    const W=300,H=380,hy=262;
+    let s=`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+    const sk=skies[p],bh=hy/sk.length;
+    sk.forEach((c,i)=>{s+=`<rect y="${(i*bh).toFixed(1)}" width="${W}" height="${(bh+1).toFixed(1)}" fill="${c}"/>`});
+    if(p<4){[[30,30],[80,62],[140,22],[210,48],[262,26],[240,96],[52,110],[180,84]].forEach(([x,y])=>{s+=`<circle cx="${x}" cy="${y}" r="1.6" fill="${S.snow}"/>`})}
+    if(p>=3){const a=p===4?0.35:1;s+=`<path d="M0 70 C70 50 140 92 300 60 L300 74 C150 104 70 64 0 84Z" fill="${S.aurora}" opacity="${a}"/><path d="M0 100 C90 84 180 120 300 96 L300 104 C180 128 90 94 0 108Z" fill="${S.aurora}" opacity="${a*0.6}"/>`}
+    if(p===4){s+=`<circle cx="160" cy="262" r="74" fill="${S.gold}"/>`}else{s+=`<circle cx="222" cy="150" r="20" fill="${p===0?'#C9C8D6':S.snow}"/>`}
+    const fell=p===4?S.snow:(p>=2?'#3B4A8A':'#2A3260');
+    s+=`<path d="M-20 ${hy+6} C40 220 260 210 330 ${hy+6}Z" fill="${fell}"/>`;
+    const spr=p>=3?S.pine:'#141B3E';
+    for(let i=0;i<9;i++){const x=150+i*17,h=28+((i*37)%18);s+=`<path d="M${x-8} ${hy+6} L${x} ${hy+6-h} L${x+8} ${hy+6}Z" fill="${spr}"/>`}
+    for(let i=0;i<4;i++){const x=6+i*15,h=24+((i*29)%14);s+=`<path d="M${x-7} ${hy+6} L${x} ${hy+6-h} L${x+7} ${hy+6}Z" fill="${spr}"/>`}
+    const lake=p>=2?(p===4?S.ice:S.fjord):'#1B2457',lake2=p>=2?(p===4?'#7CC8F4':S.ice):'#20295F';
+    s+=`<rect y="${hy+6}" width="${W}" height="70" fill="${lake}"/><rect y="${hy+30}" width="${W}" height="10" fill="${lake2}" opacity=".7"/><rect y="${hy+52}" width="${W}" height="6" fill="${lake2}" opacity=".5"/>`;
+    if(p===4){[[140,312,40],[146,324,28],[150,336,20],[152,348,12],[154,358,8]].forEach(([x,y,w])=>{s+=`<rect x="${x}" y="${y}" width="${w}" height="4" rx="2" fill="${S.gold}"/>`})}
+    else{[[214,316,16],[217,328,10],[219,340,6]].forEach(([x,y,w])=>{s+=`<rect x="${x}" y="${y}" width="${w}" height="3" rx="1.5" fill="${S.snow}" opacity=".5"/>`})}
+    const snow=p>=1?S.snow:'#3A4170';
+    s+=`<path d="M0 ${hy+70} C80 ${hy+60} 220 ${hy+64} 300 ${hy+74} V${H} H0Z" fill="${snow}"/>`;
+    s+=`<rect y="${hy+100}" width="${W}" height="6" rx="3" fill="${p>=1?'#E6E1D5':'#2E3566'}"/>`;
+    const bark=p>=1?S.snow:'#4A5080',dash=p>=1?S.ink:'#2A3260';
+    [[20,10],[44,30]].forEach(([x,t])=>{s+=`<rect x="${x}" y="${t}" width="11" height="${hy+90-t}" fill="${bark}"/>`;for(let k=0;k<9;k++){const y=t+20+k*36;s+=`<rect x="${x+(k%2?5:0)}" y="${y}" width="6" height="3" rx="1.5" fill="${dash}"/>`}});
+    if(p>=1){s+=`<circle cx="38" cy="120" r="5" fill="${S.gold}"/><circle cx="54" cy="160" r="4" fill="${S.gold}"/><circle cx="26" cy="196" r="4" fill="${S.gold}"/>`}
+    const cloak=[S.ink,S.gold,S.ice,S.aurora,S.apricot][p];
+    s+=`<g transform="translate(150 ${hy+96}) scale(.3) translate(-486 -664)"><path d="M404 664 C410 612 430 566 450 540 C440 506 444 466 462 414 C488 438 518 470 530 512 C536 530 534 542 530 550 C550 586 562 626 568 664 C522 680 450 680 404 664 Z" fill="${cloak}"/><path d="M528 562 L598 538" stroke="${S.ink}" stroke-width="12" stroke-linecap="round"/><circle cx="604" cy="568" r="${p===4?40:62}" fill="${S.glow}" opacity="${p===4?0.3:0.45}"/><circle cx="604" cy="568" r="20" fill="${S.gold}"/></g>`;
+    
+    s+=`</svg>`;return s;
+  }
+  const host=document.getElementById('passes');
+  passes.forEach((ps,i)=>{const d=document.createElement('div');d.className='p';d.innerHTML=scene(i)+`<div class="lbl"><b>${ps.name}</b><i>${ps.fi}</i></div><div class="lamp"><span style="background:${ps.lamp}"></span>Bedside light ${ps.lamp} at ${ps.lv}</div>`;host.appendChild(d)});
+  const fab=document.getElementById('fabric');
+  const days=[4,4,3,4,'r',2,4,4,4,3,4,4,4,1,4,4,'r',3,4,4,4];
+  const C=['#FFC23D','#4FB3F0','#36D39A','#FF9A62'];
+  days.forEach(n=>{const r=document.createElement('div');if(n==='r'){r.style.cssText='height:4px;border-radius:999px;background:#3A4170;margin:2px 0'}else{const segs=C.slice(0,n);r.style.cssText=`height:10px;border-radius:999px;background:linear-gradient(90deg,${segs.map((c,i)=>`${c} ${i*100/n}% ${(i+1)*100/n}%`).join(',')})`}fab.appendChild(r)});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF8F3">
+  <title>Your mornings</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="design/tokens.css" id="tokens">
+  <link rel="stylesheet" href="css/checkin.css">
+  <link rel="stylesheet" href="css/patient.css">
+</head>
+<body class="ll-kevat" data-tab="today">
+  <header id="hero" aria-hidden="true">
+    <canvas id="world"></canvas>
+    <svg class="wave" viewBox="0 0 390 40" preserveAspectRatio="none"><path d="M0 22 C 70 16, 120 30, 205 31 S 330 6, 390 4 V 40 H 0 Z"/></svg>
+  </header>
+
+  <div id="bar">
+    <a class="ib scrim" id="back" href="index.html" aria-label="Back to the lantern">
+      <svg viewBox="0 0 24 24"><path d="M19.5 12h-15M10.5 6l-6 6 6 6"/></svg>
+    </a>
+    <span id="barTitle" class="bar-title" aria-hidden="true"></span>
+    <span id="sim" class="sim" hidden>Simulated</span>
+    <button class="ib tonal" id="talkTop" type="button" aria-label="Talk to someone">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6"/><path d="M6 6l3.45 3.45M18 6l-3.45 3.45M6 18l3.45-3.45M18 18l-3.45-3.45"/></svg>
+    </button>
+  </div>
+
+  <main id="page" aria-busy="true">
+    <section class="panel" id="p-today" data-panel="today" aria-labelledby="todayH">
+      <h1 id="todayH" class="display">Your mornings</h1>
+      <p id="lifetime" class="lead"></p>
+
+      <section class="card" id="weekCard" aria-labelledby="weekH">
+        <div class="card-head">
+          <h2 id="weekH" class="title">This week</h2>
+          <p id="weekCount" class="meta"></p>
+        </div>
+        <ol id="week" class="days"></ol>
+      </section>
+
+      <section class="card" id="layersCard" aria-labelledby="layersH">
+        <div class="card-head">
+          <h2 id="layersH" class="title">Your layers</h2>
+        </div>
+        <svg id="strata" viewBox="0 0 300 120" role="img"></svg>
+      </section>
+
+      <section class="block" aria-labelledby="helpH">
+        <h2 id="helpH" class="subhead">What helped</h2>
+        <ul id="helped" class="rows"></ul>
+      </section>
+    </section>
+
+    <section class="panel" id="p-week" data-panel="week" aria-labelledby="weekPH" hidden>
+      <h1 id="weekPH" class="display">This week</h1>
+      <p id="date" class="lead"></p>
+      <section class="card" id="todayCard" aria-labelledby="headline">
+        <h2 id="headline" class="headline"></h2>
+        <p id="sub" class="body"></p>
+        <figure id="arcWrap">
+          <svg id="arc" viewBox="0 0 340 150" role="img" aria-label="Today's arc"></svg>
+          <figcaption id="arcCap"></figcaption>
+        </figure>
+      </section>
+      <ul id="dayList" class="group"></ul>
+    </section>
+
+    <section class="panel" id="p-settings" data-panel="settings" aria-labelledby="setH" hidden>
+      <h1 id="setH" class="display">Settings</h1>
+
+      <section class="block" aria-labelledby="clinicH">
+        <h2 id="clinicH" class="subhead">Export to your clinic</h2>
+        <div id="sharing" class="seg" role="radiogroup" aria-labelledby="clinicH">
+          <button type="button" role="radio" data-v="summary"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Summary</button>
+          <button type="button" role="radio" data-v="nothing_tonight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Skip today</button>
+          <button type="button" role="radio" data-v="paused"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Pause 7 days</button>
+        </div>
+        <ul id="sees" class="sees"></ul>
+      </section>
+
+      <section class="block" aria-labelledby="sensH">
+        <h2 id="sensH" class="subhead">Sensors</h2>
+        <div id="sensors"></div>
+      </section>
+
+      <section class="block">
+        <ul class="group">
+          <li><button type="button" id="talkRow" class="li">
+            <svg class="lic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.6"/><path d="M6 6l3.45 3.45M18 6l-3.45 3.45M6 18l3.45-3.45M18 18l-3.45-3.45"/></svg>
+            <span class="lt">Talk to someone</span>
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>
+          </button></li>
+        </ul>
+      </section>
+
+      <footer id="foot">
+        <p class="kept"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg><span id="keptText"></span></p>
+        <p>Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
+      </footer>
+    </section>
+  </main>
+
+  <nav id="nav" aria-label="Your mornings">
+    <a href="#today" data-tab="today"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="f" d="M4.5 10.5L12 4.5l7.5 6v9h-5v-5.5h-5V19.5h-5z"/></svg></span><span class="nl">Today</span></a>
+    <a href="#week" data-tab="week"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M9.2 5.5v13M14.8 5.5v13"/></svg></span><span class="nl">Week</span></a>
+    <a href="#settings" data-tab="settings"><span class="pill"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 3.5h3.4l.5 2.4 1.6.9 2.3-.8 1.7 2.9-1.8 1.6v1.9l1.8 1.6-1.7 2.9-2.3-.8-1.6.9-.5 2.4h-3.4l-.5-2.4-1.6-.9-2.3.8-1.7-2.9 1.8-1.6V10.5L4.2 8.9l1.7-2.9 2.3.8 1.6-.9z"/><circle cx="12" cy="12" r="2.6"/></svg></span><span class="nl">Settings</span></a>
+  </nav>
+
+  <script src="js/util.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/streak.js"></script>
+  <script src="js/checkin.js"></script>
+  <script src="js/patient.js"></script>
+</body>
+</html>

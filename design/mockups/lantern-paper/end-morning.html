@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-scheme="dawn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#B9C9E6">
+<title>Good morning</title>
+<link rel="stylesheet" href="lp.css">
+<link rel="stylesheet" href="end.css">
+<style>
+  .scene { background-image: url("img/bg_end_dawn.jpg"); background-position: 50% 40%; }
+  .scene::after { background: linear-gradient(180deg, rgba(253, 249, 240, 0.32) 0%, transparent 30%, transparent 62%, rgba(30, 27, 21, 0.18) 100%); }
+  .greet { color: var(--md-sys-color-on-surface); }
+</style>
+</head>
+<body>
+<div class="scene" aria-hidden="true"></div>
+<main class="phone">
+  <header class="top-bar">
+    <a class="icon-btn sl" href="start.html" aria-label="Close"><span class="c"><span class="ms i-close"></span></span></a>
+    <span class="grow"></span>
+    <a class="icon-btn sl" href="crisis.html" aria-label="Talk to someone"><span class="c"><span class="ms i-support"></span></span></a>
+  </header>
+  <h1 class="greet display-m">Good morning.</h1>
+  <div class="pick-card paper">
+    <div class="mood-pick" role="radiogroup" aria-label="How do you feel now">
+      <button class="sl" role="radio" aria-checked="false" aria-label="1 of 5" data-lantern="1"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="2 of 5" data-lantern="2"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="3 of 5" data-lantern="3"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="4 of 5" data-lantern="4"></button>
+      <button class="sl" role="radio" aria-checked="false" aria-label="5 of 5" data-lantern="5"></button>
+    </div>
+  </div>
+</main>
+<script src="lp.js"></script>
+<script src="end.js"></script>
+</body>
+</html>
