@@ -1,6 +1,5 @@
 /* Heart Duel (Settings, Together): demo/js/duel.js. Player 1 wears the lantern colour, player 2 the frost colour of the theme. */
 .duel { z-index: 7; background: var(--af-grain), var(--md-sys-color-surface); background-size: var(--af-grain-size), auto; color: var(--md-sys-color-on-surface); animation: rise var(--af-dur-enter) var(--af-ease-in); }
-.duel.hidden { display: none; }
 .duel-body { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 0 calc(var(--af-safe-r) + var(--af-gutter)) 12px calc(var(--af-safe-l) + var(--af-gutter)); scrollbar-width: none; }
 .duel-body::-webkit-scrollbar { display: none; }
 

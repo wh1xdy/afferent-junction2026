@@ -175,13 +175,18 @@
     if (x.outcome === 'first') {
       return { title: `${n(x.winner)} calmed down first`, text: `${fix1(x.drops[x.winner])} below their start after ${secs(x.atMs)} seconds, and stayed there. Nicely done, both of you.` };
     }
+    const rel = d => d > 0 ? `${fix1(d)} below` : d < 0 ? `${fix1(-d)} above` : 'level with';
     if (x.outcome === 'most') {
-      return { title: `${n(x.winner)} calmed down the most`, text: `Down ${fix1(x.drops[x.winner])} from their start, against ${fix1(x.drops[1 - x.winner])}. Nobody held ${ROUND.DROP_BPM} below for ${ROUND.HOLD_MS / 1000} seconds this time.` };
+      const w = x.winner, dw = x.drops[w], dl = x.drops[1 - w];
+      return {
+        title: dw > 0 ? `${n(w)} calmed down the most` : `${n(w)} stayed the calmest`,
+        text: `On average ${n(w)} was ${rel(dw)} their start, ${n(1 - w)} ${rel(dl)} theirs. Nobody held ${ROUND.DROP_BPM} below for ${ROUND.HOLD_MS / 1000} seconds this time.`,
+      };
     }
     if (x.outcome === 'tie') {
-      return x.drops[0] !== null && x.drops[1] !== null && x.atMs != null
-        ? { title: 'A tie', text: `You both got there in the same moment. ${fix1(x.drops[0])} below your starts.` }
-        : { title: 'A tie', text: `You both came down ${fix1(x.drops[0])} from your start.` };
+      return x.atMs != null
+        ? { title: 'A tie', text: `You both got there in the same moment, ${fix1(x.drops[0])} below your starts. Nicely done, both of you.` }
+        : { title: 'A tie', text: `On average you were both ${rel(x.drops[0])} your start.` };
     }
     if (x.outcome === 'no-contest') {
       const miss = 1 - x.winner;

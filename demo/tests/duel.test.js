@@ -198,8 +198,13 @@ const tests = {
     let r = go([72, 80], () => [70, 77]);
     assert.deepStrictEqual(plain(r.result), { outcome: 'most', winner: 1, drops: [2, 3], coverage: [1, 1] });
     assert.strictEqual(D.screen({ enabled: true, link: 'connected', views: [{ state: 'live', bpm: 70 }, { state: 'live', bpm: 77 }], people: D.peopleCreate(), round: r }).result.title, 'Player 2 calmed down the most');
+    const words = r => D.screen({ enabled: true, link: 'connected', views: [{ state: 'live', bpm: 70 }, { state: 'live', bpm: 77 }], people: D.peopleCreate(), round: r }).result;
+    assert.strictEqual(words(r).text, 'On average Player 2 was 3 below their start, Player 1 2 below theirs. Nobody held 4 below for 5 seconds this time.');
+    r = go([72, 80], () => [74, 81]);
+    assert.deepStrictEqual(plain(words(r)), { title: 'Player 2 stayed the calmest', text: 'On average Player 2 was 1 above their start, Player 1 2 above theirs. Nobody held 4 below for 5 seconds this time.' }, 'never "down -1"');
     r = go([72, 80], () => [70, 78]);
     assert.deepStrictEqual([r.result.outcome, r.result.winner], ['tie', null]);
+    assert.strictEqual(words(r).text, 'On average you were both 2 below your start.');
     r = go([72, 80], t => [t < 10000 ? 72 : null, 79]);
     assert.deepStrictEqual([r.result.outcome, r.result.winner], ['no-contest', 1], 'a third of the round is not enough to be counted');
     r = go([72, 80], () => [null, null]);
