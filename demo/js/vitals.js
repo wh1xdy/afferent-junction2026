@@ -11,10 +11,16 @@
   };
   const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in the clip to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
-  const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', rppg: 'Camera', simulated: SIM };
+  const SOURCE = { finger_ppg: 'Finger sensor', ky039: 'Pulse stone', simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
+  const CAMERA = 'Pulse, camera estimate', UNSTEADY = 'No steady reading right now';
+  const CAM_LINK = {
+    starting: 'Starting the camera', on: 'Starting the camera', off: 'Switched off',
+    unauthorized: 'Camera is off for Afferent in Settings', unsupported: 'Not available on this phone',
+  };
+  const CAM_HINT = { 'head moving': 'Hold the phone still', 'face too dark': 'More light on your face helps', 'face overexposed': 'Too much light on your face' };
   const NO_QUALITY = 'This sensor version does not report signal quality yet, so the game does not use this pulse.';
-  const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone', rppg: 'camera' };
+  const CHIP = { finger_ppg: 'finger sensor', ky039: 'pulse stone' };
 
   const sensorLines = ph => {
     if (!S.enabled.pulse_stone) return ['Switched off'];
@@ -50,10 +56,13 @@
     ];
   };
 
-  const cameraRow = cam => {
-    if (!cam) return [];
-    const trust = TRUST[cam.trust_label] ? `Signal ${TRUST[cam.trust_label]}` : null, score = cam.trust_score == null ? null : `${int(cam.trust_score)} of 100`;
-    return [row('videocam', 'Pulse (camera)', int(cam.bpm), [cam.bpm == null ? NONE : BPM, [trust, score].filter(Boolean).join(' · ')])];
+  const signalQuality = (score, label) => [`Signal quality ${int(score)} of 100`, TRUST[label]].filter(Boolean).join(' · ');
+
+  const cameraRow = (cam, st) => {
+    if (cam) return [row('videocam', CAMERA, int(cam.bpm), [cam.bpm == null ? UNSTEADY : BPM, signalQuality(cam.trust_score, cam.trust_label), CAM_HINT[st.reason]])];
+    if (st.link === 'unavailable') return [];
+    const waiting = st.face === false ? 'No face in view' : st.face ? 'Hold still. Takes about ten seconds' : null;
+    return [row('videocam', CAMERA, null, [st.link === 'on' && waiting ? waiting : CAM_LINK[st.link] || NONE])];
   };
 
   const earlier = () => {
@@ -62,15 +71,15 @@
     const f = v.finger?.source === 'finger_ppg' ? v.finger : null, cam = v.camera_pulse, rows = [];
     const over = unit => `${unit}, average`;
     if (f?.pulse_bpm?.mean != null) rows.push(row('ecg_heart', 'Pulse', int(f.pulse_bpm.mean), [over(BPM), SOURCE.finger_ppg]));
-    else if (cam?.pulse_bpm?.mean != null) rows.push(row('videocam', 'Pulse', int(cam.pulse_bpm.mean), [over(BPM), SOURCE.rppg]));
     if (f && v.breathing?.rate_per_min?.mean != null) rows.push(row('air', 'Breathing', int(v.breathing.rate_per_min.mean), [over('breaths per minute')]));
     if (f && v.hrv?.rmssd_ms?.mean != null) rows.push(row('vital_signs', 'Beat-to-beat variation', int(v.hrv.rmssd_ms.mean), [over('ms (RMSSD)')]));
+    if (cam?.source === 'rppg' && cam.pulse_bpm?.mean != null) rows.push(row('videocam', CAMERA, int(cam.pulse_bpm.mean), [over(BPM), cam.trust_score?.mean == null ? null : `${signalQuality(cam.trust_score.mean)}, average`]));
     return rows.length ? { title: new Date(at).getHours() < 12 ? 'This morning' : 'Earlier today', rows } : null;
   };
 
   const model = now => {
     const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now);
-    const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam)];
+    const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
     return { rows, note, earlier: earlier() };
   };

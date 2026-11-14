@@ -19,6 +19,7 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
             return
         }
         DispatchQueue.main.async {
+            FaceFrames.shared.eyesSession(true)
             let session = ARSession()
             session.delegate = self
             let config = ARFaceTrackingConfiguration()
@@ -33,6 +34,7 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
         DispatchQueue.main.async {
             self.session?.pause()
             self.session = nil
+            FaceFrames.shared.eyesSession(false)
             call.resolve()
         }
     }
@@ -42,6 +44,11 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
         let rel = simd_mul(simd_inverse(camera.transform), face.transform)
         let forward = rel.columns.2
         return Double(atan2(-forward.x, forward.z)) * 180.0 / Double.pi
+    }
+
+    public func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        guard session === self.session else { return }
+        FaceFrames.shared.onFrame?(frame)
     }
 
     public func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
@@ -74,5 +81,6 @@ class AfferentViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AfferentFingerPlugin())
         bridge?.registerPluginInstance(AfferentPresencePlugin())
         bridge?.registerPluginInstance(AfferentEyesPlugin())
+        bridge?.registerPluginInstance(AfferentPulsePlugin())
     }
 }
