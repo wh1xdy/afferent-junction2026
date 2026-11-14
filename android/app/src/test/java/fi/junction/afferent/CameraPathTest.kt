@@ -25,8 +25,8 @@ import org.junit.Test
  *     refuses a runtime request for a permission the manifest does not declare.
  *  2. A secure context: navigator.mediaDevices is undefined on any other origin.
  *     http://localhost counts as secure, http://192.168.x.x (a live-reload server.url) does not.
- *  3. The model and the wasm runtime inside the APK: about 23 MB under vendor/mediapipe,
- *     copied by `npx cap sync android`.
+ *  3. The model and the SIMD wasm runtime inside the APK: about 13 MB under vendor/mediapipe,
+ *     copied by `npx cap sync android` (the no-SIMD fallback is not shipped; Android's WebView has SIMD).
  *  4. No CDN: the web layer must load those files from the app, not from the internet.
  */
 class CameraPathTest {
@@ -41,8 +41,6 @@ class CameraPathTest {
         "vendor/mediapipe/face_landmarker.task",
         "vendor/mediapipe/wasm/vision_wasm_internal.js",
         "vendor/mediapipe/wasm/vision_wasm_internal.wasm",
-        "vendor/mediapipe/wasm/vision_wasm_nosimd_internal.js",
-        "vendor/mediapipe/wasm/vision_wasm_nosimd_internal.wasm",
     )
 
     @Test
