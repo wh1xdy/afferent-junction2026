@@ -335,6 +335,31 @@ class BrowserLink(HubCase):
         app.token = secrets.token_urlsafe(32)                         # token rotated
         self.assertEqual(call("GET", "/report/handover", headers=cookie).status, 401)
 
+    def test_the_cookie_expires_on_the_hub_not_only_in_the_browser(self):
+        now = time.time()
+        r = call("GET", f"/report/handover?token={self.P}")
+        self.assertIn(f"Max-Age={auth.COOKIE_MAX_AGE}", r.headers["Set-Cookie"])
+        expires = int(self.cookie_of(r).split("=")[1].split(".")[0])
+        self.assertAlmostEqual(expires, now + 12 * 3600, delta=5)
+
+        def status(value):
+            return call("GET", "/report/handover", headers={"Cookie": f"{auth.COOKIE}={value}"}).status
+        self.assertEqual(status(auth.session_value(self.P, now + 60)), 200)
+        self.assertEqual(status(auth.session_value(self.P, now - 1)), 401)             # a copied cookie, a day later
+        self.assertEqual(status(auth.session_value(self.P, 0)), 401)
+        # the expiry is signed: moving it forward does not bring the cookie back
+        stale = auth.session_value(self.P, now - 1)
+        self.assertEqual(status(f"{int(now) + 3600}.{stale.split('.')[1]}"), 401)
+        for odd in ("9" * 5000 + "." + stale.split(".")[1], "-1." + stale.split(".")[1], "." + stale.split(".")[1],
+                    stale.split(".")[1], "1e12." + stale.split(".")[1], f"{int(now) + 60}."):
+            self.assertEqual(status(odd), 401, odd[:40])
+        # what the previous hub handed out (no expiry at all) no longer opens anything
+        import hashlib
+        import hmac
+        self.assertEqual(status(hmac.new(self.P.encode(), b"afferent report session", hashlib.sha256).hexdigest()), 401)
+        self.assertTrue(auth.valid_session(auth.session_value(self.P, 1000), self.P, now=999))
+        self.assertFalse(auth.valid_session(auth.session_value(self.P, 1000), self.P, now=1000))
+
     def test_redirect_stays_on_the_hub(self):
         r = call("GET", f"//evil.example/report/handover?token={self.P}")
         if r.status == 303:
@@ -480,6 +505,21 @@ class Token(unittest.TestCase):
         self.assertNotEqual(t, "c" * 43)
         self.assertEqual(self.printed(t), 1)
         self.assertEqual(json.load(open(self.path)), {"patient": t})
+
+    def test_a_token_from_the_environment_still_clears_the_old_entries(self):
+        with open(self.path, "w") as f:
+            json.dump({"patient": "p" * 43, "clinician": "c" * 43}, f)
+        self.assertEqual(self.load({"AFFERENT_PATIENT_TOKEN": "e" * 40}), "e" * 40)
+        with open(self.path) as f:
+            self.assertEqual(json.load(f), {"patient": "p" * 43})       # kept for a start without the variable
+        self.assertEqual(stat.S_IMODE(os.stat(self.path).st_mode), 0o600)
+        with open(self.path, "w") as f:
+            json.dump({"clinician": "c" * 43}, f)
+        self.log.clear()
+        self.assertEqual(self.load({"AFFERENT_PATIENT_TOKEN": "e" * 40}), "e" * 40)
+        self.assertFalse(os.path.exists(self.path))
+        self.assertTrue(any("held only entries of an older hub" in line for line in self.log))
+        self.assertEqual(self.printed("c" * 43) + self.printed("e" * 40) + self.printed("p" * 43), 0)
 
     def test_loose_file_mode_is_tightened_and_a_broken_file_replaced(self):
         t = self.load()
