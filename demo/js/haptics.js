@@ -17,7 +17,8 @@
 //   success   the kindle's reward           a round, a pair or a pour done; the lantern lit
 //   complete  a fuller success that builds  the end of a game, the dawn
 //   rhythm    a soft round beat             count-ins and the beats of rhythm games
-//   heart     a lub-dub                     the live heartbeat (heartbeat.js), through AfferentHaptics.beat
+//   heart     a lub-dub                     the live heartbeat (heartbeat.js), through AfferentHaptics.beat; also very
+//                                           softly on the plain start screen
 // Continuous: hold (the kindle's swell), drag (a soft hum that follows progress while pulling or pouring),
 // breath (a slow swell over the inhale, a fade over the exhale, timed by the breath guide).
 // Calm mode and night play softer and rounder, wake and fatigue a little crisper, reduced motion softer and fewer.
@@ -42,6 +43,8 @@
   // a fast drag over many cells or a run of taps stays a texture, never a buzz.
   const GAP = { tap: 0.05, tick: 0.055, impact: 0.08, reward: 0.2, rhythm: 0.1, heart: 0.25 };
   const BURST = 8, BURST_S = 0.5, KEY = 'afferent.haptics';
+  // The heart's strength at k = 1 (AfferentHaptics.beat: lub 0.55, dub 0.32 of it): a session's Soft beat.
+  const HEART = 0.6;
   const q = x => Math.round(x * 20) / 20;
   const rm = () => !!A.config?.reducedMotion;
 
@@ -112,9 +115,10 @@
     if (b === 'afferent') {
       const P = own();
       if (name === 'heart') {
-        // The heartbeat's own pattern, as heartbeat.js tuned it (0.6; it only plays in calm moments), softer at night.
+        // The heartbeat's own pattern at HEART * k, as heartbeat.js sets it from the "Heartbeat touch" level (0.4 to 1),
+        // softer at night. Reduced motion does not silence it: it is touch, not motion.
         // It refuses during a hold or a breath, and then nothing plays.
-        if (typeof P.beat === 'function') quiet(P.beat({ strength: Math.round(clamp(0.6 * k * (c.night ? 0.75 : 1), 0.1, 0.8) * 100) / 100 }));
+        if (typeof P.beat === 'function') quiet(P.beat({ strength: Math.round(clamp(HEART * k * (c.night ? 0.75 : 1), 0.1, 1) * 100) / 100 }));
         else capPlay(name, gain);
         return;
       }
@@ -231,7 +235,7 @@
   Object.assign(hap, { play, seq, ladder, drag, breath, stop });
 
   A.Haptics = Object.assign(H, {
-    VOCAB, ALIAS, GAP, hap, play, seq, ladder, drag, breath, hold, release, lit, stop, warm, backend, smooth, context, setEnabled,
+    VOCAB, ALIAS, GAP, HEART, hap, play, seq, ladder, drag, breath, hold, release, lit, stop, warm, backend, smooth, context, setEnabled,
     // The app clock once main.js has set it (the tests drive it by hand), the page clock before.
     clock: () => (A.now ? A.now() : (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000),
     // For the tests: forget lanes, hush and the plugin's answer.

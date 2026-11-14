@@ -24,6 +24,8 @@
   // The Developer section is for the team, not for the patient: hidden unless ?dev is in the address, or it was turned
   // on by tapping the version line 7 times (or holding it). The same again hides it. Kept on this phone only.
   const DEV_KEY = 'afferent.dev';
+  // The levels of Heartbeat touch (A.config.heartLevel; main.js keeps it, heartbeat.js plays it). Off is one of them.
+  const BEAT = [['off', 'Off'], ['soft', 'Soft'], ['medium', 'Medium'], ['strong', 'Strong']];
   const dev = q.has('dev');
   let devShown = dev || (() => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch { return false; } })();
   // Settings opens on a short list of categories (PAGES); each opens its own page from the right with these groups on it.
@@ -32,7 +34,9 @@
     { page: 'sound', title: 'Sound and light', rows: [
       { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
       { icon: 'touch_app', label: 'Vibration', sup: 'Soft touches as you play', sw: 'id="hapticSw"' },
-      { icon: 'favorite', label: 'Heartbeat touch', sup: 'A soft beat at your own pulse in calm moments', sw: 'id="beatSw"' },
+      { icon: 'favorite', label: 'Heartbeat touch', sup: 'A beat at your own pulse, on the start screen and in calm moments', static: true },
+      { html: `<div class="seg-row"><div class="seg compact" id="beatSeg" role="radiogroup" aria-label="Heartbeat touch">${BEAT.map(([v, t]) =>
+        `<button type="button" class="state" role="radio" aria-checked="false" data-v="${v}">${t}</button>`).join('')}</div></div>` },
       { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
       { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
     ] },
@@ -66,7 +70,7 @@
     ] },
     // The address comes from the hub screen and is long (it carries the hub's key after /k/), so it can be pasted in one tap.
     { page: 'hub', title: 'Home hub', bare: true, rows: [{ html: `<form id="hubForm" class="hub-card">
-      <div class="hub-row"><div class="field"><input id="hubAddr" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000/k/…"><label for="hubAddr">Hub address</label></div><button type="button" id="hubPaste" class="btn tonal small state">Paste</button></div>
+      <div class="hub-row"><div class="field"><input id="hubAddr" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="192.168.1.20:8000/k/…"><label for="hubAddr">Hub address</label></div><button type="button" id="hubPaste" class="btn tonal small state">Paste</button></div>
       <p id="hubState" class="hub-state t-body-m" role="status" data-state="none">Not set</p>
       <p class="t-body-s muted hub-help">The address is on the hub screen. It ends in /k/ and a code.</p>
       <div class="hub-actions"><button class="btn filled small state" type="submit">Connect</button></div>
@@ -138,7 +142,11 @@
   const said = id => ($(id)?.textContent || '').trim();
   const lower = t => (t ? t[0].toLowerCase() + t.slice(1) : t);
   const SUMMARY = {
-    sound: () => `${on('soundSw') ? 'Sound on' : 'Sound off'} · ${on('hapticSw') ? 'Vibration on' : 'Vibration off'}`,
+    // With Vibration on, the Heartbeat touch level says it (one line fits a phone); with it off, that it is off.
+    sound: () => {
+      const beat = ($('beatSeg')?.querySelector('[aria-checked="true"]')?.textContent || '').trim();
+      return `${on('soundSw') ? 'Sound on' : 'Sound off'} · ${!on('hapticSw') ? 'Vibration off' : beat ? `Heartbeat: ${beat}` : 'Vibration on'}`;
+    },
     sensors: () => {
       const stone = document.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
       return !stone?.checked ? 'Finger clips off' : A.Sensors?.fingerLink?.state === 'connected' ? 'Finger clips connected' : 'Finger clips not connected';

@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import logging
+import secrets
 import time
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -21,6 +22,7 @@ from .transcripts import TranscriptLog
 from .ws.manager import Client, Rooms
 
 log = logging.getLogger("afferent.hub")
+EXPORT_TTL_S = 7 * 24 * 3600
 
 VERSION = "0.3.0"
 CONTRACTS = ROOT / "contracts"
@@ -362,16 +364,29 @@ class Hub:
                 **block, "sleep_c": list(room.SLEEP_C), "night": f"{room.NIGHT_FROM_H:02d}:00 to {room.NIGHT_TO_H:02d}:00"}
 
     def export_publish(self, body: dict) -> dict:
+        """The dashboard the phone made (demo/js/qrexport.js, and "Show to my doctor" when there is no relay).
+        `url` needs the hub token like every /api path; `share_url` is the link to hand over: an unguessable
+        address outside /api that opens without the token, on the home network, for EXPORT_TTL_S. A new
+        publish replaces the last one."""
         html, pid = body.get("html"), body.get("patient_id")
         if not isinstance(html, str) or not html.strip() or len(html) > 8_000_000:
             raise HubError(400, "bad_export", "Body needs an html string (<= 8 MB)")
-        self._export = {"html": html, "patient_id": pid, "served_iso": views.now_iso()}
-        return {"ok": True, "url": "/api/export/dashboard", "bytes": len(html)}
+        sid, until = secrets.token_urlsafe(16), time.time() + EXPORT_TTL_S
+        self._export = {"html": html, "patient_id": pid, "served_iso": views.now_iso(), "id": sid, "until": until}
+        expires = dt.datetime.fromtimestamp(until).astimezone().isoformat(timespec="seconds")
+        return {"ok": True, "url": "/api/export/dashboard", "share_url": f"/shared/{sid}", "expires_iso": expires,
+                "bytes": len(html)}
 
     def export_dashboard(self) -> str:
         if not self._export:
             raise HubError(404, "no_export", "No dashboard has been published yet")
         return self._export["html"]
+
+    def export_shared(self, sid: str) -> str | None:
+        e = self._export
+        if not e or time.time() >= e["until"] or not secrets.compare_digest(str(sid).encode(), e["id"].encode()):
+            return None
+        return e["html"]
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
         await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics)})

@@ -1,7 +1,8 @@
 // Run: node demo/tests/qrexport.test.js
 // The dashboard export on the Share tab (demo/js/qrexport.js) reaches the hub the phone is paired with: the address saved
-// in Settings, Home hub (main.js stores it as a plain string under afferent.hub) or ?hub=, with its /k/<key> part kept,
-// since the home hub turns away /api requests without it. The addresses and keys here are test inputs.
+// in Settings, Home hub (main.js stores it as a plain string under afferent.hub) or ?hub=, with its /k/<key> part kept
+// on API calls, since the home hub turns away /api requests without it. The screen shows only the bare address (#82).
+// The addresses and keys here are test inputs.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -39,7 +40,7 @@ async function load({ search = '', saved = null } = {}) {
 const tests = {
   async 'a: the hub saved in Settings (a plain string) is found, with its key'() {
     const p = await load({ saved: 'http://10.0.0.5:8000/k/test-key' });
-    assert.strictEqual(p.nodes.qeHub.textContent, 'http://10.0.0.5:8000/k/test-key');
+    assert.strictEqual(p.nodes.qeHub.textContent, 'http://10.0.0.5:8000', 'the key is not shown');
     const hub = p.urls.filter(x => /\/api\//.test(x));
     assert.ok(hub.length, 'the export asks the hub');
     for (const u of hub) assert.ok(u.startsWith('http://10.0.0.5:8000/k/test-key/api/'), u);

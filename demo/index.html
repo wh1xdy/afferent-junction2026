@@ -184,8 +184,8 @@
         </div>
         <ol id="voiceLog" class="voice-log" aria-live="polite" aria-label="Conversation"></ol>
         <form id="voiceKeyForm" class="voice-key hidden" aria-label="Voice setup">
-          <div class="field"><input id="voiceUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://afferent-voice-….run.app" required><label for="voiceUrl">Relay address</label></div>
-          <div class="field"><input id="voiceCode" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" required><label for="voiceCode">Access code</label></div>
+          <div class="field"><input id="voiceUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="https://afferent-voice-….run.app" required><label for="voiceUrl">Relay address</label></div>
+          <div class="field"><input id="voiceCode" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" required><label for="voiceCode">Access code</label></div>
           <button class="btn tonal small state" type="submit">Save and start</button>
         </form>
         <div class="voice-dock">
@@ -245,6 +245,7 @@
   <script src="js/gui/theme.js"></script>
   <script src="js/gui/shell.js"></script>
   <script src="js/gui/swipe.js"></script>
+  <script src="js/keyboard.js"></script>
   <script src="js/streak.js"></script>
   <script src="js/quote.js"></script>
   <script src="js/ba.js"></script>
