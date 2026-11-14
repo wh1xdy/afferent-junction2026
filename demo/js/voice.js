@@ -85,29 +85,27 @@
     async start() {
       if (this.state !== 'idle' && this.state !== 'error') return;
       this.set('connecting');
-      const AC = window.AudioContext || window.webkitAudioContext;
       const s = this.s = { playing: new Set(), nextT: 0, ready: false };
       this.log = transcript();
       A.Music?.session();
       try {
-        if (!AC || !navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') throw fail('unsupported');
-        // Contexts are created before any await so they start inside the tap that opened the conversation.
-        try { s.inCtx = new AC({ sampleRate: IN_RATE }); } catch { s.inCtx = new AC(); }
-        try { s.outCtx = new AC({ sampleRate: OUT_RATE }); } catch { s.outCtx = new AC(); }
-        s.inCtx.resume(); s.outCtx.resume();
+        if (!navigator.mediaDevices?.getUserMedia || typeof AudioWorkletNode === 'undefined') throw fail('unsupported');
+        const ctx = s.ctx = A.Music ? A.Music.init() : (A.Audio?.init(), A.Audio?.ctx);
+        if (!ctx?.audioWorklet) throw fail('unsupported');
+        ctx.resume().catch(() => {});
 
         const r = relay();
         try {
           s.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
         } catch (e) { throw fail('mic', [e?.name, e?.message].filter(Boolean).join(': ')); }
         if (this.s !== s) { s.stream.getTracks().forEach(t => t.stop()); return; }
-        await s.inCtx.audioWorklet.addModule('js/voice-worklet.js');
+        await (ctx.voiceWorklet ||= ctx.audioWorklet.addModule('js/voice-worklet.js').catch(e => { ctx.voiceWorklet = null; throw e; }));
         if (this.s !== s) return;
 
-        const src = s.inCtx.createMediaStreamSource(s.stream), mute = s.inCtx.createGain();
-        s.node = new AudioWorkletNode(s.inCtx, 'voice-capture');
-        mute.gain.value = 0;
-        src.connect(s.node); s.node.connect(mute); mute.connect(s.inCtx.destination);
+        s.src = ctx.createMediaStreamSource(s.stream); s.mute = ctx.createGain();
+        s.node = new AudioWorkletNode(ctx, 'voice-capture');
+        s.mute.gain.value = 0;
+        s.src.connect(s.node); s.node.connect(s.mute); s.mute.connect(ctx.destination);
         s.node.port.onmessage = e => {
           this.level = e.data.level;
           if (s.ready && s.ws.readyState === 1) s.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(new Uint8Array(e.data.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } }));
@@ -144,10 +142,10 @@
     play(bytes) {
       const s = this.s, f = pcmToFloat(bytes);
       if (!f.length) return;
-      const buf = s.outCtx.createBuffer(1, f.length, OUT_RATE), src = s.outCtx.createBufferSource();
+      const buf = s.ctx.createBuffer(1, f.length, OUT_RATE), src = s.ctx.createBufferSource();
       buf.copyToChannel(f, 0);
-      src.buffer = buf; src.connect(s.outCtx.destination);
-      const t = Math.max(s.outCtx.currentTime + 0.03, s.nextT);
+      src.buffer = buf; src.connect(s.ctx.destination);
+      const t = Math.max(s.ctx.currentTime + 0.03, s.nextT);
       src.start(t); s.nextT = t + buf.duration;
       s.playing.add(src);
       src.onended = () => { s.playing.delete(src); if (!s.playing.size && this.s === s && this.state === 'speaking') this.set('listening'); };
@@ -167,10 +165,11 @@
       this.s = null; this.level = 0;
       try { s.ws && (s.ws.onclose = null, s.ws.close()); } catch {}
       s.stream?.getTracks().forEach(t => t.stop());
-      s.playing.forEach(n => { try { n.stop(); } catch {} });
-      try { s.inCtx?.close(); s.outCtx?.close(); } catch {}
+      if (s.node) s.node.port.onmessage = null;
+      [...s.playing, s.src, s.node, s.mute].forEach(n => { try { n?.stop?.(); } catch {} try { n?.disconnect(); } catch {} });
       this.save();
       A.Music?.session();
+      A.Music?.wake();
       if (reason) this.set('error', { code: reason, text: detail }); else this.set('idle');
     },
 
