@@ -19,7 +19,7 @@
 # non-standard. If resolution fails, export SSH_DEST=user@<ip> directly.
 #
 # Usage: verda/sync.sh [--dry-run]
-# Env: HOSTNAME, SSH_USER, SSH_KEY, SSH_DEST, SSH_OPTS, DATA_DIR, REMOTE_ROOT.
+# Env: VM_HOSTNAME, SSH_USER, SSH_KEY, SSH_DEST, SSH_OPTS, DATA_DIR, REMOTE_ROOT.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
@@ -36,10 +36,10 @@ load_config
 check_verda
 need rsync
 
-log "checking ssh connectivity (verda ssh $HOSTNAME -- true)"
-remote_run true || die "cannot reach '$HOSTNAME' via 'verda ssh'.
+log "checking ssh connectivity (verda ssh $VM_HOSTNAME -- true)"
+remote_run true || die "cannot reach '$VM_HOSTNAME' via 'verda ssh'.
   Is the instance running ('verda vm ls')? Did 'up.sh --wait' finish?
-  Try: verda ssh $HOSTNAME --user $SSH_USER --key ~/.ssh/<your-key>"
+  Try: verda ssh $VM_HOSTNAME --user $SSH_USER --key ~/.ssh/<your-key>"
 
 DEST="$(resolve_ssh_dest)"
 log "ssh destination: $DEST"

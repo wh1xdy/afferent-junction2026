@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # up.sh — create a Verda GPU instance for a training run.
 #
-#   verda vm create --kind gpu --instance-type 1V100.6V --location FIN-01 \
-#       --os ubuntu-24.04-cuda-13.0-open-docker --os-volume-size 100 \
+#   verda vm create --kind gpu --instance-type 1A100.40S.22V --location FIN-02 \
+#       --os 24.04.cuda13.0.docker --os-volume-size 100 \
 #       --hostname afferent-train --ssh-key ssh_key_... --wait
 #
 # The CUDA docker OS image ships docker + the NVIDIA container toolkit; you
@@ -10,10 +10,10 @@
 # been run once (creds in ~/.verda/credentials, never committed).
 #
 # Env (defaults in _common.sh / config.env):
-#   HOSTNAME         instance hostname          [afferent-train]
-#   INSTANCE_TYPE    `verda instance-types --gpu` [1V100.6V]
-#   LOCATION         `verda locations`          [FIN-01]
-#   OS_IMAGE         `verda images`             [ubuntu-24.04-cuda-13.0-open-docker]
+#   VM_HOSTNAME         instance hostname          [afferent-train]
+#   INSTANCE_TYPE    `verda instance-types --gpu` [1A100.40S.22V]
+#   LOCATION         `verda locations`          [FIN-02]
+#   OS_IMAGE         `verda images`             [24.04.cuda13.0.docker]
 #   OS_VOLUME_SIZE   GB system disk             [100]
 #   SSH_KEY_ID       `verda ssh-key list` — injected at creation [first key]
 #   SPOT=1           request a spot instance (cheaper, evictable; default on-demand)
@@ -26,9 +26,9 @@ check_verda
 
 # Warn early if a VM with this hostname already exists (create would either
 # fail or silently leave you paying for two instances).
-if verda vm ls -o json 2>/dev/null | grep -q "\"$HOSTNAME\""; then
-    die "an instance named '$HOSTNAME' already exists (see 'verda vm ls').
-  Use it, pick another HOSTNAME, or run down.sh first."
+if verda vm ls -o json 2>/dev/null | grep -q "\"$VM_HOSTNAME\""; then
+    die "an instance named '$VM_HOSTNAME' already exists (see 'verda vm ls').
+  Use it, pick another VM_HOSTNAME, or run down.sh first."
 fi
 
 # An SSH key must be injected at creation or nobody can ssh in. Explicit
@@ -61,7 +61,7 @@ args=(
     --location "$LOCATION"
     --os "$OS_IMAGE"
     --os-volume-size "$OS_VOLUME_SIZE"
-    --hostname "$HOSTNAME"
+    --hostname "$VM_HOSTNAME"
     --ssh-key "$SSH_KEY_ID"
     --wait                     # block until ssh-ready
 )
@@ -74,9 +74,9 @@ verda vm create "${args[@]}" $EXTRA_CREATE_ARGS
 
 cat <<EOF
 
-Instance '$HOSTNAME' is up.
+Instance '$VM_HOSTNAME' is up.
 
-  connect : verda ssh $HOSTNAME --user $SSH_USER   (add --key ~/.ssh/KEY if needed)
+  connect : verda ssh $VM_HOSTNAME --user $SSH_USER   (add --key ~/.ssh/KEY if needed)
   next    : verda/sync.sh   -- push code + models + dataset
             verda/train.sh  -- build image and run 'make ${MAKE_TARGETS}'
             verda/pull.sh   -- fetch work_dirs/ back
