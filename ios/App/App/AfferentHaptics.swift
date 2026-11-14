@@ -38,12 +38,17 @@ public class AfferentHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
         guard let made = try? CHHapticEngine() else { return nil }
         made.playsHapticsOnly = true
         made.isAutoShutdownEnabled = true
+        // Core Haptics calls both handlers on an internal queue; the players are main-queue state.
         made.resetHandler = { [weak self] in
-            self?.hold = nil
-            self?.drag = nil
-            try? self?.engine?.start()
+            DispatchQueue.main.async {
+                self?.hold = nil
+                self?.drag = nil
+                try? self?.engine?.start()
+            }
         }
-        made.stoppedHandler = { [weak self] _ in self?.hold = nil; self?.drag = nil }
+        made.stoppedHandler = { [weak self] _ in
+            DispatchQueue.main.async { self?.hold = nil; self?.drag = nil }
+        }
         engine = made
         return made
     }

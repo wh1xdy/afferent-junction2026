@@ -95,12 +95,14 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
 
     func peripheral(_ p: CBPeripheral, didDiscoverCharacteristicsFor s: CBService, error: Error?) {
         for ch in s.characteristics ?? [] where ch.uuid == Self.measurement || ch.uuid == Self.bothFingers {
+            // Notifications only: a read returns the stored value, which can be minutes old and
+            // would be stamped as fresh below (lastUpdate, sensorsUpdate).
             p.setNotifyValue(true, for: ch)
-            p.readValue(for: ch)
         }
     }
 
     func peripheral(_ p: CBPeripheral, didUpdateValueFor ch: CBCharacteristic, error: Error?) {
+        guard error == nil else { return }       // ch.value is then the old cached value
         if ch.uuid == Self.bothFingers {
             // [finger 1, finger 2], 0 = no reading
             guard let d = ch.value, d.count >= 2 else { return }
