@@ -41,12 +41,17 @@ import auth
 import demo
 import fhir
 import report
-from store import Invalid, Store, day, timestamp
+from store import MAX_TS, Invalid, Store, day, number, timestamp
 
 PORT = int(os.environ.get("PORT", "8090"))
 DB = os.environ.get("AFFERENT_DB", "/data/afferent.db")
 TOKEN_FILE = os.environ.get("AFFERENT_TOKEN_FILE") or os.path.join(os.path.dirname(DB) or ".", "hub-tokens.json")
 POLL_S = 5.0
+MIN_QUALITY = 0.3       # a finger pulse below this, or without a reported quality, is not a measurement
+MAX_AGE_S = 3.0         # a live reading counts for 3 s
+SETTLE_S = 6.0          # the UNO Q updates HRV and breathing 4 s after a finger is detected, once a second
+ROOM_MAX_AGE_S = 30.0   # the thermometer reports every 2 s
+FINGER, ROOM = "finger_ppg", "modulino_thermo"       # the `source` stored with a reading
 store = None            # the real database; opened in main() (tests set their own)
 token = ""              # the patient token, from auth.load_token() in main()
 collector = {"hub_url": None, "last_ok": None, "stored": 0, "error": None}
@@ -87,30 +92,81 @@ def collect(stopped):
             collector["error"] = str(e)
             continue
         collector.update(last_ok=time.time(), error=None)
-        store_state(s, time.time())
+        try:
+            store_state(s, time.time())
+        except Exception as e:                       # one odd document must not end the collection for good
+            collector["error"] = f"store: {e.__class__.__name__}"
+
+
+def _obj(v):
+    return v if isinstance(v, dict) else {}
+
+
+def _num(v):
+    """v if it is a finite number (not a bool, not a string), else None"""
+    return number(v, MAX_TS)
+
+
+def _skip(why):
+    collector[f"skipped_{why}"] = collector.get(f"skipped_{why}", 0) + 1
+
+
+def _beat_age(s, finger, device_now):
+    """seconds since the newest beat behind the fused pulse, on the UNO Q's clock; None if it cannot be told"""
+    chans = s.get("fingers") if isinstance(s.get("fingers"), list) else []
+    t = [_num(_obj(c).get("t")) for c in chans]
+    sources = finger.get("sources") if isinstance(finger.get("sources"), list) else []
+    sources = [c for c in sources if type(c) is int and 0 <= c < len(t)]
+    seen = [t[c] for c in (sources or range(len(t))) if t[c] is not None]
+    if device_now is None or not seen:
+        return None
+    return max(0.0, device_now - max(seen))
 
 
 def store_state(s, now, store=None):
-    """One /state document from the UNO Q -> readings in the store."""
+    """One /state document from the UNO Q -> readings in the store, under the hub's time `now`.
+
+    Only what was measured on the patient just now is stored; everything else stays missing:
+      two people on the clips   finger.two_hearts (Heart Duel): nothing from the fingers
+      pulse                     presence active, finger.quality reported and at least MIN_QUALITY, and
+                                the newest beat behind it at most MAX_AGE_S old
+      HRV, breathing rate       presence active for SETTLE_S: the UNO Q keeps the last values in /state
+                                while idle and while a new wearing warms up
+      room temperature          at most ROOM_MAX_AGE_S old (older: the thermometer is unplugged)
+    Ages compare the UNO Q's clock with itself (`now` / `beat.t` in the document), never with the hub's.
+    """
     store = store or globals()["store"]
-    f = s.get("finger") or {}
+    s = _obj(s)
+    f, p = _obj(s.get("finger")), _obj(s.get("presence"))
+    device_now = _num(s.get("now")) or _num(_obj(s.get("beat")).get("t"))
     if f.get("two_hearts"):
         # the two clips are on two different people (Heart Duel): not the patient's data
-        collector["skipped_two_people"] = collector.get("skipped_two_people", 0) + 1
+        _skip("two_people")
     # only while a finger is actually being measured (sensors otherwise off / probing)
-    elif (s.get("presence") or {}).get("mode") == "active":
-        if f.get("bpm"):
-            store.add_reading("finger_bpm", f["bpm"], now)
-            collector["stored"] += 1
-        h = s.get("hrv") or {}
-        if h.get("rmssd_ms"):
-            store.add_reading("hrv_rmssd", h["rmssd_ms"], now)
-        b = s.get("breathing") or {}
-        if b.get("per_minute"):
-            store.add_reading("breathing", b["per_minute"], now)
-    c = s.get("climate") or {}
-    if c.get("celsius") is not None:
-        store.add_reading("room_celsius", c["celsius"], now)
+    elif p.get("mode") == "active":
+        bpm, quality = _num(f.get("bpm")), _num(f.get("quality"))
+        if bpm is not None and bpm > 0:                       # 0 / null = no reading
+            age = _beat_age(s, f, device_now)
+            if quality is None or quality < MIN_QUALITY:
+                _skip("low_quality")
+            elif age is not None and age > MAX_AGE_S:
+                _skip("stale")
+            else:
+                store.add_reading("finger_bpm", bpm, now, FINGER)
+                collector["stored"] += 1
+        since = _num(p.get("since"))
+        if device_now is not None and since is not None and device_now - since >= SETTLE_S:
+            rmssd = _num(_obj(s.get("hrv")).get("rmssd_ms"))
+            if rmssd is not None and rmssd > 0:
+                store.add_reading("hrv_rmssd", rmssd, now, FINGER)
+            breaths = _num(_obj(s.get("breathing")).get("per_minute"))
+            if breaths is not None and breaths > 0:
+                store.add_reading("breathing", breaths, now, FINGER)
+    c = _obj(s.get("climate"))
+    celsius, measured = _num(c.get("celsius")), _num(c.get("t"))
+    if celsius is not None and not (device_now is not None and measured is not None
+                                    and device_now - measured > ROOM_MAX_AGE_S):
+        store.add_reading("room_celsius", celsius, now, ROOM)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────
