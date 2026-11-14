@@ -270,6 +270,33 @@ class AfferentPresenceCoreTest {
         assertEquals(0, budget.take(100_000))
     }
 
+    @Test
+    fun aScanThatHearsNothingForAMinuteDoesNotCountAsScanning() {
+        val silence = ScanSilence(60_000)
+        assertFalse("no scan, no verdict", silence.silent(1_000_000))
+        silence.started(1_000)
+        assertFalse(silence.silent(60_999))
+        assertTrue("refused or throttled scans give no error, only silence", silence.silent(61_000))
+        silence.started(61_000)                      // the scan is started again
+        assertTrue("starting again is not hearing something", silence.silent(61_001))
+        silence.heard(70_000)
+        assertFalse(silence.silent(70_001))
+        assertFalse(silence.silent(129_999))
+        assertTrue(silence.silent(130_000))
+        silence.ended()                              // app in the background, stop(), Bluetooth off
+        assertFalse(silence.silent(500_000))
+        silence.started(500_000)
+        assertFalse("a new scan gets a new minute", silence.silent(559_999))
+        assertTrue(silence.silent(560_000))
+    }
+
+    @Test
+    fun statusReportsASilentScanAsNotScanning() {
+        val plugin = listOf("src/main/java/fi/junction/afferent/AfferentPresencePlugin.kt", "app/src/main/java/fi/junction/afferent/AfferentPresencePlugin.kt")
+            .map { File(it) }.first { it.exists() }.readText()
+        assertTrue(plugin.contains("scanning = scanning && !silence.silent(SystemClock.elapsedRealtime())"))
+    }
+
     // ── home Wi-Fi ────────────────────────────────────────────────────────
 
     @Test

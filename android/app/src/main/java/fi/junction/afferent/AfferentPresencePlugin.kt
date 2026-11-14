@@ -82,13 +82,17 @@ class AfferentPresencePlugin : Plugin() {
         private const val SCAN_REFRESH_MS = 20 * 60 * 1000L
         private const val SCAN_RETRY_MS = 30_000L
 
+        /** A scan that has heard nothing for this long does not count as scanning (ScanSilence). */
+        private const val SCAN_SILENCE_MS = 60_000L
+
         /** One batch of Bonjour types is browsed this long; answers arrive within a second or two. */
         private const val LAN_WINDOW_MS = 10_000L
     }
 
     private val main = Handler(Looper.getMainLooper())
     private val book = PresenceBook()
-    private val budget = ScanBudget()
+    private val budget = ScanBudget.app   // shared with the finger plugin: the limit is per app
+    private val silence = ScanSilence(SCAN_SILENCE_MS)
     private val lan = LanRounds()
 
     private var wanted = false
@@ -203,7 +207,7 @@ class AfferentPresencePlugin : Plugin() {
         return PresenceStatus(
             bluetooth = PresenceRules.bluetooth(wanted, adapter != null, authorization, adapterState(adapter)),
             authorization = authorization,
-            scanning = scanning,
+            scanning = scanning && !silence.silent(SystemClock.elapsedRealtime()),
             foreground = foreground,
             wifi = onWifi,
             lan = if (wifiWatchFailed && wanted) "failed" else lan.state,
@@ -294,8 +298,23 @@ class AfferentPresencePlugin : Plugin() {
     private val retryScan = Runnable { resume() }
     private val refreshScan = Runnable {
         if (scanning) {
-            stopScan()
+            stopScan(keepSilence = true)
             resume()
+        }
+    }
+    private val checkSilence: Runnable = object : Runnable {
+        override fun run() {
+            if (!scanning) return
+            if (!silence.silent(SystemClock.elapsedRealtime())) {
+                main.postDelayed(this, SCAN_SILENCE_MS)
+                return
+            }
+            // No advert for a minute: Android may have refused or throttled the scan without
+            // an error. It no longer counts as scanning (status) and is started again.
+            Log.w(TAG, "the Bluetooth scan hears nothing, starting it again")
+            stopScan(keepSilence = true)
+            resume()
+            notifyListeners("state", status())
         }
     }
 
@@ -309,7 +328,9 @@ class AfferentPresencePlugin : Plugin() {
             Log.w(TAG, "Bluetooth scan failed, code $errorCode")
             if (errorCode == SCAN_FAILED_ALREADY_STARTED) return
             scanning = false
+            silence.ended()
             main.removeCallbacks(refreshScan)
+            main.removeCallbacks(checkSilence)
             try {
                 adapter()?.bluetoothLeScanner?.stopScan(this)
             } catch (e: RuntimeException) {
@@ -324,6 +345,7 @@ class AfferentPresencePlugin : Plugin() {
     private fun heard(result: ScanResult) {
         if (!scanning) return
         val address = result.device?.address ?: return
+        silence.heard(SystemClock.elapsedRealtime())
         book.observe(address, result.rssi, nowS(), PresenceAdvert.parse(result.scanRecord?.bytes))
     }
 
@@ -343,17 +365,23 @@ class AfferentPresencePlugin : Plugin() {
             // Unfiltered: Android pauses such a scan by itself when the screen turns off.
             scanner.startScan(null, scanSettings, scanCallback)
             scanning = true
+            silence.started(SystemClock.elapsedRealtime())
             main.removeCallbacks(refreshScan)
             main.postDelayed(refreshScan, SCAN_REFRESH_MS)
+            main.removeCallbacks(checkSilence)
+            main.postDelayed(checkSilence, SCAN_SILENCE_MS)
         } catch (e: RuntimeException) {   // SecurityException, or Bluetooth went off just now
             Log.w(TAG, "Bluetooth scan did not start: $e")
         }
     }
 
+    /** keepSilence: the scan is only being replaced, so how long it has heard nothing still counts. */
     @SuppressLint("MissingPermission")
-    private fun stopScan() {
+    private fun stopScan(keepSilence: Boolean = false) {
         main.removeCallbacks(retryScan)
         main.removeCallbacks(refreshScan)
+        main.removeCallbacks(checkSilence)
+        if (!keepSilence) silence.ended()
         if (!scanning) return
         scanning = false
         try {
@@ -375,7 +403,9 @@ class AfferentPresencePlugin : Plugin() {
                     ) {
                         // The system dropped the scan together with Bluetooth.
                         scanning = false
+                        silence.ended()
                         main.removeCallbacks(refreshScan)
+                        main.removeCallbacks(checkSilence)
                     }
                     resume()
                     notifyListeners("state", status())

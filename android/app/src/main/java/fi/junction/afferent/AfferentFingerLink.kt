@@ -84,24 +84,6 @@ object FingerRetry {
 }
 
 /**
- * Android stops delivering scan results to an app that starts more than 5 scans within
- * 30 seconds, without an error on older versions. This keeps the app one below that limit.
- */
-class ScanStartLimiter(private val maxStarts: Int = 4, private val windowMs: Long = 30_000) {
-    private val starts = ArrayDeque<Long>()
-
-    /** 0 = a scan may start now, otherwise how long to wait first. */
-    fun waitMs(nowMs: Long): Long {
-        while (starts.isNotEmpty() && nowMs - starts.first() >= windowMs) starts.removeFirst()
-        return if (starts.size < maxStarts) 0 else starts.first() + windowMs - nowMs
-    }
-
-    fun started(nowMs: Long) {
-        starts.addLast(nowMs)
-    }
-}
-
-/**
  * Rules this class keeps (the same as the iOS plugin):
  *  - It connects only to a device named exactly "Afferent Finger" that also has the AFF0
  *    service. A stranger's heart-rate strap must never be shown as the patient's finger.
@@ -111,20 +93,46 @@ class ScanStartLimiter(private val maxStarts: Int = 4, private val windowMs: Lon
  *  - It reports what the board sent. Staleness, the quality limit and what a value may be used
  *    for are decided by the web layer.
  *
+ * Where it differs from iOS, because Android does not do these things for an app:
+ *  - In the background (background()) it lets go of the scan and the connection. iOS suspends
+ *    an app without a Bluetooth background mode; Android would keep scanning with the screen
+ *    off and hold the board's only connection.
+ *  - A scan that finds nothing is started again every 20 minutes (SCAN_REFRESH_MS).
+ *  - Scan starts are counted against the app's budget (ScanBudget).
+ *
  * Not thread safe: call everything on one thread.
+ *
+ * @param scanBudget the plugin passes ScanBudget.app, which it shares with the presence plugin
  */
 class AfferentFingerLink(
     private val radio: FingerRadio,
     private val timer: FingerTimer,
     private val listener: FingerLinkListener,
+    private val scanBudget: ScanBudget = ScanBudget(),
 ) {
     companion object {
         /** A connection attempt (connect + service discovery) is given up after this long. */
         const val CONNECT_TIMEOUT_MS = 10_000L
         /** Android answers a notification request with a callback; if it never comes, start over. */
         const val SUBSCRIBE_TIMEOUT_MS = 5_000L
-        /** A device that fails this many times in a row is left alone until stop(). */
+        /** A device whose setup fails this many times in a row is left alone for REST_MS. */
         const val MAX_FAILURES = 3
+        /**
+         * Not for good: Android counts more kinds of failure than iOS (an unanswered request
+         * at the edge of range is one), and the patient has no way to clear a lockout.
+         */
+        const val REST_MS = 60_000L
+        /**
+         * Android turns a scan that has run for 30 minutes into one that hears little or
+         * nothing, so a scan that is still looking is replaced before that.
+         */
+        const val SCAN_REFRESH_MS = 20 * 60_000L
+        /**
+         * How long the link is kept after the app left the foreground, so a permission dialog
+         * or a short look at another app does not end a running session. Well below the ten
+         * seconds or so after which Android may freeze a background app, timers included.
+         */
+        const val BACKGROUND_GRACE_MS = 5_000L
     }
 
     /** 'off' | 'unauthorized' | 'unsupported' | 'scanning' | 'connecting' | 'connected' */
@@ -140,24 +148,39 @@ class AfferentFingerLink(
     private var device: String? = null
     /** Changes whenever the situation changes; a delayed task only runs if it still matches. */
     private var attempt = 0
-    /**
-     * Devices this session will not connect to again: the right name but no AFF0 service (not
-     * our board), or setting up the connection failed three times in a row. Cleared by stop().
-     */
+    /** Changes when the app comes back to the foreground: cancels a pending pause(). */
+    private var backgroundTurn = 0
+    /** The right name but no AFF0 service: not our board. Left alone until stop(). */
     private val ignored = HashSet<String>()
+    /** Setting up the connection failed MAX_FAILURES times in a row: left alone until this time. */
+    private val restUntil = HashMap<String, Long>()
     private val setupFailures = HashMap<String, Int>()
     /** Lost or failed connections since the last reading: sets the wait before the next scan. */
     private var dropsInARow = 0
-    private val scanStarts = ScanStartLimiter()
     private val toSubscribe = ArrayDeque<Pair<UUID, UUID>>()
     private var subscribing = false
 
     // ── called by the plugin ─────────────────────────────────────────────
 
-    /** Keep looking for the sensor from now on. Calling it again while it runs changes nothing. */
+    /**
+     * Keep looking for the sensor from now on. Calling it again while it runs changes nothing,
+     * except that it counts as "the app is in the foreground (again)".
+     */
     fun start(availability: FingerAvailability) {
+        backgroundTurn++
         running = true
         availabilityChanged(availability)
+    }
+
+    /**
+     * The app left the foreground (another app, the home screen, the screen switched off).
+     * Unless start() is called within BACKGROUND_GRACE_MS, the scan and the connection are
+     * released and the state becomes "off"; the next start() looks for the board again.
+     */
+    fun background() {
+        if (!running) return
+        val mine = ++backgroundTurn
+        timer.after(BACKGROUND_GRACE_MS) { if (mine == backgroundTurn && running) pause() }
     }
 
     /** Bluetooth was switched on or off, or the permission changed. */
@@ -177,9 +200,11 @@ class AfferentFingerLink(
 
     /** Disconnect and release Bluetooth. */
     fun stop() {
+        backgroundTurn++
         running = false
         release()
         ignored.clear()
+        restUntil.clear()
         setupFailures.clear()
         dropsInARow = 0
         set("off", null)
@@ -275,6 +300,14 @@ class AfferentFingerLink(
         subscribing = false
     }
 
+    /** Like stop(), but what is known about the devices nearby is kept for the next start(). */
+    private fun pause() {
+        running = false
+        release()
+        dropsInARow = 0
+        set("off", null)
+    }
+
     /** Bluetooth is not usable: any connection is invalid now. */
     private fun lost(newState: String) {
         release()
@@ -289,20 +322,23 @@ class AfferentFingerLink(
         for (d in radio.connectedDevices()) {
             if (consider(d.address, null, d.name)) return
         }
-        val now = timer.nowMs()
-        val wait = scanStarts.waitMs(now)
+        val wait = scanBudget.take(timer.nowMs())
         if (wait > 0) {
             later(wait) { scan() }
             return
         }
-        scanStarts.started(now)
-        if (radio.startScan()) scanning = true else lookAgainLater()
+        if (!radio.startScan()) {
+            lookAgainLater()
+            return
+        }
+        scanning = true
+        later(SCAN_REFRESH_MS) { scan() }            // cancelled by whatever happens before
     }
 
     /** Connects when the device is our board. Returns true if it was taken. */
     private fun consider(address: String, advertisedName: String?, deviceName: String?): Boolean {
         if (!running || device != null || state != "scanning" || address in ignored ||
-            !AfferentFingerParser.isAfferentFinger(advertisedName, deviceName)
+            !AfferentFingerParser.isAfferentFinger(advertisedName, deviceName) || resting(address)
         ) return false
         release()
         device = address
@@ -317,15 +353,31 @@ class AfferentFingerLink(
         return true
     }
 
+    private fun resting(address: String): Boolean {
+        val until = restUntil[address] ?: return false
+        if (timer.nowMs() < until) return true
+        restUntil.remove(address)
+        return false
+    }
+
     /**
-     * Give up on the current device and look again. A device that keeps failing is ignored, so
-     * a broken link cannot turn into an endless connect / fail loop.
+     * Give up on the current device and look again. ignore = it is not our board: never again
+     * in this session. Otherwise a device that keeps failing is left alone for a while, so a
+     * broken link cannot turn into an endless connect / fail loop, and then gets new attempts.
      */
     private fun drop(ignore: Boolean) {
         val address = device ?: return
-        val failures = (setupFailures[address] ?: 0) + 1
-        setupFailures[address] = failures
-        if (ignore || failures >= MAX_FAILURES) ignored.add(address)
+        if (ignore) {
+            ignored.add(address)
+        } else {
+            val failures = (setupFailures[address] ?: 0) + 1
+            if (failures < MAX_FAILURES) {
+                setupFailures[address] = failures
+            } else {
+                setupFailures.remove(address)
+                restUntil[address] = timer.nowMs() + REST_MS
+            }
+        }
         lookAgainLater()
     }
 

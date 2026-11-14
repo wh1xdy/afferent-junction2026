@@ -101,9 +101,11 @@ class AfferentFingerLinkTest {
         answer(true)
     }
 
-    private fun answer(ok: Boolean) {
+    private fun answer(ok: Boolean) = answer(link, ok)
+
+    private fun answer(to: AfferentFingerLink, ok: Boolean) {
         radio.pending = 0
-        link.onSubscribed(ok)
+        to.onSubscribed(ok)
     }
 
     // ── the normal path ──────────────────────────────────────────────────
@@ -419,18 +421,65 @@ class AfferentFingerLinkTest {
     // ── setting up the connection fails ──────────────────────────────────
 
     @Test
-    fun threeFailedDiscoveriesInARowAndTheDeviceIsLeftAlone() {
+    fun threeFailedDiscoveriesInARowAndTheDeviceIsLeftAloneForAMinute() {
         link.start(FingerAvailability.ON)
         repeat(3) {
             link.onScanResult(board, name, null)
             assertEquals("attempt ${it + 1}", "connecting", link.state)
             link.onConnected(board)
             link.onServicesDiscovered(false)
-            timer.advance(40_000)
+            timer.advance(10_000)
         }
         link.onScanResult(board, name, null)
         assertEquals("scanning", link.state)
+        timer.advance(49_999)
+        link.onScanResult(board, name, null)
+        assertEquals("scanning", link.state)
         assertEquals(3, radio.count("connect $board"))
+        timer.advance(1)
+        link.onScanResult(board, name, null)
+        assertEquals("the board is tried again without stop() or an app restart", "connecting", link.state)
+    }
+
+    @Test
+    fun afterTheMinuteTheBoardGetsThreeNewAttempts() {
+        link.start(FingerAvailability.ON)
+        repeat(3) {
+            link.onScanResult(board, name, null)
+            link.onConnected(board)
+            link.onServicesDiscovered(true)
+            timer.advance(AfferentFingerLink.SUBSCRIBE_TIMEOUT_MS)   // at the edge of range: no answer
+            timer.advance(20_000)
+        }
+        assertEquals(3, radio.count("connect $board"))
+        timer.advance(60_000)
+        repeat(2) {
+            link.onScanResult(board, name, null)
+            link.onConnected(board)
+            link.onServicesDiscovered(false)
+            timer.advance(20_000)
+        }
+        link.onScanResult(board, name, null)
+        assertEquals("two failures after the pause are not three", "connecting", link.state)
+        link.onConnected(board)
+        link.onServicesDiscovered(true)
+        answer(true)
+        answer(true)
+        link.onValue(aff1, golden, 9)
+        assertEquals(1, heard.readings.size)
+    }
+
+    @Test
+    fun theRightNameWithoutAff0StaysIgnoredAfterTheMinute() {
+        radio.services = setOf(AfferentFingerParser.HEART_RATE_SERVICE)
+        link.start(FingerAvailability.ON)
+        link.onScanResult(strap, name, null)
+        link.onConnected(strap)
+        link.onServicesDiscovered(true)
+        timer.advance(10 * 60_000)
+        link.onScanResult(strap, name, null)
+        assertEquals("scanning", link.state)
+        assertEquals(1, radio.count("connect $strap"))
     }
 
     @Test
@@ -560,11 +609,11 @@ class AfferentFingerLinkTest {
     @Test
     fun neverMoreThanFourScanStartsInThirtySeconds() {
         // Android silently stops delivering results to an app that starts more than 5 in 30 s
-        val limiter = ScanStartLimiter()
-        repeat(4) { assertEquals(0, limiter.waitMs(it * 100L)); limiter.started(it * 100L) }
-        assertEquals(29_700, limiter.waitMs(300))
-        assertEquals(1, limiter.waitMs(29_999))
-        assertEquals(0, limiter.waitMs(30_000))
+        val budget = ScanBudget()
+        repeat(4) { assertEquals(0, budget.take(it * 100L)) }
+        assertEquals(29_700, budget.take(300))
+        assertEquals(1, budget.take(29_999))
+        assertEquals(0, budget.take(30_000))
 
         // the whole link: a board that drops right after every reading (no pause between tries)
         link.start(FingerAvailability.ON)
@@ -586,6 +635,199 @@ class AfferentFingerLinkTest {
             val inWindow = starts.count { it >= t && it < t + 30_000 }
             assertTrue("$inWindow scan starts within 30 s of $t: $starts", inWindow <= 4)
         }
+    }
+
+    @Test
+    fun aScanThatFindsNothingIsStartedAgainEveryTwentyMinutes() {
+        // Android turns a scan that has run for 30 minutes into one that hears little or nothing
+        link.start(FingerAvailability.ON)
+        timer.advance(20 * 60_000 - 1)
+        assertEquals(1, radio.count("startScan"))
+        timer.advance(1)
+        assertEquals(listOf("startScan", "stopScan", "startScan"), radio.log)
+        assertEquals("scanning", link.state)
+        timer.advance(20 * 60_000)
+        assertEquals(3, radio.count("startScan"))
+        assertEquals("the state did not change, so nothing was reported", listOf("scanning" to null), heard.states)
+        link.onScanResult(board, name, null)             // the board is switched on after an hour
+        assertEquals("connecting", link.state)
+    }
+
+    @Test
+    fun aConnectedLinkIsNotScannedAgain() {
+        connect()
+        timer.advance(2 * 60 * 60_000)
+        assertEquals("connected", link.state)
+        assertEquals(1, radio.count("startScan"))
+    }
+
+    @Test
+    fun scanStartsElsewhereInTheAppCountAgainstTheSameBudget() {
+        val app = ScanBudget()
+        val shared = AfferentFingerLink(radio, timer, heard, app)
+        repeat(3) { assertEquals("a scan of the presence plugin", 0, app.take(timer.now)) }
+        shared.start(FingerAvailability.ON)
+        assertEquals(1, radio.count("startScan"))
+        shared.onScanFailed()                          // would look again at once
+        assertEquals("the fifth start in 30 s has to wait", 1, radio.count("startScan"))
+        assertEquals("scanning", shared.state)
+        timer.advance(29_999)
+        assertEquals(1, radio.count("startScan"))
+        timer.advance(1)
+        assertEquals(2, radio.count("startScan"))
+    }
+
+    @Test
+    fun aFlappingLinkAndPresenceTogetherStayUnderTheLimit() {
+        // the worst case of both plugins at once: the board drops after every reading while
+        // the presence scan is started again and again (app switches, Bluetooth toggles)
+        val app = ScanBudget()
+        val shared = AfferentFingerLink(radio, timer, heard, app)
+        val presenceStarts = ArrayList<Long>()
+        shared.start(FingerAvailability.ON)
+        repeat(900) {                                   // 90 s in 100 ms steps
+            if (radio.scanning) {
+                shared.onScanResult(board, name, null)
+                shared.onConnected(board)
+                shared.onServicesDiscovered(true)
+                answer(shared, true)
+                answer(shared, true)
+                shared.onValue(aff1, golden, 1)
+                shared.onDisconnected(board)
+            }
+            if (it % 7 == 0 && app.take(timer.now) == 0L) presenceStarts += timer.now
+            timer.advance(100)
+        }
+        val starts = (radio.scanStartedAt + presenceStarts).sorted()
+        assertTrue("the finger link keeps trying: ${radio.scanStartedAt}", radio.scanStartedAt.size >= 4)
+        assertTrue("presence gets its turn: $presenceStarts", presenceStarts.size >= 2)
+        for (t in starts) {
+            val inWindow = starts.count { it >= t && it < t + 30_000 }
+            assertTrue("$inWindow scan starts within 30 s of $t: $starts", inWindow <= 4)
+        }
+    }
+
+    @Test
+    fun thePluginsShareTheBudgetOfTheApp() {
+        fun source(name: String) = listOf("src/main/java/fi/junction/afferent/$name", "app/src/main/java/fi/junction/afferent/$name")
+            .map { java.io.File(it) }.first { it.exists() }.readText()
+        assertTrue(source("AfferentFingerPlugin.kt").contains("AfferentFingerLink(radio, Timer(), Events(), ScanBudget.app)"))
+        assertTrue(source("AfferentPresencePlugin.kt").contains("private val budget = ScanBudget.app"))
+        assertEquals("one below Android's five", 0, ScanBudget().let { b -> repeat(3) { b.take(0) }; b.take(0) })
+        assertTrue(ScanBudget().let { b -> repeat(4) { b.take(0) }; b.take(0) } > 0)
+    }
+
+    // ── the app in the background ────────────────────────────────────────
+
+    @Test
+    fun inTheBackgroundTheConnectionIsReleasedAfterTheGracePeriod() {
+        connect()
+        link.onValue(aff1, golden, 1)
+        link.background()
+        timer.advance(AfferentFingerLink.BACKGROUND_GRACE_MS - 1)
+        assertEquals("connected", link.state)
+        assertEquals(board, radio.link)
+        timer.advance(1)
+        assertEquals("off" to null, heard.states.last())
+        assertEquals("disconnect", radio.log.last())
+        assertNull("the board is free for another phone", radio.link)
+        link.onValue(aff1, golden, 2)
+        link.onDisconnected(board)
+        link.onScanResult(board, name, null)
+        link.availabilityChanged(FingerAvailability.ON)   // Bluetooth toggled while away
+        timer.advance(2 * 60 * 60_000)
+        assertEquals("off", link.state)
+        assertEquals("nothing scans in the background", 1, radio.count("startScan"))
+        assertEquals(1, heard.readings.size)
+    }
+
+    @Test
+    fun inTheBackgroundTheScanIsStopped() {
+        link.start(FingerAvailability.ON)
+        link.background()
+        timer.advance(AfferentFingerLink.BACKGROUND_GRACE_MS)
+        assertEquals(listOf("startScan", "stopScan"), radio.log)
+        assertFalse(radio.scanning)
+        assertEquals("off", link.state)
+        timer.advance(2 * 60 * 60_000)
+        assertEquals(listOf("startScan", "stopScan"), radio.log)
+    }
+
+    @Test
+    fun backInTheAppItLooksForTheBoardAgain() {
+        connect()
+        link.background()
+        timer.advance(60_000)
+        link.start(FingerAvailability.ON)              // handleOnResume
+        assertEquals("scanning" to null, heard.states.last())
+        assertEquals(2, radio.count("startScan"))
+        link.onScanResult(board, name, null)
+        link.onConnected(board)
+        link.onServicesDiscovered(true)
+        answer(true)
+        answer(true)
+        link.onValue(aff1, golden, 5)
+        assertEquals("connected", link.state)
+        assertEquals(1, heard.readings.size)
+        timer.advance(60_000)
+        assertEquals("the old grace period does not end the new link", "connected", link.state)
+    }
+
+    @Test
+    fun aShortLookAtAnotherAppKeepsTheLink() {
+        connect()
+        val before = radio.log.size
+        link.background()                              // e.g. a permission dialog
+        timer.advance(AfferentFingerLink.BACKGROUND_GRACE_MS - 1)
+        link.start(FingerAvailability.ON)
+        timer.advance(60_000)
+        assertEquals("connected", link.state)
+        assertEquals(before, radio.log.size)
+        link.onValue(aff1, golden, 7)
+        assertEquals(1, heard.readings.size)
+    }
+
+    @Test
+    fun aConnectionAttemptInTheBackgroundIsGivenUpToo() {
+        link.start(FingerAvailability.ON)
+        link.onScanResult(board, name, null)
+        link.background()
+        timer.advance(AfferentFingerLink.BACKGROUND_GRACE_MS)
+        assertEquals("off", link.state)
+        assertNull(radio.link)
+        timer.advance(60_000)
+        assertEquals("the connect timeout does not start a scan", 1, radio.count("startScan"))
+    }
+
+    @Test
+    fun backgroundKeepsWhatIsKnownAboutOtherDevices() {
+        radio.services = setOf(AfferentFingerParser.HEART_RATE_SERVICE)
+        link.start(FingerAvailability.ON)
+        link.onScanResult(strap, name, null)
+        link.onConnected(strap)
+        link.onServicesDiscovered(true)                // not our board
+        link.background()
+        timer.advance(60_000)
+        link.start(FingerAvailability.ON)
+        link.onScanResult(strap, name, null)
+        assertEquals("scanning", link.state)
+        assertEquals(1, radio.count("connect $strap"))
+    }
+
+    @Test
+    fun backgroundBeforeStartOrAfterStopDoesNothing() {
+        link.background()
+        timer.advance(60_000)
+        assertTrue(heard.states.isEmpty())
+        connect()
+        link.background()
+        link.stop()
+        val states = heard.states.size
+        timer.advance(60_000)
+        assertEquals(states, heard.states.size)
+        link.start(FingerAvailability.ON)
+        timer.advance(60_000)
+        assertEquals("a pause asked for before stop() does not hit the next start", "scanning", link.state)
     }
 
     @Test

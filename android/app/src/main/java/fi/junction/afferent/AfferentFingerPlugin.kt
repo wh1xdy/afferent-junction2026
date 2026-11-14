@@ -59,7 +59,9 @@ import java.util.UUID
  *   unsupported   the phone has no Bluetooth LE
  *   unauthorized  the person did not allow it: Nearby devices (Android 12 and later) or
  *                 Location (Android 11 and earlier, where a Bluetooth scan needs it)
- *   off           Bluetooth is switched off, or the plugin is stopped
+ *   off           Bluetooth is switched off, or the plugin is stopped, or the app has been in
+ *                 the background for a few seconds (the scan and the connection are released
+ *                 there, as iOS does by suspending the app; back in the app it looks again)
  *
  * This file only translates between Android's Bluetooth classes and AfferentFingerLink, which
  * holds the rules (which device, in which order, when to give up) and is tested without a
@@ -90,13 +92,15 @@ class AfferentFingerPlugin : Plugin() {
     // central manager delivers on the main queue).
     private val main = Handler(Looper.getMainLooper())
     private val radio = Radio()
-    private val link = AfferentFingerLink(radio, Timer(), Events())
+    private val link = AfferentFingerLink(radio, Timer(), Events(), ScanBudget.app)
 
     /** start() was called and stop() was not: the web layer wants the sensor. */
     private var wanted = false
     /** start() calls that wait for the answer to the permission prompt */
     private val waiting = ArrayList<PluginCall>()
     private var receiver: BroadcastReceiver? = null
+    /** Between handleOnPause and handleOnResume: another app, the home screen, screen off. */
+    private var paused = false
 
     // ── plugin methods ───────────────────────────────────────────────────
 
@@ -144,7 +148,18 @@ class AfferentFingerPlugin : Plugin() {
 
     /** Back in the app, e.g. from Settings where the permission or Bluetooth was changed. */
     override fun handleOnResume() {
-        main.post { if (wanted && waiting.isEmpty()) begin() }
+        main.post {
+            paused = false
+            if (wanted && waiting.isEmpty()) begin()
+        }
+    }
+
+    /** No Bluetooth work in the background: the link lets go after a short grace period. */
+    override fun handleOnPause() {
+        main.post {
+            paused = true
+            link.background()
+        }
     }
 
     override fun handleOnDestroy() {
@@ -187,6 +202,7 @@ class AfferentFingerPlugin : Plugin() {
             }
         }
         link.start(availability())
+        if (paused) link.background()
     }
 
     private fun shutDown() {

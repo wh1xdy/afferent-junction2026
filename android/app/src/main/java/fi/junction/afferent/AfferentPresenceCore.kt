@@ -256,22 +256,29 @@ internal object PresenceRules {
 }
 
 /**
- * Android delivers nothing, without any error, to an app that starts more than five scans in
- * 30 seconds. This keeps presence well below that, leaving room for the finger plugin's scans
- * (the limit is per app).
+ * A scan that Android refused or throttled looks like a running one: no error, no adverts. So
+ * a scan counts as working only while it hears something. After `limitMs` without any advert
+ * the plugin reports scanning = false, which presence.js reads as "could not look" and not as
+ * "the bedside unit is gone", and starts the scan again.
  */
-internal class ScanBudget(private val max: Int = 3, private val windowMs: Long = 30_000) {
-    private val starts = ArrayDeque<Long>()
+internal class ScanSilence(private val limitMs: Long = 60_000) {
+    private var since = -1L
 
-    /** 0: a scan may start now, and is counted. Otherwise the wait in milliseconds. */
-    fun take(nowMs: Long): Long {
-        while (starts.isNotEmpty() && nowMs - starts.first() >= windowMs) starts.removeFirst()
-        if (starts.size < max) {
-            starts.addLast(nowMs)
-            return 0
-        }
-        return starts.first() + windowMs - nowMs
+    /** A scan started. Starting it again because of the silence does not reset the silence. */
+    fun started(nowMs: Long) {
+        if (since < 0) since = nowMs
     }
+
+    fun heard(nowMs: Long) {
+        since = nowMs
+    }
+
+    /** The scan was stopped for another reason: app in the background, stop(), Bluetooth off. */
+    fun ended() {
+        since = -1
+    }
+
+    fun silent(nowMs: Long): Boolean = since >= 0 && nowMs - since >= limitMs
 }
 
 /** Home Wi-Fi: which stay-at-home devices answer Bonjour, as hashes. */

@@ -209,7 +209,7 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 ```
 
 - Tests: `cd android && ./gradlew testDebugUnitTest`. After a change in `demo/`, `npm run sync` first, or the APK carries the old web layer.
-- Native, with the same plugin names, calls and events as on iOS: `AfferentFinger` (the finger clips over Bluetooth: pulse, per-finger pulse, breathing rate, RMSSD) and `AfferentPresence` (Home and visitors). Haptics and the morning reminder come from the Capacitor npm plugins.
+- Native, with the same plugin names, calls and events as on iOS: `AfferentFinger` (the finger clips over Bluetooth: pulse, per-finger pulse, breathing rate, RMSSD) and `AfferentPresence` (Home and visitors). Haptics and the morning reminder come from the Capacitor npm plugins. Both Bluetooth plugins stop scanning and let go of the board a few seconds after the app leaves the foreground (as iOS does by suspending the app) and look again when it is back.
 - Not available on Android: ARKit and the TrueDepth camera. Eye input uses the front camera with the MediaPipe model bundled in the app (no network, source `mediapipe`); what it cannot measure arrives as "not available" (null), never as zero.
 - State: builds and passes its unit tests. Not yet run on an Android phone or against the UNO Q.
 
