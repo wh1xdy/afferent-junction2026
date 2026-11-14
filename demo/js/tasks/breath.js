@@ -74,7 +74,8 @@
           return { drift: A.Skill?.axis('breath', 'drift', 31) ?? 31, window: A.Skill?.axis('breath', 'window', 0.48) ?? 0.48, share: A.Skill?.axis('breath', 'share', 0.71) ?? 0.71 };
         },
 
-        newCycle(c) {
+        newCycle(c, now, held) {
+          if (!held) this.rt?.cue('in' + c, 'inhale_cue', now);
           if (!this.endless) A.Skill?.progress('breath', c, this.cycles);
           this.cy = { c, lv: this.level(), maxDrift: 0, ticks: 0, top: false, share: 0, launched: false, bot: null };
           this.loose = false;
@@ -82,14 +83,15 @@
 
         onDown(d) {
           if (this.done) return;
-          this.touchDown();
+          this.touchDown(d?.ts ?? d?.t ?? A.now());
           this.anchor = [d.x, d.y];
         },
         onUp(d) {
           if (this.done) return;
           this.pendingUp = this.t + ((d?.ts ?? d?.t ?? A.now()) - A.now());
         },
-        touchDown() {
+        touchDown(t) {
+          this.rt?.hit('in' + this.cy?.c, t);
           this.touched = true; this.downAt = this.at ?? A.now(); this.drift = 0;
           J.hap('tick');
           const p = this.geo();
@@ -106,9 +108,9 @@
           const holding = !!(this.autoHold ?? A.Input.holding());
           if (holding) this.lastIn = this.t;
           if (holding && !this.touched) { this.touched = true; if (!this.anchor && A.Pointer.down) this.anchor = [A.Pointer.x, A.Pointer.y]; }
-          if (!this.cy) this.newCycle(0);
-          if (holding && !this.wasHolding && this.autoHold !== undefined) this.touchDown();
-          if (holding && !this.wasHolding && this.autoHold === undefined && !A.Pointer.down) this.touchDown();
+          if (!this.cy) this.newCycle(0, now, holding);
+          if (holding && !this.wasHolding && this.autoHold !== undefined) this.touchDown(now);
+          if (holding && !this.wasHolding && this.autoHold === undefined && !A.Pointer.down) this.touchDown(now);
           if (!holding && this.wasHolding) { this.lastUpT = this.pendingUp ?? this.t; this.pendingUp = null; this.release(now); }
           this.wasHolding = holding;
           if (holding) {
@@ -131,7 +133,7 @@
             if (!this.cy.launched) this.launch(now, true);
             if (this.cIn && this.cHeld / this.cIn >= ENGAGED) this.items++;
             this.cyc = c; this.cIn = 0; this.cHeld = 0;
-            this.newCycle(c);
+            this.newCycle(c, now, holding);
             if (holding) this.anchor = A.Pointer.down ? [A.Pointer.x, A.Pointer.y] : this.anchor;
             if (c >= this.cycles || (this.endless && playLeft() < CYCLE + 0.2)) this.close(now);
           }
@@ -152,6 +154,7 @@
         turn(holding, now) {
           const cy = this.cy;
           cy.top = true; cy.share = this.cIn ? this.cHeld / this.cIn : 0;
+          this.rt?.lapse('in' + cy.c);
           this.topAt = this.at ?? now;
           J.hap('light');
           const p = this.geo();

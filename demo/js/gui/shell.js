@@ -30,10 +30,10 @@
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
-    { title: 'Export to your clinic', hint: 'One export a day, at 07:00. Nobody watches live.', rows: [
+    { title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
       { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
         <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
-      { icon: 'schedule', label: 'Next export', static: true, val: '', valId: 'nextExport' },
+      { icon: 'ios_share', label: 'Show to my doctor', href: 'patient.html#settings', id: 'qrBtn' },
       { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
       { icon: 'description', label: 'What is in an export', sup: 'Lanterns, play times, sensor numbers', static: true },
     ] },
@@ -76,12 +76,6 @@
     };
     body.querySelectorAll('[data-anchor]').forEach(b => b.onclick = () => A.Checkin?.anchor?.());
     body.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => toast(b.getAttribute('aria-label')));
-    const next = () => {
-      const d = new Date(), h = d.getHours();
-      $('nextExport').textContent = h < 7 ? 'Today 07:00' : 'Tomorrow 07:00';
-    };
-    next();
-    document.querySelectorAll('[data-open="settings"]').forEach(b => b.addEventListener('click', next));
   };
 
   let toastEl = null, toastT = 0;
@@ -92,18 +86,23 @@
   };
 
   const HOLD_MS = 900;
+  const buildGap = p => 170 - 125 * p;
   const kindle = () => {
     const btn = $('begin');
     if (!btn) return;
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
-    const fill = btn.querySelector('.fill'), C = 2 * Math.PI * 46;
-    let p = 0, t0 = 0, raf = 0, holding = false, lit = false;
-    const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); btn.style.setProperty('--p', v.toFixed(3)); };
-    const fire = () => { lit = true; btn.classList.add('lit'); navigator.vibrate?.(18); btn.dispatchEvent(new CustomEvent('kindle')); };
+    const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
+    let p = 0, t0 = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
+    const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
+    const buzz = n => (A.J ? A.J.hap(n) : navigator.vibrate?.(n === 'success' ? [12, 60, 22] : n === 'light' ? 6 : 3));
+    const fire = () => { lit = true; btn.classList.add('lit'); buzz('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
     const tick = () => {
       if (!holding) return;
       set(Math.min(1, (performance.now() - t0) / HOLD_MS));
       if (p >= 1) { holding = false; fire(); return; }
+      const now = performance.now();
+      if (p >= 0.75) { if (!swell) { swell = true; buzz('light'); } }
+      else if (now >= buzzAt) { buzz('tick'); buzzAt = now + Math.max(70, buildGap(p)); }
       raf = requestAnimationFrame(tick);
     };
     const drain = () => {
@@ -117,7 +116,7 @@
       try { A.Audio?.init?.(); A.Audio?.ctx?.resume?.(); } catch {}
       try { btn.setPointerCapture(e.pointerId); } catch {}
       cancelAnimationFrame(raf);
-      holding = true; btn.classList.add('holding');
+      holding = true; btn.classList.add('holding'); buzz('tick'); buzzAt = performance.now() + buildGap(p); swell = p >= 0.75;
       t0 = performance.now() - p * HOLD_MS;
       raf = requestAnimationFrame(tick);
     });
@@ -126,7 +125,7 @@
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
     const hint = () => { const l = $('beginLabel'); l.classList.remove('nudge'); void l.offsetWidth; l.classList.add('nudge'); };
-    A.bus.on('home', () => { lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); });
+    A.bus.on('home', () => { cancelAnimationFrame(raf); lit = false; holding = false; btn.classList.remove('lit', 'holding'); set(0); });
   };
 
   const MOODS = [['#34476E', 0.35], ['#5A7CA6', 0.5], ['#A9A79A', 0.65], ['#E8B867', 0.82], ['#FFCB5C', 1]];
@@ -240,6 +239,8 @@
 
   const sheet = document.querySelector('.end-sheet');
   if (sheet) sheet.prepend(frag(G.wave()));
-  buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped();
+  const noLoupe = () => ['begin', 'game'].forEach(id => $(id)?.addEventListener('touchstart', e => e.preventDefault(), { passive: false }));
+
+  buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped(); noLoupe();
   A.Shell = { toast, week, phase, row, group, groups: GROUPS };
 })();

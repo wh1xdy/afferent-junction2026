@@ -36,6 +36,7 @@ except Exception as e:                # the file is not in the image: the hub ru
 
 SOURCE = "modulino-hub"
 SENSOR = "finger_ppg"         # what measured the vitals (the label of the session contract)
+MIN_QUALITY = 0.3             # below this (or not reported) the pulse is not a measurement
 LIVE_S = 3.0                  # a reading counts as live for this long
 WINDOW_EVERY_S = 10.0         # HRV (60 s window) and breathing (40 s window) move slowly
 CLIMATE_EVERY_S = 60.0        # one mean per minute (the Thermo reports every 2 s)
@@ -85,7 +86,7 @@ class Push:
             if two_hearts:
                 self._hold_until = now + TWO_HEARTS_HOLD_S
             if sensing and not two_hearts and not rhythms_apart:
-                if _reading(bpm):
+                if _reading(bpm) and _number(quality) and quality >= MIN_QUALITY:
                     self._send("vitals.heart_rate_bpm", round(bpm), now,
                                quality=round(quality, 2) if _number(quality) else None,
                                meta={"sensor": SENSOR})

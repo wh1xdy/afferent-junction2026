@@ -191,7 +191,7 @@
     }
     if (ph.finger?.source === 'simulated') simFields.push(...['finger', 'breathing', 'hrv', 'series'].filter(k => ph[k]).map(k => 'vitals.' + k));
     if (eyesSrc === 'simulated') simFields.push('signal.eyes_source', 'core.rest.eye_openness', 'core.rest.blink_rate_per_min', 'core.rest.head_pitch_deg', 'tasks.eye_openness_mean', 'tasks.perclos', 'tasks.head_pitch_delta_deg', 'pre_post.eye_openness', 'pre_post.head_pitch');
-    if (s.auto) simFields.push('player', 'core.rt', 'core.mood_start', 'mood_end', 'fork', 'two_lanterns');
+    if (s.auto) simFields.push('player', 'core.rt', 'tasks.extra.rt', 'core.mood_start', 'mood_end', 'fork', 'two_lanterns');
     const pres = A.Presence?.sessionContext?.() ?? { home: null, visitors_present: null, simulated: false };
     if (pres.simulated) simFields.push('context.home', 'context.visitors_present');
     const end = s.endWindow(), rest = core?.rest;

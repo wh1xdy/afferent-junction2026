@@ -238,7 +238,7 @@
         n: N, pairs, knot, puzzle: P, cueP: cue, cueAt: fresh ? 0.6 : 2.4, hintS,
         drag: null, b: null, fing: null, ghosts: [], hint: null, lastProg: 0, autoPhase: false, autoQ: [], anim: null,
         first: null, cells: 0, cellMs: [], lastCellT: null, loose: 0, wrongEnd: 0, cuts: 0, hints: 0, autoJoined: 0,
-        tier: 0, feverUntil: -9, perfRun: 0, doneAt: null, pay: null, bot: null, outro: 1.8, rippleAt: -9, ripple: null,
+        tier: 0, feverUntil: -9, perfRun: 0, doneAt: null, pay: null, bot: null, outro: 1.8, rippleAt: -9, ripple: null, rtId: null,
 
         layout(b) {
           b = b || this.b || A.session?.box?.();
@@ -259,6 +259,7 @@
           for (const p of pairs) if (p.pipe.includes(c)) return p.i;
           return -1;
         },
+        arm(now) { this.rt?.drop(this.rtId); this.rtId = (this.rtId ?? -1) + 1; this.rt?.cue(this.rtId, 'choice', now); },
         complete(p) { return p.pipe.length >= 2 && p.pipe[p.pipe.length - 1] === this.other(p, p.pipe[0]); },
 
         setPipe(p, cells, now) {
@@ -362,6 +363,7 @@
           }
           this.sync();
           if (all) this.win(now);
+          else if (!sys) this.arm(now);
         },
 
         win(now) {
@@ -396,6 +398,7 @@
           const now = d?.t ?? t ?? A.now();
           this.lastIn = this.t;
           if (this.first === null) this.first = Math.round((now - (this.startAt ?? now)) * 1000);
+          if (this.rtId === null) this.arm(this.startAt ?? now);
           const L = this.layout(), [x, y] = this.xy(u, v), c = this.cellAt(L, x, y);
           this.fing = [x, y];
           if (c < 0) { this.ripple = [x, y]; this.rippleAt = this.at; return; }
@@ -403,6 +406,7 @@
           if (ki >= 0) {
             const p = pairs[ki];
             if (p.anim) return;
+            this.rt?.hit(this.rtId, now);
             this.startDrag(p, [c], now);
             hap('light');
             sfx('threads_pluck', { step: 0, pair: p.i });
@@ -410,6 +414,7 @@
             const oi = this.owner(c);
             if (oi < 0 || pairs[oi].anim) { this.ripple = [x, y]; this.rippleAt = this.at; return; }
             const p = pairs[oi];
+            this.rt?.hit(this.rtId, now);
             this.startDrag(p, p.pipe.slice(0, p.pipe.indexOf(c) + 1), now);
             hap('tick');
           }
@@ -483,6 +488,8 @@
         update(dt, now) {
           this.tick(dt, now);
           if (this.done) return;
+          if (this.rtId === null) this.arm(this.startAt ?? now);
+          if (this.t >= this.max && !this.drag) this.rt?.lapse(this.rtId);
           for (const p of pairs) if (p.anim) this.stepAnim(p, dt, now);
           if (this.done) return;
           if (!this.autoPhase && this.t >= this.max - this.need()) {

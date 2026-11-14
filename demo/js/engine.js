@@ -136,6 +136,7 @@
 
       startRt(now) {
         this.core.nextTrialAt = now + 0.3 + (RP().leadIn || 0);
+        this.rtArmed = this.auto || this.moodStart != null;
         this.setPhase('rt');
       },
 
@@ -147,6 +148,7 @@
       updateRt(now, dt) {
         const c = this.core, t = now - this.phaseAt;
         RP().update?.(this, now, dt);
+        if (!this.rtArmed) { this.phaseAt = now; c.nextTrialAt = now + 0.3 + (RP().leadIn || 0); return; }
         let tr = c.trial;
         if (!tr && c.trials.length < 5 && now >= c.nextTrialAt) tr = c.trial = { fp: 1 + R() * 1.5, start: now, onset: null, autoAt: null };
         if (tr) {
@@ -327,9 +329,10 @@
           if (gameMode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) - (MEASURE_RIDE_S + 4 + (SEC_HILL[mode] || 4) + 3) * this.measuresPending(slot) - 8));
         }
         g.bare ??= true;
+        if (!measure) g.rt = A.RT?.log() ?? null;
         const kind = measure ? 'measurement' : 'adaptive', taskMode = measure ? 'measure' : gameMode, def = A.MINIGAMES[id];
         A.J?.beat.set(def?.bpm ? def.bpm(MODES[gameMode].tempo, k ?? 0) : MODES[gameMode].tempo, now);
-        Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind });
+        Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind, inputs0: this.inputs });
         this.game = g; this.gameMode = taskMode;
         if (this.T.taskStart(g, now) && A.Skill?.cur?.id === id) { const c = A.Skill.cur; c.c = c.tiers[0]; c.tier = 1; c.carry = true; }
         this.track = A.Record.track({ id, slot, kind, mode: taskMode, director_mode: mode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight) }, now);
@@ -347,6 +350,8 @@
         if (g.kind !== 'measurement' && g.extra && Object.keys(g.extra).length) out.extra = { ...g.extra };
         const breathing = g.id === 'breath' ? g.fb?.result() ?? null : null;
         if (breathing) { out.extra = { ...out.extra, breathing }; this.breathResult = { ...breathing, until: now + BREATH_RESULT_S }; }
+        const rt = g.kind === 'measurement' ? null : g.rt?.summary();
+        if (rt) out.extra = { ...out.extra, rt };
         const dda = g.kind === 'measurement' ? null : A.Skill?.finish(g.id);
         if (dda) out.extra = { ...out.extra, dda };
         if (g.id === 'fork') { this.forkRec = A.Record.fork(g); out.extra = { glows: g.glows, hard_sides: g.choices.map(c => c.hard_side), ...A.PRESENT?.fork?.extra?.(g) }; out.completed = g.done && this.forkRec.choices.every(c => c.completed); }
@@ -529,7 +534,7 @@
           g.t += dt;
           g.update(dt, now);
           if (this.auto && !g.done) g.auto?.(dt, now);
-          if (g.done && now - g.finishedAt > 0.7) this.endGame(now, 'touch');
+          if (g.done && now - g.finishedAt > 0.7) this.endGame(now, this.auto || this.inputs > g.inputs0 ? 'touch' : 'auto');
           else if (!g.done && g.t >= g.max) this.endGame(now, 'auto');
           else if (g.id === 'breath' && g.mode === 'rest' && this.playLeft(now) <= 0) this.endGame(now, 'touch');
         }
@@ -571,7 +576,7 @@
         if (type === 'pdown' || type === 'key') this.inputs++;
         if (type === 'exit') { this.finish('partial'); return; }
         if (this.T.handle(type, d)) return;
-        if (this.phase === 'rt' && (type === 'pdown' || type === 'key')) { this.coreTap(RP().tapTime ? RP().tapTime(d) : d.t); return; }
+        if (this.phase === 'rt' && (type === 'pdown' || type === 'key')) { if (this.rtArmed) this.coreTap(RP().tapTime ? RP().tapTime(d) : d.t); else this.rtArmed = true; return; }
         const g = this.phase === 'checkin' ? this.panel : this.phase === 'game' ? this.game : null;
         if (!g || g.world || g.done || type === 'key') return;
         const b = this.box(), u = (d.x - b.x) / b.w, v = (d.y - b.y) / b.h;

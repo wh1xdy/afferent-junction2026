@@ -83,6 +83,7 @@
     "input_backend": {
       "enum": [
         "arkit",
+        "vision",
         "mediapipe",
         "simulated",
         "none"
@@ -350,6 +351,7 @@
         "eyes_source": {
           "enum": [
             "arkit",
+            "vision",
             "mediapipe",
             "simulated",
             null

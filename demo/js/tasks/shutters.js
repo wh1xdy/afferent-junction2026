@@ -178,6 +178,7 @@
           w.cueS = d < 0.3 ? Infinity : 0.8 * Math.pow(0.3 / 0.8, (d - 0.3) / 0.7);
           w.arrAt = J.at;
           w.autoAt = this.autoPhase ? t + 0.6 + 0.3 * R() : Infinity;
+          if (!this.autoPhase) this.rt?.cue(w.i, 'tap_target', t);
         },
         warmNow() { return clamp(this.sun / this.N, 0, 1); },
 
@@ -236,11 +237,12 @@
           return x > L.ox - 16 * U && x < L.ox + L.ow + 16 * U && y > L.oy - 10 * U && y < fb + 7 * U + 16 * U + 2 * L.rr + 18 * U;
         },
 
-        down(u, v, t) {
+        down(u, v, t, d) {
           this.lastIn = this.t; this.lastTouch = this.t;
           const P = this.px(u, v), w = this.cur();
           this.touchMark = { x: P[0], y: P[1], at: J.at };
-          if (!w || w.st !== 'ready' || this.drag || !this.hit(w, P)) { fx.burst(P[0], P[1], 3, C.flame, 50, { life: 0.35, size: [2, 0.5] }); return; }
+          if (!w || w.st !== 'ready' || this.drag || !this.hit(w, P)) { if (this.slide && !this.drag) this.rt?.early(); fx.burst(P[0], P[1], 3, C.flame, 50, { life: 0.35, size: [2, 0.5] }); return; }
+          this.rt?.hit(w.i, d?.ts ?? t);
           this.drag = { w, x0: P[0], y0: P[1], ticks: 0, wrong: false, past: false, frostAt: 0 };
           w.tries++; w.grabAt = J.at; w.grabMs = performance.now(); w.sp = null;
           hap('light');
@@ -298,6 +300,7 @@
           if (w.st !== 'ready') return;
           const L = this.L(w), U = L.U, last = w.i === this.N - 1;
           w.st = 'open'; w.openAt = J.at; w.openT = t; w.auto = auto;
+          if (auto) this.rt?.lapse(w.i);
           w.from = w.m === 'pair' ? 1 - w.sep / L.travel : w.pull;
           if (this.drag?.w === w) this.drag = null;
           let grade = 'miss';

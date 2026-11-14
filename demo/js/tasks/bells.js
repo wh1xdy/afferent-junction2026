@@ -179,6 +179,7 @@
             return;
           }
           this.phase = 'echo'; this.echoAt = now;
+          this.rt?.cue(`${this.round}.${this.attempt}`, 'choice', now);
           this.floor = [0, 0.1, 0.3][this.aid];
           for (let i = 0; i < 7; i++) this.wins[i].on = i < this.len ? this.floor : 0;
         },
@@ -222,6 +223,7 @@
 
         strike(i, ts, now) {
           const pos = this.input.length, bl = this.bells[i], L = this.lay(this.box()), at = J.at;
+          if (!pos) this.rt?.[i === this.seq[0] ? 'hit' : 'drop'](`${this.round}.${this.attempt}`, ts);
           if (i !== this.seq[pos]) {
             this.errors++; this.log.replays++; this.replayed = true;
             bl.wrongAt = at; bl.rungAt = at; bl.swing = 0.25;

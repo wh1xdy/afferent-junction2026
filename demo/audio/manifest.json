@@ -4,10 +4,6 @@
  "files": {
   "amb_night_air": {
    "path": "ambience/amb_night_air",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -21,10 +17,6 @@
   },
   "amb_wind_fell": {
    "path": "ambience/amb_wind_fell",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -38,10 +30,6 @@
   },
   "amb_forest_birch": {
    "path": "ambience/amb_forest_birch",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -55,10 +43,6 @@
   },
   "amb_snowfall": {
    "path": "ambience/amb_snowfall",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.1,
@@ -72,10 +56,6 @@
   },
   "amb_lake_ice_night": {
    "path": "ambience/amb_lake_ice_night",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -89,10 +69,6 @@
   },
   "amb_lake_under_ice": {
    "path": "ambience/amb_lake_under_ice",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -106,10 +82,6 @@
   },
   "amb_shore_waves": {
    "path": "ambience/amb_shore_waves",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.5,
@@ -123,10 +95,6 @@
   },
   "amb_lake_lapping": {
    "path": "ambience/amb_lake_lapping",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -140,10 +108,6 @@
   },
   "amb_harbour_rope": {
    "path": "ambience/amb_harbour_rope",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 1,
    "lufs": -26.8,
@@ -157,10 +121,6 @@
   },
   "amb_sauna_stove": {
    "path": "ambience/amb_sauna_stove",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -174,10 +134,6 @@
   },
   "amb_fire_crackle": {
    "path": "ambience/amb_fire_crackle",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 1,
    "lufs": -23.2,
@@ -191,10 +147,6 @@
   },
   "amb_boat_far": {
    "path": "ambience/amb_boat_far",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 1,
    "lufs": -23.0,
@@ -208,10 +160,6 @@
   },
   "amb_dawn_woodland": {
    "path": "ambience/amb_dawn_woodland",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -225,10 +173,6 @@
   },
   "amb_ride_ski": {
    "path": "ambience/amb_ride_ski",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.0,
@@ -242,10 +186,6 @@
   },
   "amb_ride_drag": {
    "path": "ambience/amb_ride_drag",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 1,
    "lufs": -23.0,
@@ -259,10 +199,6 @@
   },
   "amb_wind_chimes": {
    "path": "ambience/amb_wind_chimes",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "loop",
    "channels": 2,
    "lufs": -23.1,
@@ -276,10 +212,6 @@
   },
   "sfx_step_snow_01": {
    "path": "sfx/sfx_step_snow_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -20.3,
@@ -291,10 +223,6 @@
   },
   "sfx_step_snow_02": {
    "path": "sfx/sfx_step_snow_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -21.3,
@@ -306,10 +234,6 @@
   },
   "sfx_step_snow_03": {
    "path": "sfx/sfx_step_snow_03",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -19.1,
@@ -321,10 +245,6 @@
   },
   "sfx_step_snow_04": {
    "path": "sfx/sfx_step_snow_04",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -21.2,
@@ -336,10 +256,6 @@
   },
   "sfx_ski_swish": {
    "path": "sfx/sfx_ski_swish",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 2,
    "lufs": -18.0,
@@ -351,10 +267,6 @@
   },
   "sfx_land_snow": {
    "path": "sfx/sfx_land_snow",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -26.2,
@@ -366,10 +278,6 @@
   },
   "sfx_ice_ping": {
    "path": "sfx/sfx_ice_ping",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -30.0,
@@ -381,10 +289,6 @@
   },
   "sfx_ice_crack_01": {
    "path": "sfx/sfx_ice_crack_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -24.7,
@@ -396,10 +300,6 @@
   },
   "sfx_ice_crack_02": {
    "path": "sfx/sfx_ice_crack_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -24.7,
@@ -411,10 +311,6 @@
   },
   "sfx_ice_crack_03": {
    "path": "sfx/sfx_ice_crack_03",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -22.6,
@@ -426,10 +322,6 @@
   },
   "sfx_ice_boom_01": {
    "path": "sfx/sfx_ice_boom_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -441,10 +333,6 @@
   },
   "sfx_ice_boom_02": {
    "path": "sfx/sfx_ice_boom_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -456,10 +344,6 @@
   },
   "sfx_icicle_tinkle_01": {
    "path": "sfx/sfx_icicle_tinkle_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -23.3,
@@ -471,10 +355,6 @@
   },
   "sfx_icicle_tinkle_02": {
    "path": "sfx/sfx_icicle_tinkle_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -30.2,
@@ -486,10 +366,6 @@
   },
   "sfx_loyly_hiss_01": {
    "path": "sfx/sfx_loyly_hiss_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -19.0,
@@ -501,10 +377,6 @@
   },
   "sfx_loyly_hiss_02": {
    "path": "sfx/sfx_loyly_hiss_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -25.4,
@@ -516,10 +388,6 @@
   },
   "sfx_loyly_hiss_long": {
    "path": "sfx/sfx_loyly_hiss_long",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -531,10 +399,6 @@
   },
   "sfx_stove_door": {
    "path": "sfx/sfx_stove_door",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -25.5,
@@ -546,10 +410,6 @@
   },
   "sfx_bell_hand_1": {
    "path": "sfx/sfx_bell_hand_1",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -17.4,
@@ -561,10 +421,6 @@
   },
   "sfx_bell_hand_2": {
    "path": "sfx/sfx_bell_hand_2",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -24.1,
@@ -576,10 +432,6 @@
   },
   "sfx_bell_hand_3": {
    "path": "sfx/sfx_bell_hand_3",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.7,
@@ -591,10 +443,6 @@
   },
   "sfx_bell_church_far": {
    "path": "sfx/sfx_bell_church_far",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -20.4,
@@ -606,10 +454,6 @@
   },
   "sfx_chime_single": {
    "path": "sfx/sfx_chime_single",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -19.8,
@@ -621,10 +465,6 @@
   },
   "sfx_mote_twinkle_01": {
    "path": "sfx/sfx_mote_twinkle_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -20.7,
@@ -636,10 +476,6 @@
   },
   "sfx_mote_twinkle_02": {
    "path": "sfx/sfx_mote_twinkle_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -20.2,
@@ -651,10 +487,6 @@
   },
   "sfx_mote_gleam": {
    "path": "sfx/sfx_mote_gleam",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -666,10 +498,6 @@
   },
   "sfx_colour_swell": {
    "path": "sfx/sfx_colour_swell",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 2,
    "lufs": -17.9,
@@ -681,10 +509,6 @@
   },
   "sfx_flame_whoosh": {
    "path": "sfx/sfx_flame_whoosh",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 2,
    "lufs": -18.8,
@@ -696,10 +520,6 @@
   },
   "sfx_foghorn_far": {
    "path": "sfx/sfx_foghorn_far",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -711,10 +531,6 @@
   },
   "sfx_crane_call": {
    "path": "sfx/sfx_crane_call",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.9,
@@ -726,10 +542,6 @@
   },
   "sfx_ui_tap_soft": {
    "path": "sfx/sfx_ui_tap_soft",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -22.4,
@@ -741,10 +553,6 @@
   },
   "sfx_ui_confirm": {
    "path": "sfx/sfx_ui_confirm",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -26.5,
@@ -756,10 +564,6 @@
   },
   "sfx_ui_tap_wood_01": {
    "path": "sfx/sfx_ui_tap_wood_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -25.9,
@@ -771,10 +575,6 @@
   },
   "sfx_ui_tap_wood_02": {
    "path": "sfx/sfx_ui_tap_wood_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -25.4,
@@ -786,10 +586,6 @@
   },
   "sfx_ui_tap_wood_03": {
    "path": "sfx/sfx_ui_tap_wood_03",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -23.7,
@@ -801,10 +597,6 @@
   },
   "sfx_bird_great_tit_01": {
    "path": "sfx/sfx_bird_great_tit_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.2,
@@ -816,10 +608,6 @@
   },
   "sfx_bird_great_tit_02": {
    "path": "sfx/sfx_bird_great_tit_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -831,10 +619,6 @@
   },
   "sfx_bird_chaffinch_01": {
    "path": "sfx/sfx_bird_chaffinch_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -846,10 +630,6 @@
   },
   "sfx_bird_chaffinch_02": {
    "path": "sfx/sfx_bird_chaffinch_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -861,10 +641,6 @@
   },
   "sfx_bird_blackbird_01": {
    "path": "sfx/sfx_bird_blackbird_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -876,10 +652,6 @@
   },
   "sfx_bird_blackbird_02": {
    "path": "sfx/sfx_bird_blackbird_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -891,10 +663,6 @@
   },
   "sfx_bird_blackbird_03": {
    "path": "sfx/sfx_bird_blackbird_03",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -906,10 +674,6 @@
   },
   "sfx_bird_redstart_01": {
    "path": "sfx/sfx_bird_redstart_01",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -921,10 +685,6 @@
   },
   "sfx_bird_redstart_02": {
    "path": "sfx/sfx_bird_redstart_02",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -18.0,
@@ -936,10 +696,6 @@
   },
   "sfx_bird_willow_warbler": {
    "path": "sfx/sfx_bird_willow_warbler",
-   "formats": [
-    "m4a",
-    "ogg"
-   ],
    "kind": "oneshot",
    "channels": 1,
    "lufs": -17.9,

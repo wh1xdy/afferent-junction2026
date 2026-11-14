@@ -123,6 +123,7 @@
     $('sim').hidden = !view?.simulated;
     const t = view?.today || {};
     renderLifetime();
+    renderPause();
     renderWeek();
     renderStrata();
     renderHelped(view?.what_helped || []);
@@ -143,6 +144,12 @@
     const { n, first } = lifetime();
     const d = first ? parseDate(first) : null;
     $('lifetime').textContent = !n ? 'Your first layer is waiting.' : `${plural(n, 'morning')} lit${d ? ` since ${d.getDate()} ${MONTHS[d.getMonth()]}` : ''}`;
+  }
+
+  function renderPause() {
+    const until = A.Streak?.pausedUntil?.() || view?.pause?.until || null;
+    $('pauseCard').hidden = !until;
+    if (until) $('pauseUntil').textContent = `Until ${longDate(parseDate(until))}`;
   }
 
   function renderToday(t) {

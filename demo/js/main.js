@@ -93,7 +93,7 @@
   };
   const DEV_ACT = {
     input: () => {
-      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'auto' } : { auto: 'touch', touch: 'auto', camera: 'auto' };
+      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'touch' } : { auto: 'touch', touch: 'touch', camera: 'touch' };
       ui.input = order[ui.input]; chips();
     },
     clock: () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); },
@@ -105,6 +105,7 @@
   chips();
 
   $('weekBtn').href = 'patient.html' + location.search;
+  $('qrBtn').href = 'patient.html' + location.search + '#settings';
 
   const hubKey = 'afferent.hub';
   const normHub = v => {
@@ -219,7 +220,7 @@
     if (ui.input === 'camera' && !S.camera()) {
       $('begin').disabled = true;
       log('starting camera');
-      try { log(`camera on (${await S.startCamera()}), only eye openness, blinks, head tilt and brightness are read`); }
+      try { const src = await S.startCamera(); log(`camera on (${src}), only eye openness, blinks, head tilt${src === 'vision' ? ', face pulse' : ''} and brightness are read`); }
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();

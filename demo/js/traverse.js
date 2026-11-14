@@ -784,7 +784,7 @@
         if (st.state === 'core' && s.phase === 'rest' && !st.kindleStarted) st.kindleStarted = now;
         if (s.phase === 'checkin' && st.kindleDone == null) { st.kindleDone = now; }
         if (st.state === 'ready') {
-          if (ed.down || (now >= st.readyFrom + 1.2)) T_.go(now);
+          if (ed.down) T_.go(now);
         }
         if (st.state === 'run') {
           const t = now - st.at, P = MODE('flow');
@@ -828,7 +828,7 @@
           }
           b.ang = ema(b.ang, 0, dt, 0.2);
         } else if (st.state === 'exit') {
-          if (now >= st.exitAt) {
+          if (now >= st.exitAt && st.exitTap) {
             st.state = 'ride'; st.at = now;
             const P = MODE(curMode(), kOf(curMode()));
             b.air = false; b.v = 0.6 * P.vmin;
@@ -886,6 +886,7 @@
         if (ph === 'rest' || ph === 'fadein') return type !== 'exit';
         if (ph === 'walk') {
           if (st.state === 'ready' && (type === 'pdown' || type === 'key')) T_.go(now);
+          if (st.state === 'exit' && (type === 'pdown' || type === 'key')) st.exitTap = true;
           return true;
         }
         if (ph === 'dawn') return true;
@@ -932,7 +933,7 @@
       },
 
       resume(now, g, at) {
-        st.state = 'exit'; st.exitAt = at; st.at = now;
+        st.state = 'exit'; st.exitAt = at; st.at = now; st.exitTap = s.auto;
         st.taskG = null;
         const z = A.World?.size?.();
         if (z) st.fold = { at: Math.max(now, at - 0.05), from: [z.W / 2, z.H * 0.35], c: st.station?.c || COL.glow };
@@ -1231,7 +1232,9 @@
       let fa = 0, press = 0;
       if (s.phase === 'fadein' && now - s.phaseAt > 1 && !A.Input.holding()) { fa = 0.8; press = 1; }
       if (s.phase === 'rest' && !A.Input.holding()) { fa = 0.7; press = 1; }
-      if (st.state === 'ready' && s.phase === 'walk' && now >= st.readyFrom) { fa = 0.8; press = 0.5 + 0.5 * Math.sin(PI * clamp((now - st.readyFrom) / 0.9, 0, 1)); }
+      const waitFrom = s.phase !== 'walk' ? null : st.state === 'ready' ? st.readyFrom : st.state === 'exit' && !st.exitTap ? st.exitAt : null;
+      if (waitFrom != null && now >= waitFrom) { fa = 0.8; press = 0.5 + 0.5 * Math.sin(PI * clamp((now - waitFrom) / 0.9, 0, 1)); }
+      if (s.phase === 'rt' && !s.rtArmed) { fa = 0.8; press = 1; }
       if (st.state === 'ride' && (st.tut || st.noTouchHills >= 2) && now - st.lastInput > 0.6 && !b.air) {
         const want = T.d(b.x) < -0.03;
         fa = 0.75; press = want ? 1 : 0;

@@ -74,5 +74,6 @@ class AfferentViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AfferentFingerPlugin())
         bridge?.registerPluginInstance(AfferentPresencePlugin())
         bridge?.registerPluginInstance(AfferentEyesPlugin())
+        bridge?.registerPluginInstance(AfferentPulsePlugin())
     }
 }

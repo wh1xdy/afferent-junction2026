@@ -99,16 +99,12 @@
       if (!m || !this.ctx) return null;
       if (this.buf[key]) return this.buf[key];
       m.p ||= (async () => {
-        const exts = new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? ['m4a', 'ogg'] : ['ogg', 'm4a'];
-        for (const ext of exts.filter(e => (m.formats || exts).includes(e))) {
-          try {
-            const r = await fetch(`audio/${m.path}.${ext}`);
-            if (!r.ok) continue;
-            const data = await r.arrayBuffer();
-            return this.buf[key] = await new Promise((ok, no) => this.ctx.decodeAudioData(data, ok, no));
-          } catch {}
-        }
-        return null;
+        try {
+          const r = await fetch(`audio/${m.path}.m4a`);
+          if (!r.ok) return null;
+          const data = await r.arrayBuffer();
+          return this.buf[key] = await new Promise((ok, no) => this.ctx.decodeAudioData(data, ok, no));
+        } catch { return null; }
       })();
       const b = await m.p;
       m.p = null;

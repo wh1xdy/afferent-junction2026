@@ -14,6 +14,7 @@ A.Sensors.setFingerLink('connected', 'Afferent Finger');
 feed(); tick(1); feed();
 const s = A.session = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
 s.slots = { fork: -1, lanterns: -1 }; s.classify = () => 'calm'; s.pick = () => ({ id: 'breath', weight: null });
-for (let i = 0; i < 60 && !s.tasks.length; i++) run(A, tick, s, 1, null, feed);
+// the rider waits for a tap before the ride starts (no autoplay without input)
+for (let i = 0; i < 60 && !s.tasks.length; i++) { if (s.T?.state === 'ready') s.handle('pdown', { x: 0, y: 0, t: A.now() }); run(A, tick, s, 1, null, feed); }
 
 process.stdout.write(JSON.stringify({ task: s.tasks[0] ?? null }) + '\n');

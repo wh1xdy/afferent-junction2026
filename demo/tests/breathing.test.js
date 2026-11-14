@@ -24,6 +24,7 @@ const seeded = fn => {
 };
 
 // A session whose every task is the real breathing task (tasks/breath.js) at its full two cycles, stopped at the first frame of the first one.
+// The rider waits for a tap before the ride starts (no autoplay without input), so the helper taps once there.
 // clips: the finger clips are connected before the session starts, so the session runs on real readings only.
 // hub: the same, with the clips reaching the phone through the home hub.
 // breathing: false loads the app without breathing.js. overlay: the Developer switch "Signals during play".
@@ -34,7 +35,10 @@ const breathSession = ({ clips = false, hub = false, overlay = false, breathing 
   if (hub) S.feedFingerHub(hubFrame());
   const s = A.session = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
   s.slots = { fork: -1, lanterns: -1 }; s.pick = () => ({ id: 'breath', weight: null });
-  for (let i = 0; i < 400 && s.game?.id !== 'breath'; i++) { tick(0.05); A.Input.update(A.now(), 0.05); s.update(A.now(), 0.05); }
+  for (let i = 0; i < 400 && s.game?.id !== 'breath'; i++) {
+    if (s.T?.state === 'ready') s.handle('pdown', { x: 0, y: 0, t: A.now() });
+    tick(0.05); A.Input.update(A.now(), 0.05); s.update(A.now(), 0.05);
+  }
   assert.strictEqual(s.game?.id, 'breath', 'the breathing task did not start');
   assert.strictEqual(S.pulseMode, clips || hub ? 'real' : 'simulated');
   return { A, tick, s, S, g: s.game };
@@ -236,6 +240,7 @@ const tests = {
     s.breathResult.until += 60;
     let walked = 0, over = 0;
     for (let i = 0; i < 400 && s.tasks.length < 2 && !s.done; i++) {
+      if (s.T?.state === 'exit') s.handle('pdown', { x: 0, y: 0, t: A.now() });
       run(A, tick, s, 0.05, null, null);
       const line = V.breath(s, A.now());
       if (s.phase === 'walk') { walked++; assert.deepStrictEqual(plain(line), result); }

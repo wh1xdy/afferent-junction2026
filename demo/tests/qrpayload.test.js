@@ -252,7 +252,7 @@ test('over the cap: talk then PHQ shrink, safety never dropped, then chunks', ()
 });
 
 test('multi-part codes: no part ends in a space, wherever the cut falls', () => {
-  // base45 has a space in its alphabet and every reader trims what it scanned, so a part cut after a space loses a character.
+  // base45 has a space in its alphabet and a scanner may trim what it read, so a part cut after a space can lose a character.
   // A base45 group of 3 characters never ends in a space (its last character is at most 32 of 45), so parts are cut on group borders.
   // The bytes 06 54 encode to "0 0" and 00 24 to " 00": with them any cut that is not on a group border ends in a space.
   for (let groups = 60; groups < 100; groups++) {
@@ -265,7 +265,7 @@ test('multi-part codes: no part ends in a space, wherever the cut falls', () => 
       assert.ok(parts.every(p => !p.endsWith(' ')), `groups ${groups}, cap ${cap}: a part ends in a space`);
       const col = new QR.Collector();
       let r;
-      for (const p of parts) r = col.add(`  ${p} \n`);
+      for (const p of parts) r = col.add(`\t${p}\r\n`);
       assert.strictEqual(r.status, 'complete');
       assert.strictEqual(r.text, 'AF1:' + data, `groups ${groups}, cap ${cap}`);
       assert.deepStrictEqual(QR.base45.decode(r.text.slice(4)), bytes);
@@ -309,6 +309,19 @@ test('finger sensor numbers: a code from another encoder cannot carry 0, a negat
     const r = forged(bad);
     assert.deepStrictEqual([r.status, r.reason, 'body' in r], ['damaged', 'body_shape', false], JSON.stringify(bad));
   }
+});
+
+test('a part ending in a space survives, only line breaks and tabs are stripped', () => {
+  let r;
+  do r = QR.encode(worstCase(), { key, now: NOW }); while (!r.text.slice(4, -1).includes(' '));
+  const data = r.text.slice(4);
+  const cut = data.indexOf(' ') + 1;
+  const parts = [`AF1/1/2/SPCE:${data.slice(0, cut)}`, `AF1/2/2/SPCE:${data.slice(cut)}`];
+  assert.ok(parts[0].endsWith(' '));
+  assert.strictEqual(QR.decode(parts, { now: NOW }).status, 'ok');
+  assert.strictEqual(QR.decode(parts.map(p => `\t${p}\r\n`), { now: NOW }).status, 'ok');
+  assert.strictEqual(QR.parse('AF1/1/2/SPCE:AB \r\n').data, 'AB ');
+  assert.strictEqual(QR.parse('\nAF1:AB \t').data, 'AB ');
 });
 
 test('tamper: a changed character never yields a different verified body', () => {
