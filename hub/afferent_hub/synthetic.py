@@ -27,6 +27,9 @@ TASKS_BY_MODE = {"calm": ["breath", "loyly"], "flow": ["threads", "stars"], "wak
                  "fatigue": ["shutters", "bells", "beacon"], "rest": ["breath"]}
 DURATION_S = {"breath": (18, 22), "loyly": (15, 20), "threads": (12, 18), "stars": (12, 18), "fireflies": (8, 12),
               "beacon": (8, 12), "bells": (8, 12), "shutters": (8, 12), "fork": (15, 19), "lanterns": (17, 20)}
+GAME_RT = {"threads": ("choice", 1050, 0.3, 0.2, (3, 5)), "stars": ("choice", 780, 0.3, 0.18, (5, 9)),
+           "fireflies": ("catch", 560, -0.25, 0.16, (5, 9)), "beacon": ("beat", 390, -0.25, 0.12, (7, 11)),
+           "bells": ("choice", 720, 0.3, 0.18, (5, 9)), "shutters": ("tap_target", 520, -0.2, 0.16, (4, 6))}
 ROSTER = [("anna", "Anna", "relapse", 28, "morning", 113), ("mikko", "Mikko", "stable", None, "morning", 0),
           ("juha", "Juha", "relapse", 43, "morning", 148), ("leena", "Leena", "stable", None, "night", 0),
           ("sofia", "Sofia", "stable", None, "morning", 0), ("eero", "Eero", "stable", None, "morning", 1)]
@@ -182,6 +185,48 @@ def lanterns_block(rng, p: dict, sev: float, g: float) -> dict:
             "rewards_rich": sum(t["rewarded"] and t["larger"] == "rich" for t in trials),
             "rewards_lean": sum(t["rewarded"] and t["larger"] == "lean" for t in trials),
             "valid": sum(t["response"] is not None for t in trials) >= 10}
+
+
+def task_rt(rng, tid: str, n_trials: int, scale: float, d: float, sev: float) -> dict:
+    kind, base, slope, sigma, _ = GAME_RT[tid]
+    mu = base * scale * (1 + slope * (d - 0.55)) * math.exp(rng.normal(0, 0.05))
+    p_antic = 0.06 if kind == "beat" else 0.02
+    p_lapse = 0.02 + 0.06 * sev
+    taps, lapses, antic = [], 0, 0
+    for _ in range(n_trials):
+        u = rng.random()
+        if u < p_antic:
+            antic += 1
+        elif u < p_antic + p_lapse:
+            lapses += 1
+        else:
+            taps.append(int(np.clip(mu * math.exp(rng.normal(0, sigma)), 150, 2500)))
+    med = iqr = None
+    if taps:
+        med = int(math.floor(float(np.median(taps)) + 0.5))
+        q1, q3 = np.percentile(taps, [25, 75])
+        iqr = int(round(q3 - q1))
+    return {"n": len(taps), "median_ms": med, "iqr_ms": iqr, "lapses": lapses, "anticipations": antic,
+            "by_kind": {kind: {"n": len(taps), "median_ms": med}}}
+
+
+def add_task_extra(rng, session: dict, p: dict, sev: float) -> None:
+    scale = (p["rt"] / 405) ** 0.7 * (p["rt_mu"] / p["rt"]) ** 0.6
+    for task in session["tasks"]:
+        if task["kind"] != "adaptive" or not task["completed"]:
+            continue
+        extra, d = {}, task["intensity"]
+        if task["mode"] != "rest":
+            extra["dda"] = {"v": 1, "d_start": round(max(0.0, d - rng.uniform(0, 0.08)), 3), "d_mean": d,
+                            "d_max": round(min(1.0, d + rng.uniform(0, 0.1)), 3)}
+        if task["id"] in GAME_RT:
+            lo, hi = GAME_RT[task["id"]][4]
+            n = int(rng.integers(lo, hi + 1))
+            if task["completed_by"] == "auto":
+                n //= 2
+            extra["rt"] = task_rt(rng, task["id"], n, scale, d, sev)
+        if extra:
+            task["extra"] = extra
 
 
 def pick_task(rng, mode: str, weights: dict, prev: str | None) -> tuple[str, float]:
@@ -478,6 +523,7 @@ def generate_patient(kind: Literal["relapse", "stable"], days: int = 56, seed: i
                      onset_day: int | None = None, start_date: dt.date | None = None,
                      clock: str = "morning") -> dict:
     rng = np.random.default_rng(seed)
+    extra_rng = np.random.default_rng([seed, 1])
     pid = patient_id or f"{kind}-{seed}"
     name = display_name or pid.capitalize()
     onset = (onset_day if onset_day is not None else DEFAULT_ONSET) if kind == "relapse" else None
@@ -514,6 +560,7 @@ def generate_patient(kind: Literal["relapse", "stable"], days: int = 56, seed: i
         else:
             session, adaptive = make_session(rng, pid, d, date, p, s, float(g[d]), mood_latent, mp_true, rates,
                                              bandit_weights(counts), sessions)
+            add_task_extra(extra_rng, session, p, s)
             sessions.append(session)
             for t in adaptive:
                 if t["helped"] is not None and (t["mode"], t["id"]) in counts:
