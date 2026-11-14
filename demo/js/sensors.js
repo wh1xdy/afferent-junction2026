@@ -61,6 +61,9 @@
   const SWITCHES = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false };
   A.switches = (...changes) => Object.assign({}, SWITCHES, ...changes, { presence: false });
   const PULSE_SOURCES = ['finger_ppg', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
+  // A watch or chest strap the patient chose in Settings (watch.js, plugin AfferentWatch), over the standard Bluetooth
+  // Heart Rate Service. Its own source label everywhere it is recorded; the finger clips always come first.
+  const WATCH = 'watch_ble';
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3, RMSSD_OVER = 255;
   const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'], CAM_LIGHT = ['dark', 'ok', 'bright'];
   const CAM_WHY = ['no_face', 'exposure_not_locked', 'too_dark', 'too_bright', 'moving', 'warming_up', 'weak_signal'];
@@ -85,13 +88,14 @@
 
   const Sensors = A.Sensors = {
     source: 'simulated', ready: true, last: null,
-    enabled: { phone_camera: true, pulse_stone: true, simulator: true },
+    enabled: { phone_camera: true, pulse_stone: true, simulator: true, watch: false },
     stone: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
     pulseMode: null, droppedPulse: 0, droppedPhysio: 0, realAt: null,
     fingerLink: { state: 'unavailable', name: null }, fingerBle: null, fingerHub: null,
     camLink: { state: 'unavailable' }, camPulse: null, droppedCam: 0, plugin: null, listeners: [], stopping: null,
     FACE, faceState: 'unavailable', faceLog: [], faceMicros: [], faceTrack: null, droppedFace: 0,
     ROOM, roomHub: null, droppedRoom: 0,
+    watchLink: { state: 'unavailable', name: null }, watchHr: null, watchRR: null, droppedWatch: 0,
 
     async start(source) {
       this.stop();
@@ -222,16 +226,18 @@
       const fresh = x => x && now - x.at < FRESH_S && x.quality != null && x.quality >= MIN_QUALITY;
       const on = this.enabled.pulse_stone && !this.twoPeople();
       const stone = on ? this.blePulse(now) || (fresh(this.stone) ? this.stone : null) : null;
-      const measured = stone && stone.source !== 'simulated' ? stone : null;
+      // The finger clips first; the watch or strap only when the clips give no measured pulse. A measured pulse from
+      // the watch also wins over a simulated one from the hub.
+      const measured = stone && stone.source !== 'simulated' ? stone : this.watchPulse(now);
       const sim = () => this.enabled.simulator ? { bpm: Sim.pulse(now), quality: 0.9, source: 'simulated' } : NO_PULSE;
       if (this.pulseMode === 'real') return measured || NO_PULSE;
       if (this.pulseMode === 'simulated') return stone && stone.source === 'simulated' ? stone : sim();
-      return stone || sim();
+      return measured || stone || sim();
     },
 
     realProducer(now) {
       const recent = at => at != null && now - at < PRODUCER_S;
-      return this.fingerAttached(now) || (this.enabled.pulse_stone && recent(this.realAt));
+      return this.fingerAttached(now) || (this.enabled.pulse_stone && recent(this.realAt)) || this.watchAttached();
     },
 
     lockPulse(now) { return (this.pulseMode = this.realProducer(now) || !this.enabled.simulator ? 'real' : 'simulated'); },
@@ -322,6 +328,62 @@
       if (b && b.pulse_bpm != null) return b;
       if (h && !h.simulated && h.pulse_bpm != null) return h;
       return b || h;
+    },
+
+    // ── a watch or chest strap (Bluetooth Heart Rate Service) ──────────────────────────────────────────────────────
+
+    setWatchLink(state, name = null) {
+      this.watchLink = { state: state || 'unavailable', name: name ?? null };
+      if (state !== 'connected') { this.watchHr = null; this.watchRR = null; }
+    },
+
+    watchAttached() { return this.enabled.watch && this.watchLink.state === 'connected'; },
+
+    // A 2A37 notification from the device the patient chose: { bpm, contact, energy_kj, rr_ms, t_ms } (AfferentWatch).
+    // bpm 0 or outside 25 to 240 is no pulse; contact is true, false or null (the device does not report it); rr_ms are
+    // the beat-to-beat intervals of this notification in ms, oldest first. Older than 3 s on arrival: dropped.
+    feedWatch(d) {
+      if (!this.enabled.watch || !d) return;
+      if (this.watchLink.state !== 'connected') { this.droppedWatch++; return; }
+      const late = Number.isFinite(d.t_ms) ? Math.max(0, (Date.now() - d.t_ms) / 1000) : 0;
+      if (late >= FRESH_S) { this.droppedWatch++; return; }
+      const at = A.now() - late, rr = this.watchRR || (this.watchRR = A.HeartRate.track());
+      rr.push(Array.isArray(d.rr_ms) ? d.rr_ms : [], at);
+      const bpm = pos(d.bpm);
+      this.watchHr = { bpm: A.HeartRate.plausible(bpm) ? bpm : null, contact: typeof d.contact === 'boolean' ? d.contact : null, energy_kj: zeroUp(d.energy_kj), at };
+    },
+
+    watchQuality(now) { return A.HeartRate.quality(this.watchHr?.contact ?? null, this.watchRR?.share(now) ?? null); },
+
+    // The watch's pulse as the game may use it: connected, at most 3 s old, contact not denied, quality 0.3 or more.
+    watchPulse(now) {
+      const w = this.watchHr;
+      if (!this.watchAttached() || !w || now - w.at >= FRESH_S || w.bpm == null || w.contact === false) return null;
+      const quality = this.watchQuality(now);
+      return quality >= MIN_QUALITY ? { bpm: w.bpm, quality, source: WATCH, at: w.at } : null;
+    },
+
+    // What the watch gives right now, in the shape of a finger frame (no fingers, no presence, no breathing), or null
+    // when it is off, not connected or silent for 3 s. RMSSD only from its own beat-to-beat intervals.
+    watchFrame(now) {
+      const w = this.watchHr, link = this.watchLink.state;
+      if (!this.watchAttached() || !w || now - w.at >= FRESH_S) return null;
+      const p = this.watchPulse(now), quality = this.watchQuality(now);
+      return {
+        ...NO_PHYSIO, finger_bpm: [null, null], source: WATCH, transport: 'ble', pulse_bpm: p ? p.bpm : null, quality, quality_reported: true,
+        contact: w.contact, rmssd_ms: quality >= MIN_QUALITY ? this.watchRR?.rmssd(now) ?? null : null, rr: !!this.watchRR?.has(now),
+        age_s: age(now - w.at), link, name: this.watchLink.name,
+      };
+    },
+
+    // The live body frame the game, the heartbeat and the live vitals read: the finger clips when they give a measured
+    // pulse, else the watch when it does, else whichever frame there is. The breathing task and the clip check keep
+    // reading the clips only (fingerFrame).
+    physioFrame(now) {
+      const f = this.fingerFrame(now);
+      if (f && f.pulse_bpm != null && !f.simulated) return f;
+      const w = this.watchFrame(now);
+      return w && w.pulse_bpm != null ? w : f || w;
     },
 
     livePhysio(now) {

@@ -11,8 +11,10 @@
   // value whose notification is older than 3 s. null means no real reading: no sensor, stale, simulated, no finger
   // in the clip, zeros only, or a signal quality that is below 0.3 or not reported (the rule of the game pulse).
   // Over the hub the frame also says how old the heartbeats behind it are; older than 3 s is not a current reading.
-  // real(f) is that rule on its own, for the other numbers of the frame (the game's HRV, engine.js).
-  const real = f => !!f && f.source === 'finger_ppg' && !f.simulated && (f.presence == null || f.presence === 'active')
+  // real(f) is that rule on its own, for the other numbers of the frame (the game's HRV, engine.js). A frame of a watch
+  // or chest strap (watch_ble, A.Sensors.physioFrame) passes the same rule; it has no presence and no breathing rate.
+  const MEASURED = ['finger_ppg', 'watch_ble'];
+  const real = f => !!f && MEASURED.includes(f.source) && !f.simulated && (f.presence == null || f.presence === 'active')
     && !!f.quality_reported && f.quality != null && f.quality >= MIN_QUALITY && !(f.transport === 'hub_http' && f.age_s >= FRESH_S);
   const reading = f => {
     if (!real(f)) return null;
@@ -38,6 +40,8 @@
   // The finger frame a session may use. A session whose pulse is locked to the simulator stays simulated to its
   // end, so real breathing is not mixed into it.
   const current = now => A.Sensors.pulseMode === 'simulated' ? null : A.Sensors.fingerFrame(now);
+  // The same for the game's HRV (engine.js): the clips first, a watch or strap when the clips give no pulse.
+  const physio = now => A.Sensors.pulseMode === 'simulated' ? null : A.Sensors.physioFrame(now);
 
   // One per breathing task. tick() runs every game frame while the task is live: the live state follows the frame
   // at once, the samples for the average are taken once a second, the ring settles slowly.
@@ -79,5 +83,5 @@
     },
   });
 
-  A.Breathing = { WINDOW_S, real, reading, current, closeness, enough, ends, track };
+  A.Breathing = { WINDOW_S, real, reading, current, physio, closeness, enough, ends, track };
 })();

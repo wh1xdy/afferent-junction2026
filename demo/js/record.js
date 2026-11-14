@@ -106,10 +106,34 @@
 
   const SERIES_STEP_S = 5, SERIES_MAX = 240, MIN_QUALITY = 0.3;
   const NO_ROW = { pulse: null, q: null, f1: null, f2: null, br: null, rmssd: null, sdnn: null, vsb: null };
+  // A watch or chest strap over Bluetooth (A.Sensors.watchFrame), once a second, in its own block vitals.watch: never
+  // mixed into the finger block, its breathing, its HRV or the clinic series. Same rule as the clips: a second counts
+  // only with quality 0.3 or more; contact_s counts the seconds per contact state the device reported.
+  const watchTrack = () => ({
+    seconds: 0, rows: [], contact: { on: 0, off: 0, not_reported: 0 }, rr: 0,
+    frame(w) {
+      this.seconds++;
+      if (!w) { this.rows.push(null); return; }
+      this.contact[w.contact === true ? 'on' : w.contact === false ? 'off' : 'not_reported']++;
+      if (w.rr) this.rr++;
+      const usable = w.quality != null && w.quality >= MIN_QUALITY;
+      this.rows.push(usable ? { pulse: w.pulse_bpm, q: w.quality, rmssd: w.rmssd_ms } : null);
+    },
+    summary() {
+      const live = this.rows.filter(Boolean);
+      if (!this.seconds || this.contact.on + this.contact.off + this.contact.not_reported === 0) return null;
+      const col = k => this.rows.map(x => x ? x[k] : null);
+      return {
+        source: 'watch_ble', transport: 'ble', seconds: this.seconds, pulse_bpm: stat(col('pulse')), quality: stat(col('q'), r2),
+        rmssd_ms: live.some(x => x.rmssd != null) ? stat(col('rmssd')) : null, rr_s: this.rr, contact_s: { ...this.contact },
+      };
+    },
+  });
+
   const physioTrack = t0 => ({
     t0, next: t0, seconds: 0, rows: [], cam: [], pres: { idle: 0, probing: 0, active: 0 }, presSeen: false, meta: null, qualityReported: false, otherSource: 0, via: {},
-    series: { t_s: [], pulse_bpm: [], breathing_per_min: [], rmssd_ms: [] },
-    frame(now, f, c) {
+    series: { t_s: [], pulse_bpm: [], breathing_per_min: [], rmssd_ms: [] }, watch: watchTrack(),
+    frame(now, f, c, w) {
       if (now < this.next) return;
       this.next = now - this.next >= 1 ? now + 1 : this.next + 1;
       const tick = this.seconds++;
@@ -123,6 +147,7 @@
         if (f.presence in this.pres) { this.pres[f.presence]++; this.presSeen = true; }
       }
       if (c && c.trust_score != null) this.cam.push({ bpm: c.bpm, score: c.trust_score, label: c.trust_label });
+      this.watch.frame(w || null);
       const se = this.series, row = f ? this.rows[this.rows.length - 1] : NO_ROW;
       if (tick % SERIES_STEP_S === 0 && se.t_s.length < SERIES_MAX) {
         se.t_s.push(Math.round(now - this.t0)); se.pulse_bpm.push(r1(row.pulse)); se.breathing_per_min.push(r1(row.br)); se.rmssd_ms.push(r1(row.rmssd));
@@ -145,6 +170,7 @@
         hrv: has('rmssd') ? { source: src, window_s: 60, rmssd_ms: stat(col('rmssd')), sdnn_ms: has('sdnn') ? stat(col('sdnn')) : null, rmssd_vs_baseline: has('vsb') ? stat(col('vsb'), r3) : null } : null,
         camera_pulse: this.cam.some(x => x.bpm != null) ? { source: 'rppg', pulse_bpm: stat(this.cam.map(x => x.bpm)), trust_score: stat(this.cam.map(x => x.score)), trust_label_s: labels } : null,
         series: finger ? { step_s: SERIES_STEP_S, ...this.series } : null,
+        watch: this.watch.summary(),
       };
     },
   });
@@ -199,9 +225,9 @@
     const pulseSrc = Object.entries(sig.pulseSources).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     const eyesSrc = s.eyesSource;
     const simFields = [];
-    const ph = s.physio ? s.physio.summary() : { finger: null, breathing: null, hrv: null, camera_pulse: null, series: null };
+    const { watch, ...ph } = s.physio ? s.physio.summary() : { finger: null, breathing: null, hrv: null, camera_pulse: null, series: null, watch: null };
     const face = s.face?.summary() ?? null;
-    const measured = ph.finger?.source === 'finger_ppg' || !!ph.camera_pulse || !!face;
+    const measured = ph.finger?.source === 'finger_ppg' || !!ph.camera_pulse || !!face || !!watch;
     if (sig.pulseSources.simulated > 0) {
       simFields.push('signal.pulse_source', 'core.rest.pulse_bpm', 'tasks.pulse', 'pre_post.pulse');
       simFields.push(...(measured ? ['vitals.pulse_mean_bpm', 'vitals.pulse_min_bpm', 'vitals.pulse_max_bpm', 'vitals.pulse_source'] : ['vitals']));
@@ -210,6 +236,8 @@
     if (eyesSrc === 'simulated') simFields.push('signal.eyes_source', 'core.rest.eye_openness', 'core.rest.blink_rate_per_min', 'core.rest.head_pitch_deg', 'tasks.eye_openness_mean', 'tasks.perclos', 'tasks.head_pitch_delta_deg', 'pre_post.eye_openness', 'pre_post.head_pitch');
     if (s.auto) simFields.push('player', 'core.rt', 'tasks.extra.rt', 'core.mood_start', 'mood_end', 'fork', 'two_lanterns');
     const pres = A.Presence?.sessionContext?.() ?? { home: null, visitors_present: null, simulated: false };
+    // Apple Health (health.js): the watch's last samples as context, each with its age. Never live, never the game's pulse.
+    const health = A.Health?.context?.() ?? null;
     if (pres.simulated) simFields.push('context.home', 'context.visitors_present');
     const end = s.endWindow(), rest = core?.rest;
     const ps = sig.pulse, pq = sig.pulseQ.filter(x => x != null), done = s.tasks.filter(t => t.completed_by !== 'skipped');
@@ -247,11 +275,12 @@
         tasks_completed: done.filter(t => t.completed).length, tasks_total: s.tasks.length,
         reminder_iso: s.reminderIso ?? null, time_to_start_s: s.timeToStart ?? null,
       },
-      vitals: ps.length || ph.finger || ph.camera_pulse || face ? {
+      vitals: ps.length || ph.finger || ph.camera_pulse || face || watch ? {
         pulse_mean_bpm: r1(mean(ps)), pulse_min_bpm: ps.length ? r1(Math.min(...ps)) : null, pulse_max_bpm: ps.length ? r1(Math.max(...ps)) : null,
-        pulse_source: ps.length ? pulseSrc : null, ...ph, ...(face ? { face } : {}),
+        pulse_source: ps.length ? pulseSrc : null, ...ph, ...(face ? { face } : {}), ...(watch ? { watch } : {}),
       } : null,
-      context: { room_temp_c: r1(A.Sensors?.room?.(now)?.celsius ?? null), home: pres.home, visitors_present: pres.visitors_present, bedside_light_level: s.lastLightLevel ?? null },
+      context: { room_temp_c: r1(A.Sensors?.room?.(now)?.celsius ?? null), home: pres.home, visitors_present: pres.visitors_present, bedside_light_level: s.lastLightLevel ?? null,
+        ...(health ? { health } : {}) },
     };
     return doc;
   };
