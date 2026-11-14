@@ -9,6 +9,7 @@ says so, and never opens a connection.
 import json
 import os
 import sys
+import threading
 import time
 import unittest
 from unittest import mock
@@ -17,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-from test_sensor_logic import app, reset  # noqa: E402  (installs the stubs, imports app)
+from test_sensor_logic import app, ppg_for_beats, reset  # noqa: E402  (installs the stubs, imports app)
 import data_manager_client  # noqa: E402
 import data_manager_push as dmp  # noqa: E402
 
@@ -214,6 +215,25 @@ class NothingBreaksTheHub(unittest.TestCase):
         p.close()
         json.dumps(p.status())
 
+    def test_close_closes_the_client(self):
+        p, client, _ = push()
+        p.close()
+        self.assertTrue(client.closed)
+
+    def test_close_does_not_wait_for_a_client_that_cannot_send(self):
+        # the real client's close() tries for 5 s to send what is still queued
+        p, client, lines = push()
+        release = threading.Event()
+        client.close = lambda: release.wait(5)
+        t = time.time()
+        with mock.patch.object(dmp, "CLOSE_WAIT_S", 0.2):
+            p.close()
+        took = time.time() - t
+        release.set()
+        self.assertLess(took, 2.0, "stopping the hub must not wait for the data manager")
+        self.assertLessEqual(dmp.CLOSE_WAIT_S, 1.0)
+        self.assertEqual(lines, [])
+
     def test_without_a_client_tick_does_nothing(self):
         lines = []
         p = dmp.Push(log=lines.append)                        # never started
@@ -278,6 +298,20 @@ class RealClient(unittest.TestCase):
             client._stop.set()
             client._wake.set()                               # stop the thread without a flush
 
+    def test_close_with_a_queued_value_and_no_server_returns_soon(self):
+        # no DATA_MANAGER_URL and nothing found over mDNS (zeroconf is a stub here): the client
+        # has no address, so its own close() spends its whole 5 s trying
+        client = data_manager_client.DataManagerClient(source="modulino-hub", url="",
+                                                       flush_every_s=3600)
+        p = dmp.Push(client=client, log=lambda _msg: None)
+        p.tick(time.time(), **ONE_PERSON)
+        self.assertIsNone(p.status()["url"])
+        self.assertEqual(p.status()["queued_samples"], 3)
+        t = time.time()
+        with mock.patch.object(dmp, "CLOSE_WAIT_S", 0.2):
+            p.close()
+        self.assertLess(time.time() - t, 2.0)
+
     def test_switched_off_with_data_manager_url_off(self):
         with mock.patch.dict(os.environ, {"DATA_MANAGER_URL": "off"}):
             client = data_manager_client.DataManagerClient(source="modulino-hub")
@@ -339,6 +373,7 @@ class AppWiring(unittest.TestCase):
         now = time.time()
         app.presence.update(auto=True, mode="active", since=now - since)
         app.last_locked[:] = [now, now]
+        app.last_ppg = now                                    # samples are arriving
 
         def fuse():
             app.fused.update(bpm=bpm, sources=[0, 1] if bpm else [])
@@ -420,13 +455,58 @@ class AppWiring(unittest.TestCase):
 
     def test_fingers_live(self):
         now = time.time()
+        app.last_ppg = now                                    # samples are arriving
         app.last_locked[:] = [now - 1, now - 10]
         self.assertTrue(app.fingers_live(0, now))
         self.assertFalse(app.fingers_live(1, now))
         self.assertFalse(app.fingers_live("both", now))
         self.assertFalse(app.fingers_live(None, now), "no finger named: not a live reading")
-        self.assertTrue(app.fingers_live([], now), "the fused rhythm of this second, no single finger")
         self.assertFalse(app.fingers_live([0, 1], now))
+        # no single finger (the fused rhythm of both buffers): live while samples arrive
+        app.last_ppg = now - 1
+        self.assertTrue(app.fingers_live([], now))
+        app.last_ppg = now - 10
+        self.assertFalse(app.fingers_live([], now), "nothing measured in the last 3 s")
+        app.last_locked[:] = [now - 1, now - 1]
+        self.assertFalse(app.fingers_live("both", now), "beats without samples cannot be live")
+
+    def test_on_ppg_records_when_samples_arrive(self):
+        now = time.time()
+        self.assertFalse(app.stream_live(now), "no sample yet")
+        app.on_ppg(1000, 8000, 8000)
+        self.assertTrue(app.stream_live(time.time()))
+        self.assertFalse(app.stream_live(time.time() + dmp.LIVE_S + 1))
+
+    def _clean_signal(self, bpm=75, seconds=12):
+        """both fingers: `seconds` of a clean pulse, handed in the way the STM32 does"""
+        beat_times = [int(k * 60000 / bpm) for k in range(1, int(seconds * bpm / 60))]
+        for t, v in ppg_for_beats(beat_times):
+            app.on_ppg(t, v, v)
+        app.presence.update(auto=True, mode="active", since=time.time() - 60)
+
+    def test_stopped_sample_stream_sends_no_pulse(self):
+        # the STM32 stopped delivering samples 30 s ago (hang, sketch reflash, router restart).
+        # The buffers keep their last seconds, so the hub still sees a clear 75 BPM rhythm in
+        # them; with the real fuse() that became a pulse with a fresh timestamp every second
+        self._clean_signal()
+        old = time.time() - 30
+        app.last_ppg = old
+        app.last_locked[:] = [old, old]
+        for c in range(app.CHANNELS):
+            app.state["fingers"][c] = {"bpm_live": 75, "locked": True, "t": old}
+        app.period_loop(FakeStop(5))
+        self.assertGreaterEqual(app.fused["quality"], 0.5, "the old buffer still looks like a clear rhythm")
+        self.assertEqual(app.fused["sources"], [])
+        self.assertEqual(self.client.samples, [], "nothing was measured in these seconds")
+        self.assertEqual(self.lines, [])
+
+    def test_running_sample_stream_sends_the_fused_rhythm(self):
+        # the same signal while samples arrive: no finger has a beat-locked BPM, the pulse is
+        # the rhythm of both buffers and it is of this second
+        self._clean_signal()
+        app.period_loop(FakeStop(2))
+        self.assertEqual(app.fused["sources"], [])
+        self.assertEqual([s["value"] for s in self.client.of(PULSE)], [75, 75])
 
     def test_climate_reaches_the_client_once_a_minute(self):
         app.presence.update(mode="idle", since=time.time())

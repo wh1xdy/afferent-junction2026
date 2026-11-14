@@ -66,7 +66,7 @@ repository sends 6 bytes; the first four are unchanged, so a client that reads o
 | `fingers[0..1]` | object | per sensor: `bpm_live`, `locked`, `ibi_ms`, `t` |
 | `breathing.per_minute` | int | breathing rate from the heart-rate rhythm (respiratory sinus arrhythmia) |
 | `breathing.snr` | dB | > 0 = clear; values are only set when > 0 |
-| `hrv.rmssd_ms` | float | HRV: RMSSD over the last 60 s (standard short-term stress marker; lower = more stressed) |
+| `hrv.rmssd_ms` | float | HRV: RMSSD of successive beat intervals over the last 60 s, in ms |
 | `hrv.sdnn_ms`, `hrv.mean_bpm` | float, int | SDNN and mean pulse over the same window |
 | `hrv.vs_baseline` | float | RMSSD relative to this person's own median (after ≥ 2 min), e.g. `-0.3` = 30 % below |
 | `presence.mode` | str | `idle` (LEDs off) · `probing` (checking for a finger) · `active` (measuring) |
@@ -149,6 +149,8 @@ They go from the UNO Q to the Jetson over Wendy Net and stay in the patient's ho
 All with source `modulino-hub`. Pulse, HRV and breathing are handed over only when all of this holds:
 
 - the hub is sensing (`presence.mode` = `active` and the 4 s warm-up is over),
+- samples arrived from the STM32 in the last 3 s (when the stream stops, the buffers keep their
+  last seconds and the hub's own `finger.bpm` can stay on the old rhythm; that is not sent),
 - the value exists: a missing reading is not sent, never as 0 and never as an older number,
 - the finger(s) the number was computed from had a locked beat in the last 3 s (HRV and
   breathing are computed from stored beats and would otherwise outlive a clip that came off),
@@ -195,6 +197,8 @@ host that advertises `role=data-manager`. The address is in the data manager's s
 
 - Data manager not running or not reachable: values wait in the queue and are sent with their
   own measurement times when it is back. The hub, Bluetooth and `/state` work as before.
+  The queue is in memory: stopping the hub waits at most 1 s for it to be sent, what is still
+  queued then is lost.
 - No token or a wrong one: the same, `last_error` says `HTTP 401`.
 - Client file missing from the image or failing to start: one log line
   (`data manager: … (the hub goes on without it)`), nothing is sent, everything else works.

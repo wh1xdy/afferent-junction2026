@@ -21,9 +21,11 @@ one person. A missing reading is not sent: never 0, never an older number in its
 The server comes from DATA_MANAGER_URL (else mDNS, role=data-manager) and the token from
 DATA_MANAGER_TOKEN, both read from the environment by the client. If the client file, the
 server or the token is missing, the hub works as before: tick() never raises, a problem is
-logged once and nothing is retried here.
+logged once and nothing is retried here. Stopping the hub waits at most CLOSE_WAIT_S for the
+client to send what is still queued.
 """
 import math
+import threading
 
 try:
     from data_manager_client import DataManagerClient
@@ -39,6 +41,7 @@ WINDOW_EVERY_S = 10.0         # HRV (60 s window) and breathing (40 s window) mo
 CLIMATE_EVERY_S = 60.0        # one mean per minute (the Thermo reports every 2 s)
 TWO_HEARTS_HOLD_S = 60.0      # after two people: the HRV / breathing windows still hold the
                               # other person's beats for this long
+CLOSE_WAIT_S = 1.0            # stopping the hub waits at most this long for the last values
 
 
 def _reading(v):
@@ -107,9 +110,22 @@ class Push:
         return {**out, "push_error": self.error}
 
     def close(self):
-        try:
-            if self.client is not None:
+        """Called when the hub stops. The client's close() tries for 5 s to send what is still
+        queued; with the server away that would hold up every stop and redeploy. It runs in
+        its own thread and the hub waits CLOSE_WAIT_S for it: values not sent by then are lost."""
+        if self.client is None:
+            return
+
+        def run():
+            try:
                 self.client.close()
+            except Exception as e:
+                self.problem(f"close failed: {e}")
+
+        try:
+            t = threading.Thread(target=run, daemon=True)
+            t.start()
+            t.join(CLOSE_WAIT_S)
         except Exception as e:
             self.problem(f"close failed: {e}")
 

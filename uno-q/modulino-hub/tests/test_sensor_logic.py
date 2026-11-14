@@ -71,6 +71,7 @@ def reset():
     for c in range(app.CHANNELS):
         app.last_locked[c] = 0.0
         app.sent_bpm[c] = 0
+    app.last_ppg = 0.0
 
 
 def beats_with_breathing(rate_per_min, base_bpm=72, swing_bpm=8, n=70):

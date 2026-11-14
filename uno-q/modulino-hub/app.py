@@ -60,11 +60,20 @@ def on_climate(celsius, humidity):
 
 ppgs = [collections.deque(maxlen=3200) for _ in range(CHANNELS)]  # ~70 s at 45 Hz each (HRV window)
 ppg = ppgs[0]
+last_ppg = 0.0                # time.time() of the newest sample from the STM32
 
 
 def on_ppg(t_ms, *values):
+    global last_ppg
+    last_ppg = time.time()
     for c, v in enumerate(values[:CHANNELS]):
         ppgs[c].append((int(t_ms), int(v)))
+
+
+def stream_live(now):
+    """True while the STM32 delivers samples. When it stops, the buffers keep their last
+    seconds and the rhythm computed from them stays clear, but nothing is being measured."""
+    return now - last_ppg <= data_manager_push.LIVE_S
 
 
 def pulse_summary(window_ms=10000, ch=0):
@@ -365,10 +374,12 @@ def period_loop(stopped):
 
 
 def fingers_live(chans, now):
-    """True while every finger a number was computed from had a locked beat of its own in the
-    last LIVE_S seconds. HRV and breathing are computed from a finger's stored beats, so they
-    outlive a clip that came off; such a number does not go to the data manager."""
-    if chans is None:
+    """True while samples arrive and every finger a number was computed from had a locked beat
+    of its own in the last LIVE_S seconds. HRV and breathing are computed from a finger's stored
+    beats, so they outlive a clip that came off; the pulse can come from the rhythm of both
+    buffers (no finger named), which outlives a sample stream that stopped. Such a number does
+    not go to the data manager."""
+    if chans is None or not stream_live(now):
         return False
     chans = range(CHANNELS) if chans == "both" else [chans] if isinstance(chans, int) else chans
     return all(now - last_locked[c] <= data_manager_push.LIVE_S for c in chans)
@@ -573,8 +584,8 @@ def rsa_debug(c):
 
 
 # ── heart-rate variability (HRV) ─────────────────────────────────────────────────────
-# RMSSD (root mean square of successive beat-interval differences) over the last 60 s: the
-# standard short-term HRV / stress marker (lower = more stressed, relative to one's own baseline).
+# RMSSD (root mean square of successive beat-interval differences) over the last 60 s: a
+# short-term HRV number, read relative to one's own baseline.
 # The sensor samples at ~45 Hz, so a beat time is only known to +-11 ms, while RMSSD is typically
 # 20-80 ms. Each beat is therefore re-timed at the steepest point of its upstroke in the raw signal,
 # with parabolic sub-sample interpolation. Artefacts: intervals off the pulse period, or > 30 % off
