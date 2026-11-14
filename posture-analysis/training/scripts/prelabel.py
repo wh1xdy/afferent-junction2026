@@ -2,7 +2,7 @@
 """Pre-annotate extracted frames with the current runtime model.
 
 Runs rtmlib BodyWithFeet (YOLOX + RTMPose Halpe-26, same as
-laptop/posture/afferent/pose.py) on every frame in frames.csv and writes a
+posture-analysis/posture/afferent/pose.py) on every frame in frames.csv and writes a
 COCO-keypoints JSON with 26 Halpe keypoints per person, ready to be corrected
 in CVAT (or Label Studio). Humans then only *fix* points, which is ~5x faster
 than clicking 26 points from scratch -- but beware of anchoring bias: the

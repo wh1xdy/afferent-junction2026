@@ -54,7 +54,7 @@ evaluate: ## baseline vs fine-tuned ONNX on the test split, rtmlib inference
 		--frames-csv $(DATA)/frames/frames.csv --device $(DEVICE) \
 		--model baseline=balanced --model ft=$(ONNX) --out work_dirs/eval/test_report.json
 
-install-model: ## copy the ONNX (+ metadata json) into laptop/posture/models/custom
+install-model: ## copy the ONNX (+ metadata json) into posture-analysis/posture/models/custom
 	mkdir -p $(POSTURE_MODELS)/custom
 	cp $(ONNX) $(basename $(ONNX)).json $(POSTURE_MODELS)/custom/
 	@echo "installed -> $(POSTURE_MODELS)/custom/$(notdir $(ONNX))"

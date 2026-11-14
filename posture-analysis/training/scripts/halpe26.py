@@ -1,7 +1,7 @@
 """Halpe-26 layout + small pure-numpy helpers shared by the training scripts.
 
 Keypoint order is the mmpose `halpe26` definition used by rtmlib BodyWithFeet
-(and by laptop/posture/afferent/keypoints.py):
+(and by posture-analysis/posture/afferent/keypoints.py):
 
     0-16  COCO-17 body (nose, eyes, ears, shoulders, elbows, wrists, hips,
           knees, ankles)

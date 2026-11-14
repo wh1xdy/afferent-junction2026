@@ -2,7 +2,7 @@
 """Final-variable criteria (plan phase 4, item 53): compare models on the
 *derived* variables, not only on keypoints.
 
-Input: a long-format CSV produced by running the laptop/posture pipeline
+Input: a long-format CSV produced by running the posture-analysis/posture pipeline
 once per pose model on the person-disjoint test sequences that have an
 external ground truth (stopwatch over marked distance, goniometer, manual
 step count...):
@@ -18,7 +18,7 @@ Bland-Altman 95% limits of agreement, and the fraction of sequences within
 passes when it is at least as good as the baseline on every variable.
 
 Wiring this to the posture pipeline (re-run with a custom pose ONNX and
-dump the per-episode variables) is left to laptop/posture; this script only
+dump the per-episode variables) is left to posture-analysis/posture; this script only
 does the statistics.
 
 Usage:

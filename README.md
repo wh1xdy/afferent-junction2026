@@ -87,7 +87,7 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 
 ## Laptop POC
 
-[`laptop/posture`](laptop/posture) — Dockerised webcam pipeline for posture, gait
+[`posture-analysis/posture`](posture-analysis/posture) — Dockerised webcam pipeline for posture, gait
 and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
 README for setup; the project plan is in [`docs/plan_posture_depression.md`](docs/plan_posture_depression.md).
 

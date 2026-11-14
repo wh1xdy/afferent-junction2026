@@ -2,7 +2,7 @@
 """Compare pose ONNX models on the held-out (person-disjoint) test split.
 
 Inference goes through rtmlib.RTMPose -- the exact pre/post-processing the
-runtime (laptop/posture) uses -- with ground-truth boxes, so the comparison
+runtime (posture-analysis/posture) uses -- with ground-truth boxes, so the comparison
 isolates the pose model from the detector.
 
 Metrics, per model:

@@ -7,7 +7,7 @@ Two distinct uses, two metadata files:
 - **Test sets** (reliability, phases 1 and 3 of the plan): never annotated, used to
   verify the instrument. Named `test_*` — not in `manifests/sessions.yaml`.
 - **Training corpus** (phase 4): annotated in CVAT then fine-tuning.
-  Declared in `laptop/training/manifests/sessions.yaml` with `consent: true`.
+  Declared in `posture-analysis/training/manifests/sessions.yaml` with `consent: true`.
 
 Naming convention: `YYYY-MM-DD_Pxx_situation_xx.mp4`
 (`P01` = Romain, `P02`+ = other volunteers; `xx` = capture number).

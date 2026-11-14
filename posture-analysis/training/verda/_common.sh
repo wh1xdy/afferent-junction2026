@@ -14,7 +14,7 @@
 # Absolute paths, resolved from this file's location so the scripts can be
 # called from anywhere (Makefile, other dirs, cron...).
 VERDA_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TRAINING_DIR="$(dirname "$VERDA_DIR")"           # laptop/training
+TRAINING_DIR="$(dirname "$VERDA_DIR")"           # posture-analysis/training
 LAPTOP_DIR="$(dirname "$TRAINING_DIR")"          # laptop
 REPO_ROOT="$(dirname "$LAPTOP_DIR")"             # repo root
 
@@ -41,7 +41,7 @@ load_config() {
 
     # --- remote layout ---
     # Everything lands under $HOME/$REMOTE_ROOT on the instance, mirroring
-    # the repo: $REMOTE_ROOT/laptop/training, $REMOTE_ROOT/laptop/posture/...
+    # the repo: $REMOTE_ROOT/posture-analysis/training, $REMOTE_ROOT/posture-analysis/posture/...
     # The same SSH_USER is passed to `verda ssh --user` and used for direct
     # ssh/rsync, so both paths land in the same home directory.
     REMOTE_ROOT="${REMOTE_ROOT:-afferent}"
@@ -53,7 +53,7 @@ load_config() {
 
     # --- data ---
     # Local dataset root: frames/ + annotations/ as produced by make extract/
-    # split. Default: laptop/training/data (i.e. "../data" as seen from this
+    # split. Default: posture-analysis/training/data (i.e. "../data" as seen from this
     # directory). Point it elsewhere if the dataset lives outside the repo.
     DATA_DIR="${DATA_DIR:-$TRAINING_DIR/data}"
 

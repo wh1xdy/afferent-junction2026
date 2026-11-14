@@ -33,7 +33,7 @@ services:
       DEVICE: ${DEVICE:-cpu}
       # empty POSE_MODE -> lightweight on cpu, balanced on cuda (config.py)
       POSE_MODE: ${POSE_MODE:-}
-      # custom fine-tuned pose ONNX from laptop/training (empty = stock)
+      # custom fine-tuned pose ONNX from posture-analysis/training (empty = stock)
       POSE_MODEL_PATH: ${POSE_MODEL_PATH:-}
       DET_EVERY: ${DET_EVERY:-}
       FACE_EVERY: ${FACE_EVERY:-}

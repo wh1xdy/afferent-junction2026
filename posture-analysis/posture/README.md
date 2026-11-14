@@ -24,7 +24,7 @@ cohort study — see `docs/plan_posture_depression.md` at the repo root.
 ## Setup
 
 ```sh
-cd laptop/posture
+cd posture-analysis/posture
 cp .env.example .env          # adjust CAMERA / VIDEO_DEVICE / POSE_MODE …
 docker compose build          # CPU onnxruntime (default)
 ```
@@ -46,7 +46,7 @@ into the container, so inside it the camera is always index `0` unless you point
 
 ### Custom fine-tuned pose model
 
-`laptop/training` exports a fine-tuned RTMPose ONNX to
+`posture-analysis/training` exports a fine-tuned RTMPose ONNX to
 `models/custom/rtmpose-m_halpe26_ft.onnx`. Point the runtime at it:
 
 ```sh

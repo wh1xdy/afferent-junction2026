@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # pull.sh — download training artifacts from the Modal volume.
 #
-#   $MODAL_VOLUME:/work/  ->  laptop/training/work_dirs/
+#   $MODAL_VOLUME:/work/  ->  posture-analysis/training/work_dirs/
 #     (checkpoints best_*.pth, exported ONNX + .json, eval reports, logs)
 #
 # Usage: modal/pull.sh
