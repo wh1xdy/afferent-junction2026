@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# down.sh — pull results (unless SKIP_PULL=1) then DELETE the instance.
+# down.sh — pull results (unless SKIP_PULL=1) then DELETE the instance
+# AND its attached volumes.
 #
-# Deleting the instance also deletes its OS volume -- the only copy of
-# work_dirs/ lives there, so pull.sh runs first by default.
+# `verda vm delete` takes an instance ID (not the hostname) and, without
+# --with-volumes, leaves the OS volume detached -- which KEEPS BILLING.
+# The only copy of work_dirs/ lives on that volume, so pull.sh runs first.
 #
 # Usage: verda/down.sh [--yes]
 # Env: HOSTNAME, SKIP_PULL=1 (skip the work_dirs rsync -- you lose them),
@@ -31,10 +33,14 @@ else
     log "SKIP_PULL=1: NOT pulling work_dirs -- remote copy will be destroyed."
 fi
 
-# ------------------------------------------------- 2. confirm
+# ------------------------------------------------- 2. resolve + confirm
+# `vm delete` wants the instance ID; the hostname is only a list/display name.
+IID="$(resolve_instance_id)" || \
+    die "no instance found with hostname '$HOSTNAME' ('verda vm ls' to check)."
+
 cat >&2 <<EOF
-About to DELETE Verda instance '$HOSTNAME' (and its OS volume, including
-$REMOTE_ROOT/, the dataset copy and any checkpoints not pulled).
+About to DELETE Verda instance '$HOSTNAME' ($IID) and ALL attached volumes,
+including $REMOTE_ROOT/, the dataset copy and any checkpoints not pulled.
 EOF
 if [ -z "$YES" ]; then
     printf 'Type the hostname to confirm: ' >&2
@@ -42,8 +48,9 @@ if [ -z "$YES" ]; then
     [ "$ans" = "$HOSTNAME" ] || die "aborted (typed '$ans')."
 fi
 
-# --yes skips the CLI's own confirmation; we already asked ours above.
-verda vm delete "$HOSTNAME" --yes
+# --with-volumes is required: without it the OS volume survives detached and
+# keeps billing. --yes skips the CLI's own confirmation; we already asked ours.
+verda vm delete "$IID" --with-volumes --yes
 
-log "'$HOSTNAME' deleted. 'verda vm ls' to confirm; billing for the VM stops here."
-log "NOTE: the instance's OS volume is destroyed with it -- dataset copy gone."
+log "'$HOSTNAME' deleted with its volumes. 'verda vm ls' + 'verda volume list' to confirm;"
+log "billing stops here. NOTE: the dataset copy on the instance is gone."

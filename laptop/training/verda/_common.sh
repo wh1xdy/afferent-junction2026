@@ -31,15 +31,18 @@ load_config() {
     LOCATION="${LOCATION:-FIN-01}"
     OS_IMAGE="${OS_IMAGE:-ubuntu-24.04-cuda-13.0-open-docker}"
     OS_VOLUME_SIZE="${OS_VOLUME_SIZE:-100}"
-    SPOT="${SPOT:-}"                          # 1 -> pass --spot to vm create
+    SPOT="${SPOT:-}"                          # 1 -> pass --is-spot to vm create
     EXTRA_CREATE_ARGS="${EXTRA_CREATE_ARGS:-}"# appended verbatim to vm create
 
     # --- remote layout ---
     # Everything lands under $HOME/$REMOTE_ROOT on the instance, mirroring
     # the repo: $REMOTE_ROOT/laptop/training, $REMOTE_ROOT/laptop/posture/...
+    # The same SSH_USER is passed to `verda ssh --user` and used for direct
+    # ssh/rsync, so both paths land in the same home directory.
     REMOTE_ROOT="${REMOTE_ROOT:-afferent}"
-    SSH_USER="${SSH_USER:-ubuntu}"            # default user on cuda-docker OSes
+    SSH_USER="${SSH_USER:-root}"              # `verda ssh` and the cuda-docker images default to root
     SSH_KEY="${SSH_KEY:-}"                    # e.g. ~/.ssh/id_ed25519
+    SSH_KEY_ID="${SSH_KEY_ID:-}"              # Verda ssh-key ID injected at vm create (`verda ssh-key list`)
     SSH_DEST="${SSH_DEST:-}"                  # full override user@1.2.3.4
     SSH_OPTS="${SSH_OPTS:-}"                  # extra ssh options for rsync
 
@@ -66,9 +69,11 @@ need() {
 
 check_verda() {
     need verda "install: https://github.com/verda-cloud/verda-cli"
-    # `verda auth login` stores creds in ~/.verda/credentials (never commit).
+    # `verda auth login` stores creds in ~/.verda/credentials (never commit);
+    # VERDA_CLIENT_ID / VERDA_CLIENT_SECRET env vars work too.
     if ! verda vm ls >/dev/null 2>&1; then
         echo "error: 'verda vm ls' failed -- run 'verda auth login' first." >&2
+        echo "       ('verda doctor' checks credentials + API reachability.)" >&2
         exit 1
     fi
 }
@@ -81,14 +86,51 @@ die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 # appends them verbatim to the ssh argv (ssh re-joins them on the remote
 # shell). Keep args simple (no quotes-with-spaces); for anything complex, push
 # a script with rsync and call it, or use:  remote_run bash -s < script.sh
+# --user/--key must be passed explicitly: `verda ssh` defaults to root, which
+# would silently land us in a different home than rsync when SSH_USER differs.
 remote_run() {
-    verda ssh "$HOSTNAME" -- "$@"
+    local pre=(--user "$SSH_USER")
+    [ -n "$SSH_KEY" ] && pre+=(--key "$SSH_KEY")
+    verda ssh "$HOSTNAME" "${pre[@]}" -- "$@"
+}
+
+# Resolve the Verda instance ID (inst-...) for $HOSTNAME via `vm list -o json`.
+# Needed because `vm describe` / `vm delete` take an instance ID, not a
+# hostname (only `verda ssh` resolves hostnames itself).
+resolve_instance_id() {
+    need python3 "needed to parse 'verda vm list -o json'"
+    verda vm list -o json 2>/dev/null | HOST="$HOSTNAME" python3 -c '
+import json, os, sys
+
+host = os.environ["HOST"]
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+items = data if isinstance(data, list) else [data]
+
+def has_host(o):
+    if isinstance(o, dict):
+        return any(has_host(v) for v in o.values())
+    if isinstance(o, list):
+        return any(has_host(v) for v in o)
+    return o == host
+
+for d in items:
+    if not isinstance(d, dict) or not has_host(d):
+        continue
+    for k in ("id", "instance_id", "instanceId"):
+        if isinstance(d.get(k), str):
+            print(d[k], end="")
+            sys.exit(0)
+sys.exit(1)
+'
 }
 
 # Print the SSH destination (user@ip) used by rsync/ssh/scp.
 # Resolution order:
 #   1. SSH_DEST env (authoritative override)
-#   2. `verda vm describe $HOSTNAME -o json`, first public IPv4 in the payload
+#   2. `verda vm describe <instance-id> -o json`, first public IPv4 in the payload
 #   3. `verda vm ls -o json` (fallback), same parsing
 resolve_ssh_dest() {
     if [ -n "$SSH_DEST" ]; then
@@ -101,16 +143,19 @@ resolve_ssh_dest() {
     [ -n "$ip" ] || die "could not resolve an IP for '$HOSTNAME'.
   Check 'verda vm ls' that the instance is running, then either:
     - retry (instance may still be booting), or
-    - export SSH_DEST=$SSH_USER@<ip> manually (see 'verda vm describe $HOSTNAME -o json')."
+    - export SSH_DEST=$SSH_USER@<ip> manually (see 'verda vm ls -o json')."
     printf '%s@%s' "$SSH_USER" "$ip"
 }
 
 # Extract the first public-looking IPv4 from `verda vm` JSON output.
-# Tries `vm describe <host>` first, then `vm ls` (each parsed separately).
+# Tries `vm describe <instance-id>` first (hostname is resolved to an ID via
+# `vm list`), then `vm ls` (each parsed separately).
 _verda_ip() {
     need python3 "needed to parse 'verda vm describe -o json' (or set SSH_DEST)"
-    local out ip
-    for cmd in "describe $HOSTNAME" "ls"; do
+    local id out ip
+    id="$(resolve_instance_id 2>/dev/null || true)"
+    for cmd in "${id:+describe $id}" "ls"; do
+        [ -n "$cmd" ] || continue
         # word splitting of $cmd is intentional (fixed strings above)
         # shellcheck disable=SC2086
         out="$(verda vm $cmd -o json 2>/dev/null)" || continue
