@@ -298,6 +298,75 @@ The code ("Show to my doctor", `demo/js/qrpayload.js`) carries three weekly numb
 - Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055 of 1134 characters, version 22, with no shrinking (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse is not in the code: two more rows would bring the worst case to about 1125 of 1134. It is in the session documents and the export file.
 - The printed page lists the same weekly numbers under the code.
 
+### Talk transcripts on the hub
+
+When a Talk conversation ends, the phone sends the transcript to the hub over the app link
+(`{type: "transcript"}` on `/ws/app`) and keeps it in a local outbox until the hub acks it
+(`demo/js/voice.js`). Audio itself only ever goes to Google while the conversation is open;
+the transcript stays on the phone (last 20 conversations) and on the hub — nothing goes to
+the clinic or the data manager.
+
+The hub appends each transcript as **one JSON line** to a rotating log
+(`hub/afferent_hub/transcripts.py`):
+
+- Directory: `AFFERENT_TRANSCRIPTS_DIR`, default `hub/data/transcripts/` — next to
+  `afferent.db` on the hub's disk (the Jetson when the hub runs there).
+- Ring buffer: `transcript-000001.jsonl`, `transcript-000002.jsonl`, …; a new file starts
+  past `AFFERENT_TRANSCRIPT_FILE_MB` (10 MB), and once the directory passes
+  `AFFERENT_TRANSCRIPT_TOTAL_MB` (500 MB) the oldest files are removed — the current file
+  is never removed.
+- A resent `transcript_id` (ack lost on disconnect) is deduplicated in-process and the ack
+  carries `duplicate: true`; the id also stays inside each row for post-hoc dedupe across
+  a hub restart.
+
+Each line is a self-contained record:
+
+```json
+{"transcript_id": "3f6b…", "patient_id": "anna",
+ "t_iso": "2026-11-14T15:30:00.000Z", "received_iso": "2026-11-14T17:36:43+02:00",
+ "turns": [{"role": "user", "text": "I feel a bit tired today"},
+           {"role": "agent", "text": "I hear you. Did you sleep alright?"}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `transcript_id` | uuid from the phone; dedupe key |
+| `patient_id` | patient the conversation belongs to |
+| `t_iso` | when the conversation ended, phone clock (UTC ISO 8601) |
+| `received_iso` | when the hub wrote the row, hub clock |
+| `turns` | ordered list; `role` is `user` or `agent`, `text` is that turn's full transcript |
+
+### Daily wellbeing read for the voice companion
+
+Once a day the phone asks the hub how its patient seems to be doing — `{type: "voice_context"}`
+on `/ws/app`, answered by `{type: "voice_context", ...}` — and anyone on the hub can read the
+same thing at `GET /api/patients/{pid}/wellbeing` (`hub/afferent_hub/wellbeing.py`, wired in
+`service.py`).
+
+The answer:
+
+```json
+{"type": "voice_context", "patient_id": "anna", "date": "2026-11-15",
+ "indicator": "bad", "suggest_doctor": true,
+ "facts": ["skipped the morning practice on 4 of the last 7 days",
+           "went outside on 0 of the last 5 days"]}
+```
+
+- `indicator` is `ok`, `watch` or `bad`, from the hub's own data: the analytics state
+  (`check_in`/`booster` → bad, `watch` → watch) and the last PHQ-9 band (`moderate` or worse
+  → bad, `mild` → watch, an overdue check-in → watch).
+- `facts` are short clauses. The hub adds its own (missed practice, the last questionnaire);
+  when the indicator is `bad` it also asks the data manager (`AFFERENT_DATA_MANAGER_URL`)
+  for presence facts — outings, time at home and visitors over the last two weeks. Every
+  sensor read is best-effort: a quiet data manager means fewer facts, never an error.
+- `suggest_doctor` is `indicator == "bad"`.
+
+The phone caches the answer for the day (`demo/js/voice.js`) and hands it to the voice relay
+inside the auth message (`{auth, context}`); the relay (`voice-relay/main.py`) validates it
+and appends it to the system instruction. So on a bad day the companion gently acknowledges
+that things have not been easy, reminds the person the app and their care team are there
+exactly for that, and suggests — once, without pushing — that they talk to their doctor.
+
 ### Home hub on the Jetson
 
 The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the real UNO Q as bedside and the data manager all run on the mesh. The Mac is needed only as the doorway for a browser or the phone (below).

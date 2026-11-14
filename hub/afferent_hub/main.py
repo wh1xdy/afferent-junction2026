@@ -26,6 +26,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         app.state.hub = Hub(settings)
         app.state.team = Team(settings)
+        app.state.hub.sensors = app.state.team.sensors
         await app.state.hub.start()
         yield
         await app.state.hub.stop()
