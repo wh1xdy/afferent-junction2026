@@ -140,7 +140,7 @@ class Profiles(unittest.TestCase):
         a = self.app
         a.apply_profile("demo")
         self.assertEqual(a.pcfg.away_after_s, 120)
-        self.assertEqual(a.gcfg.rssi_min, -55)
+        self.assertEqual(a.gcfg.rssi_min, -65)
         self.assertIs(a.presence.cfg, a.pcfg)      # trackers see the change live
         p = a.presence
         t = T0
