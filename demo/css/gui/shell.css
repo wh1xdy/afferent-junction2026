@@ -78,18 +78,18 @@
 @keyframes nudge { 0%, 100% { color: var(--af-birch); } 25%, 60% { color: var(--md-sys-color-sun); } }
 .dock .decline { margin-top: 10px; color: color-mix(in srgb, var(--af-frost) 88%, transparent); font-weight: 500; letter-spacing: 0.02em; text-shadow: var(--af-text-lift); }
 
-.play-close { position: absolute; z-index: 3; top: calc(var(--safe-top) + 8px); left: 8px; color: color-mix(in srgb, var(--af-birch) 62%, transparent); }
+.play-close { position: absolute; z-index: 3; top: calc(var(--safe-top) + 8px); left: calc(var(--af-safe-l) + 8px); color: color-mix(in srgb, var(--af-birch) 62%, transparent); }
 .play-sim { position: absolute; z-index: 3; top: calc(var(--safe-top) + 20px); left: 50%; transform: translateX(-50%); pointer-events: none; }
 .cue {
   position: absolute; left: 24px; right: 24px; top: 14%; z-index: 2; pointer-events: none; text-align: center;
-  font: 300 24px/32px var(--af-font-brand); color: var(--af-birch);
-  text-shadow: 0 1px 18px color-mix(in srgb, var(--af-fjord) 85%, transparent);
-  opacity: 0; transform: translateY(8px);
-  transition: opacity 900ms var(--af-ease-in), transform 900ms var(--af-ease-in);
+  font: 300 24px/32px var(--af-font-brand); letter-spacing: 0.01em; color: var(--af-birch); text-wrap: balance;
+  text-shadow: var(--af-text-lift);
+  opacity: 0; transform: translateY(8px); filter: blur(3px);
+  transition: opacity var(--af-dur-drift) var(--af-ease-glide), transform var(--af-dur-drift) var(--af-ease-glide), filter var(--af-dur-drift) var(--af-ease-glide);
 }
-.cue.on { opacity: 1; transform: none; }
+.cue.on { opacity: 1; transform: none; filter: none; }
 .wake-btn {
-  position: absolute; z-index: 3; top: calc(var(--safe-top) + 8px); right: 8px; width: 48px; height: 48px; border: 0; border-radius: 50%;
+  position: absolute; z-index: 3; top: calc(var(--safe-top) + 8px); right: calc(var(--af-safe-r) + 8px); width: 48px; height: 48px; border: 0; border-radius: 50%;
   display: grid; place-items: center; background: var(--af-hush); color: rgba(255, 255, 255, 0.5);
   animation: wakeIn 1200ms var(--af-ease-in) both;
 }
@@ -117,7 +117,7 @@
   transition: opacity var(--af-dur-enter) var(--af-ease-in), transform var(--af-dur-enter) var(--af-ease-in);
 }
 .end[data-phase="mood"] .mood-row { opacity: 1; transform: none; pointer-events: auto; }
-.mood-ask { flex: 0 0 100%; margin: 0 0 4px; text-align: center; font: 300 24px/32px var(--af-font-brand); color: var(--af-birch); text-shadow: 0 1px 16px color-mix(in srgb, var(--af-fjord) 80%, transparent); }
+.mood-ask { flex: 0 0 100%; margin: 0 0 4px; text-align: center; font: 300 24px/32px var(--af-font-brand); letter-spacing: 0.01em; color: var(--af-birch); text-shadow: var(--af-text-lift); }
 .mood-lantern {
   --c: #F2C230; --g: 1;
   position: relative; width: 64px; height: 88px; padding: 0; border: 0; border-radius: 28px; background: none;
@@ -237,8 +237,10 @@
 :root[data-motion="reduced"] .kindle-halo, :root[data-motion="reduced"] .kindle-label.nudge, :root[data-motion="reduced"] .checkin-chip .dot, :root[data-motion="reduced"] .start .top-bar, :root[data-motion="reduced"] .start .dock { animation: none; }
 :root[data-motion="reduced"] .talk, :root[data-motion="reduced"] .settings, :root[data-motion="reduced"] #info .sheet { animation: fadeIn 150ms linear; }
 :root[data-motion="reduced"] .end-sheet, :root[data-motion="reduced"] .mood-row, :root[data-motion="reduced"] .end-night, :root[data-motion="reduced"] .cue { transform: none !important; }
+:root[data-motion="reduced"] .cue { filter: none; }
 @media (prefers-reduced-motion: reduce) {
   .kindle-halo, .kindle-label.nudge, .checkin-chip .dot, .start .top-bar, .start .dock { animation: none; }
   .talk, .settings, #info .sheet { animation: fadeIn 150ms linear; }
   .end-sheet, .mood-row, .end-night, .cue { transform: none !important; }
+  .cue { filter: none; }
 }

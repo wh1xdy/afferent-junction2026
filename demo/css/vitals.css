@@ -22,7 +22,9 @@
 .live-chip {
   position: absolute; z-index: 3; top: calc(var(--safe-top) + 52px); left: 50%; transform: translateX(-50%); pointer-events: none;
   display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; white-space: nowrap;
-  background: color-mix(in srgb, var(--af-fjord) 72%, transparent); color: var(--af-birch);
+  background: var(--af-glass-strong); color: var(--af-birch);
+  box-shadow: var(--af-glass-edge), var(--af-lift-1);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
   font: 500 12px/16px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
 }
 
