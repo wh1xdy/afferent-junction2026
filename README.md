@@ -92,6 +92,104 @@ Wendy Net (use `wendy net forward` to open the Jetson UI on port 3005 from a lap
 and facial-expressivity markers (SQLite aggregates, FastAPI dashboard). See its
 README for setup; the project plan is in [`docs/plan_posture_depression.md`](docs/plan_posture_depression.md).
 
+## Analyzers: technical data
+
+Two analysis pipelines produce descriptors relative to the person's own baseline. Neither makes a
+diagnosis. The figures below come from the code, configs, training logs and committed artefacts.
+
+### Posture analyzer (`posture-analysis/posture`)
+
+Runs on the laptop (Docker, CPU or CUDA). Frame flow: YOLOX person detector → RTMPose top-down pose
+(26 Halpe keypoints, body + feet) → InsightFace identity lock → One-Euro smoothing → posture angles,
+gait and facial expressivity → SQLite minute aggregates.
+
+| Component | Model | Size on disk | Role |
+|---|---|---|---|
+| Person detector | YOLOX-m (`balanced`) / YOLOX-tiny (`lightweight`, CPU default) | 101 MB / 20 MB (ONNX) | Boxes, re-run every `DET_EVERY` frames |
+| Pose | RTMPose-m (`balanced`) / RTMPose-s (`lightweight`), SimCC head, 256×192 input | 56 MB / 23 MB (fp32 ONNX) | 26 keypoints, 384 + 512 SimCC bins |
+| Pose, fine-tuned (optional) | RTMPose-m, see below | 56 MB (fp32 ONNX) | Replaces the pose model via `POSE_MODEL_PATH` |
+| Identity | InsightFace `buffalo_l` (ArcFace `w600k_r50`, RetinaFace `det_10g`, 3D/2D landmarks, gender/age) | ≈ 341 MB | Locks the enrolled target; cosine threshold 0.45 |
+| Face expressivity | MediaPipe Face Landmarker (blendshapes, head pose) | 3.8 MB | Every `FACE_EVERY` frames |
+| Emotion (optional) | HSEmotion `enet_b0_8_va_mtl` (EfficientNet-B0, ONNX) | 16 MB | Every `EMOTION_EVERY` frames, target crop only |
+
+Model size. The RTMPose-m weights are fp32, so the 55.7 MB file is about 13.9 M parameters (estimated
+from the file size). The full on-disk model set is about 0.6 GB. The per-frame cost is dominated by
+the detector on CPU, which is why `lightweight` is the CPU default (about 4 pose-fps at 1080p, against
+about 1.1 fps for `balanced` on CPU).
+
+**Fine-tuning of the pose model** (`posture-analysis/training`, config
+`configs/rtmpose-m_halpe26_finetune.py`). Starts from the official RTMPose-m Halpe-26 checkpoint
+(Body7 pretraining, 700 epochs), not from scratch.
+
+| Item | Value |
+|---|---|
+| Data | Our annotated home recordings, corrected in CVAT; split by person (union-find on co-occurring people) |
+| Split size | ≈ 1,350 train, ≈ 300 val, 345 test person instances (from the batch counts in the logs) |
+| Optimiser | AdamW, base LR 4e-4, weight decay 0.05, grad-clip 35 |
+| Schedule | 200-iteration linear warm-up, cosine decay from epoch 30 to 5 % of base LR |
+| Epochs | 60 (last 10 with milder augmentation); validation every 5 epochs |
+| Batch | 64 |
+| Regularisation | Frozen stages: none. EMA (momentum 0.0002). Flip test at inference |
+| Augmentation | Flip, half-body, bbox scale 0.6–1.4, rotation ±45°, photometric, blur, coarse dropout |
+| Selected checkpoint | Epoch 10 (validation COCO AP 0.973). Later epochs stayed at 0.965–0.971 |
+| Hardware | 60-epoch run on a Tesla V100 16 GB (about 17 min wall-clock) |
+| Seed | 0 |
+
+Test results (`posture-analysis/training/work_dirs/eval/test_report.json`, torso-normalised PCK@0.05):
+
+| Model | PCK overall | PCK feet | NME | OKS-AP |
+|---|---|---|---|---|
+| Stock RTMPose-m | 1.000 | 1.000 | 0.00055 | 1.000 |
+| Fine-tuned (epoch 10) | 0.952 | 0.914 | 0.0205 | 0.999 |
+
+The fine-tuned model does **not** pass the gate set in the training README (it must be at least as good
+as the baseline on PCK overall and on PCK feet). The baseline scores 1.000 on every keypoint, which
+suggests the test labels largely follow the stock model's own pre-labels, so this comparison needs
+caution. The final-variable check (`eval_variables.py`: walking speed, cadence, step length) has not
+been run yet. The custom ONNX is not committed (`*.onnx` is gitignored); install it with
+`make install-model` and point `POSE_MODEL_PATH` at it.
+
+### Transcript analyzer (`Transcription_analyzer/`, branch `poc/transcription-analyzer`)
+
+Scores conversation windows on four dimensions (responsiveness, engagement, fluency, coherence),
+each 0–100 with a confidence and up to three evidence quotes, plus a `drift_flag`. Deterministic
+metrics run alongside the model (turn gaps, words per turn, MATTR, fillers, initiations). Scores are
+compared to a 28-day personal baseline (composite z-score).
+
+**Runtime**
+
+| Item | Value |
+|---|---|
+| Student model | `Qwen/Qwen3-8B` (dense, ≈ 8.2 B parameters), fine-tuned with QLoRA |
+| Deployment target | GGUF Q5_K_M (≈ 5.7 GB) via llama.cpp, all layers offloaded to the GPU when they fit |
+| Context | `n_ctx` 8192; windows of up to 120 turns with a 20-turn overlap |
+| Output | Grammar-constrained JSON (the schema is the same for llama.cpp, OpenAI-compatible servers and the validator) |
+| Decoding | Temperature 0.2, `max_tokens` 800, one retry on invalid JSON |
+| Schedule | Nightly window 02:00–06:00, deferred if the vision app is active |
+
+**Fine-tuning** (`training/scripts/train_qlora.py`, Makefile defaults)
+
+| Item | Value |
+|---|---|
+| Data | 16 synthetic two-agent conversations (one persona, four states: normal, joyful, sad, depressed). The 13 transcripts in the quarantined `transcripts_v0_no-ai-awareness/` folder are excluded |
+| Examples | 56 chat-format examples (prompt = the analyzer's inference prompt, completion = labels) |
+| Split | By persona and file, so no speaker leaks between splits. Run 1's validation set was a file-level split |
+| Quantisation | 4-bit NF4 with double quantisation, bf16 compute |
+| LoRA | r 16, alpha 32, dropout 0.05, on q, k, v, o, gate, up, down projections. ≈ 43.6 M trainable parameters (computed from the architecture, about 0.5 % of the base) |
+| Loss | Completion-only (prompt tokens masked) |
+| Epochs | 2 (Makefile default; the run config is not committed) |
+| Optimiser | Learning rate 2e-4, cosine schedule, 3 % warm-up |
+| Batch | 1 per device × 16 gradient accumulation = effective batch 16. With 56 examples that is only a few optimiser steps per epoch (about 3 at most) |
+| Max length | 4096 tokens, gradient checkpointing, bf16 |
+| Seed | 42 |
+| Hardware | Verda GPU. The committed config targets a 1A100.40S (40 GB); the exact card for run 1 is not recorded |
+| Result | Validation loss 2.035 → 1.961 on the file-level split |
+
+Status. Run 1 shows the pipeline works end to end, but the repository does not yet report the success
+gate (the student beating the frozen few-shot baseline on held-out personas, with Pearson r per
+dimension and AUROC on `drift_flag`). The labels are hand-set targets from the simulator, and the
+dataset is one persona. The data is synthetic; no real transcript has been used.
+
 ## HTTP
 
 - UNO Q `modulino-hub` (mesh, port 18080): `GET /state` (knob, climate, `beat.bpm_live`, `pulse`),
