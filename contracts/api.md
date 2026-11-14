@@ -414,7 +414,7 @@ Both paths produce the same physio object, so the game, the recorder, the phone 
 
 #### Capacitor plugin `AfferentFinger` (`ios/App/App`)
 
-Methods `start`, `stop`, `status`. Events `state` (the Bluetooth link changed; the values of `link` below) and `reading` (one decoded notification of `2A37` or `AFF1`). `demo/js/finger.js` is the only caller; it turns the events into the physio object and feeds the fused pulse into the stone slot with `A.Sensors.feedPulse` (never `setPulse`), labelled `finger_ppg`. The plugin is in the iOS app only; in a browser `link` is `unsupported`. The native app `ios/Afferent` holds the same Bluetooth connection while it is open, and a second central at the same time is untested (Alex A8), so one of the two apps runs at a time.
+Methods `start`, `stop`, `status`. Events `state` (the Bluetooth link changed; the values of `link` below) and `reading` (one decoded notification of `2A37` or `AFF1`). `demo/js/finger.js` is the only caller; it turns the events into the physio object and feeds the fused pulse into the stone slot with `A.Sensors.feedPulse` (never `setPulse`), labelled `finger_ppg`. The plugin is in the iOS app only; in a browser there is no plugin, `link` is `unavailable` and `live_metrics.physio` stays `null` unless the hub sends `physio`. `unsupported` is the plugin's own state on a device without Bluetooth LE. The native app `ios/Afferent` holds the same Bluetooth connection while it is open, and a second central at the same time is untested (Alex A8), so one of the two apps runs at a time.
 
 #### The physio object
 

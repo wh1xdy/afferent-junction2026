@@ -393,6 +393,21 @@ const tests = {
     assert.strictEqual(V.chip({ ...s, gameMode: 'measure' }, { bpm: 72, source: 'finger_ppg' }), null);
     for (const phase of ['rest', 'checkin', 'rt', 'end']) assert.strictEqual(V.chip({ ...s, phase }, { bpm: 72, source: 'finger_ppg' }), null);
   },
+
+  'o: a fresh finger notification tells Home and visitors the bedside unit is in range; a stale one does not'() {
+    const { A } = load({ finger: true }), F = A.Finger;
+    let seen = 0;
+    A.Presence = { unitSeen: () => { seen++; } };
+    connect(A);
+    F.onReading(hrm());
+    F.onReading(aff6());
+    assert.strictEqual(seen, 2);
+    F.onReading({ ...hrm(), t_ms: Date.now() - 5000 });
+    assert.strictEqual(seen, 2, 'a notification older than 3 s is dropped before the hook');
+    delete A.Presence;
+    F.onReading(hrm());   // presence.js not loaded: no error
+    assert.strictEqual(A.Sensors.fingerBle.pulse_bpm, 72);
+  },
 };
 
 (async () => {

@@ -31,8 +31,10 @@
   const cap = window.Capacitor;
   const native = !!(cap?.isNativePlatform?.() && cap.getPlatform?.() === 'ios');
   const sim = !native && q.get('presence') === 'sim';
-  const plugin = native ? cap.registerPlugin('AfferentPresence') : null;
-  const available = native || sim;
+  // The iOS bridge has no registerPlugin unless @capacitor/core is bundled (this app loads plain
+  // scripts); a plugin registered in Swift is at Capacitor.Plugins.<jsName>. Same lookup as A.plug.
+  const plugin = native ? (cap.Plugins?.AfferentPresence ?? cap.registerPlugin?.('AfferentPresence') ?? null) : null;
+  const available = !!plugin || sim;
 
   // ── state ─────────────────────────────────────────────────────────────
   const saved = store.get(KEY) || {};
