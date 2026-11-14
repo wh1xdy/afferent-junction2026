@@ -47,6 +47,20 @@ def empty_clip(seconds, dc=7400, noise=40, seed=9):
 
 
 finger_ppg = tpg.finger_ppg
+RAIL = 13690                  # where clip 2's amplifier tops out (measured: 13680-13700)
+
+
+def pressed(bpm, seconds, gain=3.0, dc=13300, seed=2):
+    """clip 2 pressed hard (seen 2026-11-15, Heart Duel): its sensor is more sensitive than clip
+    1's, the DC climbs to 10000-13700 and the top of every beat is flat at the rail. The same
+    finger as finger_ppg, amplified and shifted up, then clipped at the rail."""
+    rnd = random.Random(seed + 100)
+    return [(t, int(min(dc + gain * (v - 8500), RAIL + rnd.gauss(0, 6))))
+            for t, v in finger_ppg(bpm, seconds, seed=seed)]
+
+
+def railed_share(samples):
+    return sum(1 for _, v in samples if app.railed(v)) / len(samples)
 
 
 class TwoClips(unittest.TestCase):
@@ -157,6 +171,128 @@ class OneNoisyClip(TwoClips):
         self.assertEqual(app.clip_state[0]["reason"], "saturated")
 
 
+class PartlyClipped(TwoClips):
+    """the railed samples are missing (app.autocorr), the clipping costs quality, not the clip"""
+    SECONDS = 20
+
+    def test_the_fixture_is_clipped_as_on_the_board(self):
+        for gain, dc in ((2.0, 12600), (3.0, 13300)):
+            share = railed_share(pressed(72, 10, gain, dc))
+            self.assertTrue(0.05 < share < 0.4, share)       # saturated for the old 5 % rule
+
+    def test_a_pressed_clip_next_to_a_good_one_is_one_person(self):
+        rows = self.run_clips(finger_ppg(72, self.SECONDS, seed=1), pressed(72, self.SECONDS), self.SECONDS)
+        self.assertTrue(all(b and abs(b - 72) <= 3 for b, _, _, _ in rows[10:]), rows)
+        st = app.clip_state[1]
+        self.assertTrue(st["clean"] and st["trusted"], st)
+        self.assertGreater(st["railed"], app.CLIP_MAX_RAILED / 4, "it is clipped...")
+        self.assertLess(app.period_state[1]["quality"], app.period_state[0]["quality"] - 0.1,
+                        "...and that shows as a lower quality")
+        self.assertEqual(app.fused["sources"], [0, 1])
+        self.assertFalse(app.fused["two_hearts"])
+
+    def test_a_pressed_clip_alone_gives_the_true_pulse(self):
+        rows = self.run_clips(empty_clip(self.SECONDS), pressed(88, self.SECONDS), self.SECONDS)
+        self.assertTrue(all(b and abs(b - 88) <= 3 for b, _, _, _ in rows[10:]), rows)
+        self.assertTrue(app.clip_state[1]["clean"])
+        self.assertEqual(app.fused["untrusted"], [0])
+        sent = [s["value"] for s in self.client.of(PULSE)]
+        self.assertTrue(sent and all(abs(v - 88) <= 3 for v in sent), sent)
+
+    def test_heart_duel_with_a_pressed_clip_is_two_hearts(self):
+        rows = self.run_clips(finger_ppg(62, self.SECONDS, seed=1), pressed(88, self.SECONDS), self.SECONDS)
+        self.assertTrue(app.fused["two_hearts"])
+        self.assertEqual(rows[-1][3][6], real_ble.FLAG_TWO_HEARTS)
+        self.assertTrue(abs(rows[-1][3][0] - 62) <= 3 and abs(rows[-1][3][1] - 88) <= 3, rows[-1][3])
+
+    def test_mostly_railed_is_still_saturated(self):
+        heavy = pressed(72, self.SECONDS, gain=4.0, dc=14300)
+        self.assertGreater(railed_share(heavy), app.CLIP_MAX_RAILED)
+        rows = self.run_clips(finger_ppg(72, self.SECONDS, seed=1), heavy, self.SECONDS)
+        self.assertEqual(app.clip_state[1]["reason"], "saturated")
+        self.assertEqual(app.fused["untrusted"], [1])
+        self.assertTrue(all(b and abs(b - 72) <= 3 for b, _, _, _ in rows[10:]), rows)
+
+    def test_no_railed_samples_no_change(self):
+        # the mask only touches railed samples: a clean finger gives the old curve exactly
+        app.ppgs[0].extend(finger_ppg(75, 8))
+        lags, r = app.autocorr(0)
+        v = [x for _, x in list(app.ppgs[0]) if x]
+        w = [p for p in app.ppgs[0] if p[0] >= app.ppgs[0][-1][0] - 6000]
+        n, m = len(w), sum(x for _, x in w) / len(w)
+        x = [a - m for _, a in w]
+        e = sum(a * a for a in x)
+        fs = (n - 1) / ((w[-1][0] - w[0][0]) / 1000)
+        k = int(800 / 1000 * fs) - int(0.33 * fs)
+        self.assertAlmostEqual(r[k], sum(x[i] * x[i + k + int(0.33 * fs)] for i in range(n - k - int(0.33 * fs))) / e, places=9)
+
+
+class TimeToFirstPulse(TwoClips):
+    """from a still finger to the first pulse on 2A37 and to the data manager"""
+
+    def first(self, rows):
+        return next(k for k, r in enumerate(rows) if r[2])
+
+    def test_one_person_on_both_clips(self):
+        for bpm in (55, 72, 95):
+            with self.subTest(bpm=bpm):
+                self.setUp()
+                rows = self.run_clips(finger_ppg(bpm, 14, seed=1), finger_ppg(bpm, 14, seed=2), 14)
+                k = self.first(rows)
+                self.assertLessEqual(k, 8, rows)              # was 11 (rhythm ~4 s + 6 s hold)
+                self.assertTrue(all(r[2] and abs(r[2] - bpm) <= 3 for r in rows[k:]), rows)
+                self.doCleanups()
+
+    def test_a_pressed_clip_on_its_own(self):
+        rows = self.run_clips(empty_clip(14), pressed(72, 14), 14)
+        self.assertLessEqual(self.first(rows), 9, rows)
+
+    def test_found_by_presence_with_the_power_on_transient_in_the_buffer(self):
+        # what the board has when a finger is found: the LEDs-off level, the power-on transient
+        # at the rail, then the finger. Before, the transient kept the 6 s rhythm at the edge for
+        # 4 s of warm-up after detection; now the window starts after it (signal_from).
+        t_on, settle = 4000, app.PROBE_SETTLE_MS
+        finger = finger_ppg(72, 30, seed=1)
+        def sample(t, v):
+            if t < t_on:
+                return 2770                                  # LEDs off
+            if t < t_on + 300:
+                return 13950                                 # power-on transient at the rail
+            if t < t_on + settle:
+                return int(13950 - (13950 - v) * (t - t_on - 300) / (settle - 300))
+            return v
+        both = [(t, sample(t, v)) for t, v in finger]
+        app.presence.update(mode="idle", since=self.T0)
+        rows, found_at = [], None
+        for sec in range(30):
+            self.clock[0] = self.T0 + sec
+            for t, v in [p for p in both if sec * 1000 <= p[0] < (sec + 1) * 1000]:
+                app.on_ppg(t, v, v)
+                if app.presence["mode"] == "active":
+                    for c in range(2):
+                        beat = self.det[c].feed(t, v)
+                        if beat:
+                            app.on_beat(c, *beat)
+            if sec == t_on // 1000:
+                app.presence.update(mode="probing", since=self.clock[0], t_on=t_on)   # sensors on
+            with contextlib.redirect_stdout(io.StringIO()):
+                for half in (0.0, 0.5):
+                    self.clock[0] = self.T0 + sec + half
+                    if app.presence["mode"] != "idle":
+                        app.presence_loop(FakeStop(1))
+                if found_at is None and app.presence["mode"] == "active":
+                    found_at = sec
+                self.clock[0] = self.T0 + sec + 0.6
+                n = len(app.ble.pushed)
+                app.period_loop(FakeStop(1))
+            hrm = [h for _, h, _ in app.ble.pushed[n:] if h is not None]
+            rows.append(hrm[-1] if hrm else None)
+        self.assertEqual(found_at, (t_on + settle + app.PROBE_LOOK_MS + app.PROBE_CONFIRM_MS) // 1000)
+        first = next(k for k, h in enumerate(rows) if h)
+        self.assertLessEqual(first - t_on / 1000, 9, rows)   # was ~14 (3.55 probe + 4 warm-up + 6 hold)
+        self.assertTrue(all(h and abs(h - 72) <= 3 for h in rows[first:]), rows)
+
+
 class BothClean(TwoClips):
     SECONDS = 20
 
@@ -191,7 +327,7 @@ class Rules(unittest.TestCase):
         per = {"period_ms": 690, "quality": 0.6}
         for p, sig, on, why in (
                 (per, None, 0.9, "no samples"),
-                (per, {**self.GOOD_SIG, "railed": 0.2}, 0.9, "saturated"),
+                (per, {**self.GOOD_SIG, "railed": 0.45}, 0.9, "saturated"),
                 (per, {**self.GOOD_SIG, "dc": 300}, 0.9, "off scale"),
                 ({"period_ms": None, "quality": 0.0}, self.GOOD_SIG, 0.9, "no rhythm"),
                 ({"period_ms": 444, "quality": 0.19}, self.GOOD_SIG, 0.9, "weak rhythm"),

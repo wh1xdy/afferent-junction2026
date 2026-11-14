@@ -66,6 +66,7 @@ def reset():
         app.beats[c].clear()
         app.state["fingers"][c] = None
         app.period_state[c].update(period_ms=None, quality=None, signal=None)
+        app.signal_from[c] = 0
     app.fused.update(bpm=None, period_ms=None, quality=None, sources=[], two_hearts=False)
     app.reset_two_hearts()
     for c in range(app.CHANNELS):

@@ -125,7 +125,7 @@ The unit is quiet by default: it is a silent bedside unit for the morning sessio
 
 | | Time to first value | Accuracy |
 |---|---|---|
-| Finger pulse | ~10 s after a finger is detected: 4 s warm-up, then 6 s steady (pulse guard below) (+ up to ~4 s until the next probe) | fingers agree within ±5 BPM; matches a smartwatch |
+| Finger pulse | ~6 s after a finger is detected: 1.5 s warm-up, the rhythm from the probe's own samples, then 4 s steady (pulse guard below) (+ the 3.55 s probe and up to ~4 s until it starts) | fingers agree within ±5 BPM; matches a smartwatch |
 | Breathing | 25–40 s of steady beats | 6 / 10 / 18 per min recovered exactly (synthetic); 6/min paced breathing on a real person |
 | HRV (RMSSD) | ~60 s | synthetic 14 / 47 / 86 ms → 20 / 48 / 93 ms (45 Hz sampling: small positive bias at low HRV — prefer `vs_baseline`) |
 
@@ -142,11 +142,13 @@ quality limit cannot catch it: a doubled rhythm is a clean rhythm. So the number
 (`PulseGuard` in `modulino-hub/app.py`):
 
 - **New wearing:** after a finger is detected (or 10 s without a trusted value) nothing is known
-  yet. A pulse goes out once it has stayed steady (within 12 %) for **6 s**, counting only values
-  that are measurements (quality ≥ 0.3, a live finger behind it).
+  yet. A resting pulse (45–120 BPM) goes out once it has stayed steady (within 12 %) for **4 s**,
+  anything faster or slower after **10 s** (every double count seen was 150–175 BPM and stayed up
+  to 7 s; the 164s alone span 4 s), counting only values that are measurements (quality ≥ 0.3,
+  a live finger behind it).
 - **Jump to about double or half** (ratio within 15 % of 2) of the last value that went out: held
-  the same way. A return to the old value goes out at once.
-- **Everything else goes out at once**, and a held value that stays steady goes out after 6 s, so a
+  until steady for **6 s**. A return to the old value goes out at once.
+- **Everything else goes out at once**, and a held value that stays steady goes out after its hold, so a
   real change is delayed by a few seconds at most, never blocked. A real rise to double over
   tens of seconds is never held (each step is small).
 - It applies to the fused pulse everywhere it leaves the box: `2A37`, `/state` `finger.bpm` and
@@ -156,11 +158,33 @@ quality limit cannot catch it: a doubled rhythm is a clean rhythm. So the number
 - `/state` `finger.held` says what is held and why: `{"bpm", "reason": "settling"|"double"|"half",
   "steady_s"}`, `null` when nothing is.
 - The limit: from the first contact the box has no other reference, so a doubled pulse that stays
-  steady for more than 6 s goes out like a real one, and the real value after it waits 6 s.
+  steady for more than 10 s goes out like a real one, and the real value after it waits 6 s.
 
 Tested offline with the stored values of that day and with a synthetic finger run through the
 hub end to end (a port of the STM32 beat detector, the real autocorrelation, fusion, Bluetooth
 payloads and data manager hand-over): `tests/test_pulse_guard.py`.
+
+## A clip pressed hard
+
+Seen on 2026-11-15 (Heart Duel): clip 2's sensor is more sensitive than clip 1's. Pressed
+normally its signal climbs to DC 10000–13700 and the top of every beat is flat at the rail
+(~13690), up to 68 % of the samples; it was "saturated" (more than 5 % at a rail) and left out.
+The railed samples are now **missing, not values**: `autocorr` leaves them out of the mean, the
+energy and every product, so the part of each beat below the rail still gives the rhythm (a clip
+without railed samples gives exactly the curve it gave before). The clipping costs quality
+instead: a clip's rhythm quality is multiplied by the share of samples that are not railed
+(`rhythm()`). Up to 40 % railed a clip can still be clean; above that it is "saturated" (not
+trusted next to a clean clip, still used when neither is). The STM32 beat detector already
+ignores railed samples (`RAIL_LO`/`RAIL_HI` in the sketch).
+
+A new finger is also found faster: the rhythm uses the real time span of its samples (a short
+buffer was read as 6 s, which put the period off for the first seconds), a finger found by the
+presence probe is measured from its own settled samples (`signal_from`: the LEDs-off level and
+the power-on transient are left out, so the 4 s warm-up that waited for them is now 1.5 s), and a
+finger just put into an empty clip, whose step keeps the 6 s rhythm at the edge of the range, is
+tried on its last 3.5 s. Offline (`tests/test_clip_trust.py`, `TimeToFirstPulse`) a still finger on
+both clips gives its first pulse after 6 s instead of 11, and 9 s after the sensors switch on in
+the presence flow instead of ~14.
 
 ## One noisy clip
 
@@ -175,8 +199,12 @@ drag a good one down. Each clip is now judged on its own every second (`judge_cl
   (a finger on its own gives 0.6–0.9; the false rhythm about 0.4),
 - the period stays within 12 % over those 3 s,
 - its own beat detector follows that rhythm (at least 6 of its last 8 locked intervals within 20 %),
-- the signal swings (5–95 % of the detrended signal ≥ 200; an empty clip ~50–150), at most 5 % of
-  the samples sit at a rail, and its mean is on scale (1000–14500).
+- the signal swings (5–95 % of the detrended signal ≥ 200; an empty clip ~50–150), at most 40 % of
+  the samples sit at a rail (see "A clip pressed hard"), and its mean is on scale (1000–14500).
+
+These limits were swept against 96 false rhythms (110–150 BPM in noise, next to a finger): quality
+0.4 or 0.45, 5 of 8 beats, a 25 % tolerance or a 2 s hold each let some of the ones caught now
+through, so they stay as they are.
 
 One clean clip next to one that is not: only the clean one is used. The fused pulse, its quality
 (2A37, AFF1 byte 4, `finger.quality`, the data manager) and the combined rhythm sent to the beat
