@@ -77,6 +77,7 @@ docker compose logs -f posture
 | Action | How |
 |---|---|
 | Enroll target face | Dashboard "Enroll target" (or `POST /api/enroll/start` then `/stop`) |
+| Enroll/check face from a photo | `POST /api/enroll/face-image` — raw image bytes; `?mode=match` tests against the gallery without storing (see `/docs`) |
 | Delete all face embeddings | Dashboard "Delete gallery" (or `DELETE /api/gallery`) |
 | Upright reference (10 s stand) | Dashboard "Calibrate upright" (or `POST /api/calibration/upright`) |
 | Floor plane (4 clicks) | Dashboard "Calibrate floor" (or `POST /api/calibration/floor`) |
@@ -147,7 +148,8 @@ works in both cases. With `DEVICE=cuda`, `POSE_MODE` defaults to `balanced` and
 ## API summary
 
 `GET /` dashboard · `GET /stream.mjpg` annotated preview · `GET /api/status` ·
-`POST /api/enroll/start|stop` · `DELETE /api/gallery` ·
+`POST /api/enroll/start|stop` · `POST /api/enroll/face-image?mode=enroll|match&face_index=N` ·
+`DELETE /api/gallery` ·
 `POST /api/calibration/floor|upright` · `POST /api/session/start|stop` ·
 `POST /api/site/{id}` ·
 `GET /api/minutes?since=` · `GET /api/sessions` · `GET /api/days` ·
