@@ -1,5 +1,6 @@
 // Shared loader for the node tests: runs the plain browser scripts of demo/js in a vm context with a manual clock.
-// Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js).
+// Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js),
+// storage (a Map used as localStorage; without it there is none, as in a private window).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -20,9 +21,10 @@ const fakeFinger = () => {
   };
 };
 
-const load = ({ uuid = false, finger = false, vitals = false } = {}) => {
+const load = ({ uuid = false, finger = false, vitals = false, storage = null } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
+  if (storage) ctx.localStorage = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, String(v)); }, removeItem: k => { storage.delete(k); } };
   ctx.navigator = {};
   ctx.location = { search: '', protocol: 'file:', pathname: '/' };
   ctx.addEventListener = () => {};

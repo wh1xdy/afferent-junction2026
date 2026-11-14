@@ -148,6 +148,7 @@
   };
   document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
   document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => show(b.dataset.close, false));
+  document.querySelectorAll('[data-open="settings"], [data-open="signals"]').forEach(b => b.addEventListener('click', () => A.Finger.arm()));
   A.bus.on('crisisOffer', () => { show('offer', true); log('talk offer shown (lowest lantern twice)'); });
   $('offerYes').onclick = () => { show('offer', false); crisis('mood'); };
   $('offerNo').onclick = () => { show('offer', false); log('talk offer declined'); };
@@ -177,7 +178,7 @@
     A.config.sensors[sensor] = el.checked;
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
-    if (sensor === 'pulse_stone') { A.Finger.sync(); if (!el.checked) S.feedPulse({ bpm: null, source: 'finger_ppg' }); }
+    if (sensor === 'pulse_stone') { if (el.checked) A.Finger.arm(); else { A.Finger.sync(); S.feedPulse({ bpm: null, source: 'finger_ppg' }); } }
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   document.querySelectorAll('#sharingSeg button').forEach(b => b.onclick = () => {
@@ -208,6 +209,7 @@
   document.querySelectorAll('#moodEnd .mood-lantern').forEach(b => b.onclick = () => A.session?.setMood(Number(b.dataset.v)));
 
   const begin = async () => {
+    A.Finger.arm();
     A.Audio.on = ui.sound;
     A.Audio.start(0.25);
     A.Input.mode = ui.input;

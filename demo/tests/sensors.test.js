@@ -62,7 +62,7 @@ const tests = {
     assert.strictEqual(S.pulse(A.now()).bpm, 72);
   },
 
-  'd: BLE merge: a 6-byte AFF1 gives a full frame; a 4-byte AFF1 is shown but never drives the game'() {
+  'd: BLE merge: a 6-byte AFF1 gives a full frame; the pulse of a 4-byte AFF1 (no quality) is neither shown nor used'() {
     let { A, tick } = load(), S = A.Sensors;
     connect(A); ble(A);
     assert.deepStrictEqual(plain(S.fingerFrame(A.now())), {
@@ -78,15 +78,21 @@ const tests = {
     assert.strictEqual(S.pulse(A.now()).source, 'simulated');
     S.feedFingerBle(hrm(74));
     assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: 74, quality: 0.6, source: 'finger_ppg', at: 3.1 });
-    tick(3.5);
+    tick(2); S.feedFingerBle(aff6()); tick(1.5);
     const old = plain(S.fingerFrame(A.now()));
-    assert.deepStrictEqual([old.pulse_bpm, old.quality, old.finger_bpm, old.breathing_per_min, old.rmssd_ms, old.presence], [null, null, [null, null], null, null, 'active']);
+    assert.deepStrictEqual([old.pulse_bpm, old.quality, old.finger_bpm, old.presence, old.contact, old.age_s], [null, 0.6, [71, 73], 'active', true, 1.5],
+      'the pulse is 3.5 s old and gone; age_s is the age of the newest value, the AFF1 keepalive');
+    tick(1.6);
+    assert.strictEqual(S.fingerFrame(A.now()), null, 'no notification for 3 s: presence and contact expire with everything else');
+    const silent = plain(S.livePhysio(A.now()));
+    assert.deepStrictEqual([silent.source, silent.presence, silent.contact, silent.pulse_bpm, silent.link], [null, null, null, null, 'connected']);
 
     ({ A, tick } = load()); S = A.Sensors;
     S.enabled.simulator = false;
     connect(A); ble(A, aff4()); tick(1); S.feedFingerBle(hrm());
     const f = plain(S.livePhysio(A.now()));
-    assert.deepStrictEqual([f.quality_reported, f.quality, f.presence, f.pulse_bpm, f.finger_bpm, f.contact], [false, null, null, 72, [71, 73], true]);
+    assert.deepStrictEqual([f.quality_reported, f.quality, f.presence, f.pulse_bpm, f.finger_bpm, f.contact], [false, null, null, null, [71, 73], true],
+      'a pulse without reported quality is not a reading');
     assert.strictEqual(S.pulse(A.now()).bpm, null);
     assert.strictEqual(S.lockPulse(A.now()), 'real');
     assert.strictEqual(S.pulse(A.now()).bpm, null);
@@ -94,28 +100,30 @@ const tests = {
     assert.strictEqual(S.pulse(A.now()).bpm, null, 'the simulator does not fill in for a connected finger sensor');
   },
 
-  'e: presence idle clears the stone; zero readings arrive as null'() {
+  'e: presence idle takes the pulse away; zero readings arrive as null'() {
     const { A, tick } = load(), S = A.Sensors;
     connect(A); ble(A); tick(1); S.feedFingerBle(hrm());
-    assert.strictEqual(S.stone.bpm, 72);
+    assert.strictEqual(S.blePulse(A.now()).bpm, 72);
     S.feedFingerBle(aff6({ presence: 'idle', finger_bpm: [0, 73], breathing_per_min: 0, rmssd_ms: 0 }));
-    assert.strictEqual(S.stone, null);
+    assert.strictEqual(S.blePulse(A.now()), null);
     const f = plain(S.fingerFrame(A.now()));
     assert.deepStrictEqual([f.finger_bpm, f.breathing_per_min, f.rmssd_ms, f.presence, f.contact], [[null, 73], null, null, 'idle', false]);
     S.feedFingerBle(hrm(72));
-    assert.strictEqual(S.stone, null, 'a pulse while the sensor says idle is not used');
-    S.feedFingerBle(aff6()); S.feedFingerBle(hrm(0));
-    assert.strictEqual(S.stone, null);
+    assert.strictEqual(S.blePulse(A.now()), null, 'a pulse while the sensor says idle is not used');
     assert.strictEqual(S.fingerFrame(A.now()).pulse_bpm, null);
+    S.feedFingerBle(aff6()); S.feedFingerBle(hrm(0));
+    assert.strictEqual(S.blePulse(A.now()), null);
+    assert.strictEqual(S.fingerFrame(A.now()).pulse_bpm, null);
+    assert.strictEqual(S.pulse(A.now()).source, 'simulated');
   },
 
   async 'f: Finger drops a reading that is 4 s old, follows the plugin state and stops with the switch'() {
     const { A, plugin } = load({ finger: true }), S = A.Sensors, F = A.Finger;
     assert.ok(F.available());
-    await F.sync();
+    await F.arm();
     assert.deepStrictEqual([plugin.running, plugin.count('state'), plugin.count('reading'), S.fingerLink.state], [true, 1, 1, 'scanning']);
-    await F.sync();
-    assert.strictEqual(plugin.starts, 1, 'sync is idempotent');
+    await F.sync(); await F.arm();
+    assert.strictEqual(plugin.starts, 1, 'sync and arm are idempotent');
     plugin.emit('reading', hrm());
     assert.strictEqual(S.fingerBle, null, 'no reading counts before the link is connected');
     plugin.emit('state', { state: 'connected', name: 'Afferent Finger' });
@@ -134,6 +142,32 @@ const tests = {
     await web.A.Finger.sync();
     assert.strictEqual(web.A.Sensors.fingerLink.state, 'unavailable');
     assert.strictEqual(web.A.Sensors.livePhysio(0), null);
+  },
+
+  async 'f2: Bluetooth is not started (no permission prompt) before the patient reaches Settings, Your signals or a session'() {
+    const storage = new Map();
+    let { A, plugin } = load({ finger: true, storage }), S = A.Sensors, F = A.Finger;
+    assert.strictEqual(F.armed, false);
+    await F.sync();                                    // app launch, and a privacy message from the hub
+    assert.deepStrictEqual([plugin.starts, plugin.count('state'), S.fingerLink.state], [0, 0, 'off'], 'the switch is on by default, yet nothing starts at launch');
+    A.config.sensors.pulse_stone = false;
+    await F.arm();                                     // Settings opened with the switch off
+    assert.deepStrictEqual([plugin.starts, F.armed, storage.get('afferent.finger.asked')], [0, true, '1']);
+    A.config.sensors.pulse_stone = true;
+    await F.sync();
+    assert.deepStrictEqual([plugin.starts, plugin.running, S.fingerLink.state], [1, true, 'scanning']);
+
+    ({ A, plugin } = load({ finger: true, storage })); F = A.Finger;
+    assert.strictEqual(F.armed, true, 'a later launch remembers that the patient has been asked');
+    await F.sync();
+    assert.strictEqual(plugin.starts, 1, 'so the sensor is connected before the session starts');
+
+    const main = fs.readFileSync(path.join(JS, 'main.js'), 'utf8');
+    const arms = main.split('\n').filter(l => l.includes('A.Finger.arm()')).map(l => l.trim());
+    assert.strictEqual(arms.length, 3, arms.join('\n'));
+    assert.ok(arms[0].includes(`[data-open="settings"], [data-open="signals"]`) && arms[0].includes(`addEventListener('click'`), arms[0]);
+    assert.ok(arms[1].includes(`sensor === 'pulse_stone'`) && arms[1].includes('if (el.checked) A.Finger.arm()'), arms[1]);
+    assert.ok(/const begin = async \(\) => \{\n\s+A\.Finger\.arm\(\);/.test(main), 'a session start arms it');
   },
 
   'g: a session is locked to real or simulated pulse at its start'() {
@@ -156,7 +190,7 @@ const tests = {
     run(A, tick, s, 3);
     connect(A);
     run(A, tick, s, 10, () => assert.strictEqual(S.pulse(A.now()).source, 'simulated'), () => ble(A));
-    assert.strictEqual(S.stone.source, 'finger_ppg');
+    assert.strictEqual(S.blePulse(A.now()).source, 'finger_ppg');
     doc = finish(A, s);
     assert.strictEqual(doc.signal.pulse_source, 'simulated');
     assert.strictEqual(doc.vitals.pulse_source, 'simulated');
@@ -359,9 +393,10 @@ const tests = {
 
     S.feedFingerBle(hrm()); S.feedFingerBle(aff4());
     m = V.model(A.now());
-    assert.deepStrictEqual(lines(m)[0], ['Pulse', '72', 'beats per minute', 'Finger sensor']);
+    assert.deepStrictEqual(lines(m)[0], ['Pulse', null, 'No reading right now']);
+    assert.deepStrictEqual(lines(m)[1], ['Finger 1 and finger 2', '71 · 73', 'beats per minute']);
     assert.deepStrictEqual(lines(m).pop(), ['Sensor', null, 'Measuring']);
-    assert.strictEqual(m.note, 'This sensor version does not report signal quality yet, so the game does not use this pulse.');
+    assert.strictEqual(m.note, 'This sensor version does not report signal quality, so its pulse is not shown or used.');
 
     ({ A, tick } = load({ vitals: true })); S = A.Sensors; V = A.Vitals;
     S.feedFingerHub(hubFrame({ source: 'simulated', simulated: true }));
@@ -392,6 +427,151 @@ const tests = {
     assert.strictEqual(V.chip(s, { bpm: null, source: null }), 'no reading');
     assert.strictEqual(V.chip({ ...s, gameMode: 'measure' }, { bpm: 72, source: 'finger_ppg' }), null);
     for (const phase of ['rest', 'checkin', 'rt', 'end']) assert.strictEqual(V.chip({ ...s, phase }, { bpm: 72, source: 'finger_ppg' }), null);
+  },
+
+  'p: Bluetooth: a fused pulse with quality below 0.3, or without reported quality, is not recorded and not a current reading'() {
+    let { A, tick } = load(), S = A.Sensors;
+    S.enabled.simulator = false;
+    connect(A); ble(A);
+    let s = start(A);
+    run(A, tick, s, 10, null, () => { S.feedFingerBle(hrm(72)); S.feedFingerBle(aff6({ quality: 0.6 })); });
+    run(A, tick, s, 10, null, () => { S.feedFingerBle(hrm(143)); S.feedFingerBle(aff6({ quality: 0.12 })); });
+    const live = plain(S.livePhysio(A.now()));
+    assert.deepStrictEqual([live.pulse_bpm, live.quality, live.quality_reported, live.finger_bpm], [null, 0.12, true, [71, 73]], 'the quality is still told, the pulse is not');
+    assert.strictEqual(S.pulse(A.now()).bpm, null);
+    let v = finish(A, s).vitals;
+    assert.deepStrictEqual([v.finger.pulse_bpm.min, v.finger.pulse_bpm.max, v.finger.pulse_bpm.last], [72, 72, 72]);
+    assert.ok(v.finger.pulse_bpm.samples >= 7 && v.finger.pulse_bpm.samples <= 10, `samples ${v.finger.pulse_bpm.samples}`);
+    assert.ok(v.finger.seconds - v.finger.pulse_bpm.samples >= 9, 'the seconds with weak signal have no pulse sample');
+    assert.deepStrictEqual([...new Set(v.series.pulse_bpm)], [72, null]);
+    assert.deepStrictEqual([v.pulse_max_bpm, v.finger.quality.min], [72, 0.12]);
+
+    ({ A, tick } = load()); S = A.Sensors;
+    S.enabled.simulator = false;
+    connect(A); ble(A, aff4());
+    s = start(A);
+    run(A, tick, s, 10, null, () => ble(A, aff4()));
+    v = finish(A, s).vitals;
+    assert.deepStrictEqual([v.finger.quality_reported, v.finger.pulse_bpm.samples, v.finger.finger_1_bpm.mean, v.pulse_mean_bpm], [false, 0, 71, null]);
+    assert.ok(v.series.pulse_bpm.every(x => x === null), v.series.pulse_bpm.join());
+
+    ({ A, tick } = load()); S = A.Sensors;
+    connect(A); S.feedFingerBle(aff6({ quality: null })); S.feedFingerBle(hrm());
+    assert.strictEqual(S.fingerFrame(A.now()).pulse_bpm, null, 'quality byte 255 (not available) is no quality');
+    S.feedFingerBle(aff6()); tick(3.1); S.feedFingerBle(hrm());
+    assert.strictEqual(S.fingerFrame(A.now()).pulse_bpm, null, 'a quality older than 3 s does not vouch for a new pulse');
+  },
+
+  'q: Bluetooth and hub: a usable pulse wins, Bluetooth first; a Bluetooth reading without usable quality never hides the hub pulse'() {
+    let { A, tick } = load(), S = A.Sensors;
+    S.enabled.simulator = false;
+    connect(A);
+    assert.strictEqual(S.lockPulse(A.now()), 'real');
+    let got = 0;
+    const frames = new Set();
+    for (let i = 0; i < 100; i++) {                    // 4-byte firmware over Bluetooth, hub once a second, half a second apart
+      if (i % 2 === 0) { S.feedPulse({ bpm: 72, quality: 0.7, contact: true, source: 'finger_ppg' }); S.feedFingerHub(hubFrame()); }
+      else ble(A, aff4());
+      const p = S.pulse(A.now()), f = S.fingerFrame(A.now());
+      if (p.bpm === 72 && p.source === 'finger_ppg') got++;
+      frames.add(`${f.transport}:${f.pulse_bpm}`);
+      tick(0.5);
+    }
+    assert.strictEqual(got, 100, 'the hub pulse is there in every sample');
+    assert.deepStrictEqual([...frames], ['hub_http:72'], 'and the recorder takes the frame that has the pulse');
+
+    S.feedFingerHub(hubFrame());
+    S.feedFingerBle(hrm(75)); S.feedFingerBle(aff6());
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: 75, quality: 0.6, source: 'finger_ppg', at: A.now() }, 'both usable: Bluetooth, straight from the sensor');
+    assert.deepStrictEqual([S.fingerFrame(A.now()).transport, S.fingerFrame(A.now()).pulse_bpm], ['ble', 75]);
+    S.feedFingerBle(aff6({ quality: 0.1 }));
+    assert.strictEqual(S.pulse(A.now()).bpm, 72, 'Bluetooth quality dropped: the hub pulse is used');
+    assert.strictEqual(S.fingerFrame(A.now()).transport, 'hub_http');
+    S.setFingerLink('scanning');
+    assert.strictEqual(S.pulse(A.now()).bpm, 72, 'losing the Bluetooth link does not clear the hub pulse');
+    S.feedFingerHub(hubFrame({ pulse_bpm: 72, quality: 0.2 }));
+    assert.deepStrictEqual([S.pulse(A.now()).bpm, S.fingerFrame(A.now()).pulse_bpm, S.fingerFrame(A.now()).quality], [null, null, 0.2], 'the phone applies the 0.3 rule to the hub path too');
+    S.feedFingerHub(hubFrame({ quality: null, quality_reported: false }));
+    assert.deepStrictEqual([S.pulse(A.now()).bpm, S.fingerFrame(A.now()).pulse_bpm], [null, null]);
+
+    ({ A, tick } = load()); S = A.Sensors;
+    S.enabled.simulator = false;
+    connect(A); ble(A);
+    const s = start(A);
+    run(A, tick, s, 4, null, () => ble(A));
+    run(A, tick, s, 12, null, () => { ble(A, aff6({ quality: 0.1 })); S.feedFingerHub(hubFrame()); });
+    const v = finish(A, s).vitals;
+    assert.deepStrictEqual([v.finger.source, v.finger.transport, v.finger.pulse_bpm.mean], ['finger_ppg', 'hub_http', 72], 'the transport label is the path most of the readings came over');
+
+    ({ A, tick } = load()); S = A.Sensors;
+    connect(A); ble(A, aff6({ quality: 0.1 }));
+    S.feedFingerHub(hubFrame({ source: 'simulated', simulated: true }));
+    assert.deepStrictEqual([S.fingerFrame(A.now()).source, S.fingerFrame(A.now()).transport], ['finger_ppg', 'ble'], 'a simulated hub frame never takes the place of the real sensor');
+  },
+
+  'r: hub path: 3 s is counted from the age of the value, not from when the message arrived'() {
+    const { A, tick } = load(), S = A.Sensors;
+    S.enabled.simulator = false;
+    S.feedFingerHub(hubFrame({ pulse_bpm: 70, age_s: 2.9 }));
+    assert.deepStrictEqual([S.pulse(A.now()).bpm, S.fingerFrame(A.now()).pulse_bpm, S.fingerFrame(A.now()).age_s], [70, 70, 2.9]);
+    tick(0.2);
+    const f = plain(S.fingerFrame(A.now()));
+    assert.deepStrictEqual([f.pulse_bpm, f.age_s, f.finger_bpm, f.presence], [null, 3.1, [71, 73], 'active'], 'the rest of the frame stands for 3 s after it arrived');
+    assert.strictEqual(S.pulse(A.now()).bpm, null);
+    S.feedFingerHub(hubFrame({ pulse_bpm: 70, age_s: 3 }));
+    assert.deepStrictEqual([S.fingerFrame(A.now()).pulse_bpm, S.pulse(A.now()).bpm], [null, null]);
+    S.feedFingerHub(hubFrame({ age_s: null }));
+    tick(2.9);
+    assert.strictEqual(S.fingerFrame(A.now()).pulse_bpm, 72);
+    tick(0.2);
+    assert.strictEqual(S.fingerFrame(A.now()), null);
+  },
+
+  's: a hub frame flagged simulated is simulated on the phone whatever its source says'() {
+    const { A, tick } = load(), S = A.Sensors;
+    S.feedFingerHub(hubFrame({ source: 'finger_ppg', simulated: true }));
+    const f = plain(S.fingerFrame(A.now()));
+    assert.deepStrictEqual([f.source, f.simulated], ['simulated', true]);
+    assert.strictEqual(S.fingerAttached(A.now()), false);
+    assert.strictEqual(S.lockPulse(A.now()), 'simulated');
+    assert.strictEqual(S.pulse(A.now()).source, 'simulated');
+    S.unlockPulse();
+    const s = start(A);
+    run(A, tick, s, 6, null, () => S.feedFingerHub(hubFrame({ source: 'finger_ppg', simulated: true })));
+    const doc = finish(A, s);
+    assert.deepStrictEqual([doc.vitals.finger.source, doc.signal.pulse_source], ['simulated', 'simulated']);
+    for (const k of ['vitals', 'vitals.finger', 'vitals.breathing', 'vitals.hrv', 'vitals.series', 'signal.pulse_source']) assert.ok(doc.simulated_fields.includes(k), k);
+  },
+
+  't: Bluetooth RMSSD 255 means above the range of the byte, not 255 ms'() {
+    const { A } = load(), S = A.Sensors;
+    connect(A); S.feedFingerBle(hrm()); S.feedFingerBle(aff6({ rmssd_ms: 254 }));
+    assert.strictEqual(S.fingerFrame(A.now()).rmssd_ms, 254);
+    S.feedFingerBle(aff6({ rmssd_ms: 255 }));
+    assert.strictEqual(S.fingerFrame(A.now()).rmssd_ms, null);
+    S.feedFingerBle(aff6({ rmssd_ms: null }));
+    assert.strictEqual(S.fingerFrame(A.now()).rmssd_ms, null);
+  },
+
+  'u: the session takes home and visitors from Home and visitors and marks a simulated one'() {
+    let { A, tick } = load();
+    let s = start(A);
+    run(A, tick, s, 2);
+    assert.deepStrictEqual([finish(A, s).context.home, A.Presence], [null, undefined], 'not loaded: null, never a guess');
+    ({ A, tick } = load());
+    A.Presence = { sessionContext: () => ({ home: true, visitors_present: 2, simulated: false }) };
+    s = start(A);
+    run(A, tick, s, 2);
+    let doc = finish(A, s);
+    assert.deepStrictEqual([doc.context.home, doc.context.visitors_present], [true, 2]);
+    assert.ok(!doc.simulated_fields.some(f => f.startsWith('context.')));
+    ({ A, tick } = load());
+    A.Presence = { sessionContext: () => ({ home: true, visitors_present: 0, simulated: true }) };
+    s = start(A);
+    run(A, tick, s, 2);
+    doc = finish(A, s);
+    assert.deepStrictEqual([doc.context.home, doc.context.visitors_present], [true, 0]);
+    for (const f of ['context.home', 'context.visitors_present']) assert.ok(doc.simulated_fields.includes(f), f);
   },
 
   'o: a fresh finger notification tells Home and visitors the bedside unit is in range; a stale one does not'() {

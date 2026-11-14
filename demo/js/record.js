@@ -106,7 +106,7 @@
 
   const SERIES_STEP_S = 5, SERIES_MAX = 240;
   const physioTrack = t0 => ({
-    t0, next: t0, seconds: 0, rows: [], cam: [], pres: { idle: 0, probing: 0, active: 0 }, presSeen: false, meta: null, qualityReported: false, otherSource: 0,
+    t0, next: t0, seconds: 0, rows: [], cam: [], pres: { idle: 0, probing: 0, active: 0 }, presSeen: false, meta: null, qualityReported: false, otherSource: 0, via: {},
     series: { t_s: [], pulse_bpm: [], breathing_per_min: [], rmssd_ms: [] },
     frame(now, f, c) {
       if (now < this.next) return;
@@ -115,6 +115,7 @@
       if (f && this.meta && f.source !== this.meta.source) { this.otherSource++; f = null; }
       if (f) {
         this.meta = this.meta || { source: f.source, transport: f.transport };
+        this.via[f.transport] = (this.via[f.transport] || 0) + 1;
         this.qualityReported = this.qualityReported || !!f.quality_reported;
         this.rows.push({ pulse: f.pulse_bpm, q: f.quality, f1: f.finger_bpm?.[0] ?? null, f2: f.finger_bpm?.[1] ?? null, br: f.breathing_per_min, rmssd: f.rmssd_ms, sdnn: f.sdnn_ms, vsb: f.rmssd_vs_baseline });
         if (f.presence in this.pres) { this.pres[f.presence]++; this.presSeen = true; }
@@ -131,7 +132,7 @@
       const labels = { reliable: 0, uncertain: 0, unreliable: 0 };
       for (const x of this.cam) if (x.label in labels) labels[x.label]++;
       const finger = !this.rows.length ? null : {
-        source: src, transport: this.meta.transport, quality_reported: this.qualityReported, seconds: this.seconds,
+        source: src, transport: Object.entries(this.via).sort((a, b) => b[1] - a[1])[0]?.[0] ?? this.meta.transport, quality_reported: this.qualityReported, seconds: this.seconds,
         pulse_bpm: stat(col('pulse')), quality: stat(col('q'), r2), finger_1_bpm: stat(col('f1')), finger_2_bpm: stat(col('f2')),
         fingers_abs_diff_bpm: diff.length ? r1(mean(diff)) : null,
         presence_s: this.presSeen ? { ...this.pres } : null,
