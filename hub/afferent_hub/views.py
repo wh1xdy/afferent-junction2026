@@ -1,6 +1,7 @@
 import datetime as dt
 
-PLAYED = ("completed", "partial", "fell_asleep")
+from .analytics.features import PLAYED
+
 STATE_ORDER = {"booster": 0, "check_in": 1, "watch": 2, "stable": 3}
 WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 MOOD_HEX = {1: "#34476E", 2: "#5A7CA6", 3: "#A9A79A", 4: "#E8B867", 5: "#FFCB5C"}
@@ -71,9 +72,8 @@ def tms_end(patient: dict) -> dt.date:
     return dt.date.fromisoformat(patient["tms_end_date"])
 
 
-def now_day(patient: dict, today: dt.date | None = None) -> int:
-    today = today or dt.date.today()
-    return max(0, (today - tms_end(patient)).days)
+def now_day(patient: dict) -> int:
+    return max(0, (dt.date.today() - tms_end(patient)).days)
 
 
 def day_date(patient: dict, day: int) -> dt.date:
@@ -108,8 +108,8 @@ def session_added(s: dict) -> dict:
                                  "rt_median_ms", "mood_start", "mood_end")}}
 
 
-def day_sessions(sessions: list[dict], day: int, played_only: bool = True) -> list[dict]:
-    return [s for s in sessions if s.get("day_index") == day and (not played_only or s.get("status") in PLAYED)]
+def day_sessions(sessions: list[dict], day: int) -> list[dict]:
+    return [s for s in sessions if s.get("day_index") == day and s.get("status") in PLAYED]
 
 
 def patient_row(patient: dict, analytics: dict, sessions: list[dict], flags: list[dict], live: bool) -> dict:

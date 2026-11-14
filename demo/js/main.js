@@ -8,6 +8,7 @@
   const speed = Math.max(0.1, Number(q.get('speed')) || 1);
   const t0 = performance.now();
   A.now = () => (performance.now() - t0) / 1000 * speed;
+  A.fromPerf = ms => (ms - t0) / 1000 * speed;
 
   const saved = store.get('afferent.settings') || {};
   const deviceId = store.get('afferent.device') || 'inst-' + Math.random().toString(16).slice(2, 8);
@@ -22,6 +23,9 @@
     simulator: saved.simulator ?? true,
     quietNight: saved.quietNight ?? true,
     checkin: saved.checkin ?? true,
+    forceTask: q.get('task') || null,
+    forceK: q.has('k') ? Number(q.get('k')) : null,
+    forceRide: q.get('ride') || null,
   };
   const S = A.Sensors;
   const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
@@ -268,7 +272,7 @@
     a.click();
   };
 
-  document.addEventListener('visibilitychange', () => { if (document.hidden && A.session && !A.session.done) A.session.pauses++; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && A.session && !A.session.done) { A.session.pauses++; A.Skill?.save(); } });
 
   ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
   A.bus.on('segment', id => {

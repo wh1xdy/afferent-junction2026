@@ -4,9 +4,9 @@ from . import stats
 from .features import PLAYED, get
 
 MODE_ARMS = {
-    "calm": ["breath", "loyly"],
-    "wake": ["fireflies", "beacon", "bells"],
-    "fatigue": ["shutters", "bells", "beacon"],
+    "calm": ["breath", "loyly", "stars"],
+    "wake": ["fireflies", "beacon", "bells", "shutters"],
+    "fatigue": ["shutters", "bells", "beacon", "fireflies"],
     "rest": ["breath"],
 }
 FLOW = ["threads", "stars"]
@@ -21,6 +21,8 @@ DRAWS = 4000
 SEED = 0
 WEIGHT_FLOOR = 0.05
 BEST_TARGET = 0.8
+NEXT_DAY_MIN_N = 5
+NEXT_DAY_TASKS = 4
 
 
 def task_instances(sessions: list[dict]):
@@ -134,7 +136,7 @@ def immediate(sessions: list[dict]) -> list[dict]:
     return out
 
 
-def next_day(main_sessions: list, daily: dict, composite: list, now_day: int, min_n: int = 5, max_tasks: int = 4) -> list[dict]:
+def next_day(main_sessions: list, daily: dict, composite: list, now_day: int) -> list[dict]:
     n = now_day + 1
     mood_next = [get(main_sessions[d + 1], "core", "mood_start") if d + 1 < n and main_sessions[d + 1] else None
                  for d in range(n)]
@@ -147,7 +149,7 @@ def next_day(main_sessions: list, daily: dict, composite: list, now_day: int, mi
         with_c = [comp_delta[d] for d in range(n) if has[d] is True]
         without_c = [comp_delta[d] for d in range(n) if has[d] is False]
         nw, nwo = len(stats.clean(with_m)), len(stats.clean(without_m))
-        if nw < min_n or nwo < min_n:
+        if nw < NEXT_DAY_MIN_N or nwo < NEXT_DAY_MIN_N:
             return None
         mw, mwo = stats.mean(with_m), stats.mean(without_m)
         cw, cwo = stats.mean(with_c), stats.mean(without_c)
@@ -166,7 +168,7 @@ def next_day(main_sessions: list, daily: dict, composite: list, now_day: int, mi
         row = compare("task", a, LABELS[a], has)
         if row:
             tasks.append(row)
-    tasks = sorted(sorted(tasks, key=lambda r: -r["n_with"])[:max_tasks], key=lambda r: -(r["mood_diff"] or 0))
+    tasks = sorted(sorted(tasks, key=lambda r: -r["n_with"])[:NEXT_DAY_TASKS], key=lambda r: -(r["mood_diff"] or 0))
     light = [None] * n
     for d in range(n):
         m = get(daily.get(d), "bedside_light", "morning_light_min")

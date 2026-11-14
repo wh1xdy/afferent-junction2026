@@ -7,7 +7,7 @@
     base: (qs.get('hub') || (location.protocol.startsWith('http') ? location.origin : '')).replace(/\/$/, ''),
     fixtures: qs.has('fixtures'),
     list: null, analytics: {}, detail: {}, summary: {}, missing: {}, validation: null,
-    live: {}, ui: { feature: null, filter: 'all', q: '', theme: readTheme() }, route: null, ws: null, stamp: '',
+    ui: { feature: null, filter: 'all', q: '', theme: readTheme() }, route: null, ws: null, stamp: '',
   };
   C.state = S;
   const FX = '/contracts/fixtures/';
@@ -176,15 +176,12 @@
         if (m.patients && S.list) { S.list.patients = m.patients; if (m.now_day != null) S.list.now_day = m.now_day; touchStamp(); if (S.route.name === 'patients') renderList(); }
         break;
       case 'session_started': {
-        S.live[m.patient_id] = { active: true, at: Date.now() };
         const row = S.list?.patients.find((p) => p.id === m.patient_id);
         if (row) row.live_now = true;
         break;
       }
       case 'session_interrupted':
       case 'session_added': {
-        const L = S.live[m.patient_id];
-        if (L) L.active = false;
         const row = S.list?.patients.find((p) => p.id === m.patient_id);
         if (row) row.live_now = false;
         refreshDetail(m.patient_id);
@@ -211,7 +208,7 @@
         if (S.detail[m.patient_id]) { S.detail[m.patient_id].privacy = m.privacy; if (S.route.name === 'patients' && selectedId() === m.patient_id) renderDetail(); }
         break;
       case 'demo_reset':
-        S.analytics = {}; S.detail = {}; S.summary = {}; S.live = {};
+        S.analytics = {}; S.detail = {}; S.summary = {};
         boot(true);
         break;
     }

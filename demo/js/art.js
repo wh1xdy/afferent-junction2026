@@ -56,7 +56,6 @@
 
     has: n => !!store[n],
     aspect: n => store[n].w / store[n].h,
-    image: n => store[n] && store[n].colour,
 
     bake(key, src, w, h, paint) {
       const s = store[src];

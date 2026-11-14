@@ -3,12 +3,7 @@ import json
 import uuid
 from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
-
 from afferent_hub import qr
-from afferent_hub.main import create_app
-from afferent_hub.settings import Settings
 from afferent_hub.views import SAFETY_KEYS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,13 +13,6 @@ FORBIDDEN = {"phq9", "phq9_9", "cssrs", "items", "item9", "display_name", "patie
 TOP = {"v", "sim", "generated_iso", "period", "mornings", "state", "composite", "contrib", "cusum", "weekly",
        "baseline", "phq", "safety", "talk", "complete", "pauses", "sensors"}
 SAFETY_FIELDS = {"day", "minute", "tier", "source", "screen", "c6_repeat"}
-
-
-@pytest.fixture()
-def client(tmp_path):
-    app = create_app(Settings(db=str(tmp_path / "t.db"), bedside="ws", validation=False))
-    with TestClient(app) as c:
-        yield c
 
 
 def keys(obj, top=True):

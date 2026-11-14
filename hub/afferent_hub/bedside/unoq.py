@@ -17,7 +17,6 @@ class UnoQSerial:
         self.baud = baud
         self.reconnect_s = reconnect_s
         self.connected = False
-        self.fw: str | None = None
         self._serial = None
         self._write_lock = threading.Lock()
         self._stop = threading.Event()
@@ -86,8 +85,6 @@ class UnoQSerial:
                         raw, buf = buf.split(b"\n", 1)
                         msg = parse_line(raw.decode("ascii", "replace"))
                         if msg:
-                            if msg["type"] == "hello":
-                                self.fw = msg.get("fw")
                             self._dispatch(msg)
             except Exception as e:
                 if self.connected:

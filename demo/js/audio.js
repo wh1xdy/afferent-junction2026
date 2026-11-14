@@ -45,11 +45,6 @@
       this.crackle(false);
     },
 
-    muffle(amount) {
-      if (!this.ctx) return;
-      this.lp.frequency.setTargetAtTime(12000 - amount * 11300, this.ctx.currentTime, 0.4);
-    },
-
     tone(freq, dur, vel, type = 'sine', when = 0) {
       if (!Number.isFinite(freq) || !this.ctx) return;
       const ctx = this.ctx, t = ctx.currentTime + when;

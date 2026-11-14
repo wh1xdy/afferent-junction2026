@@ -23,9 +23,9 @@ def mad(values: Sequence) -> float | None:
     return float(np.median(np.abs(np.asarray(xs) - m)))
 
 
-def quantiles(values: Sequence, qs=(25, 75)) -> list[float] | None:
+def quantiles(values: Sequence) -> list[float] | None:
     xs = clean(values)
-    return [float(np.percentile(xs, q)) for q in qs] if xs else None
+    return [float(np.percentile(xs, q)) for q in (25, 75)] if xs else None
 
 
 def baseline(series: Sequence, floor: float, *, days: int = 14, min_obs: int = 7, now_day: int | None = None) -> dict:

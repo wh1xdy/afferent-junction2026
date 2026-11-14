@@ -229,15 +229,14 @@ def timeline_block(sc: dict, now_day: int, day0) -> dict:
     }
 
 
-def analyze_patient(sessions: list[dict], daily: list[dict], now_day: int, *, patient_id: str | None = None,
-                    tms_end_date: str | None = None, generated_iso: str | None = None) -> dict:
+def analyze_patient(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
     sessions = [s for s in sessions or [] if isinstance(s, dict)]
     daily = [r for r in daily or [] if isinstance(r, dict)]
     params = PARAMS
     sc = score(sessions, daily, now_day, params)
     now_day = sc["now_day"]
-    day0 = dt.date.fromisoformat(tms_end_date) if tms_end_date else infer_day0(sessions, daily)
-    pid = patient_id or next((x.get("patient_id") for x in sessions + daily if x.get("patient_id")), None)
+    day0 = infer_day0(sessions, daily)
+    pid = next((x.get("patient_id") for x in sessions + daily if x.get("patient_id")), None)
     cus = cusum_block(sc, day0, params)
     comp = composite_block(sc, now_day, params)
     reasons = [r["label"] for r in comp["contributions"] if (r["contribution"] or 0) > 0][:3]
@@ -248,7 +247,7 @@ def analyze_patient(sessions: list[dict], daily: list[dict], now_day: int, *, pa
         "patient_id": pid,
         "now_day": now_day,
         "date": day_date(day0, now_day),
-        "generated_iso": generated_iso,
+        "generated_iso": None,
         "simulated": any(bool(x.get("simulated")) for x in sessions + daily),
         "params": {**params, "thresholds": dict(params["thresholds"])},
         "state": state,

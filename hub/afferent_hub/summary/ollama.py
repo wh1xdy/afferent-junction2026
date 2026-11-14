@@ -33,13 +33,13 @@ def pick_model(names: list[str]) -> str | None:
     return gemma[0] if gemma else None
 
 
-def discover(force: bool = False) -> str | None:
+def discover() -> str | None:
     override = os.environ.get("AFFERENT_GEMMA_MODEL")
     if override:
         return override
     url = base_url()
     now = time.monotonic()
-    if not force and _discovery["url"] == url and now - _discovery["at"] < DISCOVERY_TTL_S:
+    if _discovery["url"] == url and now - _discovery["at"] < DISCOVERY_TTL_S:
         return _discovery["model"]
     try:
         tags = _request(f"{url}/api/tags", timeout=TAGS_TIMEOUT_S)

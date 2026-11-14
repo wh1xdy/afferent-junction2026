@@ -19,6 +19,8 @@ art/raw/
 .env
 art/spend.json
 art/batch.log
+art/.spend.lock
+__pycache__/
 hub/.venv/
 hub/data/
 demo/design/

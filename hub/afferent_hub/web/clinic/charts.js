@@ -1,6 +1,5 @@
 (() => {
   const C = (window.C = window.C || {});
-  let uid = 0;
 
   const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   C.css = css;
