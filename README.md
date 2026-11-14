@@ -173,6 +173,15 @@ token. Missing or wrong token → 401. `/health` answers `{"ok": true}` to anyon
 `?demo=1` (synthetic 14-day patient, built in memory per request) needs no token, is read-only and never
 opens the real database. The hub speaks plain HTTP, so keep it on the mesh / a `wendy net forward`.
 
+**Input rules** — a write can never break the reads. `ts` (optional) is unix time in **seconds**, at most
+a day ahead of the hub's clock; milliseconds, strings and far-future times get a 400. `NaN`, `Infinity`
+and `1e999` are not JSON here (400). In a session, `summary` / `cameraPulse` / `breathing` must be objects
+and `events` a list of objects (400 otherwise); a single metric that is not a number is stored as missing.
+PHQ-9 answers are nine integers 0–3. Entries an older hub stored with an unreadable timestamp are left
+out of the numbers and counted in `summary.unreadable`; the clinician report says so, and item 9 above 0
+in such an entry is still raised. Anything else that fails inside the hub is answered with a 500 and one
+log line (route, exception class, file:line — never the request's contents).
+
 Tests: `cd jetson/hub && python3 -m unittest discover tests -v`.
 
 **Instant summary** — the summary box in the clinician report, and `POST /ask` for overview questions

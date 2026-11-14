@@ -170,8 +170,10 @@ class BadWrites(ReadsCase):
         for days in (7, "7", 7.9, 0, -3, 10 ** 30):                          # clamped to 1..90 as before
             r = call("POST", "/ask", token=self.C, body={"question": "Summarise this period", "days": days})
             self.assertEqual(r.status, 200, days)
-        for q in ("nan", "inf", "1e999", "", "9" * 5000, "%5B1%5D"):
+        for q in ("nan", "inf", "1e999", "", "%5B1%5D"):
             self.assertEqual(call("GET", f"/summary?days={q}", token=self.C).status, 400, q[:10])
+        # 5000 digits: clamped to 90 days, or refused where Python limits int() (3.11+); answered either way
+        self.assertIn(call("GET", f"/summary?days={'9' * 5000}", token=self.C).status, (200, 400))
 
 
 class StoredBefore(ReadsCase):
