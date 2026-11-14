@@ -4,3 +4,4 @@ graphify-out/
 art/raw/
 .env
 art/spend.json
+__pycache__/
