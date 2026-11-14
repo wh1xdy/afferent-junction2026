@@ -227,6 +227,28 @@
 .set-group.dev.open .group { display: flex; }
 .set-group.dev.open .dev-toggle .ms { transform: rotate(180deg); }
 .research { margin: 16px 32px 0; }
+/* Settings opens on a list of categories; each slides its own page in from the right over the list (gui/shell.js) and
+   goes back the same way, by its arrow or a swipe from the left edge (gui/swipe.js). */
+.set-cats { margin-top: 8px; }
+.set-cat .sup { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.set-page { z-index: 2; background: var(--af-grain), var(--md-sys-color-surface); background-size: var(--af-grain-size), auto; color: var(--md-sys-color-on-surface);
+  box-shadow: -16px 0 32px rgba(3, 8, 20, 0.16); animation: pageIn var(--af-dur-enter) var(--af-ease-in); }
+.set-page.instant { animation: none; }
+.set-page .title:focus { outline: none; }
+@keyframes pageIn { from { transform: translateX(100%); } to { transform: none; } }
+/* Home hub: the address with a Paste button, and what the hub says under it */
+.set-page .set-group:first-child > .group:first-child { margin-top: 16px; }
+.hub-card { display: flex; flex-direction: column; gap: 10px; padding: 22px 16px 12px; }
+.hub-row { display: flex; align-items: center; gap: 8px; }
+.hub-row .field { flex: 1; min-width: 0; }
+.hub-card .field label { background: var(--md-sys-color-surface-container); }
+.hub-row .btn { flex: none; height: 56px; padding: 0 18px; }
+.hub-state { margin: 0 4px; display: flex; align-items: center; gap: 10px; color: var(--md-sys-color-on-surface); }
+.hub-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--md-sys-color-outline); }
+.hub-state[data-state="on"]::before { background: var(--md-sys-color-stable); box-shadow: 0 0 8px color-mix(in srgb, var(--md-sys-color-stable) 60%, transparent); }
+.hub-state[data-state="warn"]::before { background: var(--md-sys-color-watch); }
+.hub-help { margin: 0 4px; }
+.hub-actions { display: flex; justify-content: flex-end; }
 /* The version line; 7 taps or a long press on it shows the Developer section (gui/shell.js). Reads as plain text. */
 .app-version { display: block; margin: 4px 24px 0; padding: 4px 8px; min-height: 32px; border: 0; background: none; text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 
@@ -272,12 +294,12 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 :root[data-motion="reduced"] .kindle, :root[data-motion="reduced"] .start .start-scrim::before, :root[data-motion="reduced"] .kindle-halo, :root[data-motion="reduced"] .kindle-label.nudge, :root[data-motion="reduced"] .checkin-chip .dot, :root[data-motion="reduced"] .start .top-bar, :root[data-motion="reduced"] .start .dock { animation: none; }
-:root[data-motion="reduced"] .talk, :root[data-motion="reduced"] .settings, :root[data-motion="reduced"] #info .sheet, :root[data-motion="reduced"] #signals .sheet { animation: fadeIn 150ms linear; }
+:root[data-motion="reduced"] .talk, :root[data-motion="reduced"] .settings, :root[data-motion="reduced"] #info .sheet, :root[data-motion="reduced"] #signals .sheet, :root[data-motion="reduced"] .set-page:not(.instant) { animation: fadeIn 150ms linear; }
 :root[data-motion="reduced"] .end-sheet, :root[data-motion="reduced"] .mood-row, :root[data-motion="reduced"] .end-night, :root[data-motion="reduced"] .cue { transform: none !important; }
 :root[data-motion="reduced"] .cue { filter: none; }
 @media (prefers-reduced-motion: reduce) {
   .kindle, .start .start-scrim::before, .kindle-halo, .kindle-label.nudge, .checkin-chip .dot, .start .top-bar, .start .dock { animation: none; }
-  .talk, .settings, #info .sheet, #signals .sheet { animation: fadeIn 150ms linear; }
+  .talk, .settings, #info .sheet, #signals .sheet, .set-page:not(.instant) { animation: fadeIn 150ms linear; }
   .end-sheet, .mood-row, .end-night, .cue { transform: none !important; }
   .cue { filter: none; }
 }

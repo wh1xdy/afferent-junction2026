@@ -15,8 +15,9 @@
     if (r.static) return `<div class="li static${two}">${lead(r)}${text(r)}${r.val != null ? `<span class="val"${r.valId ? ` id="${r.valId}"` : ''}>${r.val}</span>` : ''}</div>`;
     return `<button type="button" class="li state${two}" ${r.attrs || ''}>${lead(r)}${text(r)}${r.val != null ? `<span class="val">${r.val}</span>` : ''}${r.chevron ? '<span class="ms trail" aria-hidden="true">chevron_right</span>' : ''}</button>`;
   };
+  const head = g => `<h3 class="subhead t-label">${g.title}${g.hint ? `<button type="button" class="icon-btn state" aria-label="${g.hint}" title="${g.hint}" data-hint><span class="ms">info</span></button>` : ''}</h3>`;
   const group = g => `<section class="set-group"${g.id ? ` id="${g.id}"` : ''}>
-    <h3 class="subhead t-label">${g.title}${g.hint ? `<button type="button" class="icon-btn state" aria-label="${g.hint}" title="${g.hint}" data-hint><span class="ms">info</span></button>` : ''}</h3>
+    ${g.bare ? '' : head(g)}
     <div class="group">${g.rows.map(row).join('')}</div>
   </section>`;
 
@@ -25,8 +26,17 @@
   const DEV_KEY = 'afferent.dev';
   const dev = q.has('dev');
   let devShown = dev || (() => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch { return false; } })();
+  // Settings opens on a short list of categories (PAGES); each opens its own page from the right with these groups on it.
+  // Every row lives on exactly one page. presence.js adds its group after Sensors, onboard.js fills Mornings.
   const GROUPS = [
-    { title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
+    { page: 'sound', title: 'Sound and light', rows: [
+      { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
+      { icon: 'touch_app', label: 'Vibration', sup: 'Soft touches as you play', sw: 'id="hapticSw"' },
+      { icon: 'favorite', label: 'Heartbeat touch', sup: 'A soft beat at your own pulse in calm moments', sw: 'id="beatSw"' },
+      { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
+      { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
+    ] },
+    { page: 'sensors', id: 'sensorsGroup', title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
       { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
       { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
@@ -34,40 +44,48 @@
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
-    { title: 'While you play', rows: [
+    { page: 'sensors', title: 'While you play', rows: [
       { icon: 'vital_signs', label: 'Live vitals', sup: 'Your pulse and breathing in a corner, and why the games change', sw: 'id="vitalsSw"' },
     ] },
-    { title: 'Before a session', rows: [
+    { page: 'session', title: 'Before a session', rows: [
       { icon: 'back_hand', label: 'Check the finger clips', sup: 'Not checked yet', supId: 'clipState', attrs: 'id="clipCheckRow"', chevron: true },
       { icon: 'checklist', label: 'Ask before each session', sup: 'Only when the clips give no pulse yet', sw: 'id="clipAskSw"' },
     ] },
-    { title: 'Together', rows: [
+    { page: 'session', title: 'Together', rows: [
       { icon: 'favorite', label: 'Heart Duel', sup: 'Two people, one clip each. A game outside your sessions, nothing is saved', attrs: 'data-duel', chevron: true },
     ] },
-    { title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
+    { page: 'mornings', id: 'morningsGroup', title: 'Mornings', rows: [] },
+    { page: 'mornings', title: 'Check-in', hint: 'Nine short questions every 14 days, in the daytime. Your clinic will see your answers.', rows: [
+      { icon: 'checklist', label: 'Check-in', sup: 'Every 14 days', sw: 'id="checkinSw"' },
+    ] },
+    { page: 'clinic', title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
       { icon: 'ios_share', label: 'Show to my doctor', href: 'patient.html#settings', id: 'qrBtn' },
       { icon: 'insights', label: 'Clinic dashboard', sup: 'Wi-Fi + link', href: 'patient.html#share', id: 'exportBtn' },
-      { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
       // Plain text, not a one-option control: a summary is the only kind of export there is.
       { icon: 'description', label: 'What is in an export', sup: 'A summary: lanterns, play times, sensor numbers', supId: 'sharingState', static: true },
     ] },
-    { title: 'Check-in', hint: 'Nine short questions every 14 days, in the daytime. Your clinic will see your answers.', rows: [
-      { icon: 'checklist', label: 'Check-in', sup: 'Every 14 days', sw: 'id="checkinSw"' },
-    ] },
-    { id: 'morningsGroup', title: 'Mornings', rows: [] },
-    { title: 'Sound and light', rows: [
-      { icon: 'volume_up', label: 'Sound', sw: 'id="soundSw"' },
-      { icon: 'touch_app', label: 'Vibration', sup: 'Soft touches as you play', sw: 'id="hapticSw"' },
-      { icon: 'nightlight', label: 'Dim light', sup: 'At night: dimmer colours, bedside LED at most 25%', sw: 'id="quietSw"' },
-      { icon: 'motion_photos_off', label: 'Reduced motion', sw: 'id="motionSw"' },
-      { icon: 'favorite', label: 'Heartbeat touch', sup: 'A soft beat at your own pulse in calm moments', sw: 'id="beatSw"' },
-    ] },
-    { title: 'Help', rows: [
+    // The address comes from the hub screen and is long (it carries the hub's key after /k/), so it can be pasted in one tap.
+    { page: 'hub', title: 'Home hub', bare: true, rows: [{ html: `<form id="hubForm" class="hub-card">
+      <div class="hub-row"><div class="field"><input id="hubAddr" type="text" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20:8000/k/…"><label for="hubAddr">Hub address</label></div><button type="button" id="hubPaste" class="btn tonal small state">Paste</button></div>
+      <p id="hubState" class="hub-state t-body-m" role="status" data-state="none">Not set</p>
+      <p class="t-body-s muted hub-help">The address is on the hub screen. It ends in /k/ and a code.</p>
+      <div class="hub-actions"><button class="btn filled small state" type="submit">Connect</button></div>
+    </form>` }] },
+    { page: 'about', title: 'Help', rows: [
       { icon: 'info', label: 'How it works', attrs: 'data-open="info"' },
       { icon: 'ecg_heart', label: 'Your signals', attrs: 'data-open="signals"' },
       { glyph: G.lantern(null), label: 'The lanterns', attrs: 'data-anchor' },
       { glyph: G.laminate(), label: 'Your mornings', href: 'patient.html', id: 'weekBtn' },
     ] },
+  ];
+  const PAGES = [
+    { id: 'sound', icon: 'volume_up', title: 'Sound and feel' },
+    { id: 'sensors', icon: 'sensors', title: 'Sensors' },
+    { id: 'session', icon: 'back_hand', title: 'Sessions' },
+    { id: 'mornings', icon: 'wb_twilight', title: 'Mornings and check-in' },
+    { id: 'clinic', icon: 'ios_share', title: 'Share with your clinic' },
+    { id: 'hub', icon: 'router', title: 'Home hub' },
+    { id: 'about', icon: 'info', title: 'Help and about' },
   ];
   const DEV = { id: 'devGroup', title: 'Developer', rows: [
     { icon: 'code', label: 'Simulated sensors', sw: 'id="simSw"' },
@@ -99,22 +117,112 @@
     ver.addEventListener('contextmenu', e => e.preventDefault());
   };
 
+  // The markup of Settings: the category list for #settingsBody and one page per category for #settings.
+  const devGroup = () => group(DEV).replace('class="set-group"', `class="set-group dev${dev ? ' open' : ''}"${devShown ? '' : ' hidden'}`)
+    .replace(/<h3 class="subhead t-label">Developer/, `<h3 class="subhead t-label"><button type="button" class="dev-toggle state" aria-expanded="${dev}"><span>Developer</span><span class="ms" aria-hidden="true">expand_more</span></button>`);
+  const catRow = p => `<button type="button" class="li state two set-cat" data-page="${p.id}"><span class="ms" aria-hidden="true">${p.icon}</span>`
+    + `<span class="txt"><span class="hl">${p.title}</span><span class="sup" id="setSum-${p.id}"></span></span><span class="ms trail" aria-hidden="true">chevron_right</span></button>`;
+  const pageHtml = p => `<section id="setPage-${p.id}" class="screen set-page hidden" data-page="${p.id}" aria-labelledby="setTitle-${p.id}">
+    <header class="top-bar app-bar"><button class="icon-btn state" data-page-back type="button" aria-label="Back to Settings"><span class="ms">arrow_back</span></button><h2 id="setTitle-${p.id}" class="title" tabindex="-1">${p.title}</h2></header>
+    <div class="settings-body">${GROUPS.filter(g => g.page === p.id).map(group).join('')}${p.id === 'about' ? devGroup()
+      + '<button type="button" class="app-version t-body-s muted" id="appVersion">Afferent</button>' : ''}</div>
+  </section>`;
+  const settingsHtml = () => ({
+    top: `<nav class="group set-cats" aria-label="Settings">${PAGES.map(catRow).join('')}</nav>`
+      + '<p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>',
+    pages: PAGES.map(pageHtml).join(''),
+  });
+
+  // One line under each category: what is on in it now. Read from the rows themselves, so it follows every way they change.
+  const on = id => !!$(id)?.checked;
+  const said = id => ($(id)?.textContent || '').trim();
+  const lower = t => (t ? t[0].toLowerCase() + t.slice(1) : t);
+  const SUMMARY = {
+    sound: () => `${on('soundSw') ? 'Sound on' : 'Sound off'} · ${on('hapticSw') ? 'Vibration on' : 'Vibration off'}`,
+    sensors: () => {
+      const stone = document.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
+      return !stone?.checked ? 'Finger clips off' : A.Sensors?.fingerLink?.state === 'connected' ? 'Finger clips connected' : 'Finger clips not connected';
+    },
+    session: () => `Clip check: ${lower(said('clipState')) || 'not checked yet'}`,
+    mornings: () => {
+      const pause = said('pauseVal');
+      return [on('checkinSw') ? 'Check-in on' : 'Check-in off',
+        pause && pause !== 'Off' ? `Paused ${lower(pause)}` : on('remindSw') ? `Reminder at ${$('wakeIn')?.value || '07:00'}` : 'No reminder'].join(' · ');
+    },
+    clinic: () => (/paused/i.test(said('sharingState')) ? 'Sharing is paused' : 'Only when you show it'),
+    hub: () => said('hubState') || 'Not set',
+    about: () => `How it works · Afferent ${A.config?.appVersion || ''}`.trim(),
+  };
+  const hooks = [];
+  const refresh = () => {
+    for (const f of hooks) { try { f(); } catch {} }
+    for (const p of PAGES) {
+      const el = $('setSum-' + p.id);
+      if (!el) continue;
+      let t = '';
+      try { t = SUMMARY[p.id](); } catch {}
+      if (el.textContent !== t) el.textContent = t;
+    }
+  };
+
+  // A category slides its page in from the right; the back arrow, a swipe from the left edge (gui/swipe.js) or Escape
+  // slides it out again. Settings always opens on the list (or on the page its button names in data-settings-page).
+  let pageFrom = null;
+  const openPage = (id, { instant = false } = {}) => {
+    const page = $('setPage-' + id);
+    if (!page) return false;
+    A.Swipe?.stay?.(page);
+    if (!instant) pageFrom = document.activeElement;
+    page.classList.toggle('instant', !!instant);
+    page.classList.remove('hidden');
+    if (!instant) A.Swipe?.hold?.(320);
+    const body = page.querySelector('.settings-body');
+    if (body) body.scrollTop = 0;
+    page.querySelector('.title')?.focus?.({ preventScroll: true });
+    refresh();
+    return true;
+  };
+  const closePage = page => {
+    if (!page || page.classList.contains('hidden')) return;
+    const done = () => page.classList.add('hidden');
+    if (!A.Swipe?.out?.(page, done)) done();
+    refresh();
+    const f = pageFrom;
+    pageFrom = null;
+    if (f?.isConnected && !page.contains(f)) f.focus?.({ preventScroll: true });
+  };
+  const closePages = () => document.querySelectorAll('#settings .set-page').forEach(p => { A.Swipe?.stay?.(p); p.classList.add('hidden'); });
+  const openPageOf = () => document.querySelector('#settings .set-page:not(.hidden)');
+
   const buildSettings = () => {
-    const body = $('settingsBody');
-    if (!body) return;
-    const html = GROUPS.map(group);
-    const devHtml = group(DEV).replace('class="set-group"', `class="set-group dev${dev ? ' open' : ''}"${devShown ? '' : ' hidden'}`)
-      .replace(/<h3 class="subhead t-label">Developer/, `<h3 class="subhead t-label"><button type="button" class="dev-toggle state" aria-expanded="${dev}"><span>Developer</span><span class="ms" aria-hidden="true">expand_more</span></button>`);
-    body.append(frag(html.join('') + devHtml + '<p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>'
-      + '<button type="button" class="app-version t-body-s muted" id="appVersion">Afferent</button>'));
-    body.querySelector('.dev-toggle').onclick = e => {
+    const body = $('settingsBody'), root = $('settings');
+    if (!body || !root) return;
+    const { top, pages } = settingsHtml();
+    body.append(frag(top));
+    root.append(frag(pages));
+    root.querySelector('.dev-toggle').onclick = e => {
       const box = e.currentTarget.closest('.set-group');
       box.classList.toggle('open');
       e.currentTarget.setAttribute('aria-expanded', String(box.classList.contains('open')));
     };
     devUnlock($('appVersion'));
-    body.querySelectorAll('[data-anchor]').forEach(b => b.onclick = () => A.Checkin?.anchor?.());
-    body.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => toast(b.getAttribute('aria-label')));
+    root.querySelectorAll('.set-cat').forEach(b => b.onclick = () => openPage(b.dataset.page));
+    root.querySelectorAll('[data-page-back]').forEach(b => b.onclick = () => closePage(b.closest('.set-page')));
+    root.querySelectorAll('[data-anchor]').forEach(b => b.onclick = () => A.Checkin?.anchor?.());
+    root.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => toast(b.getAttribute('aria-label')));
+    // a switch or a field changed (its own handler ran first): the lines on the list follow
+    root.addEventListener('change', refresh);
+    root.addEventListener('input', refresh);
+    // Settings opened: the list, fresh lines. Heard after the button's own handlers (main.js, clipcheck.js, onboard.js).
+    document.addEventListener('click', e => {
+      const b = e.target?.closest?.('[data-open="settings"]');
+      if (!b) return;
+      closePages();
+      if (b.dataset.settingsPage) openPage(b.dataset.settingsPage, { instant: true });
+      refresh();
+    });
+    // the finger clips and the hub connect and drop on their own
+    setInterval(() => { if (!root.classList.contains('hidden')) refresh(); }, 1000);
   };
 
   let toastEl = null, toastT = 0;
@@ -277,7 +385,9 @@
   const layers = () => {
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
-      const open = ['hubDialog', 'info', 'signals', 'crisis', 'settings', 'voice'].map($).find(el => el && !el.classList.contains('hidden'));
+      const open = ['info', 'signals', 'crisis', 'settings', 'voice'].map($).find(el => el && !el.classList.contains('hidden'));
+      const page = open?.id === 'settings' && openPageOf();
+      if (page && !A.Swipe?.leaving?.(page)) { e.preventDefault(); page.querySelector('[data-page-back]')?.click(); return; }
       if (open) { e.preventDefault(); open.querySelector('[data-close]')?.click(); }
     });
   };
@@ -297,7 +407,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals', 'voice', 'hubDialog', 'crisis'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals', 'voice', 'crisis'].includes(id)) return;
       follow(el);
     }, true);
     // Talk to someone also opens from the check-in and the end screen's offer, without a button; it says so on the bus.
@@ -309,5 +419,6 @@
   const noLoupe = () => ['begin', 'game'].forEach(id => $(id)?.addEventListener('touchstart', e => e.preventDefault(), { passive: false }));
 
   buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped(); noLoupe();
-  A.Shell = { toast, week, phase, row, group, groups: GROUPS, kindleBeat: h => kindleBeat(h) };
+  A.Shell = { toast, week, phase, row, group, groups: GROUPS, kindleBeat: h => kindleBeat(h),
+    settings: { pages: PAGES, html: settingsHtml, summary: SUMMARY, refresh, hook: f => hooks.push(f), open: openPage, close: closePage, closeAll: closePages } };
 })();
