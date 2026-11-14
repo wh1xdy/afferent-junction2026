@@ -444,7 +444,7 @@
   $('talkRow').onclick = openTalk;
   A.QRShow?.init({ pid, hub: hubBase, talk: openTalk });
 
-  const TABS = ['today', 'week', 'settings'], TITLES = { today: 'Your mornings', week: 'This week', settings: 'Settings' };
+  const TABS = ['today', 'week', 'share', 'settings'], TITLES = { today: 'Your mornings', week: 'This week', share: 'Share', settings: 'Settings' };
   const setTab = (tab, focus) => {
     if (!TABS.includes(tab)) tab = 'today';
     document.body.dataset.tab = tab;
