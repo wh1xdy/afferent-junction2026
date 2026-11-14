@@ -1,5 +1,24 @@
 # afferent — Junction 2026
 
+## Status (14 November, afternoon)
+
+Afferent is a home companion for people with depression after treatment: a short morning game on the phone, sensors at home, and numbers the patient hands to their doctor in person. Nothing is sent to a doctor by the system.
+
+| Piece | Where | State |
+|---|---|---|
+| Finger clips: pulse, pulse per finger, breathing rate, HRV, room temperature | `uno-q/modulino-hub`, on the UNO Q | Running. Checked with real fingers. |
+| iPhone app: game, "Your signals" sheet, finger clips over Bluetooth, home and visitors | `demo/`, `ios/App` | On `main`. Finger readings seen on an iPhone 14 Pro. Home and visitors not yet tried on a phone. |
+| Camera pulse and face measures in the app | not merged yet | Built and unit-tested. Not yet run on a phone. |
+| Android app | not merged yet | The APK builds, 94 unit tests pass. Never run on a phone. |
+| Data manager | `jetson/data_manager`, on the Jetson | Running, token required. Receives pulse, HRV, breathing, temperature and humidity from the UNO Q. |
+| Home hub: David's hub on the Jetson | in progress | Not deployed yet. Until then the hub runs on a laptop with `./start.sh`. |
+| Patient report and FHIR file | `jetson/hub`, on the Jetson | Running, older version. The patient-only version is built, not deployed. |
+| Handover to the doctor: QR code with HRV and breathing | not merged yet | Built, in review. |
+| Heart Duel, a two-player pulse game for the demo table | `fun/heart-duel` | Built. Not tried with two people. |
+| CI | `.github/workflows/mobile-build.yml` | Builds the Android app and both iOS apps on every push to `main`. |
+
+The sections below this one describe the first day's setup (camera on the Jetson, one pulse sensor) and are partly out of date; the section "Afferent app, hub and design" is current.
+
 Two WendyOS boards working together over Wendy Net:
 
 | Board | App | Role |
