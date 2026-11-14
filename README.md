@@ -372,6 +372,68 @@ exactly for that, and suggests — once, without pushing — that they talk to t
 The companion's conversation design, references, and limitations are documented in
 [`voice-relay/README.md`](voice-relay/README.md).
 
+### Personal decline alert
+
+Full guide: [docs/decline_alert.md](docs/decline_alert.md).
+
+The hub compares daily outings, visitor time, HRV and posture against the patient's own
+reference: the median of the previous 14 full days versus the mean of the latest 3 full days.
+Outings, visitor time and HRV are higher-is-better; posture is lower-is-better and its score
+is the reference divided by the recent mean. A score below 80% makes the indicator low and
+adds a short fact to the voice companion context.
+At least 5 reference days are needed. These initial values are arbitrary placeholders to
+be tuned; they are not clinical thresholds.
+
+**How it runs.** The analyzer runs inside the hub process, not as a separate script:
+
+- On demand: `GET /api/patients/{pid}/decline`, every `voice_context` request (WebSocket or
+  `GET /api/patients/{pid}/wellbeing`), and every app `hello`.
+- Automatically: a hub background task checks the bound patient every
+  `AFFERENT_DECLINE_INTERVAL_S` seconds (default `3600`; `0` disables it). When the level
+  changes, it pushes a fresh `voice_context` to the patient's app; an app connecting during
+  an active alert also receives the context. The companion uses it at the start of the next
+  Talk conversation, not during a conversation already in progress.
+
+Measured analysis needs the data manager. On the Jetson, `AFFERENT_DATA_MANAGER_URL=auto`
+finds it over mDNS.
+
+| Environment variable | Default | Meaning |
+|---|---:|---|
+| `AFFERENT_DATA_MANAGER_URL` | empty | Data manager URL; use `auto` on the Jetson |
+| `AFFERENT_DECLINE_THRESHOLD` | `0.8` | Relative level below which an indicator is low |
+| `AFFERENT_DECLINE_REF_DAYS` | `14` | Full days used for the personal reference |
+| `AFFERENT_DECLINE_RECENT_DAYS` | `3` | Latest full days compared with the reference |
+| `AFFERENT_DECLINE_INTERVAL_S` | `3600` | Background check interval in seconds; `0` disables it |
+
+**Demo API — for demos and testing only**
+
+> This is not part of the product. Demo scenarios and scores override what the companion is
+> told; overrides are in memory, are lost on restart, and never write to the data manager or
+> hub database. Synthetic data is generated on the fly. Always `DELETE` the override after a
+> demo. On the home hub these routes, like every API route, require the hub token.
+
+| Scenario | Description | Expected result |
+|---|---|---|
+| `stable` | Everything at the usual level | No low indicators |
+| `withdrawal` | Social withdrawal: fewer outings and visits | Outings 50%, visits 30%; low |
+| `stress` | Lower heart-rate variability | HRV 70%; low |
+| `slumped` | More slumped posture | Posture 70%; low |
+| `global_decline` | Every indicator down | All four at 60%; low |
+| `borderline` | Slightly down but above the 80% threshold | Outings and visits 88%; okay |
+| `recovering` | Better than usual | All four at 115%; okay |
+
+```sh
+BASE=http://localhost:8000
+curl "$BASE/api/demo/decline/scenarios"
+curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' \
+  -d '{"scenario":"withdrawal"}'
+curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' \
+  -d '{"scores":{"outings":0.55}}'
+curl -X POST "$BASE/api/demo/decline" -H 'Content-Type: application/json' -d '{}'
+curl "$BASE/api/patients/anna/decline"
+curl -X DELETE "$BASE/api/demo/decline"
+```
+
 ### Home hub on the Jetson
 
 The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the real UNO Q as bedside and the data manager all run on the mesh. The Mac is needed only as the doorway for a browser or the phone (below).
