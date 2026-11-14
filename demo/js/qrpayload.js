@@ -230,7 +230,7 @@
       [1, j.sim !== false],
       [3, [epochDay(per.tms_end_date), intOrNull(per.from_day), intOrNull(per.to_day)]],
       [4, ['lit_total', 'lit', 'rest', 'missed', 'frozen'].map(k => intOrNull(mo[k]) ?? 0)],
-      [5, [ix(STATES, s.shown) ?? 0, ix(STATES, s.cusum) ?? 0, ix(STATES, s.phq_state),
+      [5, [ix(STATES, s.shown), ix(STATES, s.cusum), ix(STATES, s.phq_state),
         intOrNull(s.since_day), intOrNull(s.first_watch_day), intOrNull(s.first_check_in_day),
         intOrNull(s.first_booster_day), ix(CONFIDENCE, s.confidence) ?? 0]],
       [6, [qz(c.value, 100), qz(c.trend_7d, 100), qz(c.completeness, 100)]],

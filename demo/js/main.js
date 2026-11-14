@@ -112,7 +112,8 @@
     v = (v || '').trim().replace(/\/+$/, '');
     if (!v) return '';
     if (!/^(https?|wss?):\/\//.test(v)) v = 'http://' + v;
-    if (!/:\d+$/.test(v.replace(/^[a-z]+:\/\//, ''))) v += ':8000';
+    const m = v.match(/^([a-z]+:\/\/[^/]+)(\/.*)?$/);
+    if (m && !/:\d+$/.test(m[1])) v = m[1] + ':8000' + (m[2] || '');
     return v;
   };
   try { $('hubAddr').value = localStorage.getItem(hubKey) || ''; } catch {}
@@ -369,7 +370,7 @@
   addEventListener('keydown', e => { if (e.code === 'Backquote' && !e.target.closest?.('input, textarea')) document.body.classList.toggle('panel'); });
 
   const Hub = A.Hub;
-  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = (on ? 'Connected' : 'Offline') + (Hub.url ? ' · ' + Hub.httpBase().replace(/^https?:\/\//, '') : ''); log(on ? 'hub connected' : 'hub disconnected'); });
+  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = (on ? 'Connected' : 'Offline') + (Hub.url ? ' · ' + Hub.httpBase().replace(/^https?:\/\//, '').replace(/\/k\/[^/]+$/, '') : ''); log(on ? 'hub connected' : 'hub disconnected'); });
   Hub.on('config', c => {
     if (c.baseline_pulse_bpm) A.config.baselinePulse = c.baseline_pulse_bpm;
     if (Number.isFinite(c.dawn_level)) setDawn(c.dawn_level);
@@ -384,7 +385,7 @@
   Hub.on('privacy', d => applyPrivacy(d.privacy));
   Hub.on('demo_reset', () => log('hub demo reset'));
   if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) { log('no hub, offline mode'); $('hubState').textContent = 'Not set'; }
-  else { log('hub ' + Hub.url); $('hubState').textContent = 'Connecting to ' + Hub.httpBase().replace(/^https?:\/\//, ''); }
+  else { log('hub ' + Hub.url.replace(/\/k\/[^/]+/, '')); $('hubState').textContent = 'Connecting to ' + Hub.httpBase().replace(/^https?:\/\//, '').replace(/\/k\/[^/]+$/, ''); }
 
   const MODE_COL = { ...Object.fromEntries(Object.entries(A.MODES).map(([k, v]) => [k, v.colour])), measure: '#B4A6CE' };
   const tl = $('timeline'), tctx = tl.getContext('2d');
