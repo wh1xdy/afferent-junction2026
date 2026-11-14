@@ -17,3 +17,4 @@ __pycache__/
 
 # Local Verda runner config (may contain paths/options; never committed)
 verda/config.env
+modal/config.env
