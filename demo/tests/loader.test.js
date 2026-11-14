@@ -225,6 +225,9 @@ test('it starts on the launch navy: the same colour as the launch screen, the wi
   assert.match(style, /#loader \{[^}]*background: var\(--af-kaamos-surface, #0D182A\)/);
   assert.match(read('design/tokens.css'), /--af-kaamos-surface: #0D182A;/);
   assert.match(html, /<style>html, body \{ background: #0D182A; \}/);
+  // and the page under it on a phone (style.css): Chrome can paint the page once before the loading screen is parsed
+  const phone = read('demo/style.css').match(/@media \(max-width: 760px\), \(hover: none\) and \(pointer: coarse\) \{([\s\S]*?)\n\}/)[1];
+  assert.match(phone, /html, body \{ background: #0D182A; \}/);
   const cap = JSON.parse(read('capacitor.config.json'));
   assert.strictEqual(cap.backgroundColor, navy);
   assert.strictEqual(cap.ios.backgroundColor, navy);
