@@ -42,4 +42,29 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+
+    <!-- Bluetooth LE, shared by two in-app plugins. One element per permission.
+         AfferentFinger (AfferentFingerPlugin.kt): the finger sensor; scans for our own sensor and
+         connects to it (BLUETOOTH_CONNECT).
+         AfferentPresence (Settings > Home and visitors): unfiltered scan while the app is open;
+         needs no BLUETOOTH_CONNECT and no BLUETOOTH_ADVERTISE.
+         Wi-Fi state uses ACCESS_NETWORK_STATE and Bonjour (NsdManager) uses INTERNET, both above. -->
+    <!-- Android 12+ (API 31+). neverForLocation is app-wide: it tells Android that scan results
+         are not used to work out where the phone is; in return no location permission is asked
+         and the Location switch may be off (Android then withholds iBeacon and Eddystone
+         adverts). Without that flag the presence plugin asks for fine + coarse location on
+         Android 12+ as well: then drop maxSdkVersion from ACCESS_FINE_LOCATION below and add
+         ACCESS_COARSE_LOCATION. The finger plugin works either way. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Android 7 to 11 (API 24 to 30): a Bluetooth scan needs these three and the Location switch. -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!-- The app also runs on a device without Bluetooth LE (the plugins then report "unsupported")
+         or without location hardware; the permissions above would otherwise make both required. -->
+    <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <!-- end Bluetooth LE (AfferentFinger, AfferentPresence) -->
 </manifest>

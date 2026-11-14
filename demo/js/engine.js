@@ -14,7 +14,7 @@
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
   const DAWN_S = 8, PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 102, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
-  const MEASURE_RIDE_S = 20;
+  const MEASURE_RIDE_S = 20, BREATH_RESULT_S = 8;
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
   const RP = () => A.PRESENT?.reaction || {};
@@ -80,7 +80,7 @@
       setPhase(p) { this.phase = p; this.phaseAt = A.now(); A.bus.emit('segment', p); },
       light(rgbHex, level, fade_ms, reason) {
         if (this.night && A.config.quietNight !== false) level = Math.min(level, QUIET_CAP);
-        this.lastLightLevel = level;
+        if (A.config.sensors.bedside_light && A.Hub?.connected) this.lastLightLevel = level;
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
         if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },
@@ -187,7 +187,7 @@
           rest: {
             duration_ms: Math.round(restS * 1000), pulse_bpm: r1(med(c.pulse)), pulse_quality: pq === null ? null : r3(pq),
             blink_rate_per_min: c.open.length ? r1(c.blinks / restS * 60) : null, blink_count: c.open.length ? c.blinks : null,
-            blink_quality: c.open.length ? r3(0.6 * trackedRatio) : null,
+            blink_quality: c.open.length ? trackedRatio : null,
             eye_openness: c.open.length ? r3(med(c.open)) : null, eye_quality: c.open.length ? trackedRatio : null, eyes_tracked_ratio: trackedRatio,
             head_pitch_deg: r1(med(c.pitch)), head_pitch_quality: c.pitch.length ? q(c.pitch.length, c.frames) : null,
             ambient_light: c.ambient.length ? r3(med(c.ambient)) : null,
@@ -348,6 +348,8 @@
         const out = { completed_by: by, completed: g.done, items: g.items, errors: g.errors, sessionT0: this.t0 };
         if (g.id === 'breath') out.breath_sync = g.sync;
         if (g.kind !== 'measurement' && g.extra && Object.keys(g.extra).length) out.extra = { ...g.extra };
+        const breathing = g.id === 'breath' ? g.fb?.result() ?? null : null;
+        if (breathing) { out.extra = { ...out.extra, breathing }; this.breathResult = { ...breathing, until: now + BREATH_RESULT_S }; }
         const rt = g.kind === 'measurement' ? null : g.rt?.summary();
         if (rt) out.extra = { ...out.extra, rt };
         const dda = g.kind === 'measurement' ? null : A.Skill?.finish(g.id);
@@ -435,7 +437,8 @@
         V.fogDrift = m === 'calm' || m === 'rest' ? 0.5 : 1 + k;
         V.sparkle = ema(V.sparkle, m === 'wake' ? 0.3 + 0.5 * k : 0, dt, 1);
         V.border = ema(V.border, m === 'fatigue' && !this.night ? 0.25 : 0.1, dt, 1.5);
-        if (this.phase !== 'dawn' && this.phase !== 'end') Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
+        const fileBed = A.Music?.bed && !A.Music.bed.procedural;
+        if (this.phase !== 'dawn' && this.phase !== 'end' && !fileBed) Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
       },
 
       sample(now, dt, p, f) {

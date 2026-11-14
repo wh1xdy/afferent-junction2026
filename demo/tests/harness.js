@@ -2,7 +2,10 @@
 // Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js),
 // camera (a fake Capacitor.Plugins.AfferentPulse and a document with a `hidden` flag),
 // face (the face half of a fake Capacitor.Plugins.AfferentPulse, or 'core' for a Capacitor.registerPlugin proxy of a plugin the native side does not have,
-// plus a document with `hidden` and visibilitychange so the visibility rule can be tested).
+// plus a document with `hidden` and visibilitychange so the visibility rule can be tested),
+// storage (a Map used as localStorage; without it there is none, as in a private window),
+// games (the real task engine with the breathing task as its only task, instead of the stub tasks),
+// breathing (false leaves breathing.js out: the app without the measured breathing).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -109,24 +112,41 @@ const fakePulse = (cam, face) => {
   return p;
 };
 
-const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false } = {}) => {
+// A 2D context that draws nothing and writes every call and every property it is given to `log`.
+const recorder = log => {
+  const flat = x => x !== null && typeof x === 'object' ? 'object' : x;
+  const state = { globalAlpha: 1, globalCompositeOperation: 'source-over' };
+  return new Proxy(state, {
+    get: (t, k) => k in t ? t[k] : (...a) => { log.push([k, ...a.map(flat)]); return { addColorStop() {} }; },
+    set: (t, k, v) => { t[k] = v; log.push([k, flat(v)]); return true; },
+  });
+};
+
+const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false, storage = null, games = false, breathing = true } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
+  if (storage) ctx.localStorage = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, String(v)); }, removeItem: k => { storage.delete(k); } };
   ctx.navigator = {};
   ctx.location = { search: '', protocol: 'file:', pathname: '/' };
   ctx.addEventListener = () => {};
+  if (games) {
+    const mem = {};
+    ctx.localStorage = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = String(v); } };
+    ctx.performance = { now: () => 0 };
+    ctx.document = { addEventListener: () => {}, getElementById: () => null, createElement: () => ({ width: 0, height: 0, getContext: () => recorder([]) }) };
+  }
   const plugin = finger ? fakeFinger() : null, cam = camera ? fakeCamera() : null;
   const facePlugin = face === 'core' ? unimplemented() : face ? fakeFace() : null, docListeners = {};
   const pulse = cam || (facePlugin && face !== 'core') ? fakePulse(cam, face === 'core' ? null : facePlugin) : null;
   if (plugin || pulse) ctx.Capacitor = { Plugins: { ...(plugin ? { AfferentFinger: plugin } : {}), ...(pulse ? { AfferentPulse: pulse } : {}) } };
   if (face === 'core') ctx.Capacitor = { ...ctx.Capacitor, registerPlugin: () => facePlugin };
-  if (face) ctx.document = { hidden: false, getElementById: () => null, addEventListener: (t, f) => (docListeners[t] = docListeners[t] || []).push(f) };
+  if (face) ctx.document = { getElementById: () => null, ...ctx.document, hidden: false, addEventListener: (t, f) => (docListeners[t] = docListeners[t] || []).push(f) };
   vm.createContext(ctx);
   const run = f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
   run('util.js');
   let clock = 0;
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
-  for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'face.js', 'input.js', 'record.js']) run(f);
+  for (const f of ['sensors.js', 'finger.js', 'campulse.js', 'face.js', 'input.js', ...(breathing ? ['breathing.js'] : []), 'record.js']) run(f);
   const noop = () => {};
   ctx.A.Audio = new Proxy({}, { get: () => noop });
   const game = id => ({ id, modes: [], make: () => ({ id, max: 12, t: 0, done: false, items: 0, errors: 0, update: noop, draw: noop, choices: [], trials: [], rewards: { rich: 0, lean: 0 }, counts: () => ({ rc: 0, ri: 0, lc: 0, li: 0 }) }) });
@@ -137,12 +157,13 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
     const pool = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode) && id !== last && (!w || (w[id] ?? 0) > 0));
     return { id: pool[0], weight: null };
   };
+  if (games) for (const f of ['juice.js', 'skill.js', 'minigames.js', 'tasks/breath.js']) run(f);
   run('traverse.js');
   run('engine.js');
   if (vitals) run('vitals.js');
   if (cam && !ctx.document) ctx.document = { hidden: false };
   const fire = t => Promise.all((docListeners[t] || []).map(f => f()));
-  return { A: ctx.A, tick: dt => { clock += dt; }, plugin, cam, facePlugin, ctx, fire, doc: ctx.document };
+  return { A: ctx.A, ctx, tick: dt => { clock += dt; }, plugin, cam, facePlugin, fire, doc: ctx.document };
 };
 
 // Advance a session in 50 ms steps; `each` runs before every step, `second` once per whole simulated second.
@@ -157,4 +178,4 @@ const run = (A, tick, s, seconds, each, second) => {
 // Objects made inside the vm context have their own prototypes; compare plain copies.
 const plain = x => JSON.parse(JSON.stringify(x));
 
-module.exports = { load, run, plain, fakeFinger, fakeCamera, fakeFace, JS };
+module.exports = { load, run, plain, fakeFinger, fakeCamera, fakeFace, recorder, JS };

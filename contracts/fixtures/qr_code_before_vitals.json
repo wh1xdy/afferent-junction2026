@@ -1,0 +1,355 @@
+{
+ "note": "Made by demo/js/qrpayload.js as of commit 2f1589c, before the finger sensor numbers (map key 18) existed. Simulated data (contracts/fixtures/qr_body_anna.json). Do not regenerate: the test needs a code from the old encoder.",
+ "now_ms": 1794661200000,
+ "fingerprint": "B61K C1PA 5KEP",
+ "text": "AF1:NCFXW5UZBFOA873B8SVVDR7UJTEFEAX:6FZIN JE$2-Y8+V2GE2$VA.*PTH8M8B.BN0LG-Q0Y66HOOOOAM:V0-B3NK:I4$MN+QKLG9RY81YDN-1PGT7LL+X9DA8:/U+UUW9U+9UG9Q$DE A2TO8CDCCG81K7-6IWYT*4JJ+4.YD:/65O3 .QQUC4INWX6N-2L0D8 3TQAQ+F %V9PJ%XT4AKYQEU+9VQ7*OE-GV+WFA7CF:RZ/B1AH:U2UBO08CVN3KGR-J8-B6R509%KY+9NVQYR09SG.EKC494IN03DPD79VACU9X*OI0UTMD1KU-FHG:2RSAP-LOZA2%6$ZD4FS16BFE8.+FU%11CJE90PI0$AFW4IRUQ64LBV9TEJ-66/FMXIJ+BBR0NOQMADAQJ3TO8R9P2Q1IGTHP3:UD15JRR1O78RH3%3PYU8-.2LHRATRKLFU0JB:IU2JKQ5MS5BNMAFCRQCSAN$.CTXA0O93SS9JT:C4S39B+8H0OB%EHIB$M4WI7A:GP 5L.J.COGVI+NRF+C6FEKRATPNYZB.WM0 E1*3%PHD-6E0SL0WP/Q57441V9KCA:KGD1US5PS4P7J $C9AHOX9RVJRPUBK6J8OAEDR+C KIF.0GT8R073JDQGF B9L5O:3SX/NZ-D83C TAJGRK2GG-AT6ENKUSY35L8ZXRJH9YU6K74GORYY906K3.HQHFHHFGS6RLD*KI2ARC-56$G+3NPXR0%V.5G91UF5",
+ "parts": [
+  "AF1/1/2/NEFV:NCF7Y522CJSI8S21ESU1GH375.K.7TGBTL1IH.C/PBZBJ+YLNPQ*NOUA69/LRKHHRG1Q6UF0XSHAR2QPO*:KYN5765Z82DUEOV2559AB847AF-CENN:D5VRK%UKEJE6KT:N5 SE9M0$EO 5QVH6.D13JK5:POWG9:M58QBDQ3XJJL3Z2SA7FNNEDRF 5R0CELE381HQCTV.DWNEC+DNTUSPNZ0R-I40 SQX6$PV/DN6ZV7-PJMSW3VD$VEL2YXRUBL.L6S/LZMU%YGOZD9B03F9R1UV1L$41B+0OD8913MID/Z1*I9TNTHXC*22T6IIIL%TO1M7KH75SLHTG8-AF8C/ RYC0LKGJB28 JU-L/RLE-LZYM-TH0AF5A6%8C",
+  "AF1/2/2/NEFV:3TO+EJ4A5 +H-5Q.GO/FMOJ4VTL+QFCF3T*R$ 7A$HRNI:NC I8F367J0AYARJ1L22G:6KHRNBD*SBDVPR:I-:IXABRGB9KC LGSGH*ORU MT 2/46W-4Y1C:LQC-BUX5X6JIG3UX3M8Q495%Y8GQNMBM4J00X77/0A+MK9988J67JAVT: JWKS8HGK.9GLEGP8/N2127YT6-8AE18Q76+A75ND.2DM84YKQ:EO.4NRCNHIS$WTDGQ963DH98HQUYNBE61KPN+SOLH26A GAW*EU4RVKC12I:YVE0UIN61AJSAN8*1T6GOVI43KS4GC9D8DF+QQ*CFW4B$KQMJQS*GDOAOQDJ2Q5$V4RK%/8LRREBQQCVA971-17N602"
+ ],
+ "packed_keys": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16
+ ],
+ "body": {
+  "v": 1,
+  "sim": true,
+  "period": {
+   "tms_end_date": "2026-09-19",
+   "from_day": 1,
+   "to_day": 56
+  },
+  "mornings": {
+   "lit_total": 43,
+   "lit": 42,
+   "rest": 1,
+   "missed": 6,
+   "frozen": 6
+  },
+  "state": {
+   "shown": "booster",
+   "cusum": "booster",
+   "phq_state": "booster",
+   "since_day": 45,
+   "first_watch_day": 37,
+   "first_check_in_day": 40,
+   "first_booster_day": 45,
+   "confidence": "high"
+  },
+  "composite": {
+   "value": 2.19,
+   "trend_7d": -0.01,
+   "completeness": 1
+  },
+  "contrib": [
+   {
+    "key": "rt_median",
+    "contribution": 0.477
+   },
+   {
+    "key": "sleep_regularity",
+    "contribution": 0.353
+   },
+   {
+    "key": "mood",
+    "contribution": 0.322
+   },
+   {
+    "key": "effort_hard_prop",
+    "contribution": 0.275
+   },
+   {
+    "key": "missed_sessions",
+    "contribution": 0.238
+   },
+   {
+    "key": "morning_pulse",
+    "contribution": 0.231
+   },
+   {
+    "key": "upright_frac",
+    "contribution": 0.176
+   },
+   {
+    "key": "reward_bias",
+    "contribution": 0.115
+   },
+   {
+    "key": "home_only_days",
+    "contribution": 0.003
+   }
+  ],
+  "cusum": {
+   "value": 27.01,
+   "history": [
+    {
+     "day": 0,
+     "state": "stable"
+    },
+    {
+     "day": 37,
+     "state": "watch"
+    },
+    {
+     "day": 40,
+     "state": "check_in"
+    },
+    {
+     "day": 45,
+     "state": "booster"
+    }
+   ]
+  },
+  "weekly": {
+   "composite": [
+    -0.28,
+    0.2,
+    0.27,
+    0.25,
+    0.33,
+    1.03,
+    1.88,
+    2.16
+   ],
+   "rt_median": [
+    451,
+    458,
+    456,
+    459,
+    502,
+    518,
+    500,
+    522
+   ],
+   "mood": [
+    4,
+    4,
+    3.5,
+    4,
+    3,
+    4,
+    1,
+    1
+   ],
+   "sleep_regularity": [
+    0.85,
+    0.83,
+    0.82,
+    0.84,
+    0.86,
+    0.8,
+    0.52,
+    0.5
+   ],
+   "missed_sessions": [
+    0,
+    1,
+    1,
+    1,
+    3,
+    1,
+    3,
+    2
+   ],
+   "effort_hard_prop": [
+    0.59,
+    0.64,
+    0.61,
+    0.5,
+    0.57,
+    0.43,
+    0.29,
+    0.14
+   ],
+   "morning_pulse": [
+    62.7,
+    61.8,
+    61.7,
+    63.5,
+    59.3,
+    63.9,
+    65.8,
+    67.2
+   ],
+   "home_only_days": [
+    2,
+    2.3,
+    2,
+    1,
+    1,
+    3,
+    4,
+    2
+   ],
+   "upright_frac": [
+    0.86,
+    0.86,
+    0.86,
+    0.86,
+    0.78,
+    0.75,
+    0.68,
+    0.65
+   ],
+   "reward_bias": [
+    0.3,
+    0.18,
+    0.2,
+    0.16,
+    0.09,
+    -0.07,
+    -0.09,
+    -0.06
+   ]
+  },
+  "baseline": {
+   "rt_median": {
+    "median": 451,
+    "scale": 25
+   },
+   "mood": {
+    "median": 4,
+    "scale": 1.5
+   },
+   "sleep_regularity": {
+    "median": 0.84,
+    "scale": 0.05
+   },
+   "missed_sessions": {
+    "median": 0,
+    "scale": 1
+   },
+   "effort_hard_prop": {
+    "median": 0.6,
+    "scale": 0.2
+   },
+   "morning_pulse": {
+    "median": 61.9,
+    "scale": 2.1
+   },
+   "home_only_days": {
+    "median": 2.3,
+    "scale": 1
+   },
+   "upright_frac": {
+    "median": 0.86,
+    "scale": 0.05
+   },
+   "reward_bias": {
+    "median": 0.22,
+    "scale": 0.15
+   }
+  },
+  "phq": {
+   "baseline": 6,
+   "baseline_source": "app",
+   "history": [
+    {
+     "day": 0,
+     "total": 6,
+     "phq8_total": 6,
+     "band": "mild",
+     "early": false
+    },
+    {
+     "day": 14,
+     "total": 7,
+     "phq8_total": 7,
+     "band": "mild",
+     "early": false
+    },
+    {
+     "day": 28,
+     "total": 9,
+     "phq8_total": 9,
+     "band": "mild",
+     "early": false
+    },
+    {
+     "day": 42,
+     "total": 13,
+     "phq8_total": 12,
+     "band": "moderate",
+     "early": false
+    },
+    {
+     "day": 56,
+     "total": 16,
+     "phq8_total": 14,
+     "band": "moderately_severe",
+     "early": false
+    }
+   ],
+   "overdue": false,
+   "last_status": null
+  },
+  "safety": [
+   {
+    "day": 56,
+    "minute": 744,
+    "tier": "moderate",
+    "source": "item9_fallback",
+    "screen": "crisis",
+    "c6_repeat": false
+   },
+   {
+    "day": 42,
+    "minute": 722,
+    "tier": "low",
+    "source": "item9_fallback",
+    "screen": "support",
+    "c6_repeat": false
+   }
+  ],
+  "talk": [
+   {
+    "day": 44,
+    "minute": 1230
+   }
+  ],
+  "complete": {
+   "played_days": 42,
+   "sessions_7d": 5,
+   "days_7d": 6,
+   "missed_7d": 1,
+   "paused_days": 0,
+   "by_feature": {
+    "rt_median": 0.75,
+    "mood": 0.71,
+    "sleep_regularity": 0.95,
+    "missed_sessions": 0.95,
+    "effort_hard_prop": 0.73,
+    "morning_pulse": 0.77,
+    "home_only_days": 0.95,
+    "upright_frac": 0.66,
+    "reward_bias": 0.71
+   }
+  },
+  "pauses": [],
+  "sensors": {
+   "phone_camera": true,
+   "pulse_stone": true,
+   "bedside_camera": false,
+   "bedside_light": true,
+   "presence": true,
+   "phone_presence": true,
+   "phone_motion": true
+  },
+  "ini": "A"
+ }
+}

@@ -35,6 +35,7 @@
       <button id="closeBtn" class="icon-btn play-close state hidden" type="button" aria-label="End session"><span class="ms">close</span></button>
       <span id="simBadge" class="sim-badge play-sim hidden">SIMULATED</span>
       <span id="liveChip" class="live-chip hidden"></span>
+      <p id="breathLine" class="breath-line"><span id="breathMain"></span><span id="breathSub" class="sub"></span></p>
       <span id="cue" class="cue" aria-live="polite"></span>
       <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
 
@@ -151,7 +152,7 @@
 
     <aside id="panel">
       <h2>Hub <span id="hubTag" class="tag">offline</span> <span id="profileTag" class="tag">today</span></h2>
-      <h2>Bedside unit <span class="tag">simulated</span></h2>
+      <h2>Bedside unit <span class="tag">light simulated</span></h2>
       <div class="bedside">
         <div id="led"></div>
         <div class="readouts">
@@ -215,6 +216,7 @@
   <script src="js/fxgl.js"></script>
   <script src="js/juice.js"></script>
   <script src="js/skill.js"></script>
+  <script src="js/breathing.js"></script>
   <script src="js/rt.js"></script>
   <script src="js/minigames.js"></script>
   <script src="js/tasks/fireflies.js"></script>

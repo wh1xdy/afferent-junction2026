@@ -12,6 +12,7 @@
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		F1A6E0000000000000000001 /* AfferentFinger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A6E0000000000000000002 /* AfferentFinger.swift */; };
+		F1A6E0000000000000000101 /* AfferentHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A6E0000000000000000102 /* AfferentHaptics.swift */; };
 		F1A6E0000000000000000003 /* AfferentFingerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A6E0000000000000000004 /* AfferentFingerParser.swift */; };
 		A9E5E0000000000000000001 /* AfferentPresence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E5E0000000000000000002 /* AfferentPresence.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
@@ -35,6 +36,7 @@
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		F1A6E0000000000000000002 /* AfferentFinger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentFinger.swift; sourceTree = "<group>"; };
+		F1A6E0000000000000000102 /* AfferentHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentHaptics.swift; sourceTree = "<group>"; };
 		F1A6E0000000000000000004 /* AfferentFingerParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentFingerParser.swift; sourceTree = "<group>"; };
 		A9E5E0000000000000000002 /* AfferentPresence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPresence.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				F1A6E0000000000000000002 /* AfferentFinger.swift */,
+				F1A6E0000000000000000102 /* AfferentHaptics.swift */,
 				F1A6E0000000000000000004 /* AfferentFingerParser.swift */,
 				A9E5E0000000000000000002 /* AfferentPresence.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
@@ -201,6 +204,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F1A6E0000000000000000001 /* AfferentFinger.swift in Sources */,
+				F1A6E0000000000000000101 /* AfferentHaptics.swift in Sources */,
 				F1A6E0000000000000000003 /* AfferentFingerParser.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				A9E5E0000000000000000001 /* AfferentPresence.swift in Sources */,

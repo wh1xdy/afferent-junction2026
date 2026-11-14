@@ -206,8 +206,9 @@
         <span class="mt">${text}</span></button>`;
     }).join('');
 
-    const sensors = D?.privacy?.sensors || {};
-    const sOn = Object.values(sensors).filter(Boolean).length, sAll = Object.keys(sensors).length;
+    // `presence` is bed presence and no bed sensor exists, so it is not a sensor to count
+    const sensors = Object.entries(D?.privacy?.sensors || {}).filter(([k]) => k !== 'presence');
+    const sOn = sensors.filter(([, on]) => on).length, sAll = sensors.length;
     const since = A.cusum.since_day;
     const facts = [
       ['Last session', lastIso ? relDay(lastIso, L.date) : 'None yet'],
@@ -276,33 +277,22 @@
       tip: (i) => `<div class="tip-h">${dateShort(dates[i])}</div><div class="tip-r"><span>Against usual</span><b>${vals[i] == null ? 'no value' : signed(vals[i])}</b></div><div class="tip-r"><span>Median</span><b>${ms[i] == null ? '-' : num(ms[i], 0) + ' ms'}</b></div>` });
   };
 
-  // Signals (Decisions I53): what the finger sensor and the phone camera measure, with source, unit and age.
-  // Phone data wins while it is newer than 5 s; otherwise the hub's bedside source, for the patient bound to it.
-  V.signalsInput = function (S, id, now = Date.now()) {
-    const fresh = C.signals.STALE_S * 1000;
-    const seen = S.fixtures ? null : S.live[id];
-    // phone data older than a minute is gone from the screen; between 5 s and a minute it shows "no current reading"
-    const live = seen && seen.at != null && now - seen.at <= 60000 ? seen : null;
-    const bed = S.fixtures ? null : S.bedside;
-    const bound = !!bed && bed.patient_id != null && bed.patient_id === id;
-    let physio = null, at = null, via = null;
-    if (live?.physio && now - live.at <= fresh) { physio = live.physio; at = live.at; via = 'phone'; }
-    else if (bound && bed.physio) { physio = bed.physio; at = S.bedsideAt ?? null; via = 'hub'; }
-    else if (live?.physio) { physio = live.physio; at = live.at; via = 'phone'; }
-    const camera = live?.camera || null;
+  // Signals: the sensor blocks of the newest stored session that has any. The only input is the session
+  // documents the patient's own hub holds; the page takes no sensor value from a socket.
+  V.signalsInput = function (S, id) {
     const session = [...(S.detail[id]?.sessions || [])].reverse().find((s) => s.vitals && (s.vitals.finger || s.vitals.camera_pulse)) || null;
     const sessionLabel = session?.started_iso ? `${dateShort(session.started_iso)}, ${timeOf(session.started_iso)}` : '';
-    return { physio, camera, at, cameraAt: live?.at ?? null, via: via || (camera ? 'phone' : null), session, sessionLabel, bound, nowMs: now };
+    return { session, sessionLabel };
   };
 
-  // Inner HTML of the section; '' when this patient has no current data and no session with sensor data.
+  // Inner HTML of the section; '' when this patient has no stored session with sensor data.
   V.signalsBody = function (S, id) {
     const body = id ? C.signals.html(V.signalsInput(S, id)) : '';
     if (!body) return '';
-    return `<div class="sect-h"><h2>Signals</h2><span class="muted">finger sensor and phone camera</span>${info('Measured numbers with their source, unit and age. They are shown as they are and are not part of the early-warning index.')}</div>${body}`;
+    return `<div class="sect-h"><h2>Signals</h2><span class="muted">finger sensor and phone camera, stored sessions</span>${info('Measured numbers with their source and unit, from the session documents on the patient\'s own hub. None of them is a current reading. They are shown as they are and are not part of the early-warning index.')}</div>${body}`;
   };
 
-  // The element stays in the page (hidden when empty) so the dashboard can refresh it alone, without redrawing the detail.
+  // Hidden when empty, so the heading does not stand alone.
   V.signals = function (S, id) {
     const body = V.signalsBody(S, id);
     return `<section id="signals" class="signals" data-id="${esc(id)}" aria-label="Signals"${body ? '' : ' hidden'}>${body}</section>`;

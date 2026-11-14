@@ -133,6 +133,8 @@ def main():
     ap.add_argument("--file", help="output file from the plan when the track has several, e.g. mu_flow_motion.m4a")
     ap.add_argument("--start", type=float, default=0.0, help="seconds into the raw file where the loop or one-shot begins")
     ap.add_argument("--dur", type=float, help="one-shot length in seconds, needed when the plan gives a range")
+    ap.add_argument("--bars", type=int, help="loop length in bars, overrides the plan's loop_bars")
+    ap.add_argument("--bpm", type=float, help="measured tempo of this take, overrides the plan's tempo for the loop length and the manifest grid")
     ap.add_argument("--gain-db", type=float, help="mix gain_db written to the manifest; existing value is kept otherwise")
     ap.add_argument("--out", type=pathlib.Path, help="output directory, defaults to the plan's out_dir")
     ap.add_argument("--remove", metavar="KEY", help="remove a manifest entry and its file, then exit")
@@ -167,6 +169,8 @@ def main():
 
     track, spec = find_track(plan, a.track, a.file)
     key, entry, bpm, beats = describe(track, spec)
+    if a.bpm:
+        bpm = entry["bpm"] = a.bpm
     ch = spec["channels"]
     pad_s = man.get("pad_s", 0.5)
     target = spec.get("target_lufs", plan["encoding"]["target_lufs"])
@@ -177,7 +181,7 @@ def main():
     start = round(a.start * SR)
     loop = "one_shot_s" not in spec
     if loop:
-        bars = spec.get("loop_bars")
+        bars = a.bars or spec.get("loop_bars")
         n = round(bars * beats * 60 / bpm * SR) if bars and bpm and beats else round(spec["loop_s"] * SR)
         body = seamless(raw, ch, start, n)
         if entry["role"] == "colour":

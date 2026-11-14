@@ -107,6 +107,8 @@ test('breathing and HRV: shown only when non-zero and a pulse is live', () => {
   assert.deepEqual(G.extrasView(tr, 9000, true), { breath: null, hrv: null }, 'pulse went stale');
   const partial = tracked([[1000, [72, 0, 0, 0]], [1200, [72, 0, 14, 0]], [2000, [72, 0, 14, 0]]]);
   assert.deepEqual(G.extrasView(partial, 2100, true), { breath: 14, hrv: null });
+  const over = tracked([[1000, [72, 0, 0, 0]], [1200, [72, 0, 14, 255]], [2000, [72, 0, 14, 255]]]);
+  assert.deepEqual(G.extrasView(over, 2100, true), { breath: 14, hrv: null }, 'byte 255 = above the range, not 255 ms');
 });
 
 test('malformed packets are ignored', () => {

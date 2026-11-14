@@ -10,14 +10,18 @@ os.environ.setdefault("AFFERENT_DB", ":memory:")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app  # noqa: E402
 
-NOW = 1_800_000_000.0
+NOW = 1_800_000_000.0          # the hub's clock
+DEVICE = 1_799_990_000.0       # the UNO Q's clock: not the hub's, and never compared with it
 
 
-def state(two_hearts=False, mode="active"):
-    return {"presence": {"mode": mode},
-            "finger": {"bpm": 71, "two_hearts": two_hearts},
+def state(two_hearts=False, mode="active", quality=0.8, worn_s=60.0, beat_age=1.0):
+    """a /state document as modulino-hub sends it, cut down to what the collector reads"""
+    return {"beat": {"bpm_live": 71, "fused": True, "t": DEVICE},
+            "fingers": [{"bpm_live": 71, "t": DEVICE - beat_age}, {"bpm_live": 72, "t": DEVICE - beat_age - 0.4}],
+            "presence": {"auto": True, "mode": mode, "since": DEVICE - worn_s},
+            "finger": {"bpm": 71, "quality": quality, "sources": [0, 1], "fingers": [71, 72], "two_hearts": two_hearts},
             "hrv": {"rmssd_ms": 42.5}, "breathing": {"per_minute": 12},
-            "climate": {"celsius": 21.5}}
+            "climate": {"celsius": 21.5, "t": DEVICE - 1}}
 
 
 class Recorder:

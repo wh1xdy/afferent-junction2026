@@ -1,3 +1,5 @@
+import ipaddress
+
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse, Response
 
@@ -8,6 +10,13 @@ router = APIRouter(prefix="/api")
 
 def hub(request: Request) -> Hub:
     return request.app.state.hub
+
+def _same_machine(request: Request) -> bool:
+    try:
+        ip = ipaddress.ip_address(request.client.host)
+    except (AttributeError, ValueError):
+        return False
+    return (getattr(ip, "ipv4_mapped", None) or ip).is_loopback
 
 def _obj(body) -> dict:
     if not isinstance(body, dict):
@@ -100,7 +109,11 @@ async def demo_profile(request: Request, body=Body(...)):
 
 @router.get("/bedside/state")
 async def bedside_state(request: Request):
-    return hub(request).bedside.snapshot()
+    snap = hub(request).bedside.snapshot()
+    if not _same_machine(request):
+        snap.pop("pulse", None)
+        snap.pop("physio", None)
+    return snap
 
 @router.post("/bedside/camera")
 async def bedside_camera(request: Request, body=Body(...)):

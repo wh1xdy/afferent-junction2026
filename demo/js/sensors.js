@@ -58,8 +58,10 @@
   };
 
   const plug = A.plug = n => window.Capacitor?.Plugins?.[n] ?? window.Capacitor?.registerPlugin?.(n);
-  const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
-  const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
+  const SWITCHES = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false };
+  A.switches = (...changes) => Object.assign({}, SWITCHES, ...changes, { presence: false });
+  const PULSE_SOURCES = ['finger_ppg', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
+  const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3, RMSSD_OVER = 255;
   const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'], CAM_LIGHT = ['dark', 'ok', 'bright'];
   const CAM_WHY = ['no_face', 'exposure_not_locked', 'too_dark', 'too_bright', 'moving', 'warming_up', 'weak_signal'];
   const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
@@ -72,7 +74,7 @@
   const count = x => Number.isInteger(x) && x >= 0 ? x : null;
   const sum = xs => xs.reduce((a, b) => a + b, 0);
   const age = x => Math.round(x * 10) / 10;
-  const NO_PULSE = { bpm: null, quality: 0, source: null };
+  const NO_PULSE = { bpm: null, quality: null, source: null };
   const NO_PHYSIO = {
     source: null, transport: null, simulated: false, pulse_bpm: null, quality: null, quality_reported: false, contact: null,
     finger_bpm: [null, null], breathing_per_min: null, rmssd_ms: null, sdnn_ms: null, rmssd_vs_baseline: null, presence: null, age_s: null,
@@ -137,11 +139,11 @@
 
     readArkit(now) {
       const d = this.native;
-      if (!d || now - this.nativeAt > 0.5) return { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: null, quality: 0 };
+      if (!d || now - this.nativeAt > 0.5) return { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: null, quality: null };
       const open = d.openness ?? 1 - (d.blink_l + d.blink_r) / 2;
       return {
         t: now, eye_openness: d.tracked ? clamp(open, 0, 1) : null, blink_l: d.blink_l, blink_r: d.blink_r, tracked: !!d.tracked,
-        head_pitch_deg: d.tracked ? d.pitch_deg ?? null : null, ambient_light: d.ambient ?? null, quality: d.tracked ? 0.9 : 0,
+        head_pitch_deg: d.tracked ? d.pitch_deg ?? null : null, ambient_light: d.ambient ?? null, quality: null,
       };
     },
 
@@ -153,13 +155,13 @@
         const res = this.landmarker.detectForVideo(vid, performance.now());
         const bs = res.faceBlendshapes?.[0]?.categories, m = res.facialTransformationMatrixes?.[0]?.data;
         if (now - this.ambientAt > 1) { this.ambientAt = now; try { this.ambient = luma(vid); } catch { this.ambient = null; } }
-        if (!bs) this.mp = { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: this.ambient, quality: 0 };
+        if (!bs) this.mp = { t: now, eye_openness: null, blink_l: null, blink_r: null, tracked: false, head_pitch_deg: null, ambient_light: this.ambient, quality: null };
         else {
           const get = n => bs.find(c => c.categoryName === n)?.score ?? 0;
           const bl = get('eyeBlinkLeft'), br = get('eyeBlinkRight');
           this.mp = {
             t: now, eye_openness: clamp(1 - (bl + br) / 2, 0, 1), blink_l: bl, blink_r: br, tracked: true,
-            head_pitch_deg: m ? Math.atan2(m[9], m[10]) * 180 / Math.PI : null, ambient_light: this.ambient, quality: 0.85,
+            head_pitch_deg: m ? Math.atan2(m[9], m[10]) * 180 / Math.PI : null, ambient_light: this.ambient, quality: null,
           };
         }
       }
@@ -214,7 +216,8 @@
 
     pulse(now) {
       const fresh = x => x && now - x.at < FRESH_S && x.quality != null && x.quality >= MIN_QUALITY;
-      const stone = this.enabled.pulse_stone && fresh(this.stone) ? this.stone : null;
+      const on = this.enabled.pulse_stone;
+      const stone = on ? this.blePulse(now) || (fresh(this.stone) ? this.stone : null) : null;
       const measured = stone && stone.source !== 'simulated' ? stone : null;
       const sim = () => this.enabled.simulator ? { bpm: Sim.pulse(now), quality: 0.9, source: 'simulated' } : NO_PULSE;
       if (this.pulseMode === 'real') return measured || NO_PULSE;
@@ -233,44 +236,46 @@
 
     setFingerLink(state, name = null) {
       this.fingerLink = { state: state || 'unavailable', name: name ?? null };
-      if (state !== 'connected') { this.fingerBle = null; this.feedPulse({ bpm: null, source: 'finger_ppg' }); }
+      if (state !== 'connected') this.fingerBle = null;
     },
 
     feedFingerBle(d) {
       if (!this.enabled.pulse_stone || !d) return;
       if (this.fingerLink.state !== 'connected') { this.droppedPhysio++; return; }
       const now = A.now(), b = this.fingerBle || (this.fingerBle = {});
-      if (d.kind === 'hrm') {
-        b.pulse_bpm = pos(d.bpm); b.pulseAt = now;
-        const contact = b.presence == null ? true : b.presence === 'active';
-        const quality = b.affAt != null && now - b.affAt < FRESH_S ? b.quality : null;
-        this.feedPulse({ bpm: b.pulse_bpm, quality, contact, source: 'finger_ppg' });
-      } else if (d.kind === 'aff1') {
+      if (d.kind === 'hrm') { b.pulse_bpm = pos(d.bpm); b.pulseAt = now; }
+      else if (d.kind === 'aff1') {
         Object.assign(b, {
-          finger_bpm: [pos(d.finger_bpm?.[0]), pos(d.finger_bpm?.[1])], breathing_per_min: pos(d.breathing_per_min), rmssd_ms: pos(d.rmssd_ms),
+          finger_bpm: [pos(d.finger_bpm?.[0]), pos(d.finger_bpm?.[1])], breathing_per_min: pos(d.breathing_per_min),
+          rmssd_ms: d.rmssd_ms >= RMSSD_OVER ? null : pos(d.rmssd_ms),
           quality: unit(d.quality), presence: PRESENCE.includes(d.presence) ? d.presence : null, quality_reported: d.payload_len >= 5, affAt: now,
         });
-        if (b.presence && b.presence !== 'active') this.feedPulse({ bpm: null, contact: false, source: 'finger_ppg' });
-        else if (b.pulse_bpm && now - b.pulseAt < FRESH_S) {
-          this.feedPulse({ bpm: b.pulse_bpm, quality: b.quality, contact: true, source: 'finger_ppg' });
-          if (this.stone) this.stone.at = b.pulseAt;
-        }
       }
+    },
+
+    blePulse(now) {
+      const b = this.fingerBle, live = at => at != null && now - at < FRESH_S;
+      if (!b || this.fingerLink.state !== 'connected' || !b.pulse_bpm || !live(b.pulseAt) || !live(b.affAt)) return null;
+      if (b.presence !== 'active' || b.quality == null || b.quality < MIN_QUALITY) return null;
+      return { bpm: b.pulse_bpm, quality: b.quality, source: 'finger_ppg', at: b.pulseAt };
     },
 
     feedFingerHub(d) {
       if (!this.enabled.pulse_stone || !d) return;
-      if (d.source !== 'finger_ppg' && d.source !== 'simulated') { this.droppedPhysio++; return; }
-      const stale = Number.isFinite(d.age_s) && d.age_s >= FRESH_S;
+      const source = d.simulated === true ? 'simulated' : d.source;
+      if (source !== 'finger_ppg' && source !== 'simulated') { this.droppedPhysio++; return; }
+      const now = A.now(), age0 = Math.max(0, num(d.age_s) ?? 0), quality = unit(d.quality), reported = d.quality_reported ?? Number.isFinite(d.quality);
+      const usable = reported && quality != null && quality >= MIN_QUALITY && age0 < FRESH_S;
       this.fingerHub = {
-        source: d.source, transport: 'hub_http', simulated: d.source === 'simulated', pulse_bpm: stale ? null : pos(d.pulse_bpm),
-        quality: unit(d.quality), quality_reported: d.quality_reported ?? Number.isFinite(d.quality), contact: d.contact ?? null,
+        source, transport: 'hub_http', simulated: source === 'simulated', pulse_bpm: usable ? pos(d.pulse_bpm) : null,
+        quality, quality_reported: reported, contact: d.contact ?? null,
         finger_bpm: [pos(d.finger_bpm?.[0]), pos(d.finger_bpm?.[1])], breathing_per_min: pos(d.breathing_per_min), rmssd_ms: pos(d.rmssd_ms),
         sdnn_ms: pos(d.sdnn_ms), rmssd_vs_baseline: num(d.rmssd_vs_baseline), presence: PRESENCE.includes(d.presence) ? d.presence : null,
-        age_s: num(d.age_s) ?? 0, at: A.now(),
+        age_s: age0, at: now,
       };
       const h = this.fingerHub;
-      this.feedPulse({ bpm: h.pulse_bpm, quality: h.quality, contact: h.contact, source: h.source });
+      this.feedPulse({ bpm: h.pulse_bpm, quality: h.quality, contact: h.contact, source });
+      if (this.stone && this.stone.source === source) this.stone.at = now - age0;
     },
 
     fingerAttached(now) {
@@ -279,21 +284,34 @@
       return this.fingerLink.state === 'connected' || (!!h && now - h.at < PRODUCER_S && h.source !== 'simulated');
     },
 
+    bleFrame(now) {
+      const b = this.fingerBle, link = this.fingerLink.state, live = at => at != null && now - at < FRESH_S;
+      if (link !== 'connected' || !b) return null;
+      const pf = live(b.pulseAt), af = live(b.affAt), p = this.blePulse(now);
+      if (!pf && !af) return null;
+      const presence = af ? b.presence ?? null : null;
+      return {
+        ...NO_PHYSIO, source: 'finger_ppg', transport: 'ble', pulse_bpm: p ? p.bpm : null,
+        quality: af ? b.quality : null, quality_reported: !!b.quality_reported,
+        contact: presence != null ? presence === 'active' : pf ? true : null,
+        finger_bpm: af && b.finger_bpm ? [...b.finger_bpm] : [null, null], breathing_per_min: af ? b.breathing_per_min : null, rmssd_ms: af ? b.rmssd_ms : null,
+        presence, age_s: age(now - Math.max(b.pulseAt ?? -Infinity, b.affAt ?? -Infinity)), link,
+      };
+    },
+
+    hubFrame(now) {
+      const h = this.fingerHub;
+      if (!h || now - h.at >= FRESH_S) return null;
+      const { at, ...f } = h, a = f.age_s + now - at;
+      return { ...f, pulse_bpm: a < FRESH_S ? f.pulse_bpm : null, finger_bpm: [...f.finger_bpm], age_s: age(a), link: this.fingerLink.state };
+    },
+
     fingerFrame(now) {
       if (!this.enabled.pulse_stone) return null;
-      const link = this.fingerLink.state, b = this.fingerBle, h = this.fingerHub;
-      if (link === 'connected' && b) {
-        const pf = b.pulseAt != null && now - b.pulseAt < FRESH_S, af = b.affAt != null && now - b.affAt < FRESH_S;
-        return {
-          ...NO_PHYSIO, source: 'finger_ppg', transport: 'ble', pulse_bpm: pf ? b.pulse_bpm : null,
-          quality: af ? b.quality : null, quality_reported: !!b.quality_reported,
-          contact: b.presence != null ? b.presence === 'active' : pf ? true : null,
-          finger_bpm: af && b.finger_bpm ? [...b.finger_bpm] : [null, null], breathing_per_min: af ? b.breathing_per_min : null, rmssd_ms: af ? b.rmssd_ms : null,
-          presence: b.presence ?? null, age_s: b.pulseAt == null ? null : age(now - b.pulseAt), link,
-        };
-      }
-      if (h && now - h.at < FRESH_S) { const { at, ...f } = h; return { ...f, finger_bpm: [...f.finger_bpm], age_s: age(f.age_s + now - at), link }; }
-      return null;
+      const b = this.bleFrame(now), h = this.hubFrame(now);
+      if (b && b.pulse_bpm != null) return b;
+      if (h && !h.simulated && h.pulse_bpm != null) return h;
+      return b || h;
     },
 
     livePhysio(now) {

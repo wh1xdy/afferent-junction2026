@@ -91,13 +91,13 @@
     ctx.shadowColor = rgb(C.night950, 0.7); ctx.shadowBlur = 10;
     ctx.fillStyle = rgb(C.silver100, 0.95);
     ctx.beginPath();
-    ctx.roundRect(-4.8, 0, 9.6, 27, 4.8);
-    ctx.roundRect(-6.5, 17, 25, 25, 9);
-    ctx.roundRect(-13, 23, 10, 15, 5);
+    ctx.roundRect(-4.8, 0, 9.6, 19, 4.8);
+    ctx.roundRect(-6.5, 9, 25, 25, 9);
+    ctx.roundRect(-13, 15, 10, 15, 5);
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = rgb(C.silver400, 0.7); ctx.lineWidth = 1.3; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(6, 25); ctx.lineTo(16, 25); ctx.moveTo(6, 31); ctx.lineTo(16, 31); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6, 17); ctx.lineTo(16, 17); ctx.moveTo(6, 23); ctx.lineTo(16, 23); ctx.stroke();
     ctx.restore();
   };
 
