@@ -6,13 +6,13 @@ the prompt is exactly what the analyzer sends at inference (metrics + window),
 the completion is the label rendered into the runtime output contract
 ({dim: {score, confidence, evidence}, drift_flag, notes}).
 
-Splits are by persona_id — all windows of a persona land in the same split
-so the model cannot memorise speakers across the boundary.
+Splits are by persona when there are at least two personas, otherwise by
+stratified file so single-persona corpora still have held-out examples.
 
 Usage:
     python3 scripts/build_dataset.py \
         --input-dir ../data/transcripts --out-dir data/sft \
-        [--val-frac 0.1 --test-frac 0.1 --seed 42]
+        [--max-window-chars 9000 --max-len 4096]
 
 The analyzer package is imported from ../analyzer — run from the repo root
 or anywhere inside it; no install needed.
@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import statistics
 import sys
 from collections import Counter
 from pathlib import Path
@@ -116,6 +117,25 @@ def labels_to_contract(labels: dict) -> dict:
     return out
 
 
+def _tokenizer(path: Path):
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(path, local_files_only=True)
+    template_path = path / "chat_template.jinja"
+    if not tok.chat_template and template_path.is_file():
+        tok.chat_template = template_path.read_text(encoding="utf-8")
+    if not tok.chat_template:
+        raise RuntimeError(f"no chat template found in {path}")
+    return tok
+
+
+def _token_length(messages: list[dict], tok) -> int:
+    ids = tok.apply_chat_template(
+        messages, tokenize=True, enable_thinking=False)
+    ids = ids["input_ids"] if hasattr(ids, "keys") else ids
+    return int(ids.shape[-1]) if hasattr(ids, "shape") else len(ids)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--input-dir", required=True, type=Path,
@@ -126,6 +146,10 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--max-window-turns", type=int, default=120)
     ap.add_argument("--overlap", type=int, default=20)
+    ap.add_argument("--max-window-chars", type=int, default=9000)
+    ap.add_argument("--max-len", type=int, default=4096)
+    ap.add_argument("--tokenizer", type=Path,
+                    default=_HERE.parents[2] / "models/qwen3-8b-lora-run1")
     ap.add_argument("--target", default="target")
     ap.add_argument("--derive-labels", action="store_true",
                     help="for records without `labels`: synthesise them from "
@@ -138,6 +162,7 @@ def main() -> None:
                          "'auto' = persona if >=2 personas else file.")
     args = ap.parse_args()
 
+    tok = _tokenizer(args.tokenizer)
     rng = random.Random(args.seed)
     examples: list[dict] = []
     skipped = 0
@@ -157,7 +182,8 @@ def main() -> None:
                               "notes": f"derived from injected state "
                                        f"'{rec.trajectory}'"}
             for win in transcript.expand_windows(
-                    rec, args.max_window_turns, args.overlap):
+                    rec, args.max_window_turns, args.overlap,
+                    args.max_window_chars):
                 m = metrics.extract(win, args.target)
                 messages = scoring.build_messages(win, m, args.target)
                 messages.append({
@@ -165,35 +191,56 @@ def main() -> None:
                     "content": json.dumps(
                         labels_to_contract(win.labels), ensure_ascii=False),
                 })
-                examples.append({
+                example = {
                     "messages": messages,
                     "persona_id": rec.persona_id,
                     "day": rec.day,
                     "trajectory": rec.trajectory,
                     "file": path.stem,
-                })
+                    "example_id": f"{win.record_id}#{win.seq}",
+                    "record_id": win.record_id,
+                    "seq": win.seq,
+                    "labels": labels_to_contract(win.labels),
+                }
+                example["token_count"] = _token_length(messages, tok)
+                examples.append(example)
                 per_state[rec.trajectory] += 1
+
+    if not examples:
+        raise SystemExit("no labeled examples found")
+    offenders = [e for e in examples if e["token_count"] > args.max_len]
+    if offenders:
+        details = "\n".join(
+            f"  {e['file']} {e['example_id']}: {e['token_count']} tokens"
+            for e in offenders)
+        raise SystemExit(
+            f"{len(offenders)} examples exceed --max-len {args.max_len}:\n{details}")
 
     personas = sorted({e["persona_id"] for e in examples})
     split_by = args.split_by
-    if split_by == "auto":
-        split_by = "persona" if len(personas) >= 2 else "file"
+    if len(personas) < 2:
+        split_by = "file"
+    elif split_by == "auto":
+        split_by = "persona"
 
     if split_by == "file":
         by_state: dict[str, set[str]] = {}
         for e in examples:
             by_state.setdefault(e["trajectory"], set()).add(e["file"])
-        n_files = sum(len(v) for v in by_state.values())
+        n_files = len({e["file"] for e in examples})
+        n_test = min(max(1, round(n_files * args.test_frac)), n_files - 1)
+        n_val = (min(max(1, round(n_files * args.val_frac)), n_files - n_test - 1)
+                 if n_files >= 3 else 0)
         splits = _stratified_file_split(
-            by_state,
-            max(1, round(n_files * args.test_frac)),
-            max(1, round(n_files * args.val_frac)),
-            rng)
+            by_state, n_test, n_val, rng)
         unit_key = "file"
     else:
         rng.shuffle(personas)
-        n_test = int(len(personas) * args.test_frac)
-        n_val = int(len(personas) * args.val_frac)
+        n_test = min(max(1, round(len(personas) * args.test_frac)),
+                     len(personas) - 1)
+        n_val = (min(max(1, round(len(personas) * args.val_frac)),
+                     len(personas) - n_test - 1)
+                 if len(personas) >= 3 else 0)
         splits = {
             "test": set(personas[:n_test]),
             "val": set(personas[n_test:n_test + n_val]),
@@ -203,19 +250,27 @@ def main() -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     counts: Counter = Counter()
+    token_stats: dict[str, dict] = {}
+    state_splits: dict[str, dict[str, int]] = {}
     for name in ("train", "val", "test"):
         rows = [e for e in examples if e[unit_key] in splits[name]]
         rng.shuffle(rows)
+        lengths = [e["token_count"] for e in rows]
+        token_stats[name] = ({
+            "min": min(lengths),
+            "median": statistics.median(lengths),
+            "max": max(lengths),
+        } if lengths else {"min": None, "median": None, "max": None})
+        state_splits[name] = dict(Counter(e["trajectory"] for e in rows))
         with (args.out_dir / f"{name}.jsonl").open("w") as f:
             for e in rows:
-                f.write(json.dumps({"messages": e["messages"],
-                                    "persona_id": e["persona_id"],
-                                    "day": e["day"],
-                                    "trajectory": e["trajectory"],
-                                    "file": e["file"]},
-                                   ensure_ascii=False) + "\n")
+                f.write(json.dumps(
+                    {k: v for k, v in e.items() if k != "token_count"},
+                    ensure_ascii=False) + "\n")
         counts[name] = len(rows)
 
+    if not counts["train"]:
+        raise SystemExit("split produced an empty training set")
     print(json.dumps({
         "examples": len(examples),
         "records_without_labels": skipped,
@@ -224,6 +279,11 @@ def main() -> None:
         "split_units": {n: sorted(s) for n, s in splits.items()},
         "splits": dict(counts),
         "per_state": dict(per_state),
+        "per_state_per_split": state_splits,
+        "token_stats": token_stats,
+        "max_window_chars": args.max_window_chars,
+        "max_len": args.max_len,
+        "tokenizer": str(args.tokenizer),
         "out_dir": str(args.out_dir),
     }, indent=2))
 

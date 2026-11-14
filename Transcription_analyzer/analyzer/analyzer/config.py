@@ -20,11 +20,20 @@ except ImportError:  # YAML config is optional
 
 @dataclass
 class ModelCfg:
-    backend: str = "llamacpp"          # llamacpp | openai
+    backend: str = "llamacpp"          # llamacpp | llamaserver | openai
     # llamacpp backend
     path: str = "/data/models/model.gguf"
     n_ctx: int = 8192
     n_gpu_layers: int = -1             # -1 = offload everything that fits
+    lora_path: str = ""
+    server_bin: str = "llama-server"
+    server_port: int = 8081
+    server_args: list[str] = field(default_factory=list)
+    startup_timeout_s: int = 300
+    hf_repo: str = "Qwen/Qwen3-8B-GGUF"
+    hf_file: str = "Qwen3-8B-Q4_K_M.gguf"
+    auto_fetch: bool = False
+    min_free_gb: float = 0.0
     # openai backend (cloud version / llama.cpp server / NIM / vLLM)
     base_url: str = "http://127.0.0.1:8080/v1"
     api_key: str = ""
@@ -66,6 +75,7 @@ class Config:
     target_speaker: str = "target"     # speaker label of the tracked person
     max_window_turns: int = 120
     window_overlap: int = 20
+    window_max_chars: int = 9000
     baseline_days: int = 28
     score_retries: int = 1
     model: ModelCfg = field(default_factory=ModelCfg)
@@ -79,10 +89,20 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "ANALYZER_HOST": ("", "host"),
     "ANALYZER_PORT": ("", "port"),
     "ANALYZER_TARGET_SPEAKER": ("", "target_speaker"),
+    "ANALYZER_WINDOW_MAX_CHARS": ("", "window_max_chars"),
     "ANALYZER_MODEL_BACKEND": ("model", "backend"),
     "ANALYZER_MODEL_PATH": ("model", "path"),
     "ANALYZER_MODEL_CTX": ("model", "n_ctx"),
     "ANALYZER_GPU_LAYERS": ("model", "n_gpu_layers"),
+    "ANALYZER_LORA_PATH": ("model", "lora_path"),
+    "ANALYZER_SERVER_BIN": ("model", "server_bin"),
+    "ANALYZER_SERVER_PORT": ("model", "server_port"),
+    "ANALYZER_SERVER_ARGS": ("model", "server_args"),
+    "ANALYZER_STARTUP_TIMEOUT_S": ("model", "startup_timeout_s"),
+    "ANALYZER_MIN_FREE_GB": ("model", "min_free_gb"),
+    "ANALYZER_HF_REPO": ("model", "hf_repo"),
+    "ANALYZER_HF_FILE": ("model", "hf_file"),
+    "ANALYZER_AUTO_FETCH": ("model", "auto_fetch"),
     "ANALYZER_BASE_URL": ("model", "base_url"),
     "ANALYZER_API_KEY": ("model", "api_key"),
     "ANALYZER_MODEL_NAME": ("model", "name"),

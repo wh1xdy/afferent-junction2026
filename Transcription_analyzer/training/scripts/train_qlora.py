@@ -30,6 +30,9 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--lora-alpha", type=int, default=32)
     ap.add_argument("--lora-dropout", type=float, default=0.05)
     ap.add_argument("--max-len", type=int, default=4096)
+    ap.add_argument("--tokenizer", type=Path,
+                    default=Path(__file__).resolve().parents[2]
+                    / "models/qwen3-8b-lora-run1")
     ap.add_argument("--per-device-bs", type=int, default=1)
     ap.add_argument("--grad-accum", type=int, default=16)
     ap.add_argument("--warmup-ratio", type=float, default=0.03)
@@ -37,6 +40,27 @@ def parse_args() -> argparse.Namespace:
                     help="also write the merged bf16 model here")
     ap.add_argument("--seed", type=int, default=42)
     return ap.parse_args()
+
+
+def completion_encoding(messages, tokenizer, max_len: int):
+    full_text = tokenizer.apply_chat_template(
+        messages, tokenize=False, enable_thinking=False)
+    prefix_text = tokenizer.apply_chat_template(
+        messages[:-1], tokenize=False, add_generation_prompt=True,
+        enable_thinking=False)
+    if not full_text.startswith(prefix_text):
+        raise ValueError("training text does not start with its generation prefix")
+    full_ids = tokenizer(full_text, add_special_tokens=False)["input_ids"]
+    prefix_ids = tokenizer(prefix_text, add_special_tokens=False)["input_ids"]
+    if full_ids[:len(prefix_ids)] != prefix_ids:
+        raise ValueError("tokenization merges across the prompt/completion boundary")
+    if len(full_ids) > max_len:
+        raise ValueError(
+            f"example has {len(full_ids)} tokens, exceeding max_len={max_len}")
+    labels = [-100] * len(prefix_ids) + full_ids[len(prefix_ids):]
+    if not any(token != -100 for token in labels):
+        raise ValueError("example has no unmasked completion tokens")
+    return full_ids, labels
 
 
 def main() -> None:
@@ -57,16 +81,12 @@ def main() -> None:
                          "build_dataset.py first")
     ds = load_dataset("json", data_files=files)
 
-    tok = AutoTokenizer.from_pretrained(args.base_model)
+    tok = AutoTokenizer.from_pretrained(args.tokenizer, local_files_only=True)
+    template_path = args.tokenizer / "chat_template.jinja"
+    if not tok.chat_template and template_path.is_file():
+        tok.chat_template = template_path.read_text(encoding="utf-8")
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-
-    def to_text(batch):
-        return {"text": [tok.apply_chat_template(m, tokenize=False)
-                         for m in batch["messages"]]}
-
-    ds = ds.map(to_text, batched=True,
-                remove_columns=ds["train"].column_names)
 
     bnb = BitsAndBytesConfig(
         load_in_4bit=True,
@@ -88,21 +108,19 @@ def main() -> None:
     model.print_trainable_parameters()
 
     def collate(features):
-        enc = tok([f["text"] for f in features],
-                  truncation=True, max_length=args.max_len,
-                  padding="longest", return_tensors="pt")
-        enc["labels"] = enc["input_ids"].clone()
-        # completion-only loss: mask everything before the last assistant turn
-        marker = tok.apply_chat_template(
-            [{"role": "assistant", "content": ""}], tokenize=False)
-        marker_ids = tok(marker, add_special_tokens=False)["input_ids"]
-        for i, ids in enumerate(enc["input_ids"].tolist()):
-            start = _last_sublist_index(ids, marker_ids)
-            if start is None:               # template fallback: mask nothing
-                continue
-            enc["labels"][i, :start + len(marker_ids)] = -100
-        enc["labels"][enc["input_ids"] == tok.pad_token_id] = -100
-        return enc
+        rows = [completion_encoding(f["messages"], tok, args.max_len)
+                for f in features]
+        width = max(len(ids) for ids, _ in rows)
+        input_ids = torch.full((len(rows), width), tok.pad_token_id,
+                               dtype=torch.long)
+        labels = torch.full((len(rows), width), -100, dtype=torch.long)
+        attention = torch.zeros((len(rows), width), dtype=torch.long)
+        for i, (ids, targets) in enumerate(rows):
+            input_ids[i, :len(ids)] = torch.tensor(ids)
+            labels[i, :len(targets)] = torch.tensor(targets)
+            attention[i, :len(ids)] = 1
+        return {"input_ids": input_ids, "attention_mask": attention,
+                "labels": labels}
 
     steps_per_epoch = max(1, len(ds["train"]) //
                           (args.per_device_bs * args.grad_accum))
@@ -118,9 +136,9 @@ def main() -> None:
         gradient_checkpointing=True,
         warmup_steps=warmup_steps,
         lr_scheduler_type="cosine",
-        logging_steps=10,
+        logging_steps=1,
         eval_strategy="epoch" if "val" in ds else "no",
-        remove_unused_columns=False,   # keep `text` for the collate fn
+        remove_unused_columns=False,
         save_strategy="epoch",
         bf16=True,
         seed=args.seed,
@@ -131,6 +149,9 @@ def main() -> None:
                       eval_dataset=ds.get("val"),
                       data_collator=collate)
     trainer.train()
+    with (args.out / "metrics.jsonl").open("w", encoding="utf-8") as stream:
+        for row in trainer.state.log_history:
+            stream.write(json.dumps(row, default=str) + "\n")
 
     adapter_dir = args.out / "adapter"
     adapter_dir.mkdir(parents=True, exist_ok=True)
@@ -147,15 +168,6 @@ def main() -> None:
         tok.save_pretrained(args.merge_out)
         print(f"merged model saved to {args.merge_out} — convert to GGUF with "
               "llama.cpp convert_hf_to_gguf.py + llama-quantize")
-
-
-def _last_sublist_index(seq: list[int], sub: list[int]) -> int | None:
-    if not sub:
-        return None
-    for i in range(len(seq) - len(sub), -1, -1):
-        if seq[i:i + len(sub)] == sub:
-            return i
-    return None
 
 
 if __name__ == "__main__":

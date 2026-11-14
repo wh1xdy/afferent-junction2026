@@ -1,30 +1,35 @@
-# Jetson edge deployment — llama.cpp backend, nightly window.
+# Jetson edge deployment — llama-server backend; posture_controller swaps GPU apps.
 transcripts_dir: /data/transcripts
 db_path: /data/analyzer.db
 target_speaker: target
 max_window_turns: 120
-window_overlap: 20
+window_overlap: 15
+window_max_chars: 9000
 baseline_days: 28
 
 model:
-  backend: llamacpp
-  path: /data/models/student-q5_k_m.gguf   # fine-tuned student, see training/
-  n_ctx: 8192
+  backend: llamaserver
+  path: /data/models/Qwen3-8B-Q4_K_M.gguf
+  # Base model only: on the held-out test split the run-1/run-2 adapters do
+  # not beat it (training/work_dirs/run2/eval). Set to an adapter GGUF to opt in.
+  lora_path: ""
+  n_ctx: 5120                               # prompt <= ~3.5k tokens + output
   n_gpu_layers: -1                          # all layers on the Orin iGPU
+  server_args: ["-fa", "-ctk", "q8_0", "-ctv", "q8_0"]
+  auto_fetch: true
+  min_free_gb: 5.8
   temperature: 0.2
-  max_tokens: 800
+  max_tokens: 1200                          # base model writes long evidence
 
 schedule:
-  window: "02:00-06:00"                     # nightly batch window
+  # The controller swaps posture/analyzer: unified memory cannot hold both.
+  window: ""
   once_per_day: true
   poll_seconds: 60
-  vision_probe_urls:
-    # the vision app inside Wendy Net — if it answers, the night defer logic
-    # keeps memory for it; unreachable (stopped) = analyzer may run.
-    - "http://afferent-vision:3005/health"
+  vision_probe_urls: []
 
 data_manager:
-  url: ""                                    # empty = mDNS discovery (role=data-manager); pin "http://afferent-data-manager:8100" or "off"
+  url: ""                                    # DATA_MANAGER_URL is supplied by Wendy env.
   token: ""                                  # empty = env DATA_MANAGER_TOKEN
   source: transcription-analyzer             # samples land as transcription-analyzer/<persona>
   register_metrics: true

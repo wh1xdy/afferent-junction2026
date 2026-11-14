@@ -42,9 +42,9 @@ def run_batch(cfg: Config, backend: Backend, store: Store,
     """Score every unprocessed transcript window under cfg.transcripts_dir."""
     result = BatchResult()
     t0 = time.monotonic()
-    touched_days: set[str] = set()
+    touched: set[tuple[str, str]] = set()   # (persona_id, day) pairs
 
-    paths = sorted(Path(cfg.transcripts_dir).glob("*.jsonl"))
+    paths = sorted(Path(cfg.transcripts_dir).rglob("*.jsonl"))
     for path in paths:
         result.files += 1
         try:
@@ -55,7 +55,8 @@ def run_batch(cfg: Config, backend: Backend, store: Store,
             continue
         for rec in records:
             for win in transcript.expand_windows(
-                    rec, cfg.max_window_turns, cfg.window_overlap):
+                    rec, cfg.max_window_turns, cfg.window_overlap,
+                    cfg.window_max_chars):
                 if not rescore and store.has_window(win.record_id, win.seq):
                     result.windows_skipped += 1
                     continue
@@ -78,13 +79,14 @@ def run_batch(cfg: Config, backend: Backend, store: Store,
                 if sink:
                     sink.push_window(win, s)
                 result.windows_scored += 1
-                touched_days.add(win.day)
+                touched.add((win.persona_id, win.day))
 
-    for day in sorted(touched_days):
-        store.aggregate_day(day)
+    for persona, day in sorted(touched):
+        store.aggregate_day(persona, day)
         if sink:
-            sink.push_day(store.drift_index(day, cfg.baseline_days))
-    result.days = sorted(touched_days)
+            sink.push_day(
+                store.drift_index(day, persona, cfg.baseline_days), persona)
+    result.days = sorted({d for _, d in touched})
     result.seconds = time.monotonic() - t0
     return result
 
@@ -92,9 +94,11 @@ def run_batch(cfg: Config, backend: Backend, store: Store,
 class Runner:
     """Serializes batch runs and brackets them with model load/unload."""
 
-    def __init__(self, cfg: Config, backend: Backend | None = None):
+    def __init__(self, cfg: Config, backend: Backend | None = None,
+                 fetcher=None):
         self.cfg = cfg
         self.backend = backend or make_backend(cfg.model)
+        self.fetcher = fetcher
         self._lock = threading.Lock()
         self.last_result: dict | None = None
         self.last_run_at: str | None = None
@@ -105,10 +109,35 @@ class Runner:
     def running(self) -> bool:
         return self._lock.locked()
 
+    @staticmethod
+    def _mem_available_gb() -> float | None:
+        try:
+            for line in Path("/proc/meminfo").read_text().splitlines():
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / (1024 * 1024)
+        except (OSError, ValueError, IndexError):
+            return None
+        return None
+
+    def preflight(self) -> str | None:
+        if self.fetcher is not None and not self.fetcher.ready:
+            state = self.fetcher.status()["state"]
+            return f"model not ready: {state}"
+        minimum = self.cfg.model.min_free_gb
+        if minimum > 0:
+            available = self._mem_available_gb()
+            if available is not None and available < minimum:
+                return (f"only {available:.1f} GB free, need {minimum:g} "
+                        "— stop afferent-posture first")
+        return None
+
     def run_batch_locked(self, rescore: bool = False) -> dict:
         if not self._lock.acquire(blocking=False):
             raise RuntimeError("a batch is already running")
         try:
+            reason = self.preflight()
+            if reason:
+                raise RuntimeError(reason)
             self.backend.load()
             try:
                 with Store(self.cfg.db_path) as store, \
@@ -140,4 +169,6 @@ class Runner:
             "last_result": self.last_result,
             "last_error": self.last_error,
             "data_manager": self.last_dm_status,
+            "model": (self.fetcher.status() if self.fetcher is not None
+                      else {"state": "ready"}),
         }

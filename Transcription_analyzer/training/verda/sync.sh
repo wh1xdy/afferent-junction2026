@@ -7,11 +7,11 @@
 #     (minus data/, work_dirs/, cache/ and verda/config.env)
 #   Transcription_analyzer/analyzer/analyzer/ -> $REMOTE_ROOT/Transcription_analyzer/analyzer/analyzer/
 #     (the analyzer package — build_dataset.py imports metrics+prompts from it)
-#   $DATA_DIR/                               -> $REMOTE_ROOT/Transcription_analyzer/training/data/
-#     (transcript JSONL; default training/data)
+#   $TRANSCRIPTS/                            -> $REMOTE_ROOT/Transcription_analyzer/training/data/transcripts/
+#     (approved synthetic corpus only; default ../data/transcripts)
 #
 # Usage: verda/sync.sh [--dry-run]
-# Env: VM_HOSTNAME, SSH_USER, SSH_KEY, SSH_DEST, SSH_OPTS, DATA_DIR, REMOTE_ROOT.
+# Env: VM_HOSTNAME, SSH_USER, SSH_KEY, SSH_DEST, SSH_OPTS, TRANSCRIPTS, REMOTE_ROOT.
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
@@ -40,8 +40,9 @@ ssh_direct -o BatchMode=yes "$DEST" true 2>/dev/null || \
   SSH_KEY=~/.ssh/id_ed25519  (or SSH_OPTS='-i ... -o ...')."
 
 ssh_direct "$DEST" "mkdir -p \
-    '$REMOTE_ROOT/Transcription_analyzer/training/data' \
-    '$REMOTE_ROOT/Transcription_analyzer/analyzer/analyzer'"
+    '$REMOTE_ROOT/Transcription_analyzer/training/data/transcripts' \
+    '$REMOTE_ROOT/Transcription_analyzer/analyzer/analyzer' \
+    '$REMOTE_ROOT/Transcription_analyzer/models/qwen3-8b-lora-run1'"
 
 # push_dir LOCAL_DIR REMOTE_PATH [EXCLUDE ...]
 # rsync when available; falls back to tar-over-ssh otherwise (no --delete
@@ -70,18 +71,33 @@ push_dir "$APP_DIR/analyzer/analyzer" \
     "$REMOTE_ROOT/Transcription_analyzer/analyzer/analyzer" \
     '__pycache__/' '.pytest_cache/'
 
-DATA_SRC="$(cd "$DATA_DIR" 2>/dev/null && pwd)" || DATA_SRC=""
-DATA_DFT="$(cd "$TRAINING_DIR/data" 2>/dev/null && pwd)" || DATA_DFT=""
-if [ -n "$DATA_SRC" ] && [ "$DATA_SRC" != "$DATA_DFT" ]; then
-    log "sync DATA_DIR=$DATA_SRC -> $DEST:$REMOTE_ROOT/Transcription_analyzer/training/data/"
-    push_dir "$DATA_SRC" "$REMOTE_ROOT/Transcription_analyzer/training/data"
-elif [ -n "$DATA_DFT" ]; then
-    log "sync default dataset $DATA_DFT -> remote data/"
-    push_dir "$DATA_DFT" "$REMOTE_ROOT/Transcription_analyzer/training/data"
+log "sync tokenizer files -> $DEST:$REMOTE_ROOT/Transcription_analyzer/models/"
+push_dir "$APP_DIR/models/qwen3-8b-lora-run1" \
+    "$REMOTE_ROOT/Transcription_analyzer/models/qwen3-8b-lora-run1" \
+    'adapter_model.safetensors' '*.safetensors'
+
+TRANSCRIPTS_SRC="$(cd "$TRANSCRIPTS" 2>/dev/null && pwd)" || TRANSCRIPTS_SRC=""
+if [ -n "$TRANSCRIPTS_SRC" ]; then
+    log "sync synthetic transcripts $TRANSCRIPTS_SRC -> $DEST:$REMOTE_ROOT/Transcription_analyzer/training/data/transcripts/"
+    push_dir "$TRANSCRIPTS_SRC" "$REMOTE_ROOT/Transcription_analyzer/training/data/transcripts"
 else
-    log "warning: dataset dir '$DATA_DIR' not found locally -- skipping."
-    log "         (expected: data/transcripts/*.jsonl from the simulator;"
-    log "          set TRANSCRIPTS/DATA_DIR if it lives elsewhere)"
+    die "transcript directory '$TRANSCRIPTS' not found (only data/transcripts may be synced)"
+fi
+
+if [ -d "$TRAINING_DIR/data/sft" ]; then
+    log "sync built SFT dataset -> $DEST:$REMOTE_ROOT/Transcription_analyzer/training/data/sft/"
+    ssh_direct "$DEST" \
+        "mkdir -p '$REMOTE_ROOT/Transcription_analyzer/training/data/sft'"
+    push_dir "$TRAINING_DIR/data/sft" \
+        "$REMOTE_ROOT/Transcription_analyzer/training/data/sft"
+fi
+
+if [ -d "$TRAINING_DIR/work_dirs/run2/adapter" ]; then
+    log "sync existing run-2 adapter -> $DEST:$REMOTE_ROOT/Transcription_analyzer/training/work_dirs/run2/adapter/"
+    ssh_direct "$DEST" \
+        "mkdir -p '$REMOTE_ROOT/Transcription_analyzer/training/work_dirs/run2/adapter'"
+    push_dir "$TRAINING_DIR/work_dirs/run2/adapter" \
+        "$REMOTE_ROOT/Transcription_analyzer/training/work_dirs/run2/adapter"
 fi
 
 log "done. Next: verda/train.sh"

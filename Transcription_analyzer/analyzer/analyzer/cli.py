@@ -29,6 +29,7 @@ def main() -> None:
 
     idx = sub.add_parser("index", help="print the drift index for a day")
     idx.add_argument("--day", help="default: latest scored day")
+    idx.add_argument("--persona", help="default: all personas merged")
 
     args = p.parse_args()
     cfg = load(args.config)
@@ -41,19 +42,23 @@ def main() -> None:
 
     if args.cmd == "metrics-only":
         from . import metrics, transcript
-        for path in sorted(cfg.transcripts_dir.glob("*.jsonl")):
+        for path in sorted(cfg.transcripts_dir.rglob("*.jsonl")):
             for rec in transcript.load_jsonl(path, cfg.target_speaker):
-                m = metrics.extract(rec, cfg.target_speaker)
-                print(json.dumps({"record_id": rec.record_id,
-                                  "day": rec.day, "metrics": m}))
+                for win in transcript.expand_windows(
+                        rec, cfg.max_window_turns, cfg.window_overlap,
+                        cfg.window_max_chars):
+                    m = metrics.extract(win, cfg.target_speaker)
+                    print(json.dumps({"record_id": win.record_id,
+                                      "seq": win.seq, "day": win.day,
+                                      "metrics": m}))
         return
 
     if args.cmd == "index":
         with Store(cfg.db_path) as store:
-            d = args.day or (store.days(limit=1) or [None])[0]
+            d = args.day or (store.days(args.persona, limit=1) or [None])[0]
             if d is None:
                 sys.exit("no scored days yet")
-            out = store.drift_index(d, cfg.baseline_days)
+            out = store.drift_index(d, args.persona, cfg.baseline_days)
         print(json.dumps(out, indent=2))
 
 

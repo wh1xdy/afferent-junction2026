@@ -22,10 +22,12 @@ stay local — the shared store never sees verbatim speech.
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import re
 import urllib.request
 import urllib.error
+from datetime import datetime, timedelta, timezone
 
 from .config import Config
 from .data_manager_client import DataManagerClient
@@ -39,17 +41,21 @@ _ISO_DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # Catalog entries we register once per run (idempotent: re-posting a custom
 # metric refreshes unit/range/description). Naming follows `group.name_unit`.
+# baseline_min_hours=0: a nightly batch stamps all of a day's windows within
+# the same hours — the default 4 observed-hours/day floor would exclude every
+# speech day from the manager's /baseline and /trend machinery.
+_SPEECH_SPEC: dict = {"kind": "sample", "baseline_min_hours": 0}
 SPEECH_METRICS: dict[str, dict] = {
     **{f"speech.{d}_score": {
-        "kind": "sample", "unit": "score", "min": 0, "max": 100,
+        **_SPEECH_SPEC, "unit": "score", "min": 0, "max": 100,
         "description": f"Conversation {d} score, 0-100, per transcript window "
                        "(afferent-transcription-analyzer)"}
        for d in DIMENSIONS},
     "speech.drift_flag": {
-        "kind": "sample", "unit": "bool", "min": 0, "max": 1,
+        **_SPEECH_SPEC, "unit": "bool", "min": 0, "max": 1,
         "description": "Window-level drift flag from the speech contract (0/1)"},
     "speech.drift_index": {
-        "kind": "sample", "unit": "z", "min": None, "max": None,
+        **_SPEECH_SPEC, "unit": "z", "min": None, "max": None,
         "description": "Daily composite z-score vs the person's own baseline; "
                        "negative = downward drift. Descriptor, not a diagnosis"},
 }
@@ -62,8 +68,42 @@ def _source(source: str, persona_id: str) -> str:
 
 
 def _day_ts(day: str) -> str | None:
-    """Noon UTC of an ISO day; synthetic int days fall back to receipt time."""
-    return f"{day}T12:00:00Z" if _ISO_DAY_RE.match(str(day)) else None
+    """Stable same-day stamp for ISO days; receipt-time neighborhood otherwise."""
+    value = str(day)
+    if _ISO_DAY_RE.match(value):
+        return f"{value}T12:00:00Z"
+    offset = int.from_bytes(hashlib.sha256(value.encode()).digest()[:4], "big") % 43200
+    return (datetime.now(timezone.utc) - timedelta(seconds=offset)
+            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _sample_ts(win: Window) -> str | None:
+    """Timestamp for a window sample — the manager dedupes on
+    (metric, source, ts), so two windows of one day must NOT share a stamp:
+    - hub captures: the real conversation end (`t_iso`) — distinct per
+      conversation and feeds the manager's circadian /profile;
+    - synthetic ISO days: a stable per-record offset from noon plus seq;
+    - synthetic int days: a distinct stamp in the recent receipt-time window.
+    """
+    if win.ts_iso:
+        try:
+            stamp = datetime.fromisoformat(win.ts_iso.replace("Z", "+00:00"))
+            stamp += timedelta(seconds=win.seq)
+            return stamp.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            return win.ts_iso
+    day = str(win.day)
+    if _ISO_DAY_RE.match(day):
+        offset = int.from_bytes(
+            hashlib.sha256(win.record_id.encode()).digest()[:4], "big") % 43200
+        stamp = (datetime.fromisoformat(f"{day}T12:00:00+00:00")
+                 + timedelta(seconds=(offset + win.seq) % 43200))
+        return stamp.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    offset = int.from_bytes(
+        hashlib.sha256(win.record_id.encode()).digest()[:4], "big") % 43200
+    stamp = datetime.now(timezone.utc) - timedelta(
+        seconds=offset - win.seq)
+    return stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class DataManagerSink:
@@ -124,12 +164,12 @@ class DataManagerSink:
     # --------------------------------------------------------------- pushes
     def push_window(self, win: Window, scores: WindowScore) -> None:
         """One sample per dimension (quality = confidence) + drift_flag.
-        ts = noon of the window's day when it is a real ISO date; synthetic
-        int-day corpora stamp at receipt time — fine, they're dev data."""
+        ts = the window's own stamp (_sample_ts): real conversation end for
+        hub captures, noon+seq for ISO days, receipt time otherwise."""
         if not self.client.enabled:
             return
         src = _source(self._source, win.persona_id)
-        ts = _day_ts(win.day)
+        ts = _sample_ts(win)
         meta = {"record_id": win.record_id, "seq": win.seq,
                 "drift_flag": scores.drift_flag}
         for d in DIMENSIONS:
@@ -139,15 +179,16 @@ class DataManagerSink:
         self.client.sample("speech.drift_flag", 1.0 if scores.drift_flag else 0.0,
                            ts=ts, meta=meta, source=src)
 
-    def push_day(self, index: dict | None) -> None:
+    def push_day(self, index: dict | None, persona_id: str) -> None:
         """The daily composite z-score (our drift index) once aggregate_day ran.
+        Per-persona like push_window: same `source/<persona>` series.
         Skipped while baseline is insufficient (composite_z=None) — the
         manager's own /baseline answers 'unusual day' from raw scores anyway."""
         if not self.client.enabled or not index:
             return
         if index.get("composite_z") is None:
             return
-        src = self._source  # day rows are already per-persona in our corpus
+        src = _source(self._source, persona_id)
         meta = {"day": index["day"], "warning": index.get("warning"),
                 "baseline_days": index.get("baseline_days")}
         self.client.sample("speech.drift_index", index["composite_z"],

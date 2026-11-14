@@ -15,16 +15,21 @@ BASE_MODEL ?= Qwen/Qwen3-8B
 OUT       ?= work_dirs/run1
 EPOCHS    ?= 2
 MAX_LEN   ?= 4096
+MAX_WINDOW_CHARS ?= 9000
+TOKENIZER ?= ../models/qwen3-8b-lora-run1
 EXTRA     ?=
 
 .PHONY: dataset train eval merge verda-up verda-sync verda-train verda-pull verda-down
 
 dataset:
-	$(PY) scripts/build_dataset.py --input-dir $(TRANSCRIPTS) --out-dir $(SFT_DIR) $(DATASET_FLAGS)
+	$(PY) scripts/build_dataset.py --input-dir $(TRANSCRIPTS) --out-dir $(SFT_DIR) \
+		--max-len $(MAX_LEN) --max-window-chars $(MAX_WINDOW_CHARS) \
+		--tokenizer $(TOKENIZER) $(DATASET_FLAGS)
 
 train:
 	$(PY) scripts/train_qlora.py --data-dir $(SFT_DIR) --base-model $(BASE_MODEL) \
-		--out $(OUT) --epochs $(EPOCHS) --max-len $(MAX_LEN) $(EXTRA)
+		--out $(OUT) --epochs $(EPOCHS) --max-len $(MAX_LEN) \
+		--tokenizer $(TOKENIZER) $(EXTRA)
 
 merge:
 	$(PY) scripts/train_qlora.py --data-dir $(SFT_DIR) --base-model $(BASE_MODEL) \

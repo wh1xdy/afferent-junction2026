@@ -128,7 +128,21 @@ not simultaneously.
 - Baseline: rolling 4-week personal baseline with day-of-week effects, same
   convention as the posture plan.
 
-### 4.1 Data-manager integration
+### 4.1 Real-capture input (feat/voice-transcript)
+
+Live transcripts come from the Talk voice companion: the phone pushes each
+finished conversation to the hub over `/ws/app`, and the hub appends one
+JSONL row per transcript to its rotating log under
+`AFFERENT_TRANSCRIPTS_DIR` (`hub/data/transcripts/`,
+`hub/afferent_hub/transcripts.py`). `analyzer/transcript.py` reads those
+rows natively — `turns[].role` `user`→`target` / `agent`→`interlocutor`,
+`patient_id`→`persona_id`, `day`←`t_iso`, `transcript_id`→`record_id` —
+alongside the synthetic §5.3 schema, so the same pipeline scores both.
+Real rows have no per-turn timestamps: the latency channel is absent
+there, everything else still computes (ASR-side timestamps remain an open
+question, §10).
+
+### 4.2 Data-manager integration
 
 Scores flow to `afferent-data-manager` (`jetson/data_manager`), the house's
 shared store, after each batch — push model, `POST /api/v1/samples`, Bearer
@@ -285,6 +299,11 @@ budget alongside the vision app.
 - Who is the interlocutor in deployment — a device-initiated daily check-in
   conversation, or passive capture of real conversations? The former is far
   easier to standardise (see "standardised task" lesson in the posture plan).
+- File delivery from the hub to the analyzer: both are separate Wendy apps
+  with their own `/data`. Options: a shared volume on
+  `AFFERENT_TRANSCRIPTS_DIR`, a periodic sync, or a hub-side push endpoint
+  on the analyzer. Unresolved — `transcripts_dir` just needs to point at
+  wherever the rows land.
 
 ## 11. References
 

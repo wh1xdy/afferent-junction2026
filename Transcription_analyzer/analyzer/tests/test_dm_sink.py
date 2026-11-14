@@ -5,8 +5,10 @@ import urllib.request
 import pytest
 
 from analyzer.config import Config
-from analyzer.dm_sink import DataManagerSink, SPEECH_METRICS, _day_ts, _source
+from analyzer.dm_sink import (DataManagerSink, SPEECH_METRICS, _day_ts,
+                              _sample_ts, _source)
 from analyzer.scoring import DimScore, WindowScore
+from analyzer.transcript import Turn, Window
 
 
 class FakeClient:
@@ -92,18 +94,19 @@ def test_push_window_privacy(cfg, simple_window, monkeypatch):
 def test_push_day_index(cfg, monkeypatch):
     sink, made = _sink(cfg, monkeypatch)
     sink.push_day({"day": "2026-11-14", "composite_z": -2.1,
-                   "warning": "elevated", "baseline_days": 28})
+                   "warning": "elevated", "baseline_days": 28}, "anna")
     s = made["client"].samples[0]
     assert s["metric"] == "speech.drift_index" and s["value"] == -2.1
     assert s["ts"] == "2026-11-14T12:00:00Z"
-    sink.push_day({"day": "2026-11-14", "composite_z": None})
+    assert s["source"] == "transcription-analyzer/anna"   # same series as windows
+    sink.push_day({"day": "2026-11-14", "composite_z": None}, "anna")
     assert len(made["client"].samples) == 1       # insufficient baseline: skip
 
 
 def test_disabled_is_noop(simple_window, monkeypatch):
     sink, made = _sink(Config(), monkeypatch, url="off")
     sink.push_window(simple_window, _scores())
-    sink.push_day({"day": "1", "composite_z": -1.0})
+    sink.push_day({"day": "1", "composite_z": -1.0}, "anna")
     assert made["client"].samples == []
 
 
@@ -132,9 +135,43 @@ def test_registration_posts_metrics(monkeypatch):
     names = {p["name"] for p in posts}
     assert names == set(SPEECH_METRICS)
     assert posts[0]["kind"] == "sample"
+    # nightly-batch metrics have no intra-day coverage: without this the
+    # manager's /baseline (4 observed hours/day default) skips every day
+    assert all(p["baseline_min_hours"] == 0 for p in posts)
 
 
 def test_helpers():
     assert _source("transcription-analyzer", "p001") == "transcription-analyzer/p001"
     assert _day_ts("2026-11-14") == "2026-11-14T12:00:00Z"
-    assert _day_ts("1") is None                  # synthetic int day
+    assert _day_ts("1").endswith("Z")
+    assert _day_ts("1") != _day_ts("2")
+
+
+def _win(**kw) -> Window:
+    base = dict(record_id="r", persona_id="p", day="1", trajectory="t",
+                seq=0, turns=[Turn(None, "target", "hi")])
+    return Window(**{**base, **kw})
+
+
+def test_sample_ts_distinct_per_window():
+    """The manager dedupes on (metric, source, ts): same-day windows must
+    not share a stamp or all but the last would be overwritten."""
+    w0, w1 = _win(day="2026-11-14", seq=0), _win(day="2026-11-14", seq=1)
+    assert _sample_ts(w0).startswith("2026-11-14T")
+    assert _sample_ts(w1).startswith("2026-11-14T")
+    assert _sample_ts(w0) != _sample_ts(w1)
+    assert _sample_ts(w0) == _sample_ts(w0)
+
+
+def test_sample_ts_prefers_real_conversation_end():
+    """Hub captures carry t_iso — the real timestamp, not a synthetic noon."""
+    w = _win(day="2026-11-14", ts_iso="2026-11-14T15:30:00.000Z")
+    assert _sample_ts(w) == "2026-11-14T15:30:00Z"
+    assert _sample_ts(_win(day="2026-11-14", ts_iso=w.ts_iso, seq=1)) \
+        == "2026-11-14T15:30:01Z"
+
+
+def test_sample_ts_synthetic_int_day():
+    w0, w1 = _win(day="1", record_id="r0"), _win(day="1", record_id="r1")
+    assert _sample_ts(w0).endswith("Z")
+    assert _sample_ts(w0) != _sample_ts(w1)

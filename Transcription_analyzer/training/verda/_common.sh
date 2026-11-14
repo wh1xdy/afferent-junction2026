@@ -41,9 +41,9 @@ load_config() {
     SSH_OPTS="${SSH_OPTS:-}"
 
     # --- data ---
-    # Transcript JSONL files (output of the simulator). Default:
-    # Transcription_analyzer/training/data/transcripts.
-    DATA_DIR="${DATA_DIR:-$TRAINING_DIR/data}"
+    # Transcript JSONL files (output of the simulator). Default is the
+    # approved synthetic corpus, not sibling corpora under data/.
+    DATA_DIR="${DATA_DIR:-$APP_DIR/data}"
     TRANSCRIPTS="${TRANSCRIPTS:-$DATA_DIR/transcripts}"
 
     # --- run knobs (train.sh / remote_train.sh) ---

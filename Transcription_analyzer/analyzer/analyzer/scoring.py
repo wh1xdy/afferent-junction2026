@@ -61,7 +61,7 @@ class ScoreError(ValueError):
     """Model output did not parse to a valid WindowScore."""
 
 
-SYSTEM_PROMPT = """\
+SYSTEM_TEMPLATE = """\
 You are a careful analyst of conversation transcripts. You score how the
 speaker labelled "%(target)s" communicates INSIDE THIS WINDOW — how they
 talk, not what they talk about, and never a diagnosis.
@@ -81,7 +81,9 @@ Rules:
 - drift_flag is true only if this window is CLEARLY degraded on several
   dimensions at once.
 - Output ONLY the JSON object matching the required schema.
-""" % {"target": DEFAULT_TARGET}
+"""
+
+SYSTEM_PROMPT = SYSTEM_TEMPLATE % {"target": DEFAULT_TARGET}
 
 
 def build_messages(win: Window, metrics: dict,
@@ -94,7 +96,7 @@ def build_messages(win: Window, metrics: dict,
         f"```\n{format_for_prompt(win.turns, target)}\n```"
     )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": SYSTEM_TEMPLATE % {"target": target}},
         {"role": "user", "content": user},
     ]
 
