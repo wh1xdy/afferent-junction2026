@@ -135,7 +135,7 @@
     A.bus.emit('home');
   };
 
-  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog'];
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog', 'voice'];
   const show = (id, on) => {
     $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
     if (CARDS.includes(id)) {

@@ -611,3 +611,14 @@ def test_bedside_camera(client):
         assert recv_until(bedside, "camera")["on"] is False
         assert client.post("/api/bedside/camera", json={"on": True}).json()["camera_on"] is True
         assert recv_until(bedside, "camera")["on"] is True
+
+def test_export_publish_roundtrip(client):
+    assert client.get("/api/export/dashboard").status_code == 404
+    html = "<!doctype html><title>anna</title><p>dashboard</p>"
+    r = client.post("/api/export/publish", json={"patient_id": "anna", "html": html})
+    assert r.status_code == 200 and r.json()["url"] == "/api/export/dashboard"
+    page = client.get("/api/export/dashboard")
+    assert page.status_code == 200 and "text/html" in page.headers["content-type"]
+    assert page.text == html
+    assert client.post("/api/export/publish", json={"patient_id": "anna"}).status_code == 400
+    assert client.post("/api/export/publish", json=[]).status_code == 400
