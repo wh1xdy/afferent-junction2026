@@ -390,15 +390,34 @@
       return { az: (p.x / W * 2 - 1) * 45, el: (1 - p.y / H) * 35 - 10 };
     },
 
+    home({ night = false } = {}) {
+      this.atHome = true; this.homeNight = night;
+      if (this.s?.home) { this.s.night = night; return; }
+      this.stop(1);
+      if (Au.on === false) return;
+      this.init();
+      this.load();
+      const t = this.ctx.currentTime, p = this.out.gain;
+      this.s = { home: true, night, t0: t, phase: 'fadein', mode: null, stage: 0, frozen: false, game: null, dawn: false, ended: false };
+      this.log = [];
+      p.cancelScheduledValues(t); p.setValueAtTime(p.value, t); p.linearRampToValueAtTime(1, t + 3);
+      this.hush.gain.cancelScheduledValues(t); this.hush.gain.setTargetAtTime(1, t, 0.5);
+      this.lp.frequency.setTargetAtTime(12000, t, 0.5); this.shelf.gain.setTargetAtTime(0, t, 0.5); this.depth.gain.setTargetAtTime(0, t, 0.5);
+      this.apply(3, true);
+      this.s.frozen = true;
+    },
+
     start({ night }) {
-      this.stop(0.05);
-      if (Au.on === false) { this.s = null; return; }
+      this.atHome = false;
+      const warm = !!this.s?.home && Au.on !== false;
+      if (!warm) this.stop(0.05);
+      if (Au.on === false) return;
       this.init();
       this.load();
       const t = this.ctx.currentTime;
       this.s = { night, t0: t, phase: 'fadein', mode: null, stage: 0, frozen: false, game: null, dawn: false, ended: false };
       this.log = [];
-      this.out.gain.cancelScheduledValues(t); this.out.gain.setValueAtTime(0, t); this.out.gain.linearRampToValueAtTime(1, t + 3);
+      if (!warm) { this.out.gain.cancelScheduledValues(t); this.out.gain.setValueAtTime(0, t); this.out.gain.linearRampToValueAtTime(1, t + 3); }
       this.hush.gain.cancelScheduledValues(t); this.hush.gain.setValueAtTime(1, t);
       this.lp.frequency.setValueAtTime(12000, t); this.shelf.gain.setValueAtTime(0, t); this.depth.gain.setValueAtTime(0, t);
       this.apply(3, true);
@@ -432,6 +451,7 @@
     },
 
     tick() {
+      if (!this.s && this.atHome && Au.on !== false) this.home({ night: this.homeNight });
       const s = this.s;
       if (!s || !this.ctx) return;
       const now = this.ctx.currentTime;
@@ -560,18 +580,18 @@
   on('sfx', e => { if (e && hook[e.name] && Amb.s) hook[e.name](e); });
   on('endScreen', () => {
     const s = Amb.s;
-    if (!s) return;
+    if (!s || s.home) return;
     const t = Amb.ctx.currentTime;
     Amb.hush.gain.setTargetAtTime(DB(-6), t, 1);
     if (s.night) Amb.end(8);
   });
   on('sessionEnd', r => {
-    if (!Amb.s || !r) return;
+    if (!Amb.s || Amb.s.home || !r) return;
     if (r.status === 'fell_asleep') Amb.end(8);
     else if (r.status === 'completed') Amb.end(3, 1.2);
     else Amb.end(2);
   });
-  on('home', () => Amb.stop(1));
+  on('home', () => Amb.home({ night: !!A.night?.() }));
 
   const unlock = safe(() => { if (Au.on !== false) { Amb.init(); Amb.load(); } });
   document.addEventListener('pointerdown', unlock, { capture: true, passive: true, once: true });
