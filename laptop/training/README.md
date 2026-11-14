@@ -99,30 +99,32 @@ is untested there. Two options:
 # once: install the CLI, then authenticate. Credentials are stored in
 # ~/.verda/credentials — never committed, never copied to the instance.
 verda auth login
-verda instance-types --gpu            # pick a type (default 1V100.6V)
+verda doctor                        # credentials + API reachability
+verda ssh-key add --name laptop --public-key "$(cat ~/.ssh/id_ed25519.pub)"
+verda instance-types --gpu          # pick a type (default 1V100.6V)
 
 cp verda/config.env.example verda/config.env   # optional overrides (gitignored)
 
-make verda-up        # create the instance (ubuntu-24.04 cuda docker image, --wait)
+make verda-up        # create the instance (cuda docker image, --ssh-key, --wait)
 make verda-sync      # rsync training/ + rtmlib ONNX + dataset -> ~/afferent/
 make verda-train     # docker build + `make train test` on the instance (AMP=1 in config)
 make verda-pull      # rsync work_dirs/ back (checkpoints, ONNX, eval reports)
-make verda-down      # pulls again (unless SKIP_PULL=1), confirms, deletes the VM
+make verda-down      # pulls again (unless SKIP_PULL=1), confirms, deletes VM + volumes
 ```
 
-`sync.sh` needs direct ssh for rsync: it resolves the IP from
-`verda vm describe -o json` and connects as `ubuntu@<ip>` with the key
-registered at creation (`SSH_KEY`/`SSH_DEST` overrides, see
+`sync.sh` needs direct ssh for rsync: it resolves the instance ID then the IP
+from `verda vm list`/`describe -o json` and connects as `root@<ip>` with the
+key registered at creation (`SSH_USER`/`SSH_KEY`/`SSH_DEST` overrides, see
 `verda/config.env.example`). `train.sh` forwards `MAKE_TARGETS`
 (default `train test`; add `export evaluate` once `data/annotations/test.json`
 exists) and `AMP`.
 
-**Cost:** PAYG instances are billed per started 10 min while they exist —
-`down.sh` deletes the instance *and* its OS volume, which is the only way
-billing actually stops. Spot instances are cheaper but evictable (lost
-work_dirs if evicted mid-run); they stay opt-in via `SPOT=1`, default is
-on-demand. Check current rates with `verda instance-types --gpu` /
-`verda cost estimate`.
+**Cost:** PAYG instances are billed per started 10 min while they exist.
+Deleting the instance alone is *not* enough — a detached OS volume keeps
+billing, so `down.sh` always deletes with `--with-volumes`. Spot instances
+are cheaper but evictable (lost work_dirs if evicted mid-run); they stay
+opt-in via `SPOT=1` (`--is-spot`), default is on-demand. Check current rates
+with `verda instance-types --gpu` / `verda cost estimate`.
 
 **Privacy:** the instance receives the same payload `make train` uses —
 annotated frames of **consenting** participants only (`data/frames`,
