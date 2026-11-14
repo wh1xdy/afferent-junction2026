@@ -59,11 +59,18 @@ def one(events, t):
 
 @pytest.fixture(autouse=True)
 def no_network(monkeypatch):
-    def refuse(self, *a, **k):
-        raise AssertionError("a test tried to open a network connection")
+    # Loopback stays open: on Windows socket.socketpair() (asyncio's self-pipe) is a loopback connect.
+    loopback = {"127.0.0.1", "::1", "localhost"}
 
-    monkeypatch.setattr(socket.socket, "connect", refuse)
-    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
+    def guard(real):
+        def connect(self, address, *a, **k):
+            if isinstance(address, tuple) and address and address[0] in loopback:
+                return real(self, address, *a, **k)
+            raise AssertionError("a test tried to open a network connection")
+        return connect
+
+    monkeypatch.setattr(socket.socket, "connect", guard(socket.socket.connect))
+    monkeypatch.setattr(socket.socket, "connect_ex", guard(socket.socket.connect_ex))
 
 
 # ── map_state ────────────────────────────────────────────────────────────────────────
