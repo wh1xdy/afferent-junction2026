@@ -1,7 +1,7 @@
 (() => {
   const { clamp, lerp, ema } = A;
-  const R = Math.random;
-  const rm = () => !!A.config?.reducedMotion;
+  const R = Math.random, GULLIES = false;
+  const rm =() => !!A.config?.reducedMotion;
   const hap = n => A.J?.hap(n);
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
@@ -273,7 +273,7 @@
       let guard = 0, airStart = null;
       const flights = [];
       while (ghost.x < seg.x1 && guard++ < 6000) {
-        stepBody(ghost, botHold(ghost, T, P), P, T, DT, { noLaunch: P.m === 'calm' || P.m === 'rest' });
+        stepBody(ghost, botHold(ghost, T, P), P, T, DT, { noLaunch: true });
         if (ghost.ev === 'launch') airStart = { x: ghost.x, t: guard };
         if (ghost.ev === 'land' && airStart) { flights.push({ x0: airStart.x, x1: ghost.x, dur: (guard - airStart.t) * DT, apex: ghost.apex }); airStart = null; }
         if (!path.length || ghost.x - path[path.length - 1][0] >= 4) path.push([ghost.x, ghost.y, ghost.air]);
@@ -365,7 +365,7 @@
           g.high = m !== 'calm' && !approach && ((m === 'wake') || (m === 'flow' && d >= 0.25 && g.idx % 2 === 0) || (m === 'fatigue' && g.idx % 3 === 0) || (plan.kind === 'summit' && plan.hills === 0));
           ghostRun(g);
           chunk(biome(m), g.x0, g.x1);
-          if (!approach && m !== 'calm' && m !== 'rest' && !assist() && d >= (m === 'fatigue' ? 0.6 : 0.4) && (d >= 0.8 ? g.idx % 2 === 0 : !plan.gully)) {
+          if (GULLIES && !approach && m !== 'calm' && m !== 'rest' && !assist() && d >=(m === 'fatigue' ? 0.6 : 0.4) && (d >= 0.8 ? g.idx % 2 === 0 : !plan.gully)) {
             plan.gully = true;
             const w = lerp(60, 140, clamp((d - 0.4) / 0.6, 0, 1));
             const gl = T.add({ kind: 'hill', x0: T.end(), len: w, b0: 0, A: -26, b1: 0, c: 0.5, P, m, gully: true });
@@ -632,7 +632,7 @@
 
       if (m === 'fatigue' && st.hill && crestX != null) fatigueBeat(now, ed, P);
 
-      const o = { fever: st.fever > now && m !== 'calm', noLaunch: m === 'calm' || m === 'rest' || nearStation, extra: st.popBonus + (st.kickBoost || 0), vmin: seg?.fell || seg?.summit ? Math.max(P.vmin, 110) : undefined };
+      const o = { fever: st.fever > now && m !== 'calm', noLaunch: true, extra: st.popBonus + (st.kickBoost || 0), vmin: seg?.fell || seg?.summit ? Math.max(P.vmin, 110) : undefined };
       if (rm()) o.cap = (st.hill?.crestH ?? 0) + 120;
       if (nearStation && b.air) o.force = true;
       const steps = Math.max(1, Math.round(dt / DT)), h = dt / steps;

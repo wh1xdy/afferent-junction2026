@@ -21,7 +21,8 @@
     const t = (st.menu[kind] || '').trim();
     if (kind === 'person') return small ? `A short hello to ${t || 'someone'}` : t ? `Message ${t}` : 'Message someone';
     if (kind === 'place') return small ? 'A step outside the door' : t ? `Walk to ${t}` : 'A walk outside at midday';
-    return small ? `Two minutes of ${t || 'one small task'}` : cap(t || 'one small task');
+    if (small) return t ? `Just start: ${t}` : 'Two minutes of something small';
+    return cap(t || 'one small task');
   };
   const order = () => {
     const d = Math.round(Date.parse(today()) / 864e5) || 0, k = ((d % 3) + 3) % 3;

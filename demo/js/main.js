@@ -296,6 +296,7 @@
   ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
   A.bus.on('segment', id => {
     if (id !== 'walk') log('phase ' + id);
+    if (id === 'rest') { cue('Hold the lantern and rest a moment', 'line'); return; }
     cue(id === 'checkin' ? (night() ? 'How are you tonight?' : 'How are you this morning?') : '');
   });
   A.bus.on('mode', m => log('mode ' + m));
