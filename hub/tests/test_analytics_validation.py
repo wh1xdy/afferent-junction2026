@@ -70,4 +70,7 @@ def test_cohort_separation():
     assert r["stable"]["false_check_in_episodes"] <= 2
     assert r["relapse"]["days_onset_to_check_in"]["median"] <= 18
     b = r["bandit"]["by_mode"]["calm"]
-    assert b["sessions_to_p_best_0_8"]["median"] >= b["sessions_to_first_p_best_0_8"]["median"]
+    stay, first = b["sessions_to_p_best_0_8"]["median"], b["sessions_to_first_p_best_0_8"]["median"]
+    assert stay is not None, (f"no simulated patient's P(best) for the best calm task reached "
+                              f"{r['bandit']['target_p_best']} and stayed there (first crossing median: {first})")
+    assert first is not None and stay >= first
