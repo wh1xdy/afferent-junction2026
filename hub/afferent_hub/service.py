@@ -37,9 +37,15 @@ def _validator(name):
     return Draft202012Validator(schema)
 
 
-def schema_errors(validator, doc, limit=5) -> list[str]:
+def schema_errors(validator, doc) -> list[str]:
     errs = sorted(validator.iter_errors(doc), key=lambda e: list(e.absolute_path))
-    return [f"{e.json_path}: {e.message}"[:300] for e in errs[:limit]]
+    return [f"{e.json_path}: {e.message}"[:300] for e in errs[:5]]
+
+
+def require_valid(validator, doc):
+    errs = schema_errors(validator, doc)
+    if errs:
+        raise HubError(422, "schema_invalid", "; ".join(errs))
 
 
 def make_source(settings: Settings):
@@ -286,12 +292,8 @@ class Hub:
         return rec
 
     async def ingest_session(self, doc: dict) -> dict:
-        if not isinstance(doc, dict):
-            raise HubError(400, "bad_request", "Body must be a JSON object")
         doc = {k: v for k, v in doc.items() if k != "type"}
-        errs = schema_errors(self.session_v, doc)
-        if errs:
-            raise HubError(422, "schema_invalid", "; ".join(errs))
+        require_valid(self.session_v, doc)
         pid = doc["patient_id"]
         self.patient(pid)
         async with self.lock(pid):
@@ -323,11 +325,7 @@ class Hub:
                 "composite": (analytics.get("composite") or {}).get("value"), "composite_before": before}
 
     async def ingest_daily(self, rec: dict) -> dict:
-        if not isinstance(rec, dict):
-            raise HubError(400, "bad_request", "Body must be a JSON object")
-        errs = schema_errors(self.daily_v, rec)
-        if errs:
-            raise HubError(422, "schema_invalid", "; ".join(errs))
+        require_valid(self.daily_v, rec)
         pid = rec["patient_id"]
         self.patient(pid)
         async with self.lock(pid):
@@ -356,15 +354,10 @@ class Hub:
         self.store.add_flag(pid, stored)
         await self.to_clinic({"type": "crisis_flag", "patient_id": pid, "flag_type": ftype,
                               **{k: v for k, v in flag.items() if k != "type"}})
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid),
-                              "analytics": self.analytics(pid)})
+        await self.broadcast_analytics(pid, self.analytics(pid))
 
     async def ingest_checkin(self, doc: dict) -> dict:
-        if not isinstance(doc, dict):
-            raise HubError(400, "bad_request", "checkin must be a JSON object")
-        errs = schema_errors(self.checkin_v, doc)
-        if errs:
-            raise HubError(422, "schema_invalid", "; ".join(errs))
+        require_valid(self.checkin_v, doc)
         pid = doc["patient_id"]
         p = self.patient(pid)
         async with self.lock(pid):
@@ -392,8 +385,7 @@ class Hub:
     async def clear_flags(self, pid: str):
         self.patient(pid)
         self.store.clear_flags(pid)
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid),
-                              "analytics": self.analytics(pid)})
+        await self.broadcast_analytics(pid, self.analytics(pid))
 
     async def set_privacy(self, pid: str, change: dict) -> dict:
         self.patient(pid)

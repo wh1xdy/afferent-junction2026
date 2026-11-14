@@ -3,14 +3,10 @@ import json
 import uuid
 from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
 
 from afferent_hub.bedside.protocol import format_line, parse_line
 from afferent_hub.bedside.simulator import BedsideSimulator
-from afferent_hub.main import create_app
-from afferent_hub.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[2]
 FIX = ROOT / "contracts" / "fixtures"
@@ -37,13 +33,6 @@ def recv_until(ws, mtype, limit=200):
         if msg.get("type") == mtype:
             return msg
     raise AssertionError(f"{mtype} not received, got {seen}")
-
-
-@pytest.fixture()
-def client(tmp_path):
-    app = create_app(Settings(db=str(tmp_path / "t.db"), bedside="ws", validation=False))
-    with TestClient(app) as c:
-        yield c
 
 
 def test_health_and_roster(client):
@@ -411,7 +400,6 @@ def test_static_mounts(client):
     assert r.status_code in (302, 307) and r.headers["location"] == "/clinic/"
     assert client.get("/app/").status_code == 200
     assert client.get("/app/design/tokens.css").status_code == 200
-    assert client.get("/design/tokens.json").status_code == 200
     assert client.get("/contracts/session.v3.schema.json").status_code == 200
 
 

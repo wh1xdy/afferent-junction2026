@@ -1,7 +1,6 @@
 from html import escape
 
 BG = "#070A14"
-SURFACE = "#0B1020"
 TEXT = "#E8EEF5"
 MUTED = "#93A3B8"
 FAINT = "#5D6B80"

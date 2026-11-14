@@ -6,6 +6,8 @@ import time
 from pathlib import Path
 from typing import Awaitable, Callable
 
+from ..views import now_iso
+
 log = logging.getLogger("afferent.bedside")
 
 TOKENS = Path(__file__).resolve().parents[3] / "design" / "tokens.json"
@@ -23,10 +25,6 @@ DEFAULT_TOKENS = {
 }
 
 Send = Callable[[dict], Awaitable[None]]
-
-
-def now_iso() -> str:
-    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def load_tokens() -> dict:
