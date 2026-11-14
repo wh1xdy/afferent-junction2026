@@ -20,6 +20,11 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9582B6822FE993A50072D4E8 /* SceneDelegate.swift */; };
 		AE0000000000000000000001 /* AfferentEyes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000002 /* AfferentEyes.swift */; };
+		AE0000000000000000000200 /* AfferentPulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000100 /* AfferentPulse.swift */; };
+		AE0000000000000000000201 /* VisionEyes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000101 /* VisionEyes.swift */; };
+		AE0000000000000000000202 /* PulseCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000102 /* PulseCamera.swift */; };
+		AE0000000000000000000203 /* PulseEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000103 /* PulseEstimator.swift */; };
+		AE0000000000000000000204 /* ScreenLight.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000104 /* ScreenLight.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +43,11 @@
 		9582B6822FE993A50072D4E8 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		AE0000000000000000000002 /* AfferentEyes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentEyes.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		AE0000000000000000000100 /* AfferentPulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPulse.swift; sourceTree = "<group>"; };
+		AE0000000000000000000101 /* VisionEyes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionEyes.swift; sourceTree = "<group>"; };
+		AE0000000000000000000102 /* PulseCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PulseCamera.swift; path = ../Afferent/PulseCamera.swift; sourceTree = SOURCE_ROOT; };
+		AE0000000000000000000103 /* PulseEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PulseEstimator.swift; path = ../Afferent/PulseEstimator.swift; sourceTree = SOURCE_ROOT; };
+		AE0000000000000000000104 /* ScreenLight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ScreenLight.swift; path = ../Afferent/ScreenLight.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +84,9 @@
 			children = (
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				AE0000000000000000000002 /* AfferentEyes.swift */,
+				AE0000000000000000000100 /* AfferentPulse.swift */,
+				AE0000000000000000000101 /* VisionEyes.swift */,
+				AE0000000000000000000300 /* Shared */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				F1A6E0000000000000000002 /* AfferentFinger.swift */,
@@ -87,6 +100,16 @@
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		AE0000000000000000000300 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				AE0000000000000000000102 /* PulseCamera.swift */,
+				AE0000000000000000000103 /* PulseEstimator.swift */,
+				AE0000000000000000000104 /* ScreenLight.swift */,
+			);
+			name = Shared;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -176,6 +199,11 @@
 				A9E5E0000000000000000001 /* AfferentPresence.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				AE0000000000000000000001 /* AfferentEyes.swift in Sources */,
+				AE0000000000000000000200 /* AfferentPulse.swift in Sources */,
+				AE0000000000000000000201 /* VisionEyes.swift in Sources */,
+				AE0000000000000000000202 /* PulseCamera.swift in Sources */,
+				AE0000000000000000000203 /* PulseEstimator.swift in Sources */,
+				AE0000000000000000000204 /* ScreenLight.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -250,7 +278,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -301,7 +329,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -318,7 +346,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -340,7 +368,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

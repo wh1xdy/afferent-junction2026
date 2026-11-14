@@ -76,15 +76,18 @@
     stone: null, rppg: null, native: null, nativeAt: 0, video: null, landmarker: null, lastVideoT: -1, mp: null, ambient: null, ambientAt: 0,
     pulseMode: null, droppedPulse: 0, droppedPhysio: 0, realAt: null,
     fingerLink: { state: 'unavailable', name: null }, fingerBle: null, fingerHub: null,
-    camPulse: null, light: null,
+    camPulse: null, light: null, plugin: null, listeners: [], stopping: null,
 
     async start(source) {
       this.stop();
-      if (source === 'arkit') {
-        this.plugin = plug('AfferentEyes');
-        if (!this.plugin) throw new Error('AfferentEyes plugin is not available in this build');
+      await this.stopping;
+      if (source === 'arkit' || source === 'vision') {
+        const name = source === 'vision' ? 'AfferentPulse' : 'AfferentEyes';
+        this.plugin = plug(name);
+        if (!this.plugin) throw new Error(`${name} plugin is not available in this build`);
         await this.plugin.start();
-        this.listener = await this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); });
+        this.listeners.push(await this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); }));
+        if (source === 'vision') this.listeners.push(await this.plugin.addListener('pulse', d => this.feedNativePulse(d)));
       } else if (source === 'mediapipe') {
         const base = new URL('vendor/mediapipe', document.baseURI).href;
         const v = await import(`${base}/vision_bundle.mjs`);
@@ -103,22 +106,25 @@
 
     async startCamera() {
       const native = window.Capacitor?.isNativePlatform?.();
-      return this.start(native && window.Capacitor.getPlatform() === 'ios' ? 'arkit' : 'mediapipe');
+      if (!native || window.Capacitor.getPlatform() !== 'ios') return this.start('mediapipe');
+      try { return await this.start('vision'); } catch { this.stop(); }
+      return this.start('arkit');
     },
 
     stop() {
-      this.plugin?.stop(); this.listener?.remove?.(); this.plugin = null; this.listener = null;
+      if (this.plugin) this.stopping = Promise.resolve(this.plugin.stop()).catch(() => {});
+      this.listeners.forEach(l => l?.remove?.()); this.listeners = []; this.plugin = null; this.native = null;
       this.video?.srcObject?.getTracks().forEach(t => t.stop()); this.video = null; this.landmarker = null;
       this.source = 'simulated'; this.ready = true;
     },
 
-    camera() { return this.source === 'arkit' || this.source === 'mediapipe'; },
+    camera() { return this.source === 'arkit' || this.source === 'vision' || this.source === 'mediapipe'; },
 
     eyesSource() { return this.camera() ? this.source : this.enabled.simulator ? 'simulated' : null; },
 
     read(now, dt) {
       let f = null;
-      if (this.source === 'arkit') f = this.readArkit(now);
+      if (this.source === 'arkit' || this.source === 'vision') f = this.readArkit(now);
       else if (this.source === 'mediapipe') f = this.readMediapipe(now);
       else if (this.enabled.simulator) f = Sim.face(now, dt);
       return (this.last = f);
