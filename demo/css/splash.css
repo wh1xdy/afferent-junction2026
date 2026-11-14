@@ -1,0 +1,21 @@
+.splash {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+  padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+  background: var(--af-fjord); color: var(--af-birch); text-align: center;
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  transition: opacity var(--splash-out, 600ms) var(--af-ease-out);
+  animation: splashGone 1ms linear 8s forwards;
+}
+.splash.out { opacity: 0; }
+.splash > * { animation: splashIn 700ms var(--af-ease-in) both; }
+.splash-icon { width: 64px; height: 64px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; color: var(--af-frost); }
+.splash-line { margin: 0; max-width: 20em; font: 300 20px/28px var(--af-font-brand); letter-spacing: 0.2px; color: var(--af-birch); }
+@keyframes splashIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes splashGone { to { visibility: hidden; } }
+:root[data-motion="reduced"] .splash { transition: none; }
+:root[data-motion="reduced"] .splash > * { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .splash { transition: none; }
+  .splash > * { animation: none; }
+}
