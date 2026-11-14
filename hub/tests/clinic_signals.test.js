@@ -454,7 +454,7 @@ function loadPage(extra = []) {
   // every request the dashboard makes to the hub, by path
   const paths = new Set();
   for (const text of Object.values(src)) for (const m of text.matchAll(/\/api\/[a-z]+(?:\/\$\{[^}]+\})?(?:\/[a-z/-]+)?/g)) paths.add(m[0].replace(/\$\{[^}]+\}/, ':id'));
-  same([...paths].sort(), ['/api/demo/profile', '/api/demo/reset', '/api/health', '/api/patients', '/api/patients/:id', '/api/patients/:id/analytics', '/api/patients/:id/export',
+  same([...paths].sort(), ['/api/demo/reset', '/api/health', '/api/patients', '/api/patients/:id', '/api/patients/:id/analytics', '/api/patients/:id/export',
     '/api/patients/:id/flags/clear', '/api/patients/:id/summary', '/api/validation']);
   // the only timer left in clinic.js is the socket keep-alive
   same([...src['clinic.js'].matchAll(/setInterval\(([^,]*),/g)].map((m) => m[1].includes('ping')), [true]);

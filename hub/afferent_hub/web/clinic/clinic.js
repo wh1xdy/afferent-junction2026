@@ -279,15 +279,6 @@
   }
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => S.ui.theme === 'system' && setTheme('system'));
 
-  async function sendProfile(profile, label) {
-    closeMenu();
-    if (S.fixtures) return toast('Fixture mode: no phone connected');
-    try {
-      const r = await post('/api/demo/profile', { profile, patient_id: 'anna' });
-      toast(r.sent_to ? `Profile <b>&nbsp;${C.esc(label)}&nbsp;</b> sent to Anna's phone` : 'No phone connected for Anna');
-    } catch { toast('Could not reach the hub'); }
-  }
-
   document.addEventListener('click', async (e) => {
     const f = e.target.closest('[data-feature]');
     if (f && S.route.name === 'patients') {
@@ -305,8 +296,6 @@
     }
     const th = e.target.closest('[data-theme-set]');
     if (th) return setTheme(th.dataset.themeSet);
-    const pr = e.target.closest('[data-profile]');
-    if (pr) return sendProfile(pr.dataset.profile, pr.textContent.trim());
     const a = e.target.closest('[data-action]');
     if (!a) {
       if (!e.target.closest('.menu-wrap')) closeMenu();
