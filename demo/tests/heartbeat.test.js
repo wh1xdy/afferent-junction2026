@@ -333,10 +333,10 @@ const tests = {
     };
     const on = felt(calm());
     assert.ok(on.calls.length >= 11 && on.calls.length === on.lubs, `one soft lub-dub per beat: ${on.calls.length}/${on.lubs}`);
-    assert.ok(on.calls.every(c => c.strength > 0 && c.strength <= 0.6), 'soft');
+    assert.ok(on.calls.every(c => c.strength > 0 && c.strength <= 0.75), 'soft');
     assert.strictEqual(felt(calm(), { config: { heartLevel: 'off' } }).calls.length, 0, 'switched off');
     assert.strictEqual(felt(calm({ mode: 'flow', gameMode: 'flow', game: { id: 'threads' } })).calls.length, 0, 'not in other games');
-    assert.ok(felt(null).calls.every(c => c.strength === 0.4), 'on the home screen only the softer touch (test q)');
+    assert.ok(felt(null).calls.every(c => c.strength === 0.55), 'on the home screen only the softer touch (test q)');
     assert.strictEqual(felt(calm({ game: { id: 'breath' }, orb: { inhale: true } })).calls.length, 0, 'not while the guide ticks the inhale');
     assert.ok(felt(calm({ game: { id: 'breath' }, orb: { inhale: false } })).calls.length >= 11, 'on the exhale');
     assert.strictEqual(felt(calm(), { other: true }).calls.length, 0, 'never on top of another vibration');
@@ -344,7 +344,7 @@ const tests = {
     assert.ok(web.vib.length >= 11 && web.vib.every(p => p.length === 3 && p[0] <= 8 && p[2] <= p[0]), 'without the native plugin: a short soft lub-dub through the haptics router');
     const swift = fs.readFileSync(path.join(JS, '..', '..', 'ios', 'App', 'App', 'AfferentHaptics.swift'), 'utf8');
     assert.ok(swift.includes('CAPPluginMethod(name: "beat"') && /@objc func beat\(/.test(swift), 'the iOS plugin has beat()');
-    assert.ok(/hapticSharpness, value: 0\.12/.test(swift) && /hapticSharpness, value: 0\.06/.test(swift), 'low sharpness: a soft thud, never a buzz');
+    assert.ok(/hapticSharpness, value: 0\.2\b/.test(swift) && /hapticSharpness, value: 0\.12/.test(swift), 'low sharpness: a soft thud, never a buzz');
     const kt = fs.readFileSync(path.join(JS, '..', '..', 'android', 'app', 'src', 'main', 'java', 'fi', 'junction', 'afferent', 'AfferentHapticsPlugin.kt'), 'utf8');
     assert.ok(/@PluginMethod\s+fun beat\(/.test(kt) && /if \(v == null \|\| holding\(\)\)/.test(kt), 'Android has the same beat(), and it waits for a hold too');
   },
@@ -439,8 +439,8 @@ const tests = {
 
     const on = home();
     assert.ok(on.calls.length >= 11 && on.calls.length === on.lubs, `one lub-dub per real beat: ${on.calls.length}/${on.lubs}`);
-    assert.ok(on.calls.every(c => c.strength === 0.4), `soft: ${on.calls.map(c => c.strength)}`);
-    assert.ok(on.calls.every(c => c.strength < 0.6), 'softer than in a session');
+    assert.ok(on.calls.every(c => c.strength === 0.55), `soft: ${on.calls.map(c => c.strength)}`);
+    assert.ok(on.calls.every(c => c.strength < 0.75), 'softer than in a session');
     assert.ok(home({ config: { reducedMotion: true } }).calls.length >= 11, 'reduced motion keeps it: touch, not motion');
     assert.ok(on.calls.slice(1).every((c, i) => c.at - on.calls[i].at > 0.6), 'never two in one beat');
 
@@ -509,17 +509,17 @@ const tests = {
       steps(t, 6, { s, second: () => clips(t.A) });
       return [...new Set(calls)];
     };
-    const want = { soft: [0.4, 0.6], medium: [0.6, 0.8], strong: [0.8, 1] };
+    const want = { soft: [0.55, 0.75], medium: [0.75, 0.9], strong: [0.95, 1] };
     for (const [lv, [h, ses]] of Object.entries(want)) {
       assert.deepStrictEqual(strengths(null, { heartLevel: lv }), [h], `${lv} on the start screen`);
       assert.deepStrictEqual(strengths(calm(), { heartLevel: lv }), [ses], `${lv} in a session`);
     }
-    assert.deepStrictEqual(strengths(null, {}), [0.4], 'Soft when nothing was chosen, as before');
-    assert.deepStrictEqual(strengths(null, { heartLevel: 'loud' }), [0.4], 'an unknown level is Soft');
+    assert.deepStrictEqual(strengths(null, {}), [0.55], 'Soft when nothing was chosen, as before');
+    assert.deepStrictEqual(strengths(null, { heartLevel: 'loud' }), [0.55], 'an unknown level is Soft');
     assert.deepStrictEqual(strengths(null, { heartLevel: 'off' }), [], 'Off: nothing at home');
     assert.deepStrictEqual(strengths(calm(), { heartLevel: 'off' }), [], 'Off: nothing in a session');
     const sw = fs.readFileSync(path.join(JS, '..', '..', 'ios', 'App', 'App', 'AfferentHaptics.swift'), 'utf8');
-    assert.ok(/min\(1, call\.getDouble\("strength"\)/.test(sw) && /0\.55 \* strength/.test(sw) && /0\.32 \* strength/.test(sw), 'Strong is the plugin\'s full beat, the lub above the dub');
+    assert.ok(/min\(1, call\.getDouble\("strength"\)/.test(sw) && /min\(1, 0\.9 \* strength\)/.test(sw) && /min\(1, 0\.6 \* strength\)/.test(sw), 'Strong is the plugin\'s full beat, the lub above the dub');
 
     // a tap in Settings: one beat at that level as the start screen plays it, none for Off or with Vibration off
     const tap = (lv, vibration = true) => {
@@ -530,8 +530,8 @@ const tests = {
       const played = t.A.Heartbeat.sample();
       return { played, calls };
     };
-    assert.deepStrictEqual(tap('strong'), { played: true, calls: [0.8] });
-    assert.deepStrictEqual(tap('medium').calls, [0.6]);
+    assert.deepStrictEqual(tap('strong'), { played: true, calls: [0.95] });
+    assert.deepStrictEqual(tap('medium').calls, [0.75]);
     assert.deepStrictEqual(tap('off'), { played: false, calls: [] });
     assert.deepStrictEqual(tap('soft', false), { played: false, calls: [] });
 
