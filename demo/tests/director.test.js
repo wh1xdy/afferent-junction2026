@@ -26,6 +26,7 @@ const load = () => {
     const pool = Object.keys(ctx.A.MINIGAMES).filter(id => ctx.A.MINIGAMES[id].modes.includes(mode) && id !== last && (!w || (w[id] ?? 0) > 0));
     return { id: pool[0], weight: null };
   };
+  vm.runInContext(fs.readFileSync(path.join(JS, 'traverse.js'), 'utf8'), ctx);
   vm.runInContext(fs.readFileSync(path.join(JS, 'engine.js'), 'utf8'), ctx);
   return { A: ctx.A, tick: dt => { clock += dt; } };
 };

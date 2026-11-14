@@ -25,6 +25,7 @@
     weeklyCheckin: saved.weeklyCheckin ?? true,
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
+    forceRide: q.get('ride') || null,
   };
   const S = A.Sensors;
   const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
@@ -33,7 +34,7 @@
   const PROFILES = ['live', 'good_day', 'bad_day'];
   const hour = new Date().getHours();
   const ui = {
-    input: ['auto', 'touch', 'camera'].includes(q.get('input')) ? q.get('input') : 'auto',
+    input: ['auto', 'touch', 'camera'].includes(q.get('input')) ? q.get('input') : 'touch',
     clock: q.get('clock') === 'night' || (!q.get('clock') && (hour >= 21 || hour < 6)) ? 'night' : 'morning',
     stage: q.get('stage') === '1',
     profile: PROFILES.includes(q.get('profile')) ? q.get('profile') : 'live',

@@ -145,14 +145,15 @@
         const pick = (type, n) => { const idx = larger.map((x, i) => x === type ? i : -1).filter(i => i >= 0).sort(() => R() - 0.5); return new Set(idx.slice(0, n)); };
         const sched = { rich: pick('rich', 3), lean: pick('lean', 1) };
         const bias = { good_day: 0.15, live: 0.08, bad_day: -0.15 }[profile()] ?? 0.08;
+        const richSide = R() < 0.5 ? 'left' : 'right';
         const g = base('lanterns', 60, {
-          kind: 'measurement', larger, sched, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
+          kind: 'measurement', larger, sched, richSide, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
           next(now) {
             this.i++;
             if (this.i >= 12 || this.missedRun >= 3) { finish(this, now); this.tr = null; this.i = 12; return; }
             const L = this.larger[this.i];
             if (this.sched[L].has(this.i)) this.pending[L]++;
-            this.tr = { L, richSide: R() < 0.5 ? 'left' : 'right', t: 0, phase: 'ready', resp: null, autoAt: null };
+            this.tr = { L, richSide, t: 0, phase: 'ready', resp: null, autoAt: null };
             A.present('lanterns', this, 'trial', { i: this.i }, now);
           },
           update(dt, now) {

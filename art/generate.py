@@ -1,22 +1,35 @@
 import argparse
 import base64
+import concurrent.futures
+import contextlib
+import fcntl
 import json
 import pathlib
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "art" / "raw"
+DRAFT = OUT / "draft"
 LEDGER = ROOT / "art" / "spend.json"
-CAP_USD = 45.0
+LOCK = ROOT / "art" / ".spend.lock"
+PLAN = ROOT / "art" / "plan.json"
+CAP_USD = 250.0
 WORST_CASE_USD = 0.60
 MODEL = "gpt-image-1.5"
+SIZES = ("1024x1024", "1536x1024", "1024x1536")
 FLOOR = {"low": 0.03, "medium": 0.10, "high": 0.30}
 PRICE = {"text_in": 5e-6, "image_in": 10e-6, "image_out": 40e-6}
 FALLBACK = {"1024x1024": 0.167, "1536x1024": 0.25, "1024x1536": 0.25}
+ISOLATED = (
+    "Isolated element on a fully transparent background. Nothing else in the image beyond what is named: "
+    "no sky, no backdrop, no frame, no vignette, no border, no extra buildings, islands or water."
+)
+BACKDROP = "Full-bleed painting that fills the entire frame edge to edge, no frame, no border, no vignette."
 
 
 def load_key():
@@ -30,20 +43,60 @@ def redact(text):
     return re.sub(r"sk-[A-Za-z0-9_\-*.]+", "sk-[redacted]", text)
 
 
-def load_assets():
+def load_assets(plan_path):
     bible = (ROOT / "ArtBible.md").read_text()
     style = re.search(r"^> (.+)$", bible, re.M).group(1).strip()
+    suffix = {"isolated": ISOLATED, "backdrop": BACKDROP}
     rows = re.findall(r"^\| (\d+) \| `(\w+)` \| (\d+x\d+) \| (yes|no) \| ([AB]) \| (.+?) \|$", bible, re.M)
-    assets = [dict(n=int(n), name=name, size=size, transparent=t == "yes", prio=p, prompt=pr) for n, name, size, t, p, pr in rows]
-    return style, assets
+    assets = {
+        name: dict(n=int(n), name=name, size=size, transparent=t == "yes", prio=p, prompt=pr, quality=None)
+        for n, name, size, t, p, pr in rows
+    }
+    if plan_path.exists():
+        plan = json.loads(plan_path.read_text())
+        style = plan.get("style", style)
+        suffix["isolated"] = plan.get("isolated", ISOLATED)
+        suffix["backdrop"] = plan.get("backdrop", BACKDROP)
+        for i, a in enumerate(plan.get("assets", [])):
+            if a.get("action") == "keep":
+                continue
+            assets[a["name"]] = dict(
+                n=i + 1, name=a["name"], size=a["size"], transparent=a.get("transparent", True),
+                prio=a.get("prio", "A"), prompt=a["prompt"], quality=a.get("quality"),
+            )
+    return style, suffix, list(assets.values())
 
 
-def ledger():
+@contextlib.contextmanager
+def locked():
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOCK, "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def read_ledger():
     return json.loads(LEDGER.read_text()) if LEDGER.exists() else {"total_usd": 0.0, "calls": []}
 
 
-def save_ledger(led):
-    LEDGER.write_text(json.dumps(led, indent=2))
+def record(entry):
+    with locked():
+        led = read_ledger()
+        if entry.get("ok"):
+            led["total_usd"] = round(led["total_usd"] + entry["usd"], 4)
+        led["calls"].append(entry)
+        tmp = LEDGER.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(led, indent=2))
+        tmp.replace(LEDGER)
+        return led["total_usd"]
+
+
+def spent():
+    with locked():
+        return read_ledger()["total_usd"]
 
 
 def cost(usage, size, quality):
@@ -60,10 +113,10 @@ class BillingError(Exception):
     pass
 
 
-def generate(key, style, asset, quality, model):
+def generate(key, prompt, asset, quality, model):
     body = {
         "model": model,
-        "prompt": f"{style} {asset['prompt']} Show only this element and nothing else: no extra buildings, no water, no lighthouse, no island unless named above.",
+        "prompt": prompt,
         "size": asset["size"],
         "quality": quality,
         "n": 1,
@@ -97,44 +150,69 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*", help="asset names")
     ap.add_argument("--prio", choices=["A", "B"])
-    ap.add_argument("--quality", default="high", choices=["low", "medium", "high"])
+    ap.add_argument("--quality", choices=["low", "medium", "high"], help="override the per-asset quality")
+    ap.add_argument("--draft", action="store_true", help="write to art/raw/draft/ (default quality medium)")
     ap.add_argument("--model", default=MODEL)
     ap.add_argument("--force", action="store_true", help="regenerate existing files")
+    ap.add_argument("--jobs", type=int, default=4, help="parallel requests")
+    ap.add_argument("--plan", default=str(PLAN))
+    ap.add_argument("--list", action="store_true", help="print the resolved assets and exit")
     args = ap.parse_args()
 
-    key = load_key()
-    style, assets = load_assets()
+    style, suffix, assets = load_assets(pathlib.Path(args.plan))
     todo = [a for a in assets if (not args.only or a["name"] in args.only) and (not args.prio or a["prio"] == args.prio)]
-    OUT.mkdir(parents=True, exist_ok=True)
-    led = ledger()
+    if args.only:
+        missing = set(args.only) - {a["name"] for a in todo}
+        if missing:
+            sys.exit(f"unknown assets: {' '.join(sorted(missing))}")
+    bad = [a["name"] for a in todo if a["size"] not in SIZES]
+    if bad:
+        sys.exit(f"unsupported size for: {' '.join(bad)} (use {', '.join(SIZES)})")
+    if args.list:
+        for a in todo:
+            print(f"{a['name']:24} {a['size']:10} {'transp' if a['transparent'] else 'opaque'} {a['prio']} {a['quality'] or '-'}")
+        return
 
-    for a in todo:
-        path = OUT / f"{a['n']:02d}_{a['name']}.png"
+    out = DRAFT if args.draft else OUT
+    out.mkdir(parents=True, exist_ok=True)
+    key = load_key()
+    stop = threading.Event()
+
+    def run(a):
+        if stop.is_set():
+            return
+        quality = args.quality or ("medium" if args.draft else a["quality"] or "high")
+        path = out / f"{a['name']}.png"
         if path.exists() and not args.force:
-            print(f"skip   {a['name']} (exists)")
-            continue
-        if led["total_usd"] + WORST_CASE_USD > CAP_USD:
-            print(f"stop   budget cap reached: ${led['total_usd']:.2f} spent, cap ${CAP_USD:.2f}")
-            break
+            print(f"skip   {a['name']} (exists)", flush=True)
+            return
+        total = spent()
+        if total + WORST_CASE_USD > CAP_USD:
+            print(f"stop   budget cap reached: ${total:.2f} spent, cap ${CAP_USD:.2f}", flush=True)
+            stop.set()
+            return
+        prompt = f"{style} {suffix['isolated'] if a['transparent'] else suffix['backdrop']} {a['prompt']}"
         t = time.time()
         try:
-            img, usd = generate(key, style, a, args.quality, args.model)
+            img, usd = generate(key, prompt, a, quality, args.model)
         except BillingError as e:
-            led["calls"].append({"asset": a["name"], "ok": False, "error": str(e)})
-            save_ledger(led)
-            print(f"STOP   {a['name']}: {e}")
-            print("stopped, no retry")
-            sys.exit(2)
+            stop.set()
+            record({"asset": a["name"], "ok": False, "error": str(e)})
+            print(f"STOP   {a['name']}: {e}", flush=True)
+            return "billing"
         except Exception as e:
-            led["calls"].append({"asset": a["name"], "ok": False, "error": redact(str(e))})
-            save_ledger(led)
-            print(f"error  {a['name']}: {redact(str(e))}")
-            continue
+            record({"asset": a["name"], "ok": False, "error": redact(str(e))})
+            print(f"error  {a['name']}: {redact(str(e))}", flush=True)
+            return
         path.write_bytes(img)
-        led["total_usd"] = round(led["total_usd"] + usd, 4)
-        led["calls"].append({"asset": a["name"], "ok": True, "usd": round(usd, 4), "size": a["size"], "quality": args.quality, "model": args.model})
-        save_ledger(led)
-        print(f"ok     {a['name']}  ${usd:.3f}  total ${led['total_usd']:.2f}  {time.time() - t:.0f}s")
+        total = record({"asset": a["name"], "ok": True, "usd": round(usd, 4), "size": a["size"], "quality": quality, "model": args.model, "file": str(path.relative_to(ROOT))})
+        print(f"ok     {a['name']}  ${usd:.3f}  total ${total:.2f}  {time.time() - t:.0f}s  {path.relative_to(ROOT)}", flush=True)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+        results = list(pool.map(run, todo))
+    if "billing" in results:
+        print("stopped, no retry")
+        sys.exit(2)
 
 
 if __name__ == "__main__":

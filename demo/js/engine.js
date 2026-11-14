@@ -13,7 +13,9 @@
   const BLOOM_ORDER = ['yellow', 'blue', 'green'];
   const VIS = ['fog', 'stars', 'warm', 'aurora', 'exposure', 'lanternGain'];
   const REST_S = 6, CHECKIN_S = 10, RT_WINDOW = 1.5, END_IDLE_S = 20, DIM_AT = 4, DIM_S = 2.5, QUIET_CAP = 25;
-  const PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 106, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
+  const DAWN_S = 8, PLAY_S = 76, PLAY_MIN_S = 60, SESSION_PLAY_END_S = 102, NIGHT_MODE_CAP = 8, MEASURE_EST_S = 18, FAT_ENTER = 0.45, FAT_EXIT = 0.3;
+  const MEASURE_RIDE_S = 20;
+  const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9 };
   const plausible = bpm => bpm != null && bpm >= 40 && bpm <= 150;
   const RP = () => A.PRESENT?.reaction || {};
   const hold = g => clamp(g.outro ?? 0.7, 0.7, 2.2);
@@ -28,6 +30,7 @@
       flame: 1, lanternRadius: 70, lanternBright: 1, sparks: [], iceGlow: 0, stove: 0, beam: 0,
       orb: { b: 0, hold: 0, sync: 0, alpha: 0 }, tapHint: 0, flash: 0, exposure: 1, sunP: 0,
       border: 0.1, borderColor: hex('#FFD9A0'), black: 1, profile,
+      ride: null, terrain: null, cam: { x: 0, y: 0, z: 1 }, daylightRide: 0, dawnT: 0,
     };
     A.applyProfileVisual(V, profile);
     return V;
@@ -106,6 +109,7 @@
           if (f.head_pitch_deg != null) c.pitch.push(f.head_pitch_deg);
         }
         if (f?.ambient_light != null) c.ambient.push(f.ambient_light);
+        this.T.coreKindle(now, dt);
         if (now - this.phaseAt >= REST_S) {
           c.restEnd = now;
           c.blinks = Eyes.blinks.filter(t => t >= this.phaseAt && t <= now).length;
@@ -130,7 +134,7 @@
       },
 
       startRt(now) {
-        this.core.nextTrialAt = now + 0.6 + (RP().leadIn || 0);
+        this.core.nextTrialAt = now + 0.3 + (RP().leadIn || 0);
         this.setPhase('rt');
       },
 
@@ -206,7 +210,7 @@
         this.holdUntil = this.coreHoldUntil;
         if (forced()) this.playS = 900;
         this.setPhase('walk');
-        this.planWalk(now);
+        if (forced() !== 'reaction') this.T.launch(now);
       },
 
       fatigueInput() { return clamp(Eyes.perclos() * 2 + Eyes.longClosures() * 0.12, 0, 1); },
@@ -241,16 +245,6 @@
         return clamp(k, 0, 1);
       },
 
-      planWalk(now) {
-        const last = V.chunks[V.chunks.length - 1];
-        const c = { type: MODES[this.mode].biome, x0: last.x1, x1: last.x1 + 560, seed: Math.floor(R() * 1e6) };
-        V.chunks.push(c);
-        if (V.chunks.length > 6) V.chunks.shift();
-        this.targetX = c.x0 + 240;
-        const next = this.measureAt(this.slot + 1), calmPace = this.mode === 'calm' || this.mode === 'rest';
-        this.walkSpeed = (this.targetX - V.worldX) / (next ? 2 : calmPace ? 3 : 2.5);
-      },
-
       measuresPending(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).length; },
 
       pick(mode) {
@@ -264,7 +258,22 @@
 
       measureAt(slot) { return slot === this.slots.fork ? 'fork' : slot === this.slots.lanterns ? 'lanterns' : null; },
 
-      startGame(now) {
+      measureNext(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).sort((a, b) => a - b)[0] ?? null; },
+
+      planNext(now) {
+        const m = this.mode;
+        if (m === 'rest') return { kind: 'drift' };
+        const hills = { calm: 1, flow: 1, wake: 2, fatigue: 2 }[m] || 1;
+        if (forced()) return { kind: 'task', hills };
+        const left = this.playLeft(now), pend = this.measuresPending(this.slot), ride = (SEC_HILL[m] || 4) + 3;
+        const short = left - ride * hills - (MEASURE_RIDE_S + ride) * pend < 12;
+        if (this.measureAt(this.slot + 1)) return { kind: 'task', hills: short ? 1 : hills };
+        if (left - ride - (MEASURE_RIDE_S + ride) * pend - 5 >= 10) return { kind: 'task', hills: short ? 1 : hills };
+        if (pend > 0) { this.slot = this.measureNext(this.slot) - 1; return { kind: 'task', hills: 1 }; }
+        return { kind: 'summit', seconds: clamp(left, 4, 12) };
+      },
+
+      planTask(now) {
         let slot = ++this.slot;
         if (this.night && this.mode !== 'rest' && this.classify() === 'rest') this.setMode(now, 'rest');
         const mode = this.mode;
@@ -277,27 +286,51 @@
           slot = ++this.slot;
         }
         const measure = force ? forceMeasure : this.measureAt(slot);
-        let id, g, k = null, weight = null, gameMode = mode;
-        A.J?.reset(now);
-        if (measure) { id = measure; g = A.MEASURES[id].make(); }
+        let id, k = null, weight = null, gameMode = mode;
+        if (measure) id = measure;
         else {
           const w = this.weights?.[mode];
           if (forceGame) { id = forceGame; if (!A.MINIGAMES[id].modes.includes(mode)) gameMode = A.MINIGAMES[id].modes[0]; }
           else if (mode === 'rest') { id = 'breath'; weight = w?.breath ?? null; }
           else ({ id, weight } = this.pick(mode));
           k = Number.isFinite(A.config?.forceK) ? clamp(A.config.forceK, 0, 1) : this.intensity(gameMode);
-          A.Skill?.start(id, gameMode, k);
-          g = A.MINIGAMES[id].make(k, { endless: gameMode === 'rest' });
-          g.world = !!A.MINIGAMES[id].world;
-          if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) { g.cycles = 1; g.max = Math.min(g.max, 12); }
-          if (gameMode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) + 3));
           this.lastGame = id;
           if (gameMode !== 'rest') this.played.add(id);
         }
+        this.next = { slot, id, measure, mode, gameMode, k, weight };
+        return this.next;
+      },
+
+      startGame(now) {
+        let n = this.next || this.planTask(now);
+        if (this.night && n.mode !== 'rest' && (this.mode === 'rest' || this.classify() === 'rest')) {
+          if (n.gameMode !== 'rest') this.played.delete(n.id);
+          this.slot = n.slot - 1; this.next = null; n = this.planTask(now);
+        }
+        this.next = null;
+        const { slot, id, measure, mode, gameMode } = n, k = n.k, weight = n.weight;
+        let g;
+        A.J?.reset(now);
+        try { g = measure ? A.MEASURES[id].make() : (A.Skill?.start(id, gameMode, k), A.MINIGAMES[id].make(k, { endless: gameMode === 'rest' })); }
+        catch (e) {
+          console.error('task failed to start', id, e);
+          if (A.Skill?.cur?.id === id) A.Skill.cur = null;
+          this.played.add(id); this.slot = slot - 1;
+          if (!measure && !this.retried) { this.retried = true; this.startGame(now); this.retried = false; return; }
+          this.slot = slot; this.setPhase('walk'); this.T.resume(now, { done: false }, now);
+          return;
+        }
+        if (!measure) {
+          g.world = !!A.MINIGAMES[id].world;
+          if (id === 'breath' && gameMode !== 'rest' && this.playLeft(now) - MEASURE_EST_S * this.measuresPending(slot) < 40) { g.cycles = 1; g.max = Math.min(g.max, 12); }
+          if (gameMode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) - (MEASURE_RIDE_S + 4 + (SEC_HILL[mode] || 4) + 3) * this.measuresPending(slot) - 8));
+        }
+        g.bare ??= true;
         const kind = measure ? 'measurement' : 'adaptive', taskMode = measure ? 'measure' : gameMode, def = A.MINIGAMES[id];
         A.J?.beat.set(def?.bpm ? def.bpm(MODES[gameMode].tempo, k ?? 0) : MODES[gameMode].tempo, now);
         Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind });
         this.game = g; this.gameMode = taskMode;
+        if (this.T.taskStart(g, now) && A.Skill?.cur?.id === id) { const c = A.Skill.cur; c.c = c.tiers[0]; c.tier = 1; c.carry = true; }
         this.track = A.Record.track({ id, slot, kind, mode: taskMode, director_mode: mode, intensity: k === null ? null : r3(k), weight_used: weight === null ? null : r3(weight) }, now);
         if (taskMode === 'calm' || taskMode === 'rest') Au.pad(true);
         if (MODES[mode].biome === 'sauna' && !measure) Au.crackle(true);
@@ -326,19 +359,20 @@
       endGame(now, by) {
         const g = this.closeTask(now, by);
         if (g.done && hold(g) > 0.7) { this.outro = { g, until: g.finishedAt + hold(g) }; this.holdUntil = this.outro.until; }
+        const foldAt = g.done ? Math.max(now, g.finishedAt + hold(g)) : now + 0.3;
         if (g.mode === 'fatigue') Sim.drowsy *= 0.45;
         this.story('end', g.slot, now);
         if (this.bloomIdx < BLOOM_ORDER.length) this.bloom(BLOOM_ORDER[this.bloomIdx++], by === 'auto' ? 5 : 1.5);
         if (g.mode === 'wake') this.tween(V, 'iceGlow', V.iceGlow, 1, 2);
         if (g.id === 'breath' || g.mode === 'calm' || g.id === 'lanterns') this.tween(V, 'aurora', V.aurora, Math.min(1, V.aurora + 0.3), 2);
         this.outroUntil = Math.max(now + 0.6, this.holdUntil || 0);
-        if (this.playLeft(now) <= 6 || g.mode === 'rest') { this.startDawn(now); return; }
+        if (g.mode === 'rest') { this.startDawn(now); return; }
         this.setPhase('walk');
-        this.planWalk(now);
+        this.T.resume(now, g, foldAt);
       },
 
       startDawn(now) {
-        this.dawnAt = now;
+        this.dawnAt = now; V.dawnT = 0;
         this.setPhase('dawn');
         Au.dawnPhrase();
         const hexc = this.night ? '#FFC98A' : '#FFF3DC', level = this.night ? A.config.dawnLevel : 60;
@@ -351,6 +385,7 @@
         Au.fadeOut(4);
         this.tween(V, 'black', V.black, 1, 3);
         this.light('#000000', 0, 3000, 'asleep');
+        this.T.sleep();
         this.setPhase('asleep');
         setTimeout(() => this.finish('fell_asleep'), 3200);
       },
@@ -384,7 +419,7 @@
           calm: { warm: 0.15, fog: 0.6, stars: 60, beam: 0, daylight: 0, exposure: 0.92 },
           flow: { warm: 0.04, fog: 0.35, stars: 120, beam: 0.1, daylight: 0, exposure: 1 },
           wake: { warm: 0, fog: 0.15, stars: 200, beam: 0.6 + 0.4 * k, daylight: 0.05, exposure: 1 },
-          fatigue: { warm: 0, fog: 0.1, stars: 40, beam: 1, daylight: 0.45 + 0.3 * k + 0.25 * this.daylightBoost, exposure: 1 },
+          fatigue: { warm: 0, fog: 0.1, stars: 40, beam: 1, daylight: 0.45 + 0.3 * k + 0.25 * this.daylightBoost + (V.daylightRide || 0), exposure: 1 },
           rest: { warm: 0.1, fog: 0.7, stars: 80, beam: 0, daylight: 0, exposure: 0.7 },
         }[m];
         this.pw = ema(this.pw, 0.3, dt, 40);
@@ -394,8 +429,6 @@
         V.fogDrift = m === 'calm' || m === 'rest' ? 0.5 : 1 + k;
         V.sparkle = ema(V.sparkle, m === 'wake' ? 0.3 + 0.5 * k : 0, dt, 1);
         V.border = ema(V.border, m === 'fatigue' && !this.night ? 0.25 : 0.1, dt, 1.5);
-        this.speed = 150 * cfg.speed * (m === 'wake' ? 1 + 0.3 * k : 1);
-        V.stride = cfg.speed;
         if (this.phase !== 'dawn' && this.phase !== 'end') Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
       },
 
@@ -447,10 +480,8 @@
         Sim.step(dt, this, now);
         const p = A.Sensors.pulse(now), f = A.Sensors.last;
         if (this.phase !== 'fadein') this.sample(now, dt, p, f);
-
-        const dx = this.targetX - V.worldX;
-        V.walking = Math.abs(dx) > 1 && now >= (this.holdUntil || 0);
-        if (V.walking) V.worldX += Math.sign(dx) * Math.min(Math.abs(dx), Math.max(this.speed || 150, this.walkSpeed || 0) * dt);
+        if (this.auto) this.T.auto(dt);
+        if (this.phase !== 'asleep') this.T.update(now, dt);
 
         this.beatPhase += dt;
         if (this.beatPhase >= 1) {
@@ -479,7 +510,6 @@
         if (this.phase === 'asleep') return;
 
         if (this.phase === 'walk' || this.phase === 'game') {
-          if (!this.firstPlayAt) this.firstPlayAt = now;
           this.story('tick', this.slot, now);
           this.director(now, dt, p);
           this.style(now, dt);
@@ -487,7 +517,8 @@
           if (this.night && this.closedRun >= 30) { this.fallAsleep(now); return; }
         }
         if (forced() === 'reaction' && this.phase === 'walk' && now > (this.holdUntil || 0) + 1) { Object.assign(this.core, { trials: [], trial: null }); this.startRt(now); return; }
-        if (this.phase === 'walk' && !V.walking && now > (this.outroUntil || 0)) this.startGame(now);
+        if (this.phase === 'walk' && this.T.arrived()) this.startGame(now);
+        if (this.phase === 'walk' && this.T.atSummit()) this.startDawn(now);
         if (this.phase === 'game') {
           const g = this.game;
           g.t += dt;
@@ -498,9 +529,9 @@
           else if (g.id === 'breath' && g.mode === 'rest' && this.playLeft(now) <= 0) this.endGame(now, 'touch');
         }
         if (this.phase === 'dawn') {
-          const t = now - this.phaseAt;
-          V.sweep = clamp(t / 4, 0, 1); V.sunP = V.sweep; V.border = lerp(0.1, 0.22, V.sweep); V.daylight = ema(V.daylight, 0, dt, 1);
-          if (t >= 4) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
+          V.dawnT = this.T.dawn(now, dt);
+          V.sweep = clamp(V.dawnT / DAWN_S, 0, 1); V.sunP = V.sweep; V.border = lerp(0.1, 0.22, V.sweep); V.daylight = ema(V.daylight, 0, dt, 1);
+          if (V.dawnT >= DAWN_S) { V.sat.dawn = 1; V.sweep = 0; this.setPhase('end'); A.bus.emit('endScreen'); }
         }
         if (this.phase === 'end') {
           const t = now - this.phaseAt;
@@ -532,6 +563,7 @@
         if (this.done) return;
         if (type === 'pdown' || type === 'key') this.inputs++;
         if (type === 'exit') { this.finish('partial'); return; }
+        if (this.T.handle(type, d)) return;
         if (this.phase === 'rt' && (type === 'pdown' || type === 'key')) { this.coreTap(RP().tapTime ? RP().tapTime(d) : d.t); return; }
         const g = this.phase === 'checkin' ? this.panel : this.phase === 'game' ? this.game : null;
         if (!g || g.world || g.done || type === 'key') return;
@@ -554,11 +586,20 @@
         if (g?.world) g.drawWorld?.(ctx, at);
         const fadeAt = g?.done ? g.finishedAt + hold(g) - 0.7 : 0;
         const show = g && !g.world ? (g.done ? clamp(1 - (now - fadeAt) / 0.5, 0, 1) : clamp((now - g.startAt) / 0.35, 0, 1)) : 0;
-        if (show <= 0) { A.J?.draw(ctx); return; }
+        if (show <= 0) { A.J?.draw(ctx); this.T.drawOver(ctx, now); return; }
         const b = this.box(), measure = g.kind === 'measurement';
         ctx.save();
         ctx.globalAlpha = show;
-        if (g.bare) { g.draw(ctx, b, at); A.J?.draw(ctx); ctx.restore(); return; }
+        if (g.bare) {
+          const o = !g.world && this.phase === 'game' ? this.T.stageOrigin() : null, open = A.config.reducedMotion ? 1 : clamp((now - g.startAt) / 0.45, 0, 1);
+          if (o && open < 1) {
+            const e = 1 - Math.pow(1 - open, 3), sc = 0.86 + 0.14 * e, cx = lerp(o[0], b.x + b.w / 2, e), cy = lerp(o[1], b.y + b.h / 2, e);
+            ctx.translate(cx, cy); ctx.scale(sc, sc); ctx.translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
+            ctx.globalAlpha = show * open;
+          }
+          this.T.drawStage(ctx, b, g, show);
+          g.draw(ctx, b, at); A.J?.draw(ctx); ctx.restore(); this.T.drawOver(ctx, now); return;
+        }
         const sc = A.config.reducedMotion ? 1 : 0.94 + 0.06 * show, warmth = A.J?.borderWarmth() ?? 0;
         ctx.translate(b.x + b.w / 2, b.y + b.h / 2); ctx.scale(sc, sc); ctx.translate(-(b.x + b.w / 2), -(b.y + b.h / 2));
         if (A.World.panel) A.World.panel(ctx, b, { done: g.done, measure, warmth });
@@ -574,6 +615,7 @@
         if (p !== null) { ctx.fillStyle = measure ? 'rgba(183,156,255,0.3)' : 'rgba(255,217,160,0.25)'; ctx.fillRect(b.x, b.y + b.h - 3, b.w * clamp(p, 0, 1), 3); }
         A.J?.draw(ctx);
         ctx.restore(); ctx.restore();
+        this.T.drawOver(ctx, now);
       },
 
       finish(status) {
@@ -582,6 +624,8 @@
         if (!this.coreRec && status !== 'declined') this.coreRec = this.phase === 'fadein' ? null : this.buildCore(A.now());
         this.done = true; this.panel = null;
         const doc = A.Record.session(this, status);
+        const ride = this.T?.record();
+        if (ride) doc.ride = ride;
         if (A.Skill?.sess) { doc.skill = A.Skill.record(); A.Skill.save(); }
         if (status !== 'completed') Au.fadeOut(2);
         Au.pad(false); Au.crackle(false);
@@ -590,6 +634,7 @@
       },
     };
     A.Skill?.begin(s);
+    s.T = A.Traverse.create(s);
     return s;
   };
 
