@@ -126,7 +126,7 @@
 .qv-bright { display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 22px; }
 .qv-bright svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .qv-weeks { font-size: 15px; line-height: 22px; color: #3B4658; }
-.qv-where { margin-top: 4px; font-size: 20px; line-height: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.qv-where { margin-top: 4px; max-width: 340px; text-align: center; font-size: 20px; line-height: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .qv-where.local {
   font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
   padding: 3px 12px; border-radius: 999px; border: 1px solid #0E1A2E;
