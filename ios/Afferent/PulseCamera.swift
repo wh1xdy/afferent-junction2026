@@ -78,7 +78,12 @@ final class PulseCamera: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
             if dev.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) { dev.whiteBalanceMode = .continuousAutoWhiteBalance }
             dev.unlockForConfiguration()
         }
-        queue.asyncAfter(deadline: .now() + 2.5) {
+        queue.asyncAfter(deadline: .now() + 2.0) {
+            // starting screen light from how dark the room is (ISO before locking)
+            guard let iso = self.device?.iso else { return }
+            DispatchQueue.main.async { ScreenLight.shared.setFromAmbient(iso: iso) }
+        }
+        queue.asyncAfter(deadline: .now() + 2.8) {
             guard let dev = self.device else { return }
             try? dev.lockForConfiguration()
             if dev.isExposureModeSupported(.locked) { dev.exposureMode = .locked }
@@ -199,9 +204,11 @@ final class PulseCamera: NSObject, ObservableObject, AVCaptureVideoDataOutputSam
         let span = (samples.last?.t ?? 0) - (samples.first?.t ?? 0)
         let r = PulseMath.estimate(samples: samples, history: history, luma: luma, clipped: clipped)
         if let r { history.append(r.bpm); if history.count > 8 { history.removeFirst() } }
+        let faceLuma = luma, track = faceFound && locked
         DispatchQueue.main.async {
             self.windowSeconds = min(span, PulseMath.windowS)
             self.reading = self.faceFound ? r : nil
+            if track { ScreenLight.shared.track(faceLuma: faceLuma) }   // slow, keeps the face lit
         }
     }
 }
