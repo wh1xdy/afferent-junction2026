@@ -17,14 +17,15 @@
   };
 
   const ART = {
-    far_mountains: { anchor: 'horizon', density: 2.03, base: 1, dy: 3 },
-    far_islands: { anchor: 'horizon', density: 2.79, base: 1, dy: 6.75 },
-    mid_hills_spruce: { anchor: 'mid', density: 1.97, base: 1, dy: 8, fill: true },
-    ground_forest: { anchor: 'ground', base: 0.36 },
-    ground_shore: { anchor: 'ground', base: 0.16 },
-    ground_sauna: { anchor: 'ground', base: 0.06 },
-    ground_harbour: { anchor: 'ground', base: 0.03 },
-    ground_lake: { anchor: 'ground', base: 0.03 },
+    far_mountains: { anchor: 'horizon', density: 2, base: 1, tile: true },
+    far_islands: { anchor: 'horizon', density: 2, base: 1, tile: true },
+    hills_rolling: { anchor: 'horizon', density: 1, base: 0.173, dy: 52, tile: true, fill: true },
+    mid_hills_spruce: { anchor: 'mid', density: 2, base: 0.33, tile: true, fill: true },
+    ground_forest: { anchor: 'ground', density: 1, base: 0.1, tile: true },
+    ground_shore: { anchor: 'ground', density: 1, base: 0.1, tile: true },
+    ground_sauna: { anchor: 'ground', density: 1, base: 0.1, tile: true },
+    ground_harbour: { anchor: 'ground', density: 1, base: 0.1, tile: true },
+    ground_lake: { anchor: 'ground', density: 1, base: 0.1, tile: true },
   };
   const spec = (name, meta = {}) => ({ density: null, base: 1, dy: 0, tile: false, fill: false, ...ART[name], ...meta });
 

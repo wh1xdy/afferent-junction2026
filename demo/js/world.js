@@ -16,7 +16,7 @@
   };
   A.P = P;
 
-  const LAYER = { stars: 0.02, aurora: 0.04, far: 0.1, islands: 0.2, fogFar: 0.3, mid: 0.5, fogNear: 0.7, ground: 1, fore: 1.5 };
+  const LAYER = { stars: 0.02, aurora: 0.04, far: 0.1, islands: 0.2, rolling: 0.3, fogFar: 0.3, mid: 0.5, fogNear: 0.7, ground: 1, fore: 1.5 };
   const GROUPS = ['yellow', 'blue', 'green', 'dawn'];
 
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return [c, c.getContext('2d')]; };
@@ -198,7 +198,8 @@
     if (!ART.has(n)) return null;
     const sp = specOf(n), sz = A.Art.size(n), h = sz.h / sp.density * u, w = h * sz.w / sz.h, span = w * (sp.tile ? 1 : 0.985), o = off(f);
     const top = anchor + sp.dy * u - sp.base * h;
-    for (let x = -(((o % span) + span) % span); x < W; x += span) art(n, x, top, w + (sp.tile ? 0.75 : 0), h, g, a, lt);
+    const sat = satOf(g), li = Math.min(1, lightOf(g) * lt), ww = w + (sp.tile ? 0.75 : 0);
+    for (let x = -(((o % span) + span) % span); x < W; x += span) ART.slice(ctxRef, n, Math.max(0, -x / ww), Math.min(1, (W - x) / ww), x, top, ww, h, sat, li, a);
     if (sp.fill && top + h < H) { const c = stripBase(n, g, lt); if (c) { ctxRef.fillStyle = rgb(c); ctxRef.fillRect(0, top + h - 2 * u, W, H - top - h + 2 * u); } }
     return { top, bottom: top + h };
   }
@@ -1361,6 +1362,7 @@
     islands(ctx);
     fog(ctx, false);
     shoreLights(ctx);
+    strip('hills_rolling', LAYER.rolling, hy, 'blue', 1, 0.85);
     midHills(ctx);
     props(ctx, true);
     const env = travEnv(ctx);
