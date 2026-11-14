@@ -221,6 +221,9 @@
 .set-group .lead-glyph .lantern-glyph { width: 15px; height: 23px; }
 .li .trail { color: var(--md-sys-color-on-surface-variant); margin-right: -4px; }
 .seg-row .seg { padding: 12px 12px; }
+/* Four levels on a phone: the shape and colour mark the chosen one, without the check that would not fit "Medium". */
+.seg.compact button { padding: 0 4px; }
+.seg.compact button[aria-checked="true"]::before { content: none; }
 .dev-toggle { display: inline-flex; align-items: center; gap: 4px; margin: -12px -8px; padding: 12px 8px; border: 0; border-radius: 12px; background: none; color: inherit; font: inherit; }
 .dev-toggle .ms { transition: transform var(--af-dur-state) var(--af-ease-std); }
 .set-group.dev .group { display: none; }
@@ -252,9 +255,11 @@
 /* The version line; 7 taps or a long press on it shows the Developer section (gui/shell.js). Reads as plain text. */
 .app-version { display: block; margin: 4px 24px 0; padding: 4px 8px; min-height: 32px; border: 0; background: none; text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 
+/* Text fields are 16 px or more: iOS zooms the whole page into a field under 16 px when it is tapped (js/keyboard.js,
+   tests/keyboard.test.js). The line stays 20 px, so the rows keep their height. */
 .time-val {
   border: 0; padding: 6px 10px; margin: -6px -10px -6px 0; border-radius: 8px; background: transparent;
-  color: var(--md-sys-color-on-surface-variant); font: 400 15px/20px var(--af-font-ui); font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant); font: 400 16px/20px var(--af-font-ui); font-variant-numeric: tabular-nums;
   color-scheme: inherit;
 }
 .time-val:focus-visible { outline: 3px solid var(--md-sys-color-secondary); }
@@ -264,7 +269,7 @@
   min-height: 48px; padding: 0 20px 0 60px; border: 0; background: none; color: var(--md-sys-color-on-surface);
   font: 400 16px/24px var(--af-font-ui); text-align: left; cursor: pointer;
 }
-.pause-menu input[type="date"] { border: 0; background: transparent; color: var(--md-sys-color-on-surface-variant); font: 400 15px/20px var(--af-font-ui); color-scheme: inherit; }
+.pause-menu input[type="date"] { border: 0; background: transparent; color: var(--md-sys-color-on-surface-variant); font: 400 16px/20px var(--af-font-ui); color-scheme: inherit; }
 #resumeBtn { color: var(--md-sys-color-primary); font-weight: 600; }
 #pauseRow[aria-expanded="true"] .trail { transform: rotate(180deg); }
 

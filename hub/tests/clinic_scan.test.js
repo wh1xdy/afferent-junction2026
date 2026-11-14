@@ -223,6 +223,22 @@ const test = async (name, fn) => {
     assert.ok(view.includes('class="erow"') && view.includes('via QR'), view.slice(0, 400));
   });
 
+  await test('the patient\'s code is now a dashboard link: the clinic offers to open it and imports nothing', async () => {
+    const { C, card } = loadClinic();
+    const key = 'k'.repeat(43);
+    for (const link of [`https://afferent-voice-abc.a.run.app/d/AbCdEfGhIjKlMnOpQrStUv#${key}`, 'http://192.168.1.20:8000/shared/AbCdEfGhIjKlMnOpQrStUv']) {
+      await C.scan.handle(link);
+      assert.match(card.innerHTML, /data-kind="link"/, card.innerHTML);
+      assert.match(card.innerHTML, /Open the link from the patient's code/);
+      assert.ok(card.innerHTML.includes(`href="${new URL(link).href}"`) && card.innerHTML.includes('rel="noopener noreferrer"'));
+    }
+    assert.strictEqual(C.codes.all().length, 0, 'nothing imported');
+    await C.scan.handle('https://example.com/somewhere');
+    assert.match(card.innerHTML, /Not Afferent/, 'any other link is not taken for a dashboard');
+    await C.scan.handle('https://x.test/d/abc"><img src=x onerror=alert(1)>#k');
+    assert.ok(!card.innerHTML.includes('<img'), 'nothing from a code becomes markup');
+  });
+
   for (const [s, name, e] of results) console.log(`${s} ${name}${e ? `\n  ${e.stack}` : ''}`);
   const failed = results.filter((r) => r[0] === 'FAIL').length;
   console.log(`${results.length - failed}/${results.length} passed`);

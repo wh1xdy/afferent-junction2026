@@ -334,9 +334,9 @@ const tests = {
     const on = felt(calm());
     assert.ok(on.calls.length >= 11 && on.calls.length === on.lubs, `one soft lub-dub per beat: ${on.calls.length}/${on.lubs}`);
     assert.ok(on.calls.every(c => c.strength > 0 && c.strength <= 0.6), 'soft');
-    assert.strictEqual(felt(calm(), { config: { heartTouch: false } }).calls.length, 0, 'switched off');
+    assert.strictEqual(felt(calm(), { config: { heartLevel: 'off' } }).calls.length, 0, 'switched off');
     assert.strictEqual(felt(calm({ mode: 'flow', gameMode: 'flow', game: { id: 'threads' } })).calls.length, 0, 'not in other games');
-    assert.strictEqual(felt(null).calls.length, 0, 'not on the home screen');
+    assert.ok(felt(null).calls.every(c => c.strength === 0.4), 'on the home screen only the softer touch (test q)');
     assert.strictEqual(felt(calm({ game: { id: 'breath' }, orb: { inhale: true } })).calls.length, 0, 'not while the guide ticks the inhale');
     assert.ok(felt(calm({ game: { id: 'breath' }, orb: { inhale: false } })).calls.length >= 11, 'on the exhale');
     assert.strictEqual(felt(calm(), { other: true }).calls.length, 0, 'never on top of another vibration');
@@ -349,18 +349,18 @@ const tests = {
     assert.ok(/@PluginMethod\s+fun beat\(/.test(kt) && /if \(v == null \|\| holding\(\)\)/.test(kt), 'Android has the same beat(), and it waits for a hold too');
   },
 
-  'k: Settings has a "Heartbeat touch" switch, on by default and saved'() {
+  'k: Settings has "Heartbeat touch" with its levels, Soft by default and saved'() {
     const ctx = { console, URLSearchParams, setTimeout: () => 0, clearTimeout: () => {}, location: { search: '' }, navigator: {},
       document: { getElementById: () => null, querySelector: () => null, querySelectorAll: () => [], addEventListener: () => {} } };
     ctx.window = ctx;
     vm.createContext(ctx);
     for (const f of ['util.js', 'gui/lantern.js', 'gui/shell.js']) vm.runInContext(read(f), ctx, { filename: f });
-    const row = plain(ctx.A.Shell.groups).find(g => g.title === 'Sound and light').rows.find(r => r.sw === 'id="beatSw"');
-    assert.strictEqual(row?.label, 'Heartbeat touch');
+    const rows = plain(ctx.A.Shell.groups).find(g => g.title === 'Sound and light').rows, row = rows.find(r => r.label === 'Heartbeat touch');
+    assert.ok(row && rows[rows.indexOf(row) + 1].html.includes('id="beatSeg"'), 'the row, then its levels');
     const icons = fs.readFileSync(path.join(JS, '..', 'fonts', 'icon-names.txt'), 'utf8').split(',').map(x => x.trim());
     assert.ok(icons.includes(row.icon), `icon ${row.icon} is in the font subset`);
     const main = read('main.js');
-    assert.ok(main.includes('heartTouch: saved.heartTouch ?? true') && main.includes('heartTouch: A.config.heartTouch'));
+    assert.ok(main.includes('heartLevel: A.config.heartLevel'), 'saved with the other settings');
   },
 
   'l: nothing of it is recorded or sent: the session and every hub message are the same without heartbeat.js'() {
@@ -397,6 +397,169 @@ const tests = {
     const [r0, b0] = peak(false), [r1, b1] = peak(true);
     assert.ok(r0 > 0.08 && r1 < 1e-9, `radius ${r0} / ${r1}`);
     assert.ok(Math.abs(b1 / b0 - 0.5) < 0.05, `brightness ${b0} / ${b1}`);
+  },
+
+  'q: the start screen touch: very soft, at each real beat, only while the start screen is plain, gone within a second of the reading'() {
+    // A page of fake elements with just enough of querySelectorAll and closest for heartbeat.js: #id, .class, [attr="v"],
+    // [attr] and :not(...).
+    const fakeDoc = () => {
+      const els = [], doc = { hidden: false, activeElement: null, els };
+      const one = (el, part) => {
+        const toks = part.match(/:not\(([^)]*)\)|#[\w-]+|\.[\w-]+|\[[^\]]+\]/g) || [];
+        return toks.every(t => t.startsWith(':not(') ? !one(el, t.slice(5, -1)) : t[0] === '#' ? el.id === t.slice(1) : t[0] === '.' ? el.cls.includes(t.slice(1))
+          : (([, k, v]) => v === undefined ? k in el.attrs : el.attrs[k] === v.replace(/"/g, ''))(t.slice(1, -1).match(/^([\w-]+)(?:=(.*))?$/)));
+      };
+      const is = (el, sel) => sel.split(',').some(p => one(el, p.trim()));
+      doc.querySelectorAll = sel => els.filter(el => is(el, sel));
+      doc.add = (id, cls = [], attrs = {}, parent = null) => {
+        const el = { id, cls, attrs, parent: parent && els.find(e => e.id === parent) };
+        el.closest = sel => { for (let e = el; e; e = e.parent) if (is(e, sel)) return e; return null; };
+        els.push(el);
+        return el;
+      };
+      // the start screen as index.html has it, everything over it closed
+      doc.add('phone'); doc.add('start', ['screen', 'start', 'fade']); doc.add('begin', ['kindle', 'state']);
+      doc.add('settings', ['screen', 'settings', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
+      doc.add('info', ['layer', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
+      doc.add('ci', ['ci', 'hidden'], { role: 'dialog', 'aria-modal': 'true' });
+      doc.add('pauseMenu', ['pause-menu', 'hidden'], { role: 'menu' }, 'settings');
+      return doc;
+    };
+    const el = (doc, id) => doc.els.find(e => e.id === id);
+    const home = ({ config = {}, vibration = true, doc = fakeDoc(), bpm = 72, seconds = 10, feed = true, during } = {}) => {
+      const t = load(), calls = [];
+      Object.assign(t.A.config, config);
+      t.ctx.document = doc;
+      t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push({ ...o, at: t.A.now() }) } } };
+      if (!vibration) t.A.Haptics.setEnabled(false);
+      connect(t.A);
+      steps(t, seconds, { second: i => { if (feed) clips(t.A, {}, bpm); during?.(i, t); } });
+      return { calls, lubs: t.A.Heartbeat.st.lubs, t };
+    };
+
+    const on = home();
+    assert.ok(on.calls.length >= 11 && on.calls.length === on.lubs, `one lub-dub per real beat: ${on.calls.length}/${on.lubs}`);
+    assert.ok(on.calls.every(c => c.strength === 0.4), `soft: ${on.calls.map(c => c.strength)}`);
+    assert.ok(on.calls.every(c => c.strength < 0.6), 'softer than in a session');
+    assert.ok(home({ config: { reducedMotion: true } }).calls.length >= 11, 'reduced motion keeps it: touch, not motion');
+    assert.ok(on.calls.slice(1).every((c, i) => c.at - on.calls[i].at > 0.6), 'never two in one beat');
+
+    // never without a real reading
+    assert.strictEqual(home({ feed: false }).calls.length, 0, 'no reading');
+    const sim = home({ feed: false, during: (i, t) => { t.A.Sensors.feedFingerHub(hubFrame({ simulated: true })); } });
+    assert.strictEqual(sim.calls.length, 0, 'a simulated pulse');
+    assert.strictEqual(home({ config: { heartLevel: 'off' } }).calls.length, 0, 'Heartbeat touch off');
+    assert.strictEqual(home({ vibration: false }).calls.length, 0, 'Vibration off');
+
+    // paused while anything is over the start screen, back once it is plain again
+    const paused = (name, set) => {
+      const doc = fakeDoc(), r = home({ doc, seconds: 15, during: i => { if (i === 0) set(doc, true); if (i === 10) set(doc, false); } });
+      const during = r.calls.filter(c => c.at < 10).length, after = r.calls.filter(c => c.at >= 10.05).length;
+      assert.strictEqual(during, 0, `nothing while ${name}`);
+      assert.ok(after >= 4, `back after ${name}: ${after}`);
+    };
+    const toggle = (id, cls, flip = false) => (doc, on) => { const c = el(doc, id).cls; if (on !== flip) c.push(cls); else c.splice(c.indexOf(cls), 1); };
+    paused('holding to kindle', toggle('begin', 'holding'));
+    paused('the kindle lit', toggle('begin', 'lit'));
+    paused('a sheet is open', toggle('info', 'hidden', true));
+    paused('Settings is open', toggle('settings', 'hidden', true));
+    paused('the check-in is open', toggle('ci', 'hidden', true));
+    paused('a menu is open', (doc, on) => { toggle('settings', 'hidden', true)(doc, on); toggle('pauseMenu', 'hidden', true)(doc, on); });
+    const left = fakeDoc();
+    el(left, 'pauseMenu').cls.splice(1, 1);
+    assert.ok(home({ doc: left }).calls.length >= 11, 'a menu left open inside the closed Settings does not hold it back');
+    paused('a card is open', toggle('phone', 'card-open'));
+    paused('the start screen is off', toggle('start', 'off'));
+    paused('the QR sheet is open', (doc, on) => { if (on) doc.add('qrSheet', ['qx', 'qs-root']); else doc.els.splice(doc.els.findIndex(e => e.id === 'qrSheet'), 1); });
+    paused('in the background', (doc, on) => { doc.hidden = on; });
+    paused('a text field has focus', (doc, on) => { doc.activeElement = on ? { tagName: 'INPUT', type: 'text' } : null; });
+    assert.ok(home({ during: (i, t) => { t.ctx.document.activeElement = { tagName: 'INPUT', type: 'checkbox' }; } }).calls.length >= 11, 'a switch with focus is not a text field');
+
+    // a racing pulse: every other beat
+    const fast = home({ bpm: 146 });
+    assert.ok(fast.lubs > 20 && Math.abs(fast.calls.length - fast.lubs / 2) <= 1, `every other beat above 140: ${fast.calls.length}/${fast.lubs}`);
+
+    // the reading goes (finger out of the clip, the clips disconnected, or a low quality): no touch from a second later
+    for (const [name, lose] of [
+      ['finger out', t => t.A.Sensors.feedFingerBle(aff({ presence: 'absent' }))],
+      ['disconnected', t => t.A.Sensors.setFingerLink('disconnected')],
+      ['low quality', t => t.A.Sensors.feedFingerBle(aff({ quality: 0.1 }))],
+    ]) {
+      const t = load(), calls = [];
+      t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(t.A.now()) } } };
+      connect(t.A);
+      steps(t, 8, { second: () => clips(t.A) });
+      assert.ok(calls.length >= 8, name);
+      const lost = t.A.now();
+      lose(t);
+      steps(t, 8);
+      assert.strictEqual(calls.filter(at => at > lost + 1).length, 0, `${name}: nothing a second after the reading went`);
+    }
+
+    // the router is untouched: the heart keeps its own lane
+    assert.strictEqual(on.t.A.Haptics.GAP.heart, 0.25);
+  },
+
+  'r: the Heartbeat touch level: Off, Soft, Medium, Strong scale the start screen and a session, saved, with a sample on a tap'() {
+    const strengths = (s, cfg = {}) => {
+      const t = load(), calls = [];
+      Object.assign(t.A.config, cfg);
+      t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(o.strength) } } };
+      connect(t.A);
+      steps(t, 6, { s, second: () => clips(t.A) });
+      return [...new Set(calls)];
+    };
+    const want = { soft: [0.4, 0.6], medium: [0.6, 0.8], strong: [0.8, 1] };
+    for (const [lv, [h, ses]] of Object.entries(want)) {
+      assert.deepStrictEqual(strengths(null, { heartLevel: lv }), [h], `${lv} on the start screen`);
+      assert.deepStrictEqual(strengths(calm(), { heartLevel: lv }), [ses], `${lv} in a session`);
+    }
+    assert.deepStrictEqual(strengths(null, {}), [0.4], 'Soft when nothing was chosen, as before');
+    assert.deepStrictEqual(strengths(null, { heartLevel: 'loud' }), [0.4], 'an unknown level is Soft');
+    assert.deepStrictEqual(strengths(null, { heartLevel: 'off' }), [], 'Off: nothing at home');
+    assert.deepStrictEqual(strengths(calm(), { heartLevel: 'off' }), [], 'Off: nothing in a session');
+    const sw = fs.readFileSync(path.join(JS, '..', '..', 'ios', 'App', 'App', 'AfferentHaptics.swift'), 'utf8');
+    assert.ok(/min\(1, call\.getDouble\("strength"\)/.test(sw) && /0\.55 \* strength/.test(sw) && /0\.32 \* strength/.test(sw), 'Strong is the plugin\'s full beat, the lub above the dub');
+
+    // a tap in Settings: one beat at that level as the start screen plays it, none for Off or with Vibration off
+    const tap = (lv, vibration = true) => {
+      const t = load(), calls = [];
+      t.ctx.Capacitor = { isNativePlatform: () => true, Plugins: { AfferentHaptics: { play: async () => ({ played: true }), beat: async o => calls.push(o.strength) } } };
+      if (!vibration) t.A.Haptics.setEnabled(false);
+      t.A.config.heartLevel = lv;
+      const played = t.A.Heartbeat.sample();
+      return { played, calls };
+    };
+    assert.deepStrictEqual(tap('strong'), { played: true, calls: [0.8] });
+    assert.deepStrictEqual(tap('medium').calls, [0.6]);
+    assert.deepStrictEqual(tap('off'), { played: false, calls: [] });
+    assert.deepStrictEqual(tap('soft', false), { played: false, calls: [] });
+
+    // main.js as it is: the level read from the saved settings (an old "off" switch stays off), written back by saveSettings,
+    // and the segment's tap handler
+    const main = read('main.js');
+    const init = main.match(/\n\s+heartLevel: (.*),\n/)[1];
+    const from = saved => vm.runInNewContext(init, { saved });
+    assert.strictEqual(from({}), 'soft');
+    assert.strictEqual(from({ heartTouch: true }), 'soft');
+    assert.strictEqual(from({ heartTouch: false }), 'off');
+    assert.strictEqual(from({ heartLevel: 'strong', heartTouch: false }), 'strong');
+    assert.strictEqual(from({ heartLevel: 'loud' }), 'soft');
+    const save = main.match(/\n  const saveSettings = .*\n/)[0], seg = main.match(/\n  const beatSeg = .*\n.*#beatSeg button'\)\.forEach\(b => b\.onclick = .*\n/)[0];
+    const buttons = ['off', 'soft', 'medium', 'strong'].map(v => ({ dataset: { v }, attrs: {}, setAttribute(k, x) { this.attrs[k] = x; } }));
+    const stored = {}, got = { sample: 0, refresh: 0 };
+    const ctx = {
+      A: { config: { heartLevel: 'soft', sensors: {} }, Heartbeat: { sample: () => { got.sample++; } }, Shell: { settings: { refresh: () => { got.refresh++; } } } },
+      ui: { sound: true }, store: { set: (k, v) => { stored[k] = JSON.parse(JSON.stringify(v)); } },
+      document: { querySelectorAll: sel => (sel === '#beatSeg button' ? buttons : []) },
+    };
+    vm.runInNewContext(save + seg, ctx);
+    buttons[3].onclick();
+    assert.strictEqual(ctx.A.config.heartLevel, 'strong');
+    assert.deepStrictEqual(buttons.map(b => b.attrs['aria-checked']), ['false', 'false', 'false', 'true'], 'the chosen one is checked');
+    assert.strictEqual(stored['afferent.settings'].heartLevel, 'strong', 'saved');
+    assert.strictEqual(from(stored['afferent.settings']), 'strong', 'and read back after a restart');
+    assert.deepStrictEqual(got, { sample: 1, refresh: 1 }, 'one sample beat, the line under Sound and feel redrawn');
   },
 };
 

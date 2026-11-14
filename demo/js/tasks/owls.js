@@ -60,7 +60,9 @@
             const s = this.searches[this.i]; s.on = now; s.onAt = J.at;
             sfx('owls_rustle');
           } else if (this.state === 'search' && T >= LIMIT) {
-            const s = this.searches[this.i]; s.timedOut = true; this.state = 'gap'; this.stateAt = this.t; this.sync();
+            const s = this.searches[this.i];
+            if (this.b) { const P = this.pos(s, s.target, this.b); J.verdict('miss', P.x, P.y, P.s * 1.4); }
+            s.timedOut = true; this.state = 'gap'; this.stateAt = this.t; this.sync();
           }
         },
 
@@ -73,6 +75,7 @@
           for (let j = 0; j < s.n; j++) { const P = this.pos(s, j, b), d = Math.hypot(x - P.x, y - P.y); if (d < bd) { bd = d; best = j; } }
           const P = best >= 0 ? this.pos(s, best, b) : null;
           if (!P || bd > P.s * 1.8) return;
+          J.verdict(best === s.target ? 'right' : 'wrong', P.x, P.y, P.s * 1.4);
           if (best === s.target) {
             s.found = true; s.rt = Math.max(0, t - s.on); this.foundAt = J.at;
             fx.burst(P.x, P.y, 12, C.gold, 150 * P.U, { kind: 'spark', size: [4 * P.U, 1] }); J.bloom(P.x, P.y, P.s * 4, C.glow, 0.4, 0.12, 0.4);

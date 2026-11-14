@@ -74,7 +74,7 @@ const shown = el => !!el && !el.classList.contains('hidden');
 
 // Every control Settings had before it was split into pages, by how main.js, clipcheck.js, duel.js, onboard.js and
 // presence.js find it.
-const CONTROLS = ['id="soundSw"', 'id="hapticSw"', 'id="beatSw"', 'id="quietSw"', 'id="motionSw"',
+const CONTROLS = ['id="soundSw"', 'id="hapticSw"', 'id="beatSeg"', 'id="quietSw"', 'id="motionSw"',
   'data-sensor="phone_camera"', 'data-sensor="pulse_stone"', 'id="fingerState"', 'id="breathSw"', 'data-sensor="bedside_light"', 'data-sensor="bedside_camera"', 'data-sensor="phone_motion"',
   'id="vitalsSw"', 'id="clipCheckRow"', 'id="clipState"', 'id="clipAskSw"', 'data-duel', 'id="morningsGroup"', 'id="checkinSw"',
   'id="qrBtn"', 'id="exportBtn"', 'id="sharingState"', 'id="hubForm"', 'id="hubAddr"', 'id="hubState"',
@@ -158,10 +158,19 @@ const tests = {
   'g: the line under each category follows its switches as they change'() {
     const p = settingsPage(), { $, A } = p;
     $('soundSw').checked = true; $('hapticSw').checked = true;
+    const level = v => $('beatSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === v)));
+    level('soft');
     A.Shell.settings.refresh();
-    assert.strictEqual($('setSum-sound').textContent, 'Sound on · Vibration on');
+    assert.strictEqual($('setSum-sound').textContent, 'Sound on · Heartbeat: Soft');
+    level('strong'); A.Shell.settings.refresh();
+    assert.strictEqual($('setSum-sound').textContent, 'Sound on · Heartbeat: Strong', 'the Heartbeat touch level');
+    level('off'); A.Shell.settings.refresh();
+    assert.strictEqual($('setSum-sound').textContent, 'Sound on · Heartbeat: Off');
     $('hapticSw').checked = false; p.change($('hapticSw'));
     assert.strictEqual($('setSum-sound').textContent, 'Sound on · Vibration off', 'a change inside Settings redraws the lines');
+    assert.deepStrictEqual($('beatSeg').querySelectorAll('button').map(b => [b.dataset.v, b.getAttribute('role')]),
+      [['off', 'radio'], ['soft', 'radio'], ['medium', 'radio'], ['strong', 'radio']], 'Off · Soft · Medium · Strong');
+    assert.strictEqual($('beatSeg').getAttribute('role'), 'radiogroup');
     const stone = p.doc.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
     stone.checked = true; A.Sensors = { fingerLink: { state: 'scanning' } }; p.change(stone);
     assert.strictEqual($('setSum-sensors').textContent, 'Finger clips not connected');

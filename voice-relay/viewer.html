@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F2EEE6">
+<title>Afferent dashboard</title>
+<!--
+  Viewer for a dashboard shared with "Show to my doctor" (served by main.py at /d/<id>).
+  The key is the part of the address after '#'. Browsers never send it, and this page never
+  logs it, stores it or puts it in a request: it only unlocks the bytes from /d/<id>/blob here.
+  The dashboard then runs in a sandboxed frame (scripts only, no same origin), so it cannot
+  touch this page, and it inherits this page's policy, so it cannot reach other sites.
+-->
+<style>
+  :root { color-scheme: light; --fjord: #0E1A2E; --birch: #F2EEE6; --paper: #FFFDF9; --primary: #1F467E;
+    --muted: #4F5B6E; --line: #DDD7CB; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--birch); color: var(--fjord);
+    font-family: "Jost", "Google Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
+  .mark { font-weight: 300; font-size: 24px; line-height: 32px; letter-spacing: 0.01em; text-transform: lowercase; }
+  .meta { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; text-align: right;
+    font-size: 13px; line-height: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  main { flex: 1; display: flex; min-height: 0; }
+  iframe { flex: 1; width: 100%; height: 100%; border: 0; background: #F4F6FA; }
+  .state { margin: auto; width: 100%; max-width: 440px; padding: 40px 16px; text-align: center; }
+  .state h1 { font-weight: 400; font-size: 26px; line-height: 34px; letter-spacing: -0.2px; }
+  .state p { margin-top: 10px; font-size: 16px; line-height: 24px; color: var(--muted); }
+  .state button { margin-top: 24px; min-height: 48px; padding: 0 24px; border: 0; border-radius: 999px;
+    background: var(--primary); color: #FFFFFF; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; }
+  .state button:focus-visible { outline: 3px solid #745A2A; outline-offset: 2px; }
+  .dot { width: 10px; height: 10px; margin: 0 auto 20px; border-radius: 50%; background: var(--primary);
+    animation: breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.8); opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+  .foot { padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); font-size: 12px; line-height: 16px;
+    color: var(--muted); border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <span class="mark">afferent</span>
+  <span class="meta"><span>Shared by the patient</span><span id="until"></span></span>
+</header>
+<main id="main">
+  <div class="state" id="state" role="status">
+    <div class="dot" aria-hidden="true"></div>
+    <h1>Opening the dashboard</h1>
+    <p>It is unlocked here, in this browser.</p>
+  </div>
+</main>
+<p class="foot">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
+<script>
+(() => {
+  'use strict';
+  const AAD = new TextEncoder().encode('afferent.dashboard/1');
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const main = document.getElementById('main');
+
+  function show(title, text, retry) {
+    const box = document.createElement('div');
+    box.className = 'state';
+    box.setAttribute('role', 'alert');
+    const h = document.createElement('h1');
+    h.textContent = title;
+    const p = document.createElement('p');
+    p.textContent = text;
+    box.append(h, p);
+    if (retry) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = 'Try again';
+      b.onclick = () => location.reload();
+      box.append(b);
+    }
+    main.replaceChildren(box);
+  }
+
+  // 32 bytes as unpadded base64url: exactly 43 characters.
+  function keyBytes(s) {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(s)) return null;
+    try {
+      const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '=');
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out.length === 32 ? out : null;
+    } catch { return null; }
+  }
+
+  async function open() {
+    const m = location.pathname.match(/^\/d\/([A-Za-z0-9_-]{22})\/?$/);
+    const raw = keyBytes(location.hash.slice(1));
+    if (!m || !raw) {
+      return show('This link is not complete', 'Scan the patient’s code again. The whole link is needed to open the dashboard.');
+    }
+    if (!window.crypto || !crypto.subtle) {
+      return show('This browser cannot open it', 'Open the link in a current browser, over https.');
+    }
+    let res;
+    try {
+      res = await fetch('/d/' + m[1] + '/blob', { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
+    } catch {
+      return show('Could not reach the dashboard', 'Check the connection and try again.', true);
+    }
+    if (res.status === 404) {
+      return show('This dashboard is no longer shared', 'A shared link lasts 7 days, and the patient can take it back sooner. Ask the patient for a new code.');
+    }
+    if (!res.ok) return show('Could not open the dashboard', 'Please try again in a moment.', true);
+    let doc;
+    try {
+      const blob = new Uint8Array(await res.arrayBuffer());
+      if (blob.length < 29 || blob[0] !== 1) throw new Error('format');
+      const key = await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['decrypt']);
+      const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: blob.subarray(1, 13), additionalData: AAD }, key, blob.subarray(13));
+      doc = JSON.parse(new TextDecoder().decode(plain));
+      if (!doc || doc.kind !== 'afferent.dashboard' || typeof doc.html !== 'string') throw new Error('kind');
+    } catch {
+      return show('This link does not open the dashboard', 'The link may be cut short or mistyped. Scan the patient’s code again.');
+    }
+    const until = new Date(res.headers.get('X-Expires') || '');
+    if (!isNaN(until)) {
+      document.getElementById('until').textContent = `Open until ${WD[until.getDay()]} ${until.getDate()} ${MONTHS[until.getMonth()]}`;
+    }
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frame.title = 'Patient dashboard';
+    frame.srcdoc = doc.html;
+    main.replaceChildren(frame);
+    document.title = 'Afferent dashboard, shared by the patient';
+  }
+
+  open();
+})();
+</script>
+</body>
+</html>

@@ -622,3 +622,28 @@ def test_export_publish_roundtrip(client):
     assert page.text == html
     assert client.post("/api/export/publish", json={"patient_id": "anna"}).status_code == 400
     assert client.post("/api/export/publish", json=[]).status_code == 400
+
+def test_export_share_url_is_unguessable_sandboxed_and_ends(client, monkeypatch):
+    from afferent_hub import service
+    html = "<!doctype html><title>anna</title><p>dashboard</p>"
+    first = client.post("/api/export/publish", json={"patient_id": "anna", "html": html}).json()
+    sid = first["share_url"].removeprefix("/shared/")
+    assert first["share_url"].startswith("/shared/") and len(sid) >= 20 and first["expires_iso"]
+    page = client.get(first["share_url"])
+    assert page.status_code == 200 and page.text == html
+    csp = page.headers["content-security-policy"]
+    assert csp.startswith("sandbox allow-scripts;") and "allow-same-origin" not in csp and "default-src 'none'" in csp
+    assert page.headers["referrer-policy"] == "no-referrer" and page.headers["cache-control"] == "no-store"
+    assert client.get("/shared/" + "A" * len(sid)).status_code == 404
+
+    second = client.post("/api/export/publish", json={"patient_id": "anna", "html": html + "<p>2</p>"}).json()
+    assert second["share_url"] != first["share_url"]
+    gone = client.get(first["share_url"])
+    assert gone.status_code == 404 and "no longer shared" in gone.text, "a new publish ends the last link"
+    assert client.get(second["share_url"]).text.endswith("<p>2</p>")
+
+    assert service.EXPORT_TTL_S == 7 * 24 * 3600
+    monkeypatch.setattr(service, "EXPORT_TTL_S", 0)
+    ended = client.post("/api/export/publish", json={"patient_id": "anna", "html": html}).json()
+    assert client.get(ended["share_url"]).status_code == 404, "a link past its time opens nothing"
+    assert client.get("/api/export/dashboard").text == html, "the hub's own copy stays for the Share tab"

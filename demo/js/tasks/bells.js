@@ -227,6 +227,8 @@
           if (i !== this.seq[pos]) {
             this.errors++; this.log.replays++; this.replayed = true;
             bl.wrongAt = at; bl.rungAt = at; bl.swing = 0.25;
+            J.verdict('wrong', L.bells[i].cx, L.bells[i].cy, L.bells[i].w * 0.55);
+            J.verdict('miss', L.bells[this.seq[pos]].cx, L.bells[this.seq[pos]].cy, L.bells[this.seq[pos]].w * 0.55);
             hap('miss'); sfx('bells_tok', { bell: i });
             if (this.errors % 2 === 0 && this.target > 2) { this.target--; this.shortened = true; }
             this.phase = 'wait'; this.nextAt = now + 0.6;
@@ -239,6 +241,7 @@
           const grade = last ? this.grade() : null, half = grade === 'barely' ? 0.5 : 1;
           bl.rungAt = at; bl.litAt = at; bl.swing = grade === 'barely' ? 0.5 : 1;
           const w = L.wins[pos], sparks = Math.round(Math.min(18, 6 + 3 * pos) * half);
+          J.verdict('right', L.bells[i].cx, L.bells[i].cy, L.bells[i].w * 0.55);
           J.bloom(L.bells[i].cx, L.bells[i].cy, L.bells[i].w * (0.9 + 0.12 * pos), bl.tint, 0.35 + 0.05 * pos);
           fx.burst(L.bells[i].cx, L.bells[i].mouth, Math.round(sparks * 0.5), mixc(bl.tint, C.silver050, 0.3), 140, { kind: 'spark', size: [4, 1] });
           this.washTo = Math.max(this.washTo, (pos + 1) / Math.max(this.target0, 4) * 0.85 + 0.08 * this.tier);

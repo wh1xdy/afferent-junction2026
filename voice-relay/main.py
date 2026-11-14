@@ -4,17 +4,28 @@ The phone cannot hold Google Cloud credentials, and a browser WebSocket cannot s
 `Authorization` header Vertex needs. This service holds the identity (Cloud Run's service
 account), opens the Vertex session with a fixed setup and system prompt, and relays audio
 and transcripts. The phone only proves it knows RELAY_CODE.
+
+It also keeps locked dashboards for "Show to my doctor" (POST /share, GET /d/<id>): see the
+section "Shared dashboards" below.
 """
 import asyncio
+import datetime as dt
+import hashlib
 import hmac
 import json
 import os
 import re
+import secrets
+import time
+from collections import deque
+from pathlib import Path
 
 import google.auth
 import google.auth.transport.requests
 import websockets
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
 MODEL = os.environ.get("VERTEX_MODEL", "gemini-3.8-live")
@@ -148,6 +159,202 @@ def _authorised(code) -> bool:
 @app.get("/health")
 async def health():
     return {"ok": True, "configured": bool(RELAY_CODE)}
+
+
+# --- Shared dashboards ------------------------------------------------------------------------
+# "Show to my doctor" builds the patient's dashboard on the phone and locks it there (AES-GCM under
+# a fresh random 256-bit key, demo/js/handover.js). Only the locked bytes come here. The QR code
+# holds https://<relay>/d/<id>#<key>: a browser never sends the part after '#', so this service
+# never sees the key or anything readable. The viewer page (viewer.html) fetches the locked bytes
+# and unlocks them in the doctor's browser.
+#
+# Kept in memory, which is enough for the hackathon: a restart, a redeploy or a scale-down to zero
+# loses every share, and a second instance does not know the first one's shares. Deploy with
+# exactly one instance (README). A share ends after SHARE_TTL_SECONDS or when the patient takes it
+# back with the revoke token it got at upload.
+
+SHARE_TTL = int(os.environ.get("SHARE_TTL_SECONDS", str(7 * 24 * 3600)))
+SHARE_MAX_BYTES = int(os.environ.get("SHARE_MAX_BYTES", str(2 * 1024 * 1024)))
+SHARE_TOTAL_BYTES = int(os.environ.get("SHARE_TOTAL_BYTES", str(64 * 1024 * 1024)))
+SHARE_MAX_COUNT = int(os.environ.get("SHARE_MAX_COUNT", "500"))
+SHARE_UPLOADS_PER_HOUR = int(os.environ.get("SHARE_UPLOADS_PER_HOUR", "30"))
+SHARE_READS_PER_MINUTE = int(os.environ.get("SHARE_READS_PER_MINUTE", "120"))
+SHARE_MIN_BYTES = 1 + 12 + 16          # format byte, AES-GCM nonce, AES-GCM tag
+SHARE_ID = re.compile(r"[A-Za-z0-9_-]{22}")
+VIEWER = Path(__file__).with_name("viewer.html").read_text(encoding="utf-8")
+# The viewer runs its own inline script and shows the dashboard in a sandboxed srcdoc frame, which
+# inherits this policy: the dashboard's inline script runs, but it can reach nothing except this
+# service, cannot submit forms and cannot be framed by another site.
+VIEWER_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+                               "img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; "
+                               "frame-ancestors 'none'",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-store",
+}
+
+
+def now() -> float:
+    return time.time()
+
+
+def _iso(t: float) -> str:
+    return dt.datetime.fromtimestamp(t, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _digest(token: str) -> bytes:
+    return hashlib.sha256(token.encode()).digest()
+
+
+class Shares:
+    """Locked dashboards by id, each with its end time and the hash of its revoke token."""
+
+    def __init__(self):
+        self.items: dict[str, dict] = {}
+        self.total = 0
+
+    def _drop(self, sid: str):
+        s = self.items.pop(sid, None)
+        if s:
+            self.total -= len(s["blob"])
+
+    def purge(self, t: float):
+        for sid in [k for k, v in self.items.items() if v["expires"] <= t]:
+            self._drop(sid)
+
+    def put(self, blob: bytes, t: float):
+        self.purge(t)
+        if len(self.items) >= SHARE_MAX_COUNT or self.total + len(blob) > SHARE_TOTAL_BYTES:
+            return None
+        sid, revoke = secrets.token_urlsafe(16), secrets.token_urlsafe(24)
+        self.items[sid] = {"blob": blob, "expires": t + SHARE_TTL, "revoke": _digest(revoke)}
+        self.total += len(blob)
+        return sid, revoke, t + SHARE_TTL
+
+    def get(self, sid: str, t: float):
+        s = self.items.get(sid)
+        if s and s["expires"] <= t:
+            self._drop(sid)
+            return None
+        return s
+
+    def revoke(self, sid: str, token: str, t: float):
+        """True when taken back, False for a wrong token, None when there is no such share (any more)."""
+        s = self.get(sid, t)
+        if s is None:
+            return None
+        if not hmac.compare_digest(_digest(token), s["revoke"]):
+            return False
+        self._drop(sid)
+        return True
+
+
+class Limiter:
+    """At most `limit()` requests per client address in a sliding window of `window` seconds."""
+
+    def __init__(self, limit, window: float):
+        self.limit, self.window, self.hits = limit, window, {}
+
+    def allow(self, key: str, t: float) -> bool:
+        if len(self.hits) > 10_000:
+            self.hits = {k: q for k, q in self.hits.items() if q and q[-1] > t - self.window}
+        q = self.hits.setdefault(key, deque())
+        while q and q[0] <= t - self.window:
+            q.popleft()
+        if len(q) >= self.limit():
+            return False
+        q.append(t)
+        return True
+
+
+shares = Shares()
+upload_limit = Limiter(lambda: SHARE_UPLOADS_PER_HOUR, 3600)
+read_limit = Limiter(lambda: SHARE_READS_PER_MINUTE, 60)
+
+
+def client_address(request: Request) -> str:
+    # Cloud Run puts the caller's address last in X-Forwarded-For (anything before it came from the caller).
+    fwd = request.headers.get("x-forwarded-for", "")
+    last = fwd.split(",")[-1].strip() if fwd else ""
+    return last or (request.client.host if request.client else "unknown")
+
+
+def _refuse(status: int, error: str, detail: str, headers: dict | None = None):
+    return JSONResponse({"error": error, "detail": detail}, status_code=status,
+                        headers={"Cache-Control": "no-store", **(headers or {})})
+
+
+async def _read_capped(request: Request, cap: int) -> bytes | None:
+    size = request.headers.get("content-length", "")
+    if size.isdigit() and int(size) > cap:
+        return None
+    buf = bytearray()
+    async for chunk in request.stream():
+        buf += chunk
+        if len(buf) > cap:
+            return None
+    return bytes(buf)
+
+
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST", "DELETE"],
+                   allow_headers=["Content-Type", "X-Afferent-Code", "X-Revoke-Token"],
+                   expose_headers=["X-Expires"], max_age=600)
+
+
+@app.post("/share")
+async def share(request: Request):
+    t = now()
+    if not upload_limit.allow(client_address(request), t):
+        return _refuse(429, "too_many", "Too many shares from this address; try again later", {"Retry-After": "600"})
+    if not _authorised(request.headers.get("x-afferent-code")):
+        return _refuse(401, "wrong_code", "Wrong access code")
+    blob = await _read_capped(request, SHARE_MAX_BYTES)
+    if blob is None:
+        return _refuse(413, "too_large", f"A share holds at most {SHARE_MAX_BYTES} bytes")
+    if len(blob) < SHARE_MIN_BYTES or blob[0] != 1:
+        return _refuse(400, "not_locked", "Expected a locked dashboard (format 1)")
+    made = shares.put(blob, t)
+    if made is None:
+        return _refuse(503, "full", "No room for more shares right now; try again later", {"Retry-After": "3600"})
+    sid, revoke, expires = made
+    return JSONResponse({"id": sid, "expires": _iso(expires), "revoke": revoke}, status_code=201,
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/d/{sid}")
+async def viewer(sid: str, request: Request):
+    if not SHARE_ID.fullmatch(sid):
+        return _refuse(404, "not_found", "No such share")
+    if not read_limit.allow(client_address(request), now()):
+        return _refuse(429, "too_many", "Too many requests; try again in a minute", {"Retry-After": "60"})
+    return HTMLResponse(VIEWER, headers=VIEWER_HEADERS)
+
+
+@app.get("/d/{sid}/blob")
+async def blob(sid: str, request: Request):
+    t = now()
+    if not read_limit.allow(client_address(request), t):
+        return _refuse(429, "too_many", "Too many requests; try again in a minute", {"Retry-After": "60"})
+    s = shares.get(sid, t) if SHARE_ID.fullmatch(sid) else None
+    if s is None:
+        return _refuse(404, "gone", "This share has ended or was taken back")
+    return Response(s["blob"], media_type="application/octet-stream",
+                    headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+                             "X-Expires": _iso(s["expires"])})
+
+
+@app.delete("/d/{sid}")
+async def take_back(sid: str, request: Request):
+    t = now()
+    if not read_limit.allow(client_address(request), t):
+        return _refuse(429, "too_many", "Too many requests; try again in a minute", {"Retry-After": "60"})
+    done = shares.revoke(sid, request.headers.get("x-revoke-token", ""), t) if SHARE_ID.fullmatch(sid) else None
+    if done is None:
+        return _refuse(404, "gone", "This share has ended or was taken back")
+    if done is False:
+        return _refuse(403, "wrong_token", "Wrong revoke token")
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 
 @app.websocket("/live")

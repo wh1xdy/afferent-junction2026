@@ -31,7 +31,8 @@
     signalsOverlay: saved.signalsOverlay ?? false,
     liveVitals: saved.liveVitals ?? true,
     breathFeedback: saved.breathFeedback ?? true,
-    heartTouch: saved.heartTouch ?? true,
+    // Heartbeat touch: off, soft, medium or strong (heartbeat.js). An older "off" switch is kept as off.
+    heartLevel: ['off', 'soft', 'medium', 'strong'].includes(saved.heartLevel) ? saved.heartLevel : saved.heartTouch === false ? 'off' : 'soft',
     forceTask: q.get('task') || null,
     forceK: q.has('k') ? Number(q.get('k')) : null,
     forceRide: q.get('ride') || null,
@@ -218,7 +219,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartTouch: A.config.heartTouch, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartLevel: A.config.heartLevel, sound: ui.sound });
   const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Answers about your safety are still shared.' };
   const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
   const toggles = () => {
@@ -233,7 +234,7 @@
     $('sigSw').checked = A.config.signalsOverlay;
     $('vitalsSw').checked = A.config.liveVitals;
     $('breathSw').checked = A.config.breathFeedback;
-    $('beatSw').checked = A.config.heartTouch;
+    beatSeg();
     camGlyph();
   };
   const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
@@ -255,7 +256,9 @@
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
   $('vitalsSw').onchange = e => { A.config.liveVitals = e.target.checked; saveSettings(); };
   $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
-  $('beatSw').onchange = e => { A.config.heartTouch = e.target.checked; saveSettings(); };
+  // Heartbeat touch: a tap keeps the level, saves it, plays one beat at it and redraws the line under Sound and feel.
+  const beatSeg = () => { document.querySelectorAll('#beatSeg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.heartLevel))); };
+  document.querySelectorAll('#beatSeg button').forEach(b => b.onclick = () => { A.config.heartLevel = b.dataset.v; beatSeg(); saveSettings(); A.Heartbeat?.sample(); A.Shell.settings?.refresh(); });
 
   const applyPrivacy = pv => {
     if (!pv) return;

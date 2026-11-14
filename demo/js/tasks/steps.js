@@ -79,7 +79,10 @@
             if (e >= r.seq.length * STEP - GAP) { this.phase = 'echo'; r.presEnd = now; r.echoT = T; r.lastTapT = T; }
             return;
           }
-          if (this.phase === 'echo' && T - r.lastTapT > IDLE) this.endRound(false, now);
+          if (this.phase === 'echo' && T - r.lastTapT > IDLE) {
+            if (this.b) { const P = this.patch(r.seq[r.taps.length], this.b); J.verdict('miss', P.x, P.y, P.rx); }
+            this.endRound(false, now);
+          }
         },
 
         down(u, v, t) {
@@ -95,6 +98,8 @@
           r.taps.push(best); r.times.push(t); r.lastTapT = this.t;
           const P = this.patch(best, b);
           this.marks[best] = { at: J.at, good: best === want };
+          J.verdict(best === want ? 'right' : 'wrong', P.x, P.y, P.rx);
+          if (best !== want) { const Q = this.patch(want, b); J.verdict('miss', Q.x, Q.y, Q.rx); }
           if (best === want) {
             r.good++;
             if (r.taps.length < r.seq.length) hap('tick');

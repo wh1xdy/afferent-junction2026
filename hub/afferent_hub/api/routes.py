@@ -88,6 +88,28 @@ async def export_publish(request: Request, body=Body(...)):
 async def export_dashboard(request: Request):
     return Response(hub(request).export_dashboard(), media_type="text/html")
 
+# The handed-over link to the published dashboard (share_url of /api/export/publish). Outside /api, so it opens
+# without the hub token on the home network; the address itself is the secret and ends with the next publish
+# or after 7 days. The page runs sandboxed in its own origin: it cannot read the hub's pairing cookie or call
+# the hub, and it reaches nothing outside itself.
+public = APIRouter()
+SHARED_HEADERS = {
+    "Content-Security-Policy": "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; "
+                               "style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'",
+    "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
+}
+GONE = ("<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content='width=device-width, initial-scale=1'>"
+        "<title>Afferent dashboard</title><body style='font-family:system-ui,sans-serif;max-width:420px;margin:15vh auto;"
+        "padding:0 16px;color:#0E1A2E;background:#F2EEE6'><h1 style='font-weight:400'>This dashboard is no longer shared</h1>"
+        "<p>Ask the patient to show a new code.</p></body></html>")
+
+@public.get("/shared/{sid}", include_in_schema=False)
+async def shared(sid: str, request: Request):
+    html = hub(request).export_shared(sid)
+    if html is None:
+        return Response(GONE, status_code=404, media_type="text/html", headers=SHARED_HEADERS)
+    return Response(html, media_type="text/html", headers=SHARED_HEADERS)
+
 @router.post("/patients/{pid}/flags/clear")
 async def flags_clear(pid: str, request: Request):
     await hub(request).clear_flags(pid)

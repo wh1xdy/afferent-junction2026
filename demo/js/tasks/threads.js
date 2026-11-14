@@ -353,6 +353,7 @@
           const all = pairs.every(q => q.joined);
           const x = L.X(p.pipe[p.pipe.length - 1]), y = L.Y(p.pipe[p.pipe.length - 1]), fever = this.t < this.feverUntil;
           const sparks = (grade === 'barely' ? 5 : grade === 'miss' ? 3 : 10) * (fever ? 1.6 : 1);
+          J.verdict(sys ? 'miss' : 'right', x, y, L.cs * 0.5);
           fx.burst(x, y, Math.round(sparks), mixc(p.c, C.silver050, 0.4), 150 * L.U, { life: 0.45, size: [2.6 * L.U, 0.6 * L.U] });
           if (grade !== 'miss') J.bloom(x, y, L.cs * (grade === 'perfect' ? 1.3 : 1) * (fever ? 1.2 : 1), p.c, grade === 'perfect' ? 0.5 : 0.36, 0.14, 0.5);
           if (grade === 'perfect') fx.add({ x, y: y - L.cs * 0.1, kind: 'spark', c: C.silver050, life: 0.45, size: [L.cs * 0.55, L.cs * 0.1], alpha: [1, 0] });
@@ -444,9 +445,12 @@
           this.drag = null;
           if (D.cells > 0 || D.over >= 0) p.drags++;
           for (const q of pairs) if (q !== p && q.pipe.length < D.snap[q.i].length) { this.cuts++; this.errors++; q.cut = true; p.cut = true; }
+          const L = this.layout(), end = p.pipe[p.pipe.length - 1];
+          if (pairs.some(q => q !== p && q.pipe.length < D.snap[q.i].length)) J.verdict('wrong', L.X(end), L.Y(end), L.cs * 0.5);
           if (!this.complete(p) && !this.done) {
             if (D.over >= 0 && knot[D.over] !== p.i) {
               this.wrongEnd++; this.errors++; p.wrong = true; p.wobAt = this.at;
+              J.verdict('wrong', L.X(D.over), L.Y(D.over), L.cs * 0.5);
               hap('miss'); sfx('threads_muted', { pair: p.i });
             } else if (p.pipe.length > 1) this.loose++;
           }
