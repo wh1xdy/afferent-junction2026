@@ -69,9 +69,15 @@ const tests = {
       source: 'finger_ppg', transport: 'ble', simulated: false, pulse_bpm: 72, quality: 0.6, quality_reported: true, contact: true,
       finger_bpm: [71, 73], breathing_per_min: 6, rmssd_ms: 46, sdnn_ms: null, rmssd_vs_baseline: null, presence: 'active', age_s: 0, link: 'connected',
     });
-    assert.strictEqual(S.stone.quality, null, 'the first pulse arrived before any quality');
-    tick(1); S.feedFingerBle(hrm(74));
-    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: 74, quality: 0.6, source: 'finger_ppg', at: 1 });
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: 72, quality: 0.6, source: 'finger_ppg', at: 0 }, 'the quality that follows a pulse applies to it');
+    tick(2); S.feedFingerBle(aff6({ quality: 0.8 }));
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: 72, quality: 0.8, source: 'finger_ppg', at: 0 }, 'a later quality does not make the pulse younger');
+    tick(1.1);
+    assert.strictEqual(S.pulse(A.now()).source, 'simulated', 'the pulse itself is now older than 3 s');
+    S.feedFingerBle(aff6());
+    assert.strictEqual(S.pulse(A.now()).source, 'simulated');
+    S.feedFingerBle(hrm(74));
+    assert.deepStrictEqual(plain(S.pulse(A.now())), { bpm: 74, quality: 0.6, source: 'finger_ppg', at: 3.1 });
     tick(3.5);
     const old = plain(S.fingerFrame(A.now()));
     assert.deepStrictEqual([old.pulse_bpm, old.quality, old.finger_bpm, old.breathing_per_min, old.rmssd_ms, old.presence], [null, null, [null, null], null, null, 'active']);

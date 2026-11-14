@@ -218,6 +218,10 @@
           quality: unit(d.quality), presence: PRESENCE.includes(d.presence) ? d.presence : null, quality_reported: d.payload_len >= 5, affAt: now,
         });
         if (b.presence && b.presence !== 'active') this.feedPulse({ bpm: null, contact: false, source: 'finger_ppg' });
+        else if (b.pulse_bpm && now - b.pulseAt < FRESH_S) {
+          this.feedPulse({ bpm: b.pulse_bpm, quality: b.quality, contact: true, source: 'finger_ppg' });
+          if (this.stone) this.stone.at = b.pulseAt;
+        }
       }
     },
 
