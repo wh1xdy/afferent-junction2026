@@ -1,43 +1,54 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Afferent Clinic</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23070A14'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23F2B544'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="/design/tokens.css">
+<link rel="icon" href="mark.svg" type="image/svg+xml">
+<script>
+  (() => {
+    let t = 'light';
+    try { t = localStorage.getItem('afferent.clinic.theme') || 'light'; } catch {}
+    if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light';
+  })();
+</script>
 <link rel="stylesheet" href="clinic.css">
 </head>
 <body>
-<div class="sky" aria-hidden="true"></div>
-<header class="topbar">
-  <a class="brand" href="#/">
-    <span class="brand-mark" aria-hidden="true"></span>
-    <span class="brand-name">Afferent</span>
-    <span class="brand-sub">Clinic</span>
-  </a>
-  <nav class="tabs" aria-label="Sections">
-    <a href="#/" data-tab="patients">Patients</a>
-    <a href="#/validation" data-tab="validation">Validation</a>
+<div class="app">
+  <nav class="rail" aria-label="Sections">
+    <a class="rail-mark" href="#/" aria-label="Afferent clinic, patients"><span class="mark" aria-hidden="true"></span></a>
+    <a class="dest" href="#/" data-tab="patients"><span class="pill"><span class="ms">group</span></span><span class="dl">Patients</span></a>
+    <a class="dest" href="#/validation" data-tab="validation"><span class="pill"><span class="ms">insights</span></span><span class="dl">Validation</span></a>
+    <a class="dest" href="#/exports" data-tab="exports"><span class="pill"><span class="ms">upload_file</span></span><span class="dl">Exports</span></a>
+    <span class="rail-sp"></span>
+    <a class="dest" href="#/settings" data-tab="settings"><span class="pill"><span class="ms">settings</span></span><span class="dl">Settings</span></a>
   </nav>
-  <div class="topbar-right">
-    <span class="today af-num" id="today"></span>
-    <span class="conn" id="conn" data-state="connecting"><i></i><span>Connecting</span></span>
-    <span class="af-simulated" id="global-sim" hidden>Simulated data</span>
-    <div class="demo-menu">
-      <button class="ghost-btn" id="demo-btn" aria-haspopup="true" aria-expanded="false">Demo</button>
-      <div class="demo-pop" id="demo-pop" hidden>
-        <div class="af-caps">Send profile to Anna's phone</div>
-        <button data-profile="good_day">Good day</button>
-        <button data-profile="bad_day">Bad day</button>
-        <button data-profile="live">Live sensors</button>
-        <hr>
-        <button data-action="reset">Reset demo data</button>
+  <div class="main">
+    <header class="topbar">
+      <a class="wordmark" href="#/"><span class="wm">afferent</span><span class="wm-sub">Clinic</span></a>
+      <span class="topbar-sp"></span>
+      <span class="stamp" id="stamp"><span class="ms" aria-hidden="true">file_save</span><span id="stamp-t"></span></span>
+      <span class="sim-badge" id="global-sim" hidden>Simulated</span>
+      <label class="search" id="search-wrap"><span class="ms" aria-hidden="true">search</span><input id="search" type="search" placeholder="Search patients" aria-label="Search patients" autocomplete="off"></label>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="More"><span class="ms">more_vert</span></button>
+        <div class="menu" id="menu" role="menu" hidden>
+          <div class="menu-h">Send profile to Anna's phone</div>
+          <button role="menuitem" data-profile="good_day"><span class="ms">light_mode</span>Good day</button>
+          <button role="menuitem" data-profile="bad_day"><span class="ms">bedtime</span>Bad day</button>
+          <button role="menuitem" data-profile="live"><span class="ms">sensors</span>Today</button>
+          <hr>
+          <button role="menuitem" data-action="reset"><span class="ms">history</span>Reset demo data</button>
+        </div>
       </div>
-    </div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
   </div>
-</header>
-<main id="view" class="view" tabindex="-1"></main>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+<div class="dialog" id="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" hidden></div>
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="tip" id="tip" role="tooltip" hidden></div>
 <script src="charts.js"></script>
