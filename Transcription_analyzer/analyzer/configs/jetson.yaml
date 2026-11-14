@@ -1,0 +1,30 @@
+# Jetson edge deployment — llama.cpp backend, nightly window.
+transcripts_dir: /data/transcripts
+db_path: /data/analyzer.db
+target_speaker: target
+max_window_turns: 120
+window_overlap: 20
+baseline_days: 28
+
+model:
+  backend: llamacpp
+  path: /data/models/student-q5_k_m.gguf   # fine-tuned student, see training/
+  n_ctx: 8192
+  n_gpu_layers: -1                          # all layers on the Orin iGPU
+  temperature: 0.2
+  max_tokens: 800
+
+schedule:
+  window: "02:00-06:00"                     # nightly batch window
+  once_per_day: true
+  poll_seconds: 60
+  vision_probe_urls:
+    # the vision app inside Wendy Net — if it answers, the night defer logic
+    # keeps memory for it; unreachable (stopped) = analyzer may run.
+    - "http://afferent-vision:3005/health"
+
+data_manager:
+  url: ""                                    # empty = mDNS discovery (role=data-manager); pin "http://afferent-data-manager:8100" or "off"
+  token: ""                                  # empty = env DATA_MANAGER_TOKEN
+  source: transcription-analyzer             # samples land as transcription-analyzer/<persona>
+  register_metrics: true
