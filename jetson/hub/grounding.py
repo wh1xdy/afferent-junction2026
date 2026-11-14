@@ -151,13 +151,20 @@ def check(answer, facts):
 
 def safety_note(summary):
     """Deterministic, never left to the model: PHQ-9 item 9 above 0 is always surfaced first."""
+    notes = []
     hits = [q for q in summary["phq9"] if q["item9"] > 0]
-    if not hits:
-        return None
-    labels = [f"Q{summary['phq9'].index(q) + 1}" for q in hits]
-    dates = ", ".join(q["date"] for q in hits)
-    return (f"Safety: PHQ-9 item 9 (thoughts of being better off dead or of self-harm) was above 0 on {dates} "
-            f"[F, {', '.join(labels)}]. Please assess risk.")
+    if hits:
+        labels = [f"Q{summary['phq9'].index(q) + 1}" for q in hits]
+        dates = ", ".join(q["date"] for q in hits)
+        notes.append(f"Safety: PHQ-9 item 9 (thoughts of being better off dead or of self-harm) was above 0 on {dates} "
+                     f"[F, {', '.join(labels)}]. Please assess risk.")
+    # entries stored with an unreadable timestamp are in no fact (Store.unreadable); item 9 still counts
+    undated = (summary.get("unreadable") or {}).get("phq9_item9", 0)
+    if undated:
+        notes.append(f"Safety: PHQ-9 item 9 is above 0 in {undated} stored PHQ-9 "
+                     f"{'entry' if undated == 1 else 'entries'} whose date cannot be read; "
+                     f"{'it is' if undated == 1 else 'they are'} not in the figures for this period. Please assess risk.")
+    return " ".join(notes) or None
 
 
 TOPICS = {
