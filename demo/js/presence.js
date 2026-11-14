@@ -115,6 +115,9 @@
     const now = nowS();
     radio = data.status || {};
     const ads = toAdverts(data.devices || []);
+    // A connected finger sensor is the bedside unit in range, also while it sends nothing (the
+    // firmware on the board today notifies only with a finger on the clip) and no longer advertises.
+    if (A.Sensors?.fingerLink?.state === 'connected') unitSeen();
     const btOk = radio.bluetooth === 'poweredOn' && !!radio.scanning;
     const sig = {
       wifi: P.wifiSighting({ learned: st.wifiLearned, visible: radio.lanDevices, onWifi: !!radio.wifi, browse: radio.lan }),

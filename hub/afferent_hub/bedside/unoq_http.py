@@ -33,6 +33,8 @@ from .protocol import hex_rgb
 from .source import OnEvent
 
 log = logging.getLogger("afferent.bedside")
+# httpx logs every request at INFO; with a 1 Hz poll that is one hub log line per second.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 FW = "modulino-hub/http"
 SOURCE = "finger_ppg"
