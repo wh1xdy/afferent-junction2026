@@ -27,6 +27,10 @@
   video { width: 100%; max-height: 260px; border-radius: 8px; background: #000; }
   .log { font-family: ui-monospace, monospace; font-size: .75rem; color: #9aa3b2;
          white-space: pre-wrap; max-height: 140px; overflow: auto; }
+  .badge { display: inline-block; border-radius: 999px; padding: 3px 10px;
+           background: #374151; font-size: .8rem; }
+  .mode-log { max-height: 220px; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   #statusDot { display:inline-block; width:9px; height:9px; border-radius:50%;
                background:#6b7280; margin-right:6px; }
 </style>
@@ -40,6 +44,38 @@
   <div class="row" style="margin-top:8px">
     <button class="ghost" id="snapBtn">Refresh frame</button>
     <span class="muted">on-demand only — no continuous stream over the tunnel</span>
+  </div>
+</div>
+
+<div class="card" style="flex-basis:100%">
+  <h2>GPU mode</h2>
+  <div class="row">
+    <span class="badge" id="modeBadge">loading…</span>
+    <span class="muted" id="appStates">checking Wendy apps…</span>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="runTranscriptionBtn">Run transcription analysis</button>
+    <button class="ghost" id="stayTranscriptionBtn">Switch to transcription (stay)</button>
+    <button class="ghost" id="postureModeBtn">Back to posture</button>
+    <label class="muted"><input type="checkbox" id="rescore"> rescore existing windows</label>
+  </div>
+  <div class="row" style="margin-top:12px; align-items:flex-start">
+    <div style="flex:1; min-width:260px">
+      <div class="muted" id="modeJob">No mode job yet</div>
+      <pre class="log mode-log" id="modeLog"></pre>
+    </div>
+    <div style="flex:1; min-width:260px">
+      <div class="muted" id="modelState">Model state: unknown</div>
+      <div class="muted" style="margin-top:8px">Analyzer last result</div>
+      <pre class="log" id="analyzerResult">—</pre>
+      <div class="muted" style="margin-top:8px">Latest drift index</div>
+      <pre class="log" id="driftIndex">—</pre>
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <input type="file" id="transcriptFile" accept=".jsonl,.ndjson,.json,text/plain">
+    <button class="ghost" id="uploadTranscriptBtn">Upload transcript JSONL</button>
+    <span class="muted" id="uploadState"></span>
   </div>
 </div>
 
@@ -81,6 +117,115 @@
 <script>
 const $ = id => document.getElementById(id);
 let recording = false;
+let modeBusy = false;
+
+async function postMode(path, body = {}) {
+  if (modeBusy) return;
+  modeBusy = true;
+  $("runTranscriptionBtn").disabled = true;
+  $("stayTranscriptionBtn").disabled = true;
+  $("postureModeBtn").disabled = true;
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || data.detail || response.statusText);
+    await pollMode();
+  } catch (e) {
+    $("modeJob").textContent = "Mode request failed: " + e;
+  } finally {
+    modeBusy = false;
+    $("runTranscriptionBtn").disabled = false;
+    $("stayTranscriptionBtn").disabled = false;
+    $("postureModeBtn").disabled = false;
+    pollMode();
+  }
+}
+
+async function pollMode() {
+  try {
+    const response = await fetch("/api/mode");
+    if (!response.ok) throw new Error("controller returned HTTP " + response.status);
+    const data = await response.json();
+    $("modeBadge").textContent = "mode: " + data.mode;
+    $("appStates").textContent = Object.entries(data.apps || {})
+      .map(([name, state]) => `${name}: ${state}`).join("  ·  ");
+    const job = data.job;
+    if (job) {
+      $("modeJob").textContent =
+        `${job.kind} · ${job.state} · step: ${job.step || "—"}` +
+        (job.id ? ` · ${job.id.slice(0, 8)}` : "");
+      $("modeLog").textContent = (job.log || []).map(line =>
+        `${line.at} [${line.step}] ${line.message}`).join("\n");
+    } else {
+      $("modeJob").textContent = "No mode job yet";
+      $("modeLog").textContent = "";
+    }
+  } catch (e) {
+    $("modeBadge").textContent = "mode: unavailable";
+    $("appStates").textContent = "Wendy status unavailable (will retry)";
+  }
+
+  try {
+    const response = await fetch("/api/analyzer/status");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const status = await response.json();
+    $("modelState").textContent =
+      "Model state: " + (status.model?.state || "unknown");
+    $("analyzerResult").textContent = JSON.stringify({
+      last_run_at: status.last_run_at,
+      last_result: status.last_result,
+      last_error: status.last_error,
+      data_manager: status.data_manager
+    }, null, 2);
+  } catch (e) {
+    $("modelState").textContent = "Analyzer status unavailable";
+    $("analyzerResult").textContent = String(e);
+  }
+
+  try {
+    const response = await fetch("/api/analyzer/index");
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    $("driftIndex").textContent = JSON.stringify(await response.json(), null, 2);
+  } catch (e) {
+    $("driftIndex").textContent = "No drift index available (" + e + ")";
+  }
+}
+
+$("runTranscriptionBtn").onclick = () => postMode(
+  "/api/mode/transcription",
+  {run: true, rescore: $("rescore").checked, return_to_posture: true});
+$("stayTranscriptionBtn").onclick = () => postMode(
+  "/api/mode/transcription",
+  {run: false, rescore: false, return_to_posture: false});
+$("postureModeBtn").onclick = () => postMode("/api/mode/posture");
+$("uploadTranscriptBtn").onclick = async () => {
+  const file = $("transcriptFile").files[0];
+  if (!file) {
+    $("uploadState").textContent = "choose a JSONL file first";
+    return;
+  }
+  $("uploadTranscriptBtn").disabled = true;
+  $("uploadState").textContent = "uploading…";
+  try {
+    const response = await fetch("/api/analyzer/transcripts", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-ndjson"},
+      body: await file.text()
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || data.error || response.statusText);
+    $("uploadState").textContent =
+      `accepted ${data.accepted}; rejected ${data.rejected?.length || 0}`;
+  } catch (e) {
+    $("uploadState").textContent = "upload failed: " + e;
+  } finally {
+    $("uploadTranscriptBtn").disabled = false;
+  }
+};
 
 async function status() {
   try {
@@ -213,8 +358,9 @@ $("enrollBtn").onclick = async () => {
   status();
 };
 
-status(); loadLocal();
+status(); loadLocal(); pollMode();
 setInterval(status, 20000);
+setInterval(pollMode, 5000);
 </script>
 </body>
 </html>
