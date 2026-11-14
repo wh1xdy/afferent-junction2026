@@ -71,7 +71,7 @@
   function setNav() {
     document.querySelectorAll('.dest').forEach((a) => (a.dataset.tab === (S.route.name === 'code' ? 'exports' : S.route.name) ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current')));
     document.body.dataset.route = S.route.name === 'patients' ? (S.route.explicit ? 'detail' : 'list') : S.route.name;
-    if (S.list) $('#global-sim').hidden = !S.list.simulated;
+    if (S.list) $('#global-sim').hidden = !V.allSim(S.list);
     $('#search-wrap').hidden = S.route.name !== 'patients';
   }
 

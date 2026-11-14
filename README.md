@@ -212,6 +212,17 @@ Rules: a reading counts for 3 s, quality is never invented, real and simulated a
 
 Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
 
+### Home hub on the Jetson
+
+The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`), so the demo needs no laptop: the hub, the real UNO Q as bedside and the data manager all run on the mesh.
+
+- Deploy: `jetson/home_hub/deploy.sh` (copies `hub/`, `demo/`, `contracts/`, `design/` into the git-ignored `stage/`, then `wendy run`). The SQLite database is on the volume `afferent-home-hub` and survives a redeploy.
+- Open it from a laptop: `wendy net forward 18000:18000 --device 169.254.246.159:50052` (keep it running), then `http://127.0.0.1:18000/app/patient.html` (patient view), `/clinic/` (clinic view), `/app/` (game). The app in the iOS simulator on that laptop: hub base `http://127.0.0.1:18000`. The forward listens on 127.0.0.1 only and the port is reachable only inside Wendy Net (the hub itself has no login), so a physical phone cannot reach this hub yet.
+- Bedside: `AFFERENT_BEDSIDE=unoq:auto` finds the UNO Q over mDNS (`role=modulino-hub`) and looks it up again when the link is lost. No simulator runs here.
+- Data manager: `AFFERENT_DATA_MANAGER_URL=auto` finds it the same way (`role=data-manager`); the bearer token comes from `AFFERENT_DATA_MANAGER_TOKEN` or `~/.afferent/data-manager.token` at deploy time and is never stored in the repo. Routes: `/api/sensors/<name>`, `/api/patients/<id>/sensors/room`.
+- Real and simulated: the patient `AFFERENT_BEDSIDE_PATIENT` (default `anna`, the id the app sends) starts empty with `simulated: false` and only ever holds what was really recorded. The other demo patients are seeded and marked Simulated (`AFFERENT_HOME_DEMO_ROSTER=0` leaves them out). `POST /api/demo/reset` is refused here.
+- Other values: `AFFERENT_HOME_PATIENT_NAME`, `AFFERENT_HOME_TMS_END` (YYYY-MM-DD, default the day of the first start), `AFFERENT_TZ` (default `Europe/Helsinki`), `WENDY_DEVICE`.
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)
