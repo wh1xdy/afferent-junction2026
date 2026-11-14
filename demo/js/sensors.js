@@ -61,9 +61,15 @@
   const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
   const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'];
+  const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
+  const FACE_REGIONS = ['brow', 'eye', 'cheek', 'nose', 'mouth', 'jaw'];
+  const FACE = { MIN_TRACKED_S: 30, SMILE_RISE: 0.04, WINDOW_S: 60, MICRO_MS: [40, 500], BREATHS: [4, 36], REGIONS: FACE_REGIONS };
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const unit = x => Number.isFinite(x) ? clamp(x, 0, 1) : null;
   const num = x => Number.isFinite(x) ? x : null;
+  const zeroUp = x => Number.isFinite(x) && x >= 0 ? x : null;
+  const count = x => Number.isInteger(x) && x >= 0 ? x : null;
+  const sum = xs => xs.reduce((a, b) => a + b, 0);
   const age = x => Math.round(x * 10) / 10;
   const NO_PULSE = { bpm: null, quality: 0, source: null };
   const NO_PHYSIO = {
@@ -78,6 +84,7 @@
     pulseMode: null, droppedPulse: 0, droppedPhysio: 0, realAt: null,
     fingerLink: { state: 'unavailable', name: null }, fingerBle: null, fingerHub: null,
     camLink: { state: 'unavailable' }, camPulse: null, droppedCam: 0, plugin: null, listeners: [], stopping: null,
+    FACE, faceState: 'unavailable', faceLog: [], faceMicros: [], faceTrack: null, droppedFace: 0,
 
     async start(source) {
       this.stop();
@@ -287,6 +294,70 @@
       const f = this.fingerFrame(now), link = this.fingerLink.state;
       if (f) return f;
       return link === 'unavailable' && !this.fingerHub ? null : { ...NO_PHYSIO, finger_bpm: [null, null], link };
+    },
+
+    setFaceState(state) {
+      this.faceState = FACE_STATES.includes(state) ? state : 'unavailable';
+      if (!FACE_LIVE.includes(this.faceState)) { this.faceLog = []; this.faceMicros = []; }
+    },
+
+    faceOn() { return this.enabled.phone_camera && FACE_LIVE.includes(this.faceState); },
+
+    feedFace(d) {
+      if (!this.enabled.phone_camera || !d) return;
+      if (!this.faceOn()) { this.droppedFace++; return; }
+      const now = A.now(), tracked = d.tracked === true, v = (x, f) => tracked ? f(x) : null;
+      const [lo, hi] = FACE.BREATHS, br = v(d.breathing_per_min, pos), snr = v(d.breathing_snr, num);
+      const clear = br != null && snr != null && snr > 0 && br >= lo && br <= hi;
+      const f = {
+        t_ms: num(d.t_ms), tracked, smile: v(d.smile, unit), movement: v(d.movement, zeroUp), blinks: v(d.blinks, count), gaze_away: v(d.gaze_away, unit),
+        distance_cm: v(d.distance_cm, pos), breathing_per_min: clear ? br : null, breathing_snr: clear ? snr : null, at: now,
+      };
+      this.faceLog = this.faceLog.filter(x => now - x.at < FACE.WINDOW_S);
+      this.faceLog.push(f);
+      this.faceTrack?.second(f);
+    },
+
+    feedFaceMicro(d) {
+      if (!this.enabled.phone_camera || !d) return;
+      const [lo, hi] = FACE.MICRO_MS;
+      if (!this.faceOn() || !FACE_REGIONS.includes(d.region) || !(d.duration_ms >= lo && d.duration_ms <= hi)) { this.droppedFace++; return; }
+      const now = A.now(), m = { t_ms: num(d.t_ms), duration_ms: d.duration_ms, region: d.region, peak: unit(d.peak), at: now };
+      this.faceMicros = this.faceMicros.filter(x => now - x.at < FACE.WINDOW_S);
+      this.faceMicros.push(m);
+      this.faceTrack?.micro(m);
+    },
+
+    faceStats(rows, micros) {
+      const seen = rows.filter(r => r.tracked), n = seen.length, col = k => seen.map(r => r[k]).filter(x => x != null);
+      const enough = xs => xs.length >= FACE.MIN_TRACKED_S;
+      const smile = col('smile'), move = col('movement'), blinks = col('blinks'), away = col('gaze_away');
+      return {
+        seconds_tracked: n,
+        smile_share: enough(smile) ? smile.filter(x => x > FACE.SMILE_RISE).length / smile.length : null,
+        movement: enough(move) ? move : null,
+        blinks_per_min: enough(blinks) ? sum(blinks) / blinks.length * 60 : null,
+        gaze_away_share: enough(away) ? sum(away) / away.length : null,
+        micro: n ? {
+          count: micros.length, per_min: n >= FACE.MIN_TRACKED_S ? micros.length / n * 60 : null,
+          median_duration_ms: micros.length ? A.median(micros.map(m => m.duration_ms)) : null,
+          by_region: Object.fromEntries(FACE_REGIONS.map(r => [r, micros.filter(m => m.region === r).length])),
+        } : null,
+        breathing: col('breathing_per_min'),
+      };
+    },
+
+    faceLive(now) {
+      const state = this.faceState;
+      if (state === 'unavailable') return null;
+      if (!this.faceOn()) return { state: state === 'denied' ? 'denied' : 'off' };
+      const rows = this.faceLog.filter(x => now - x.at < FACE.WINDOW_S), last = rows[rows.length - 1], fresh = !!last && now - last.at < FRESH_S;
+      const st = this.faceStats(rows, this.faceMicros.filter(x => now - x.at < FACE.WINDOW_S));
+      return {
+        state, fresh, tracked: fresh && last.tracked, seconds_tracked: st.seconds_tracked, smile_share: st.smile_share,
+        movement: st.movement ? sum(st.movement) / st.movement.length : null, blinks_per_min: st.blinks_per_min, gaze_away_share: st.gaze_away_share,
+        micro: st.micro, breathing_per_min: fresh ? last.breathing_per_min : null, distance_cm: fresh ? last.distance_cm : null,
+      };
     },
   };
 })();
