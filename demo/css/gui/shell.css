@@ -206,7 +206,7 @@
 .settings { z-index: 6; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); animation: rise var(--af-dur-enter) var(--af-ease-in); }
 .app-bar { min-height: 64px; padding-left: calc(var(--af-safe-l) + 4px); padding-right: calc(var(--af-safe-r) + 4px); background: transparent; }
 .app-bar .title { flex: 1; margin: 0 0 0 4px; font: 400 22px/28px var(--af-font-brand); color: var(--md-sys-color-on-surface); }
-.settings-body { flex: 1; overflow: auto; overscroll-behavior: contain; padding-bottom: calc(var(--safe-bottom) + 24px); scrollbar-width: none; }
+.settings-body { flex: 1; overflow: auto; overscroll-behavior: contain; padding: 0 16px calc(var(--safe-bottom) + 24px); scrollbar-width: none; }
 .settings-body::-webkit-scrollbar { display: none; }
 .set-group { margin-bottom: 8px; }
 .set-group .subhead { font-weight: 600; color: var(--md-sys-color-secondary); }
