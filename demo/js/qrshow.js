@@ -350,13 +350,14 @@
     const countText = h('span', { id: 'qvCount' });
     const count = h('p', { class: 'qv-count' }, [ring, countText]);
     const weeks = h('p', { class: 'qv-weeks' });
+    const left = h('p', { class: 'qv-left', id: 'qvLeft', text: 'The code was full, so the face numbers were left out.', hidden: true });
     const again = h('button', { type: 'button', class: 'qx-btn filled', id: 'qvAgain', text: 'Show again', hidden: true });
     const live = h('p', { class: 'qx-sr', 'aria-live': 'polite' });
     const sim = h('span', { class: 'qv-sim', text: 'Simulated', hidden: true });
     const closeBtn = iconBtn('Close', ICON.close, 'plain', () => close());
     const root = h('div', { class: 'qx qv' + (reduced() ? ' still' : ''), id: 'qrView', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Show to my doctor' }, [
       h('div', { class: 'qv-bar' }, [closeBtn, sim, iconBtn('Talk to someone', ICON.talk, 'plain', () => cfg.talk())]),
-      h('div', { class: 'qv-main' }, [codeBox, chunk, bright, fp, count, weeks, again]),
+      h('div', { class: 'qv-main' }, [codeBox, chunk, bright, fp, count, weeks, left, again]),
       live,
     ]);
     document.body.append(root);
@@ -402,6 +403,7 @@
       fp.setAttribute('aria-label', `Fingerprint ${fpSpoken(enc.fp)}`);
       const p = enc.period;
       weeks.textContent = p.a ? `Weeks ${p.a} to ${p.b} after TMS` : `${longDay(p.from)} to ${longDay(p.to)}`;
+      left.hidden = enc.face !== null;
       mats = enc.parts.map(pt => matrix(pt, enc.ecl));
       chunk.hidden = mats.length < 2;
       pill.textContent = `1 of ${mats.length}`;

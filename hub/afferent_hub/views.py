@@ -86,13 +86,19 @@ def _get(d, *path, default=None):
         d = d.get(k)
     return default if d is None else d
 
+def without_face(s: dict) -> dict:
+    v = s.get("vitals")
+    if not isinstance(v, dict) or "face" not in v:
+        return s
+    return {**s, "vitals": {k: x for k, x in v.items() if k != "face"}}
+
 def compact_session(s: dict) -> dict:
     return {
         "session_id": s["session_id"], "day_index": s.get("day_index"), "started_iso": s.get("started_iso"),
         "status": s.get("status"), "profile": s.get("profile"), "simulated": s.get("simulated"),
         "duration_ms": s.get("duration_ms"), "rt_median_ms": _get(s, "core", "rt", "median_ms"),
         "mood_start": _get(s, "core", "mood_start"), "mood_end": s.get("mood_end"), "pre_post": s.get("pre_post"),
-        "vitals": s.get("vitals"), "pulse_source": _get(s, "signal", "pulse_source"),
+        "vitals": without_face(s).get("vitals"), "pulse_source": _get(s, "signal", "pulse_source"),
         "simulated_fields": s.get("simulated_fields"),
     }
 

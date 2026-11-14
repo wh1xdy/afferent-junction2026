@@ -19,9 +19,7 @@ VITAL_KEYS = [v[0] for v in VITALS]
 VITAL_SOURCES = ("finger_ppg", "simulated")
 MIN_VITAL_QUALITY = 0.3
 MIN_VITAL_SAMPLES = 10
-FACE = (("smile_share", ("smile_share",), 3), ("blinks_per_min", ("blinks_per_min",), 1),
-        ("gaze_away_share", ("gaze_away_share",), 3), ("micro_per_min", ("micro", "per_min"), 1),
-        ("breathing_per_min", ("breathing_depth", "rate_per_min", "mean"), 1))
+FACE = (("smile_share", 3), ("blinks_per_min", 1), ("gaze_away_share", 3))
 FACE_KEYS = [f[0] for f in FACE]
 FACE_SOURCES = ("arkit_truedepth", "simulated")
 FACE_SHARES = ("smile_share", "gaze_away_share")
@@ -66,16 +64,9 @@ def session_face(session: dict, key: str) -> tuple[float, bool] | None:
     tracked = face.get("seconds_tracked")
     if not _number(tracked) or tracked < MIN_FACE_SECONDS:
         return None
-    path = next(p for k, p, _ in FACE if k == key)
-    x = face
-    for step in path:
-        x = x.get(step) if isinstance(x, dict) else None
+    x = face.get(key)
     if not _number(x) or x < 0 or (key in FACE_SHARES and x > 1):
         return None
-    if key == "breathing_per_min":
-        seconds = (face.get("breathing_depth") or {}).get("seconds")
-        if not _number(seconds) or seconds < MIN_FACE_SECONDS:
-            return None
     return float(x), face["source"] == "simulated" or _named(session, "face")
 
 def _weekly(by_day: dict, nd: int, read, digits: int) -> tuple[list, int, bool]:
@@ -104,7 +95,7 @@ def vitals_block(sessions: list[dict], nd: int) -> dict:
 def face_block(sessions: list[dict], nd: int) -> dict:
     by_day = index_sessions(sessions, nd)
     out = {"weekly": {}, "days": {}, "simulated": {}}
-    for key, _, digits in FACE:
+    for key, digits in FACE:
         out["weekly"][key], out["days"][key], out["simulated"][key] = _weekly(
             by_day, nd, lambda s: session_face(s, key), digits)
     return out

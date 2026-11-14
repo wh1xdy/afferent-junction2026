@@ -3,6 +3,7 @@ import ipaddress
 from fastapi import APIRouter, Body, Request
 from fastapi.responses import JSONResponse, Response
 
+from .. import views
 from ..service import Hub, HubError
 
 router = APIRouter(prefix="/api")
@@ -73,7 +74,7 @@ async def session(sid: str, request: Request):
     doc = hub(request).store.session(sid)
     if doc is None:
         raise HubError(404, "unknown_session", f"No session with id {sid!r}")
-    return doc
+    return views.without_face(doc)
 
 @router.post("/sessions")
 async def post_session(request: Request, body=Body(...)):

@@ -299,8 +299,10 @@ const NO_FACE = { weekly: Object.fromEntries(FKEYS.map((k) => [k, Array(8).fill(
   same(r.smile_share.weeks, [null, 0.12, 0.18, 0, null, 0.21, 0.15, 0.09]);
   assert.strictEqual(r.smile_share.fmt(0), '0');
   assert.ok(rows.every((x) => x.simulated === false && x.missing === false && x.source === 'phone camera (TrueDepth face tracking)'));
-  // only what the code carries: brief facial movements and the camera breathing rate stay on the hub
-  assert.ok(!rows.some((x) => x.key === 'micro_per_min' || x.key === 'breathing_per_min'));
+  // only the three numbers a code carries; another key in the block is not shown
+  const extra = faceMeasured();
+  extra.weekly.micro_per_min = Array(8).fill(2);
+  same(Sg.faceRows(extra).map((x) => x.key), FKEYS);
 
   const zero = byKey(Sg.faceRows({ weekly: { smile_share: Array(8).fill(0) }, days: { smile_share: 40 }, simulated: {} }));
   same([zero.smile_share.value, zero.smile_share.missing, zero.smile_share.week], ['0', false, 7]);
@@ -520,6 +522,10 @@ function loadPage(extra = []) {
   checkFaceWording(visible(fc), 'imported, face');
   const tip = /data-tip="([^"]*)"/.exec(fc)[1].toLowerCase();
   assert.ok(tip.includes('named by what the face did') && !FEELINGS.test(tip) && !/\b(mood|anxi\w*|calm\w*|depress\w*|stress\w*)\b/.test(tip), tip);
+  // what the tip says the weekly number is: one value per day from the last session with a reading, then the median over the days
+  assert.ok(tip.includes('the median over the days') && tip.includes('the last session with a reading'), tip);
+  const sigTip = /data-tip="([^"]*)"/.exec(section(page, 'Signals'))[1].toLowerCase();
+  assert.ok(sigTip.includes('the median over the days') && sigTip.includes('the last session with a reading') && !sigTip.includes('median of the session means'), sigTip);
   const iSig = page.indexOf('aria-label="Signals"'), iFace = page.indexOf('aria-label="Face"'), iFacts = page.indexOf('Mornings lit');
   assert.ok(iSig > 0 && iFace > iSig && iFacts > iFace, 'Face sits after Signals and before the facts');
   assert.strictEqual(count(page, 'id="mm-'), 9);

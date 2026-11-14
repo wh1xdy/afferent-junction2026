@@ -157,7 +157,7 @@ def build(patient: dict, sessions: list[dict], daily: list[dict], analytics: dic
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("README.txt", readme)
         z.writestr("manifest.json", json.dumps(manifest, indent=1))
-        z.writestr("sessions.ndjson", "".join(json.dumps(s) + "\n" for s in sessions))
+        z.writestr("sessions.ndjson", "".join(json.dumps(views.without_face(s)) + "\n" for s in sessions))
         z.writestr("daily.csv", daily_csv)
         z.writestr("features.csv", feats_csv)
         z.writestr("checkins.ndjson", "".join(json.dumps(c) + "\n" for c in checkins))

@@ -115,6 +115,7 @@
 .qv-ring .arc { stroke: #0E1A2E; stroke-dasharray: 100; stroke-linecap: round; transition: stroke-dashoffset 1000ms linear; }
 .qv.expired .qv-ring { display: none; }
 .qv-weeks { font-size: 15px; line-height: 22px; color: #3B4658; }
+.qv-left { max-width: 320px; font-size: 15px; line-height: 22px; color: #3B4658; text-align: center; }
 .qv .qx-btn.filled { margin-top: 8px; min-width: 200px; }
 
 #qrPrint { display: none; }

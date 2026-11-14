@@ -216,7 +216,7 @@ class Hub:
         return {
             "patient": {**p, "now_day": views.now_day(p)},
             "privacy": self.privacy(pid),
-            "latest_session": sessions[-1] if sessions else None,
+            "latest_session": views.without_face(sessions[-1]) if sessions else None,
             "sessions": [views.compact_session(s) for s in sessions],
             "daily": self.daily(pid),
             "checkins": checkins,

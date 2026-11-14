@@ -21,7 +21,7 @@ function node(tag) {
     removeAttribute(k) { delete this.attrs[k]; },
     append(...kids) { this.children.push(...kids); },
     replaceChildren(...kids) { this.children = kids.filter(Boolean); },
-    remove() {}, focus() {}, addEventListener() {}, querySelector() { return { style: {} }; }, getContext() { return null; },
+    remove() {}, focus() {}, addEventListener() {}, querySelector() { return { style: {} }; }, getContext() { return { fillRect() {} }; },
     get lastChild() { return this.children[this.children.length - 1]; },
   };
   return n;
@@ -89,10 +89,9 @@ const measured = () => ({
 });
 const faceMeasured = () => ({
   weekly: { smile_share: [null, 0.12, 0.18, 0, null, 0.21, 0.15, 0.094], blinks_per_min: [null, 14, 17, 12, null, 19, 16.4, 15],
-    gaze_away_share: [null, 0.08, 0.11, 0.05, null, null, 0.07, 0.1], micro_per_min: [null, 2.4, 3.1, 1.8, null, 2.2, 2.9, 2.5],
-    breathing_per_min: [null, 13.2, 12.8, 14.1, null, 12.5, 13.4, 12.9] },
-  days: { smile_share: 19, blinks_per_min: 19, gaze_away_share: 16, micro_per_min: 19, breathing_per_min: 12 },
-  simulated: { smile_share: false, blinks_per_min: false, gaze_away_share: false, micro_per_min: false, breathing_per_min: false },
+    gaze_away_share: [null, 0.08, 0.11, 0.05, null, null, 0.07, 0.1] },
+  days: { smile_share: 19, blinks_per_min: 19, gaze_away_share: 16 },
+  simulated: { smile_share: false, blinks_per_min: false, gaze_away_share: false },
 });
 const WORDS = /\b(stress\w*|strain\w*|normal|abnormal|elevated|worse|better|risk\w*|healthy|good|bad|high|low|diagnos\w*|should|recommend\w*|live)\b/i;
 const FEELINGS = /\b(happ\w*|sad\w*|joy\w*|emotion\w*|mood\w*|affect\w*|anxi\w*|calm\w*|nervous\w*|friendly|engag\w*|attention|bored\w*|tired\w*|express\w*)\b/i;
@@ -177,7 +176,9 @@ const FEELINGS = /\b(happ\w*|sad\w*|joy\w*|emotion\w*|mood\w*|affect\w*|anxi\w*|
     assert.deepStrictEqual(p.faceRows[1].slice(1), [DASH, '12', '18', '0', DASH, '21', '15', '9']);
     assert.deepStrictEqual(p.faceRows[2].slice(1), [DASH, '14', '17', '12', DASH, '19', '16', '15']);
     assert.deepStrictEqual(p.faceRows[3].slice(1), [DASH, '8', '11', '5', DASH, DASH, '7', '10']);
-    assert.ok(!JSON.stringify(p.faceRows).includes('13.2'), 'brief facial movements and camera breathing are not in the code');
+    const extra = faceMeasured();
+    extra.weekly.micro_per_min = Array(8).fill(13.2);
+    assert.ok(!JSON.stringify((await printed({ ...fixture(), face: extra })).faceRows).includes('13.2'), 'only the three face numbers of the code are printed');
     const iTable = p.printSec.children.indexOf(p.table), iFace = p.printSec.children.indexOf(p.faceTable);
     assert.ok(iFace === iTable + 1, 'the face table follows the finger sensor table');
     for (const t of p.texts) assert.ok(!WORDS.test(t) && !FEELINGS.test(t), t);
@@ -202,6 +203,26 @@ const FEELINGS = /\b(happ\w*|sad\w*|joy\w*|emotion\w*|mood\w*|affect\w*|anxi\w*|
     const texts = env.printed[0].map(text);
     assert.ok(texts.includes('This code was full, so the face numbers were left out.'), texts.join(' | '));
     assert.ok(!byClass(env.printSec, 'qp-vit').some(t => text(t.children[0]).startsWith('Phone camera')));
+  });
+
+  await test('code view: a full code says the face numbers were left out, a code with room says nothing', async () => {
+    const view = async squeeze => {
+      const env = load({ ...fixture(), vitals: measured(), face: faceMeasured() });
+      if (squeeze) { const real = QR.encode; env.A.QR = { ...QR, encode: (body, o) => real(body, { ...o, maxChars: real(body, o).chars - 20 }) }; }
+      env.A.QRShow.init({ pid: 'anna', hub: null });
+      env.A.QRShow.open();
+      await flush();
+      find(env.page, 'qsShow').onclick();
+      await flush();
+      return find(env.page, 'qvLeft');
+    };
+    const full = await view(true);
+    assert.ok(full, 'the code view is open');
+    assert.strictEqual(full.hidden, false, 'shown for a full code');
+    assert.strictEqual(full.textContent, 'The code was full, so the face numbers were left out.');
+    const room = await view(false);
+    assert.ok(room, 'the code view is open');
+    assert.strictEqual(room.hidden, true, 'hidden when the face numbers are in the code');
   });
 
   await test('printed page: no table without finger sensor numbers', async () => {

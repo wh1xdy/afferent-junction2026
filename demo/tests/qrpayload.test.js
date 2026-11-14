@@ -26,26 +26,60 @@ function largest() {
   return { weekly: per(() => Array.from({ length: 8 }, next)), days: per(56), simulated: per(true) };
 }
 const FKEYS = QR.FACE.map(f => f[0]);
-const HUB_ONLY = ['micro_per_min', 'breathing_per_min'];
 const perFace = (v, keys = FKEYS) => Object.fromEntries(keys.map((k, i) => [k, typeof v === 'function' ? v(k, i) : v]));
 const faceMeasured = () => ({
   weekly: { smile_share: [null, 0.12, 0.18, 0, null, 0.21, 0.15, 0.09], blinks_per_min: [null, 14, 17, 12, null, 19, 16, 0],
-    gaze_away_share: [null, 0.08, 0.11, 0.05, null, null, 0.07, 1], micro_per_min: [null, 2.4, 3.1, 1.8, null, 2.2, 2.9, 2.5],
-    breathing_per_min: [null, 13.2, 12.8, 14.1, null, 12.5, 13.4, 12.9] },
-  days: { smile_share: 19, blinks_per_min: 19, gaze_away_share: 16, micro_per_min: 19, breathing_per_min: 12 },
-  simulated: perFace(false, [...FKEYS, ...HUB_ONLY]),
+    gaze_away_share: [null, 0.08, 0.11, 0.05, null, null, 0.07, 1] },
+  days: { smile_share: 19, blinks_per_min: 19, gaze_away_share: 16 },
+  simulated: perFace(false),
 });
 const carried = f => ({ weekly: perFace(k => f.weekly[k]), days: perFace(k => f.days[k]), simulated: perFace(k => f.simulated[k]) });
 function faceLargest() {
   let x = 54321;
   const next = (q, max) => { x = (x * 1103515245 + 12345) % 2147483648; return (x % (Math.round(max * q) + 1)) / q; };
-  const all = [...QR.FACE, ['micro_per_min', 10, 99.9], ['breathing_per_min', 10, 36]];
-  return { weekly: Object.fromEntries(all.map(([k, q, max]) => [k, Array.from({ length: 8 }, () => next(q, max))])), days: perFace(56, [...FKEYS, ...HUB_ONLY]), simulated: perFace(true, [...FKEYS, ...HUB_ONLY]) };
+  return { weekly: Object.fromEntries(QR.FACE.map(([k, q, max]) => [k, Array.from({ length: 8 }, () => next(q, max))])), days: perFace(56), simulated: perFace(true) };
+}
+// Every list at its cap and every field varied (seeded): weekly, baseline and contribution values across their range,
+// the entries of every list, and finger and face numbers in their real range.
+function rng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const SPAN = { composite: [-8, 8], rt_median: [300, 3000], mood: [0, 10], sleep_regularity: [0, 1], missed_sessions: [0, 7], effort_hard_prop: [0, 1], morning_pulse: [40, 180], home_only_days: [0, 7], upright_frac: [0, 1], reward_bias: [-3, 3] };
+const VSPAN = { pulse_bpm: [40, 180], breathing_per_min: [4, 40], rmssd_ms: [5, 250] };
+const FSPAN = { smile_share: [0, 1], blinks_per_min: [0, 60], gaze_away_share: [0, 1] };
+function varied(seed, randomLists) {
+  const r = rng(seed), u = ([lo, hi]) => lo + (hi - lo) * r(), eight = s => Array.from({ length: 8 }, () => u(s));
+  const int = (lo, hi) => Math.floor(lo + (hi - lo + 1) * r()), pick = a => a[Math.floor(r() * a.length)];
+  const j = fullLists();
+  j.weekly = Object.fromEntries(Object.entries(SPAN).map(([k, s]) => [k, eight(s)]));
+  j.baseline = Object.fromEntries(QR.FEATURES.map(([k]) => [k, { median: u(SPAN[k]), scale: u([0.02, 0.3]) * (SPAN[k][1] - SPAN[k][0]) }]));
+  j.contrib = QR.FEATURES.map(([k]) => ({ key: k, contribution: u([0, 5]) }));
+  j.composite = { value: u(SPAN.composite), trend_7d: u([-0.5, 0.5]), completeness: u([0, 1]) };
+  j.cusum.value = u([0, 60]);
+  j.complete.by_feature = Object.fromEntries(QR.FEATURES.map(([k]) => [k, u([0, 1])]));
+  if (randomLists) {
+    j.phq.history = Array.from({ length: 12 }, () => ({ day: int(-200, 56), total: int(0, 27), phq8_total: int(0, 24), band: pick(['minimal', 'mild', 'moderate', 'moderately_severe', 'severe']), early: r() < 0.5 })).sort((a, b) => a.day - b.day);
+    j.safety = Array.from({ length: 8 }, () => ({ day: int(1, 56), minute: int(0, 1439), tier: pick(['high', 'moderate', 'incomplete', 'low', 'not_answered']), source: pick(['cssrs', 'item9_fallback']), screen: pick(['crisis', 'support', 'saved', 'thank_you']), c6_repeat: r() < 0.5 })).sort((a, b) => b.day - a.day);
+    j.talk = Array.from({ length: 10 }, () => ({ day: int(1, 56), minute: int(0, 1439) })).sort((a, b) => b.day - a.day);
+    j.cusum.history = Array.from({ length: 10 }, () => ({ day: int(0, 56), state: pick(QR.STATES) })).sort((a, b) => a.day - b.day);
+  }
+  j.vitals = { weekly: Object.fromEntries(Object.entries(VSPAN).map(([k, s]) => [k, eight(s)])), days: per(56), simulated: per(true) };
+  j.face = { weekly: Object.fromEntries(Object.entries(FSPAN).map(([k, s]) => [k, eight(s)])), days: perFace(56), simulated: perFace(true) };
+  return j;
+}
+// demo/js/qrpayload.js as it was before key 18 (79b4d17) and before key 19 (main at c9a319f), frozen byte for byte.
+function frozenReader(file) {
+  const mod = { exports: {} };
+  const req = p => require(p.startsWith('../vendor/') ? path.join(__dirname, '..', p.slice(3)) : p);
+  new Function('module', 'require', fs.readFileSync(path.join(__dirname, 'fixtures', file), 'utf8'))(mod, req);
+  return mod.exports;
 }
 const OLD_KEYS = [0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
 const OLD_LENGTHS = { 3: 3, 4: 5, 5: 8, 6: 3, 8: 2, 9: 10, 10: 18, 11: 5, 14: 14 };
 
-function worstCase() {
+// Every list at its cap, anna's weekly, baseline and contribution values, finger and face numbers at their largest.
+function fullLists() {
   const j = fixture();
   j.phq.history = Array.from({ length: 12 }, (_, i) => ({ day: i * 14 - 100, total: 20 + (i % 7), phq8_total: 18 + (i % 6), band: 'severe', early: i % 2 === 0 }));
   j.phq.overdue = true;
@@ -198,7 +232,7 @@ test('codes made before the finger sensor numbers still decode', () => {
   assert.strictEqual(QR.decode(f.text, { now: f.now_ms + 11 * 60e3 }).status, 'expired');
 });
 
-test('a code with finger sensor and face numbers decodes in a reader from before them', () => {
+test('a code with finger sensor and face numbers keeps the layout that older readers check', () => {
   assert.strictEqual(QR.VERSION, 1);
   assert.strictEqual(QR.FEATURES.length, 9);
   const j = { ...fixture(), vitals: measured(), face: faceMeasured() };
@@ -223,46 +257,93 @@ test('a code with finger sensor and face numbers decodes in a reader from before
   assert.strictEqual('face' in QR.unpack(noFace), false);
 });
 
-test('byte budget: anna at version 20 or lower, worst case at 22 or lower, both at M in one code', () => {
+test('a code with finger sensor and face numbers decodes in the readers from before them', () => {
+  const BEFORE_VITALS = frozenReader('qrpayload_before_vitals.js');
+  const BEFORE_FACE = frozenReader('qrpayload_before_face.js');
+  assert.ok(!BEFORE_VITALS.VITALS && BEFORE_FACE.VITALS && !BEFORE_FACE.FACE && BEFORE_VITALS.VERSION === 1 && BEFORE_FACE.VERSION === 1);
+  const j = { ...fixture(), vitals: measured(), face: faceMeasured() };
+  const whole = QR.encode(j, { key, now: NOW });
+  const now = QR.decode(whole.text, { now: NOW });
+  assert.ok(now.packed.has(18) && now.packed.has(19) && now.body.face);
+  assert.deepStrictEqual(now.body.face, carried(j.face));
+  const parts = QR.encode(j, { key, now: NOW, maxChars: 400 });
+  assert.ok(parts.parts.length >= 2);
+  const full = QR.encode(j, { key, now: NOW, maxChars: whole.chars - 20 });
+  assert.deepStrictEqual([full.faceLeftOut, full.parts.length, full.shrink], [true, 1, 1]);
+  assert.strictEqual(QR.decode(full.text, { now: NOW }).packed.get(19), false);
+  for (const [name, OLD, knows18] of [['before key 18', BEFORE_VITALS, false], ['before key 19', BEFORE_FACE, true]]) {
+    for (const [what, input] of [['whole', whole.text], ['in parts', parts.parts], ['in parts, last first', [...parts.parts].reverse()], ['face left out', full.text]]) {
+      const { vitals, face, ...rest } = QR.decode(input, { now: NOW }).body;
+      assert.deepStrictEqual(vitals, j.vitals, what);
+      const d = OLD.decode(input, { now: NOW });
+      assert.deepStrictEqual([d.status, d.verified, d.fingerprint], ['ok', true, whole.fingerprint], `${name}, ${what}`);
+      assert.deepStrictEqual(d.body, knows18 ? { ...rest, vitals } : rest, `${name}, ${what}`);
+      assert.ok(!('face' in d.body), `${name}, ${what}`);
+    }
+  }
+});
+
+test('byte budget: anna at version 20 or lower, every list at its cap at 22 or lower, both at M in one code', () => {
   const a = QR.encode(fixture(), { key, now: NOW });
   const m = QR.encode({ ...fixture(), vitals: measured(), face: faceMeasured() }, { key, now: NOW });
-  const w = QR.encode(worstCase(), { key, now: NOW, initial: 'ABC' });
-  const noFace = worstCase();
+  const w = QR.encode(fullLists(), { key, now: NOW, initial: 'ABC' });
+  const noFace = fullLists();
   delete noFace.face;
   const f = QR.encode(noFace, { key, now: NOW, initial: 'ABC' });
-  const bare = worstCase();
+  const bare = fullLists();
   delete bare.vitals;
   delete bare.face;
   const b = QR.encode(bare, { key, now: NOW, initial: 'ABC' });
-  console.log(`  anna: ${a.chars} chars, version ${a.versions[0]} ${a.ecl}; with finger sensor and face numbers: ${m.chars} chars, version ${m.versions[0]}; worst case: ${w.chars} chars, version ${w.versions[0]} ${w.ecl}, shrink ${w.shrink}; of these ${f.chars - b.chars} chars are the finger sensor numbers and ${w.chars - f.chars} the face numbers at their largest`);
+  console.log(`  anna: ${a.chars} chars, version ${a.versions[0]} ${a.ecl}; with finger sensor and face numbers: ${m.chars} chars, version ${m.versions[0]}; every list at its cap (anna's values): ${w.chars} chars, version ${w.versions[0]} ${w.ecl}, shrink ${w.shrink}; of these ${f.chars - b.chars} chars are the finger sensor numbers and ${w.chars - f.chars} the face numbers at their largest`);
   assert.ok(m.versions[0] <= 20 && m.chars <= 970, `anna with finger sensor and face numbers: version ${m.versions[0]}`);
   assert.ok(f.chars - b.chars <= 150, `finger sensor numbers take ${f.chars - b.chars} chars`);
   assert.ok(w.chars - f.chars <= 70, `face numbers take ${w.chars - f.chars} chars`);
   assert.strictEqual(w.faceLeftOut, false);
   for (let i = 0; i < 25; i++) {
-    const again = QR.encode(worstCase(), { key: QR.newKey(), now: NOW + i * 1000, initial: 'ABC' });
-    assert.deepStrictEqual([again.shrink, again.parts.length, again.faceLeftOut], [0, 1, false], `worst case with key ${i}: ${again.chars} chars`);
+    const again = QR.encode(fullLists(), { key: QR.newKey(), now: NOW + i * 1000, initial: 'ABC' });
+    assert.deepStrictEqual([again.shrink, again.parts.length, again.faceLeftOut], [0, 1, false], `every list at its cap with key ${i}: ${again.chars} chars`);
   }
   assert.strictEqual(a.ecl, 'M');
   assert.ok(a.versions[0] <= 20, `anna version ${a.versions[0]}`);
   assert.ok(a.chars <= 970);
   assert.strictEqual(w.parts.length, 1);
   assert.strictEqual(w.shrink, 0);
-  assert.ok(w.versions[0] <= 22 && w.chars <= QR.CAP_CHARS, `worst case version ${w.versions[0]}`);
+  assert.ok(w.versions[0] <= 22 && w.chars <= QR.CAP_CHARS, `every list at its cap: version ${w.versions[0]}`);
   const d = QR.decode(w.text, { now: NOW });
   assert.strictEqual(d.body.safety.length, 8);
   assert.strictEqual(d.body.talk.length, 10);
   assert.strictEqual(d.body.phq.history.length, 8);
-  assert.deepStrictEqual(d.body.phq.history.map(h => h.day), worstCase().phq.history.slice(-8).map(h => h.day));
+  assert.deepStrictEqual(d.body.phq.history.map(h => h.day), fullLists().phq.history.slice(-8).map(h => h.day));
   assert.deepStrictEqual(d.body.omitted, { safety_entries: 3, talk_requests: 7, phq_totals: 8 });
   assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].every(x => x !== null)));
   assert.ok(FKEYS.every(k => d.body.face.weekly[k].every(x => x !== null)));
   assert.deepStrictEqual(Object.keys(d.body.face.weekly), FKEYS);
 });
 
+test('every list at its cap and every field varied: one code; over the cap only the face numbers go', () => {
+  const sizes = [];
+  let left = 0;
+  for (let seed = 0; seed < 60; seed++) {
+    const j = varied(seed, seed % 2 === 1);
+    const r = QR.encode(j, { key, now: NOW, initial: 'ABC' });
+    sizes.push(r.chars);
+    assert.deepStrictEqual([r.parts.length, r.ecl], [1, 'M'], `seed ${seed}: ${r.chars} chars`);
+    assert.ok(r.versions[0] <= 22 && r.chars <= QR.CAP_CHARS, `seed ${seed}: version ${r.versions[0]}`);
+    assert.ok(r.shrink <= 1 && r.faceLeftOut === (r.shrink === 1), `seed ${seed}: shrink ${r.shrink}`);
+    left += r.faceLeftOut;
+    const d = QR.decode(r.text, { now: NOW });
+    assert.strictEqual(d.status, 'ok');
+    assert.deepStrictEqual([d.body.safety.length, d.body.talk.length, d.body.phq.history.length], [8, 10, 8], `seed ${seed}`);
+    assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].every(x => x !== null)), `seed ${seed}: finger sensor numbers kept`);
+    if (r.faceLeftOut) assert.strictEqual(d.body.face, null);
+    else assert.ok(FKEYS.every(k => d.body.face.weekly[k].every(x => x !== null)), `seed ${seed}: face numbers kept`);
+  }
+  console.log(`  every list at its cap, every field varied: ${Math.min(...sizes)} to ${Math.max(...sizes)} of ${QR.CAP_CHARS} chars; the face numbers were left out in ${left} of ${sizes.length}`);
+});
+
 test('over the cap: face numbers go first, then talk, then PHQ; safety never dropped, then chunks', () => {
-  const full = QR.encode(worstCase(), { key, now: NOW });
-  const r = QR.encode(worstCase(), { key, now: NOW, maxChars: full.chars - 20 });
+  const full = QR.encode(fullLists(), { key, now: NOW });
+  const r = QR.encode(fullLists(), { key, now: NOW, maxChars: full.chars - 20 });
   assert.deepStrictEqual([r.shrink, r.parts.length, r.faceLeftOut], [1, 1, true]);
   const d = QR.decode(r.text, { now: NOW });
   assert.strictEqual(d.body.face, null);
@@ -270,7 +351,7 @@ test('over the cap: face numbers go first, then talk, then PHQ; safety never dro
   assert.deepStrictEqual([d.body.talk.length, d.body.safety.length, d.body.phq.history.length], [10, 8, 8]);
   assert.strictEqual(d.body.omitted.talk_requests, 7);
   assert.ok(VKEYS.every(k => d.body.vitals.weekly[k].every(x => x !== null)));
-  const t = QR.encode(worstCase(), { key, now: NOW, maxChars: r.chars - 20 });
+  const t = QR.encode(fullLists(), { key, now: NOW, maxChars: r.chars - 20 });
   assert.deepStrictEqual([t.shrink, t.parts.length, t.faceLeftOut], [2, 1, true]);
   const dt = QR.decode(t.text, { now: NOW });
   assert.strictEqual(dt.body.face, null);
@@ -278,12 +359,12 @@ test('over the cap: face numbers go first, then talk, then PHQ; safety never dro
   assert.strictEqual(dt.body.safety.length, 8);
   assert.strictEqual(dt.body.omitted.talk_requests, 12);
   assert.ok(VKEYS.every(k => dt.body.vitals.weekly[k].every(x => x !== null)));
-  const tight = QR.unpack(QR.pack(worstCase(), { caps: { face: 0, talk: 5, phq: 4 } }));
+  const tight = QR.unpack(QR.pack(fullLists(), { caps: { face: 0, talk: 5, phq: 4 } }));
   assert.deepStrictEqual([tight.talk.length, tight.phq.history.length, tight.safety.length, tight.face], [5, 4, 8, null]);
   assert.deepStrictEqual(tight.vitals, dt.body.vitals);
-  const empty = { ...worstCase(), face: { weekly: {}, days: {}, simulated: {} } };
+  const empty = { ...fullLists(), face: { weekly: {}, days: {}, simulated: {} } };
   assert.deepStrictEqual(QR.pack(empty, { caps: { face: 0 } }).get(19), []);
-  const c = QR.encode(worstCase(), { key, now: NOW, maxChars: 400 });
+  const c = QR.encode(fullLists(), { key, now: NOW, maxChars: 400 });
   assert.ok(c.text === null && c.parts.length >= 2 && c.parts.length <= 3);
   assert.ok(c.parts.every(p => p.length <= 400 && /^AF1\/[1-3]\/[23]\/[0-9A-Z]{4}:/.test(p)));
   const col = new QR.Collector();
@@ -295,9 +376,9 @@ test('over the cap: face numbers go first, then talk, then PHQ; safety never dro
   assert.strictEqual(last.status, 'complete');
   const back = QR.decode(last.text, { now: NOW });
   assert.strictEqual(back.status, 'ok');
-  assert.deepStrictEqual(back.body.safety, worstCase().safety);
+  assert.deepStrictEqual(back.body.safety, fullLists().safety);
   assert.strictEqual(QR.decode(rev, { now: NOW }).status, 'ok');
-  assert.throws(() => QR.encode(worstCase(), { key, now: NOW, maxChars: 150 }), /too_large/);
+  assert.throws(() => QR.encode(fullLists(), { key, now: NOW, maxChars: 150 }), /too_large/);
 });
 
 test('multi-part codes: no part ends in a space, wherever the cut falls', () => {
@@ -321,7 +402,7 @@ test('multi-part codes: no part ends in a space, wherever the cut falls', () => 
     }
   }
   for (let i = 0; i < 40; i++) {
-    const c = QR.encode(worstCase(), { key, now: NOW + i * 1000, maxChars: 400 });
+    const c = QR.encode(fullLists(), { key, now: NOW + i * 1000, maxChars: 400 });
     assert.ok(c.parts.length === 3 && c.parts.every(p => !p.endsWith(' ')));
     assert.strictEqual(QR.decode(c.parts, { now: NOW + i * 1000 }).status, 'ok', `encode ${i}`);
   }
@@ -360,14 +441,16 @@ test('finger sensor numbers: a code from another encoder cannot carry 0, a negat
   }
 });
 
-test('face numbers: three of the five weekly numbers, round trip with gaps, a real 0, days and the simulated mark', () => {
+test('face numbers: three weekly numbers, round trip with gaps, a real 0, days and the simulated mark', () => {
   assert.deepStrictEqual(FKEYS, ['smile_share', 'blinks_per_min', 'gaze_away_share']);
   const j = { ...fixture(), face: faceMeasured() };
+  const EXTRA = ['micro_per_min', 'breathing_per_min'];
+  for (const k of EXTRA) { j.face.weekly[k] = Array(8).fill(12.5); j.face.days[k] = 19; j.face.simulated[k] = false; }
   const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
   assert.strictEqual(d.status, 'ok');
   assert.deepStrictEqual(d.body.face, carried(j.face));
   assert.deepStrictEqual(Object.keys(d.body.face.weekly), FKEYS);
-  for (const k of HUB_ONLY) assert.ok(!(k in d.body.face.weekly) && !(k in d.body.face.days), `${k} is not in the code`);
+  for (const k of EXTRA) assert.ok(!(k in d.body.face.weekly) && !(k in d.body.face.days), `${k} is not in the code`);
   assert.strictEqual(d.body.face.weekly.smile_share[3], 0);
   assert.strictEqual(d.body.face.weekly.blinks_per_min[7], 0);
   assert.strictEqual(d.body.face.weekly.gaze_away_share[7], 1);
@@ -382,7 +465,7 @@ test('face numbers: three of the five weekly numbers, round trip with gaps, a re
   const o = QR.decode(QR.encode({ ...fixture(), face: odd }, { key, now: NOW }).text, { now: NOW }).body.face;
   assert.deepStrictEqual(o.weekly.smile_share.slice(0, 4), [0.12, 0, 0.01, 1]);
   assert.deepStrictEqual(o.weekly.blinks_per_min.slice(0, 4), [14, 15, 254, 0]);
-  const big = QR.decode(QR.encode(worstCase(), { key, now: NOW }).text, { now: NOW }).body.face;
+  const big = QR.decode(QR.encode(fullLists(), { key, now: NOW }).text, { now: NOW }).body.face;
   const want = faceLargest();
   for (const [k, q] of QR.FACE) big.weekly[k].forEach((x, i) => near(x, want.weekly[k][i], q, `${k}[${i}]`));
   assert.deepStrictEqual([big.days, big.simulated], [perFace(56), perFace(true)]);
@@ -446,7 +529,7 @@ test('face numbers: a code from another encoder cannot carry a share above 1, a 
 
 test('a part ending in a space survives, only line breaks and tabs are stripped', () => {
   let r;
-  do r = QR.encode(worstCase(), { key, now: NOW }); while (!r.text.slice(4, -1).includes(' '));
+  do r = QR.encode(fullLists(), { key, now: NOW }); while (!r.text.slice(4, -1).includes(' '));
   const data = r.text.slice(4);
   const cut = data.indexOf(' ') + 1;
   const parts = [`AF1/1/2/SPCE:${data.slice(0, cut)}`, `AF1/2/2/SPCE:${data.slice(cut)}`];
@@ -500,7 +583,7 @@ test('freshness: expired, future clock, paper validity', () => {
   assert.strictEqual(p.ecl, 'Q');
   assert.ok(p.versions[0] <= 22);
   assert.strictEqual(QR.decode(p.text, { now: NOW + 29 * 86400e3 }).status, 'ok');
-  const w = QR.encode(worstCase(), { key, now: NOW, paper: true });
+  const w = QR.encode(fullLists(), { key, now: NOW, paper: true });
   assert.strictEqual(w.ecl, 'M');
   const a = QR.encode(fixture(), { key, now: NOW });
   assert.notStrictEqual(a.cti, r.cti);
@@ -522,7 +605,7 @@ test('nothing raw travels: forbidden keys and names never reach the code', () =>
 });
 
 test('scan: jsQR reads the drawn matrix at 3 px per module', () => {
-  for (const [j, ecl] of [[fixture(), 'M'], [worstCase(), 'M'], [fixture(), 'Q']]) {
+  for (const [j, ecl] of [[fixture(), 'M'], [fullLists(), 'M'], [fixture(), 'Q']]) {
     const r = QR.encode(j, { key, now: NOW, paper: ecl === 'Q' });
     const m = QR.matrix(r.text, r.ecl);
     const px = 3, quiet = 4, side = (m.size + 2 * quiet) * px;

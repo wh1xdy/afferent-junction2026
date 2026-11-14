@@ -1,9 +1,12 @@
 import copy
 import datetime as dt
+import io
 import json
+import random
 import shutil
 import subprocess
 import uuid
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -22,8 +25,8 @@ SAFETY_FIELDS = {"day", "minute", "tier", "source", "screen", "c6_repeat"}
 VITAL_KEYS = ["pulse_bpm", "breathing_per_min", "rmssd_ms"]
 NO_VITALS = {"weekly": {k: [None] * 8 for k in VITAL_KEYS}, "days": {k: 0 for k in VITAL_KEYS},
              "simulated": {k: False for k in VITAL_KEYS}}
-FACE_KEYS = ["smile_share", "blinks_per_min", "gaze_away_share", "micro_per_min", "breathing_per_min"]
-IN_THE_CODE = ["smile_share", "blinks_per_min", "gaze_away_share"]
+FACE_KEYS = ["smile_share", "blinks_per_min", "gaze_away_share"]
+IN_THE_CODE = FACE_KEYS
 NO_FACE = {"weekly": {k: [None] * 8 for k in FACE_KEYS}, "days": {k: 0 for k in FACE_KEYS},
            "simulated": {k: False for k in FACE_KEYS}}
 
@@ -356,27 +359,30 @@ def test_the_hub_body_survives_the_phone_codec(client):
     assert older["status"] == "ok" and "vitals" not in older["body"] and "face" not in older["body"]
     assert set(out["body"]) - {"vitals", "face"} == set(older["body"])
 
-def test_the_code_holds_the_vitals_and_face_numbers_at_their_largest_in_one_piece():
-    body = copy.deepcopy(json.loads(FIXTURE.read_text()))
-    body["vitals"] = {"weekly": {k: [6553.5 - 97.3 * i - 211.7 * j for i in range(8)] for j, k in enumerate(VITAL_KEYS)},
-                      "days": {k: 56 for k in VITAL_KEYS}, "simulated": {k: True for k in VITAL_KEYS}}
-    top = {"smile_share": 1, "blinks_per_min": 254, "gaze_away_share": 1, "micro_per_min": 99.9, "breathing_per_min": 36}
-    body["face"] = {"weekly": {k: [round(top[k] * (0.99 - 0.07 * i - 0.03 * j), 2) for i in range(8)]
-                               for j, k in enumerate(FACE_KEYS)},
-                    "days": {k: 56 for k in FACE_KEYS}, "simulated": {k: True for k in FACE_KEYS}}
-    out = through_the_codec(body)
-    assert out["status"] == "ok" and out["parts"] == 1 and out["shrink"] == 0 and out["face_left_out"] is False
-    assert out["chars"] <= out["cap"] and out["versions"][0] <= 22
-    assert all(x is not None for row in out["body"]["vitals"]["weekly"].values() for x in row)
-    assert list(out["body"]["face"]["weekly"]) == IN_THE_CODE
-    assert all(x is not None for row in out["body"]["face"]["weekly"].values() for x in row)
-    assert len(out["body"]["safety"]) == len(body["safety"])
+def test_annas_code_holds_every_week_of_varied_finger_and_face_numbers_in_one_piece():
+    # anna's own lists, every week of the finger and face numbers filled with varied values in their real range
+    for seed in range(8):
+        rnd = random.Random(seed)
+        body = copy.deepcopy(json.loads(FIXTURE.read_text()))
+        span = {"pulse_bpm": (45, 130), "breathing_per_min": (6, 30), "rmssd_ms": (5, 200)}
+        body["vitals"] = {"weekly": {k: [round(rnd.uniform(*span[k]), 1) for _ in range(8)] for k in VITAL_KEYS},
+                          "days": {k: rnd.randint(1, 56) for k in VITAL_KEYS}, "simulated": {k: True for k in VITAL_KEYS}}
+        fspan = {"smile_share": (0, 1), "blinks_per_min": (0, 60), "gaze_away_share": (0, 1)}
+        body["face"] = {"weekly": {k: [round(rnd.uniform(*fspan[k]), 3) for _ in range(8)] for k in FACE_KEYS},
+                        "days": {k: rnd.randint(1, 56) for k in FACE_KEYS}, "simulated": {k: True for k in FACE_KEYS}}
+        out = through_the_codec(body)
+        assert out["status"] == "ok" and out["parts"] == 1 and out["shrink"] == 0 and out["face_left_out"] is False, seed
+        assert out["chars"] <= out["cap"] and out["versions"][0] <= 22
+        assert all(x is not None for row in out["body"]["vitals"]["weekly"].values() for x in row)
+        assert list(out["body"]["face"]["weekly"]) == IN_THE_CODE
+        assert all(x is not None for row in out["body"]["face"]["weekly"].values() for x in row)
+        assert len(out["body"]["safety"]) == len(body["safety"])
 
 def test_face_numbers_are_weekly_medians_of_the_recorded_sessions():
     sessions = [
-        face_session(1, smile=0.3, blinks=20.0, away=0.2, micro=4.0, breathing=15.0),
-        face_session(36, smile=0.1, blinks=12.0, away=0.05, micro=2.0, breathing=12.0),
-        face_session(37, smile=0.0, blinks=14.0, away=0.0, micro=0.0, breathing=12.6),
+        face_session(1, smile=0.3, blinks=20.0, away=0.2),
+        face_session(36, smile=0.1, blinks=12.0, away=0.05),
+        face_session(37, smile=0.0, blinks=14.0, away=0.0),
         face_session(50, smile=0.25, blinks=16.0, away=0.12), face_session(52, smile=0.21, blinks=18.0, away=0.08),
         face_session(53, smile=0.124, blinks=17.0, away=0.1),
     ]
@@ -385,14 +391,12 @@ def test_face_numbers_are_weekly_medians_of_the_recorded_sessions():
         "smile_share": [0.3, None, None, None, None, 0.05, None, 0.21],
         "blinks_per_min": [20.0, None, None, None, None, 13.0, None, 17.0],
         "gaze_away_share": [0.2, None, None, None, None, 0.025, None, 0.1],
-        "micro_per_min": [4.0, None, None, None, None, 1.0, None, 2.5],
-        "breathing_per_min": [15.0, None, None, None, None, 12.3, None, 13.0],
     }
     assert f["days"] == {k: 6 for k in FACE_KEYS}
     assert f["simulated"] == {k: False for k in FACE_KEYS}
     assert list(f["weekly"]) == FACE_KEYS == qr.FACE_KEYS
-    zero = qr.face_block([face_session(50, smile=0.0, blinks=0.0, away=0.0, micro=0.0)], 56)
-    assert [zero["weekly"][k][7] for k in FACE_KEYS] == [0.0, 0.0, 0.0, 0.0, 13.0]
+    zero = qr.face_block([face_session(50, smile=0.0, blinks=0.0, away=0.0)], 56)
+    assert [zero["weekly"][k][7] for k in FACE_KEYS] == [0.0, 0.0, 0.0]
     two = [face_session(50, smile=0.1, hour=7), face_session(50, smile=0.4, hour=19)]
     assert qr.face_block(two, 56)["weekly"]["smile_share"][7] == 0.4
     assert qr.face_block(list(reversed(two)), 56)["weekly"]["smile_share"][7] == 0.4
@@ -413,11 +417,17 @@ def test_a_week_without_face_data_has_no_value():
     ]
     assert qr.face_block(unusable, 56) == NO_FACE
     edge = qr.face_block([face_session(50, tracked=30, breathing_s=30)], 56)
-    assert [edge["weekly"][k][7] for k in FACE_KEYS] == [0.2, 15.0, 0.1, 2.5, 13.0]
-    partial = qr.face_block([face_session(50, micro=None, breathing=None)], 56)
-    assert partial["weekly"]["micro_per_min"] == [None] * 8 and partial["weekly"]["breathing_per_min"] == [None] * 8
-    assert partial["days"] == {"smile_share": 1, "blinks_per_min": 1, "gaze_away_share": 1, "micro_per_min": 0,
-                               "breathing_per_min": 0}
+    assert [edge["weekly"][k][7] for k in FACE_KEYS] == [0.2, 15.0, 0.1]
+    partial = qr.face_block([face_session(50, blinks=None, micro=None, breathing=None)], 56)
+    assert partial["weekly"]["blinks_per_min"] == [None] * 8 and partial["weekly"]["smile_share"][7] == 0.2
+    assert partial["days"] == {"smile_share": 1, "blinks_per_min": 0, "gaze_away_share": 1}
+
+def test_the_hub_serves_only_the_three_face_numbers_the_code_carries():
+    f = qr.face_block([face_session(50, micro=4.4, breathing=13.3)], 56)
+    assert qr.FACE_KEYS == FACE_KEYS
+    for part in ("weekly", "days", "simulated"):
+        assert list(f[part]) == FACE_KEYS, part
+    assert "4.4" not in json.dumps(f) and "13.3" not in json.dumps(f)
 
 def test_simulated_face_numbers_stay_marked_and_never_mix_with_measured():
     sim = [face_session(50, smile=0.5, source="simulated"), face_session(44, smile=0.6, source="simulated")]
@@ -441,8 +451,8 @@ def test_a_recorded_face_session_reaches_the_code(client):
     assert client.post("/api/sessions", json=doc).status_code == 200
     b = client.get("/api/patients/anna/qr-body").json()
     assert b["face"]["weekly"] == {"smile_share": [None] * 7 + [0.183], "blinks_per_min": [None] * 7 + [16.4],
-                                   "gaze_away_share": [None] * 7 + [0.072], "micro_per_min": [None] * 7 + [2.6],
-                                   "breathing_per_min": [None] * 7 + [12.8]}
+                                   "gaze_away_share": [None] * 7 + [0.072]}
+    assert "micro" not in json.dumps(b) and "2.6" not in json.dumps(b["face"]) and "12.8" not in json.dumps(b["face"])
     assert b["face"]["days"] == {k: 1 for k in FACE_KEYS}
     assert b["face"]["simulated"] == {k: False for k in FACE_KEYS}
     assert b["vitals"]["weekly"]["pulse_bpm"] == [None] * 7 + [73.9]
@@ -467,3 +477,37 @@ def test_a_simulated_face_session_marks_the_numbers_and_the_code(client):
     assert b["sim"] is True
     out = through_the_codec(b)
     assert out["body"]["face"]["simulated"] == {k: True for k in IN_THE_CODE} and out["body"]["sim"] is True
+
+def test_face_numbers_leave_the_hub_only_through_the_code(client):
+    doc = real_finger_doc()
+    doc["vitals"]["face"] = face(smile=0.43219, blinks=17.8931, away=0.05677, micro=3.21977, breathing=11.23377)
+    assert client.post("/api/sessions", json=doc).status_code == 200
+    stored = client.app.state.hub.store.session(doc["session_id"])
+    assert stored["vitals"]["face"]["smile_share"] == 0.43219, "the patient's hub keeps the session document whole"
+    face_values = ("0.43219", "17.8931", "0.05677", "3.21977", "11.23377")
+
+    def clean(text, what):
+        for v in face_values:
+            assert v not in text, f"{what}: {v}"
+        assert '"face"' not in text and "smile_share" not in text and "gaze_away_share" not in text, what
+
+    detail = client.get("/api/patients/anna").json()
+    assert detail["latest_session"]["session_id"] == doc["session_id"]
+    assert "face" not in detail["latest_session"]["vitals"] and detail["latest_session"]["vitals"]["finger"]
+    assert all("face" not in (s.get("vitals") or {}) for s in detail["sessions"])
+    clean(json.dumps(detail), "patient detail")
+    one = client.get(f"/api/sessions/{doc['session_id']}").json()
+    assert "face" not in one["vitals"] and one["vitals"]["finger"]
+    clean(json.dumps(one), "one session")
+    z = zipfile.ZipFile(io.BytesIO(client.get("/api/patients/anna/export").content))
+    for name in z.namelist():
+        if name.endswith((".ndjson", ".csv", ".json", ".txt")) and "schema" not in name:
+            clean(z.read(name).decode(), f"export {name}")
+    assert any(doc["session_id"] in line for line in z.read("sessions.ndjson").decode().splitlines())
+    for path in ("/api/patients", "/api/patients/anna/analytics", "/api/patients/anna/patient-view",
+                 "/api/patients/anna/summary"):
+        r = client.get(path)
+        if r.status_code == 200:
+            clean(r.text, path)
+    body = client.get("/api/patients/anna/qr-body").json()
+    assert body["face"]["weekly"]["smile_share"][7] == 0.432 and body["face"]["weekly"]["blinks_per_min"][7] == 17.9
