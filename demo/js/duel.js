@@ -18,7 +18,7 @@
   const html = `<div id="duel" class="screen duel hidden" role="dialog" aria-modal="true" aria-labelledby="duelTitle">
     <header class="top-bar app-bar">
       <button class="icon-btn state" data-duel-close type="button" aria-label="Back"><span class="ms">arrow_back</span></button>
-      <h2 id="duelTitle" class="title">Heart Duel</h2>
+      <h2 id="duelTitle" class="title" tabindex="-1">Heart Duel</h2>
       <button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
     </header>
     <div class="duel-body">
@@ -107,7 +107,8 @@
     el.classList.remove('hidden');
     A.Finger?.arm?.();
     last = document.activeElement;
-    q('[data-duel-close]').focus({ preventScroll: true });
+    // focus moves into the screen on its title: on the back button it drew a focus ring after a tap
+    q('#duelTitle').focus({ preventScroll: true });
     cancelAnimationFrame(raf);
     frame();
   };

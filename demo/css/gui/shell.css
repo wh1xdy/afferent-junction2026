@@ -241,8 +241,8 @@
 #resumeBtn { color: var(--md-sys-color-primary); font-weight: 600; }
 #pauseRow[aria-expanded="true"] .trail { transform: rotate(180deg); }
 
-#info .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
-#info .scrim, #hubDialog .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+#info .sheet, #signals .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
+#info .scrim, #signals .scrim, #hubDialog .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
 #hubDialog { z-index: 8; }
 #hubDialog .dialog { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 12px 24px; }
@@ -267,12 +267,12 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 :root[data-motion="reduced"] .kindle, :root[data-motion="reduced"] .start .start-scrim::before, :root[data-motion="reduced"] .kindle-halo, :root[data-motion="reduced"] .kindle-label.nudge, :root[data-motion="reduced"] .checkin-chip .dot, :root[data-motion="reduced"] .start .top-bar, :root[data-motion="reduced"] .start .dock { animation: none; }
-:root[data-motion="reduced"] .talk, :root[data-motion="reduced"] .settings, :root[data-motion="reduced"] #info .sheet { animation: fadeIn 150ms linear; }
+:root[data-motion="reduced"] .talk, :root[data-motion="reduced"] .settings, :root[data-motion="reduced"] #info .sheet, :root[data-motion="reduced"] #signals .sheet { animation: fadeIn 150ms linear; }
 :root[data-motion="reduced"] .end-sheet, :root[data-motion="reduced"] .mood-row, :root[data-motion="reduced"] .end-night, :root[data-motion="reduced"] .cue { transform: none !important; }
 :root[data-motion="reduced"] .cue { filter: none; }
 @media (prefers-reduced-motion: reduce) {
   .kindle, .start .start-scrim::before, .kindle-halo, .kindle-label.nudge, .checkin-chip .dot, .start .top-bar, .start .dock { animation: none; }
-  .talk, .settings, #info .sheet { animation: fadeIn 150ms linear; }
+  .talk, .settings, #info .sheet, #signals .sheet { animation: fadeIn 150ms linear; }
   .end-sheet, .mood-row, .end-night, .cue { transform: none !important; }
   .cue { filter: none; }
 }

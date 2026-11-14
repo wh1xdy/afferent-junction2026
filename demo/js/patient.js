@@ -440,6 +440,8 @@
     send({ type: 'crisis', patient_id: pid, source: 'talk_button', t_iso: new Date().toISOString() });
   };
   $('back').href = 'index.html' + location.search;
+  // a swipe from the left edge goes back to the lantern like the arrow does (gui/swipe.js), not over the code or a talk screen
+  A.Swipe?.bind(document.body, t => (t.closest('.qx, .ci') ? null : { sheet: document.body, back: () => $('back').click(), keep: true }));
   $('talkTop').onclick = openTalk;
   $('talkRow').onclick = openTalk;
   A.QRShow?.init({ pid, hub: hubBase, talk: openTalk });
