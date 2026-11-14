@@ -354,6 +354,7 @@
   }
   const presets = { stressBtn: { offset: 22 }, flatBtn: { offset: -9 }, tiredBtn: { drowsy: 0.85 }, shutBtn: { eyesShut: true }, normalBtn: { offset: 0, drowsy: 0, eyesShut: false } };
   for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + $(id).textContent); };
+  addEventListener('keydown', e => { if (e.code === 'Backquote' && !e.target.closest?.('input, textarea')) document.body.classList.toggle('panel'); });
 
   const Hub = A.Hub;
   Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); $('hubState').textContent = (on ? 'Connected' : 'Offline') + (Hub.url ? ' · ' + Hub.httpBase().replace(/^https?:\/\//, '').replace(/\/k\/[^/]+$/, '') : ''); log(on ? 'hub connected' : 'hub disconnected'); });
