@@ -19,5 +19,6 @@ object AfferentPlugins {
     @JvmField
     val all: List<Class<out Plugin>> = listOf(
         AfferentFingerPlugin::class.java,
+        AfferentPresencePlugin::class.java,
     )
 }

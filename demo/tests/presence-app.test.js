@@ -11,8 +11,8 @@ const T0 = Date.UTC(2026, 10, 14, 9, 0, 0) / 1000;
 
 // bridge: 'core' = @capacitor/core is loaded (registerPlugin exists); 'ios' = the bridge the app really
 // has (plain scripts, no @capacitor/core): no registerPlugin, plugins at Capacitor.Plugins; 'none' = native
-// build without the plugin.
-function load({ native = true, search = '', savedSettings = null, bridge = 'core' } = {}) {
+// build without the plugin. platform: what Capacitor.getPlatform() answers.
+function load({ native = true, search = '', savedSettings = null, bridge = 'core', platform = 'ios' } = {}) {
   let clock = T0;
   const timers = [];
   const storage = new Map();
@@ -41,7 +41,7 @@ function load({ native = true, search = '', savedSettings = null, bridge = 'core
     crypto: { randomUUID: () => 'x' },
   };
   if (native) {
-    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios' };
+    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => platform };
     if (bridge === 'core') ctx.Capacitor.registerPlugin = () => plugin;
     else ctx.Capacitor.Plugins = bridge === 'ios' ? { AfferentPresence: plugin } : {};
   }
@@ -71,6 +71,12 @@ function load({ native = true, search = '', savedSettings = null, bridge = 'core
 const UNIT = { id: 'C0FFEE00-0000-4000-8000-000000000001', name: 'Afferent Finger', uuids: ['180D'], rssi: [-61, -60] };
 const GUEST = { id: 'A1A1A1A1-0000-4000-8000-000000000002', name: null, uuids: [], mfg: '4c00100501', rssi: [-50, -51, -49] };
 
+// What AfferentPresencePlugin.kt sends: Bluetooth addresses as ids, and (unlike iOS) Apple's
+// manufacturer bytes for every Apple device, including AirPods (type 0x07) that are not phones.
+const DROID_UNIT = { id: 'c0:ff:ee:00:00:01', name: 'Afferent Finger', uuids: ['180D', '0000AFF0-0000-1000-8000-00805F9B34FB'], rssi: [-61, -60] };
+const DROID_GUEST = { id: '5a:11:22:33:44:55', uuids: [], mfg: '4c0010050118abcdef', rssi: [-50, -51, -49] };
+const DROID_AIRPODS = { id: '6b:11:22:33:44:66', uuids: [], mfg: '4c000719010f2000', rssi: [-48, -47] };
+
 const tests = {
   async 'off by default: nothing runs, the session context is null'() {
     const t = load();
@@ -95,6 +101,41 @@ const tests = {
     assert.strictEqual(JSON.stringify(t.calls[0]), '["start",{"lan":true}]');
     await t.steps(1);
     assert.strictEqual(t.A.Presence.status().presence.state, 'home');
+  },
+
+  async 'Android bridge: same plugin name, same calls; a guest phone is 1 visitor, AirPods are not'() {
+    const t = load({ bridge: 'ios', platform: 'android' });
+    assert.strictEqual(t.A.Presence.available, true);
+    assert.strictEqual(t.A.Presence.native, true);
+    t.radio.devices = [DROID_UNIT];
+    await t.A.Presence.enable();
+    assert.strictEqual(JSON.stringify(t.calls[0]), '["start",{"lan":true}]');
+    await t.steps(1);
+    let s = t.A.Presence.status();
+    assert.strictEqual(s.presence.state, 'home', s.presence.reason);
+    assert.strictEqual(s.presence.reason, 'seen: ble');
+    assert.ok(!s.guests.nearby_devices.some(d => d.addr === DROID_UNIT.id));
+
+    t.A.Presence.setProfile('demo');
+    t.A.Presence.calibrate();
+    await t.steps(11);
+    assert.strictEqual(t.A.Presence.sessionContext().visitors_present, 0);
+    t.radio.devices = [DROID_UNIT, DROID_GUEST, DROID_AIRPODS];
+    await t.steps(8);
+    s = t.A.Presence.status();
+    assert.strictEqual(t.A.Presence.sessionContext().visitors_present, 1, JSON.stringify(s.guests));
+    const row = k => s.guests.nearby_devices.find(d => d.addr === k.id);
+    assert.strictEqual(row(DROID_GUEST).kind, 'phone');
+    assert.strictEqual(row(DROID_AIRPODS).kind, 'other');
+    assert.strictEqual(row(DROID_AIRPODS).counted, false);
+  },
+
+  async 'Android build without the plugin: unavailable and never starts'() {
+    const t = load({ bridge: 'none', platform: 'android' });
+    assert.strictEqual(t.A.Presence.available, false);
+    await t.A.Presence.enable();
+    assert.strictEqual(t.A.Presence.on, false);
+    assert.strictEqual(t.calls.length, 0);
   },
 
   async 'native build without the plugin: unavailable, loads without an error and never starts'() {
