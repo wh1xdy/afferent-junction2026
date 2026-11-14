@@ -60,4 +60,5 @@ As of Saturday 14 November, evening. Everything below is on `main` unless it say
 - Face images and meshes never leave the phone; only numbers do.
 - A finger reading counts for 3 s. Quality below 0.3, or no quality, is not a measurement. Missing stays missing, never 0.
 - Simulated data is never shown or stored as real, and a session never mixes simulated and real pulse.
+- Commits and pull requests carry no AI credit: no AI author, no `Co-Authored-By`/`Claude-Session` lines, no "Generated with" or session links. The `No AI credit` check fails a PR that has them; fix your own branch, never rewrite main.
 - Hardware that exists: two finger clips, a thermometer, a buzzer, an LED, a knob, a Jetson with one camera. There is no bed sensor.
