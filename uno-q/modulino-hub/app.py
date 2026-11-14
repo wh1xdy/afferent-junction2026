@@ -292,7 +292,8 @@ signal_from = [0] * CHANNELS  # STM32 t_ms of this wearing's first settled sampl
                               # LEDs off, the power-on transient) are not this finger's signal
 AC_MIN_SAMPLES = 120          # a rhythm needs at least this many samples (~2.7 s at 45 Hz)...
 AC_MIN_MS = 2800              # ...over at least this long (lags up to 1.6 s)
-AC_SHORT_MS = 3500            # the shorter window tried when the 6 s one has no rhythm (rhythm())
+AC_SHORT_MS = 3500            # the shorter window tried when the 6 s one has no rhythm (rhythm())...
+AC_SHORT_MIN_Q = 0.5          # ...and the quality it needs to count
 
 
 def _window(ch, window_ms):
@@ -345,13 +346,17 @@ def rhythm(ch=0):
     counts as much as the share of the signal it was found in (quality x (1 - railed)).
     A finger just put into a clip that was empty (a step) or still settling (a drift) keeps the
     6 s curve highest at the edge of the range until it has left the window; then the last
-    AC_SHORT_MS alone is tried, under the same edge rule (rhythm_peak)."""
+    AC_SHORT_MS alone is tried, under the same edge rule (rhythm_peak), and counts only when it
+    is clear (AC_SHORT_MIN_Q). Measured on the board with clip 2 empty and its LED off: the 6 s
+    curve at the edge, the 3.5 s one a 540 ms "rhythm" at 0.37-0.41 (interference)."""
     best = None
     for window in (6000, AC_SHORT_MS):
         ac = autocorr(ch, window)
         if not ac:
             break
         ms, q, sig = rhythm_peak(*ac)
+        if best and q < AC_SHORT_MIN_Q:
+            break                                 # a weak short rhythm is no reason to drop the edge
         best = (ms, q, max(sig, best[2] if best else 0.0), ac, window)
         if ms:
             break
@@ -1118,6 +1123,10 @@ def bridge_loop(stopped):
                 with lock:
                     state["bridge"] = "connected"
                 print("bridge connected", flush=True)
+                # the MCU keeps its pins over a restart of this app: sensors switched off while
+                # idle stayed off, presence started "active" and never switched them on again
+                _sensor_power(True)
+                presence.update(since=time.time())
                 return
         except Exception as e:  # router not up yet
             print(f"bridge connect failed: {e}", flush=True)
