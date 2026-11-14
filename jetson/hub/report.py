@@ -46,7 +46,9 @@ def clinician(summary, patient_label="Patient", narrative=None):
         vals = [d[m] for d in s["daily"]]
         t = s["trends"][m]
         change = "—" if not t else f"{t['previous']:g} → {t['recent']:g} {unit} ({t['change']:+g}" + (f", {t['change_pct']:+d} %" if t["change_pct"] is not None else "") + ")"
-        rows.append(f"<tr><td>{name}</td><td>{spark(vals)}</td><td>{e(change)}</td><td class='muted'>{e(how)}</td></tr>")
+        latest = next(((d["date"], d[m]) for d in reversed(s["daily"]) if d[m] is not None), None)
+        latest_txt = f"{latest[1]:g} {unit}<div class='muted'>{latest[0]}</div>" if latest else "—"
+        rows.append(f"<tr><td>{name}</td><td>{latest_txt}</td><td>{spark(vals)}</td><td>{e(change)}</td><td class='muted'>{e(how)}</td></tr>")
     phq_rows = "".join(
         f"<tr><td>{p['date']}</td><td>{p['score']}/27</td><td>{p['severity']}</td>"
         f"<td class='{'flag' if p['item9'] else ''}'>{p['item9']}{' — follow up' if p['item9'] else ''}</td></tr>"
@@ -67,7 +69,7 @@ def clinician(summary, patient_label="Patient", narrative=None):
 <h2>PHQ-9</h2>
 <table><tr><th>Date</th><th>Score</th><th>Severity band</th><th>Item 9</th></tr>{phq_rows}</table>
 <h2>Physiology (finger sensors)</h2>
-<table><tr><th>Measure</th><th>Daily trend</th><th>Last 7 d vs previous 7 d</th><th>How it is computed</th></tr>{''.join(rows)}</table>
+<table><tr><th>Measure</th><th>Latest</th><th>Daily trend</th><th>Last 7 d vs previous 7 d</th><th>How it is computed</th></tr>{''.join(rows)}</table>
 <h2>Facial behaviour (phone sessions, averages)</h2>
 <table><tr><th>Smiling</th><th>Facial movement</th><th>Blinks</th><th>Looking away</th><th>Micro-expressions</th></tr>
 <tr><td>{fmt(None if b['smile_share'] is None else round(b['smile_share'] * 100), '%')}</td><td>{fmt(b['expressivity'])}</td>

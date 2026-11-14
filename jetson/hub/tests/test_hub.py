@@ -182,6 +182,15 @@ class Grounding(unittest.TestCase):
         self.assertTrue(self.g.check(f"{q} [Q1].", self.facts)["grounded"])   # PHQ-9 bands are facts
 
 
+    def test_single_day_still_shows_latest_values(self):
+        s = Store()
+        for k in range(100):
+            s.add_reading("finger_bpm", 72, NOW - 3600 + k * 5)
+            s.add_reading("hrv_rmssd", 45.5, NOW - 3600 + k * 5)
+        h = report.clinician(s.summary(7, NOW))
+        self.assertIn("72 BPM", h)
+        self.assertIn("45.5 ms", h)
+
 
 class FHIR(unittest.TestCase):
     def test_bundle_structure_and_codes(self):
