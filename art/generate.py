@@ -31,11 +31,14 @@ def redact(text):
 
 
 def load_assets():
-    bible = (ROOT / "ArtBible.md").read_text()
-    style = re.search(r"^> (.+)$", bible, re.M).group(1).strip()
-    rows = re.findall(r"^\| (\d+) \| `(\w+)` \| (\d+x\d+) \| (yes|no) \| ([AB]) \| (.+?) \|$", bible, re.M)
-    assets = [dict(n=int(n), name=name, size=size, transparent=t == "yes", prio=p, prompt=pr) for n, name, size, t, p, pr in rows]
-    return style, assets
+    plan = json.loads((ROOT / "art" / "plan.json").read_text())
+    assets = [
+        dict(n=i + 1, name=a["name"], size=a["size"], transparent=a.get("transparent", True), prio=a.get("prio", "A"),
+             prompt=a["prompt"])
+        for i, a in enumerate(plan["assets"])
+        if a.get("action") != "keep"
+    ]
+    return plan["style"], assets
 
 
 def ledger():
