@@ -1,8 +1,19 @@
 name: Mobile build
 
-# Runs when a PR is merged into main (= a push to main) and on demand.
+# Runs on PRs into main (catches breaks before merge), on merge (= push to main) and on demand.
 on:
   push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "android/**"
+      - "demo/**"
+      - "design/**"
+      - "package.json"
+      - "package-lock.json"
+      - "capacitor.config.json"
+      - ".github/workflows/mobile-build.yml"
+  pull_request:
     branches: [main]
     paths:
       - "ios/**"
