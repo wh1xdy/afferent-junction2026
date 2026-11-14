@@ -152,11 +152,24 @@
   };
 
   const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'hubDialog', 'voice'];
+  const opener = {};
   const show = (id, on) => {
-    $(id).classList.toggle(FADES.has(id) ? 'off' : 'hidden', !on);
-    if (CARDS.includes(id)) {
-      $('phone').classList.toggle('card-open', CARDS.some(c => !$(c).classList.contains('hidden')));
+    const el = $(id), cls = FADES.has(id) ? 'off' : 'hidden', card = CARDS.includes(id);
+    const set = () => {
+      el.classList.toggle(cls, !on);
+      if (card) $('phone').classList.toggle('card-open', CARDS.some(c => !$(c).classList.contains('hidden')));
+      // focus goes back to what opened the card, once it is gone
+      const f = !on && opener[id];
+      if (f) { opener[id] = null; if (f.isConnected && !el.contains(f)) f.focus?.({ preventScroll: true }); }
+    };
+    if (on) {
+      A.Swipe?.stay?.(el);
+      // the world waits while a card slides up (sheetIn, rise), as it does while one is dragged or leaves
+      if (card && el.classList.contains(cls)) { opener[id] = document.activeElement; A.Swipe?.hold?.(320); }
     }
+    // a sheet or dialog closed by its button, the scrim or Escape slides out (or fades) first, like a swipe (gui/swipe.js)
+    else if (card && !el.classList.contains(cls) && A.Swipe?.out?.(el, set)) return;
+    set();
   };
   const crisis = source => {
     if (window.AfferentSupport?.open) window.AfferentSupport.open('talk');
@@ -449,8 +462,18 @@
     $('breathLine').classList.toggle('on', !!breath);
   }
 
-  let last = A.now(), frame = 0, lastLive = 0;
+  let last = A.now(), frame = 0, lastLive = 0, lastDraw = 0;
+  // Outside a session the world under a card only has to breathe. None while a sheet moves (dragged, sliding up or
+  // leaving, gui/swipe.js), so the phone spends the frame on the sheet that follows the finger; 30 frames a second under
+  // an open sheet, dimmed by its scrim; 15 under a page that hides it (Settings, Talk, Heart Duel, the check-in).
+  const phoneEl = $('phone');
+  const PAGE = '.screen.settings:not(.hidden), .screen.talk:not(.hidden), .screen.voice:not(.hidden), .screen.duel:not(.hidden), .ci:not(.hidden)';
+  const pace = () => (phoneEl.querySelector(PAGE) ? 1000 / 15
+    : phoneEl.classList.contains('card-open') || phoneEl.querySelector('.layer:not(.hidden)') || document.querySelector('.qs-root') ? 1000 / 30 : 0);
   const loop = () => {
+    const t = performance.now();
+    if (!A.session && (A.Swipe?.moving || t - lastDraw < pace() - 4)) { requestAnimationFrame(loop); return; }
+    lastDraw = t;
     const now = A.now(), dt = Math.min(0.05 * speed, now - last); last = now;
     A.Input.update(now, dt);
     const s = A.session;

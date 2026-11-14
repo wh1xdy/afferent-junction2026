@@ -243,8 +243,8 @@
 #resumeBtn { color: var(--md-sys-color-primary); font-weight: 600; }
 #pauseRow[aria-expanded="true"] .trail { transform: rotate(180deg); }
 
-#info .sheet, #signals .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
-#info .scrim, #signals .scrim, #hubDialog .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+#info .sheet, #signals .sheet { z-index: 7; animation: sheetIn var(--af-dur-sheet) var(--af-ease-std); }
+#info .scrim, #signals .scrim, #hubDialog .scrim { animation: fadeIn var(--af-dur-sheet) var(--af-ease-std); }
 #hubDialog { z-index: 8; }
 #hubDialog .dialog { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 12px 24px; }

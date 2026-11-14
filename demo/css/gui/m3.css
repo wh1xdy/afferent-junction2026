@@ -64,6 +64,7 @@
   --af-dur-exit: 250ms;
   --af-dur-state: 300ms;
   --af-dur-press: 150ms;
+  --af-dur-sheet: 280ms;       /* a sheet slides up and leaves in this, the way a finished swipe does (gui/swipe.js T.slide) */
   --af-glow-loop: 10000ms;
   transition:
     --md-sys-color-primary var(--af-scheme-fade) var(--af-ease-breath),
@@ -87,8 +88,8 @@
     --md-sys-color-lantern-flame var(--af-scheme-fade) var(--af-ease-breath),
     --af-chrome var(--af-scheme-fade) var(--af-ease-breath);
 }
-:root[data-motion="reduced"] { --af-dur-enter: 1ms; --af-dur-exit: 1ms; --af-dur-state: 1ms; --af-dur-press: 1ms; }
-@media (prefers-reduced-motion: reduce) { :root { --af-dur-enter: 1ms; --af-dur-exit: 1ms; --af-dur-state: 1ms; --af-dur-press: 1ms; } }
+:root[data-motion="reduced"] { --af-dur-enter: 1ms; --af-dur-exit: 1ms; --af-dur-state: 1ms; --af-dur-press: 1ms; --af-dur-sheet: 150ms; }
+@media (prefers-reduced-motion: reduce) { :root { --af-dur-enter: 1ms; --af-dur-exit: 1ms; --af-dur-state: 1ms; --af-dur-press: 1ms; --af-dur-sheet: 150ms; } }
 
 .ms {
   font-family: var(--md-ref-typeface-icons);
@@ -213,6 +214,10 @@
 /* the bar is 4 px; a finger gets the strip around it (swipe.js drags the sheet from here even when its content is scrolled) */
 .sheet .handle::before { content: ""; position: absolute; inset: -14px -56px -10px; }
 .sheet .handle, .sheet .sheet-head { touch-action: none; }
+/* An open sheet and its scrim keep their own layers, so a drag (gui/swipe.js) only moves them: the grain and the long
+   shadow are painted once, not on the first frame of every drag. */
+.layer:not(.hidden) > .sheet { will-change: transform; }
+.layer:not(.hidden) > .scrim { will-change: opacity; }
 .scrim { position: absolute; inset: 0; z-index: 5; background: linear-gradient(to bottom, color-mix(in srgb, var(--md-sys-color-scrim) 34%, transparent), color-mix(in srgb, var(--md-sys-color-scrim) 62%, transparent)); }
 
 .dialog {

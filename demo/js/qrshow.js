@@ -285,7 +285,9 @@
       ini.value = '';
       root.classList.add('out');
       const done = () => { root.remove(); if (!view) setInert(false); if (!keepFocus) opener?.focus?.(); };
-      reduced() ? done() : setTimeout(done, 200);
+      // slides down like a finished swipe (qrshow.css .out), or fades quickly with reduced motion
+      setTimeout(done, reduced() ? 150 : 280);
+      A.Swipe?.hold?.(reduced() ? 190 : 320);
     };
     const go = async paper => {
       if (busy || !rec) return;

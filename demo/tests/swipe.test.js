@@ -16,9 +16,11 @@ const read = f => fs.readFileSync(path.join(DEMO, f), 'utf8');
 Object.assign(El.prototype, {
   getBoundingClientRect() { return { left: 0, top: 0, width: 402, height: 874 }; },
   removeEventListener(t, f) { this.listeners[t] = (this.listeners[t] || []).filter(x => x !== f); },
-  focus() {},
+  focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; },
+  contains(n) { for (; n; n = n.parentNode) if (n === this) return true; return false; },
 });
 Object.defineProperties(El.prototype, {
+  isConnected: { get() { let n = this; while (n.parentNode) n = n.parentNode; return n === this.ownerDocument?.documentElement; }, configurable: true },
   offsetHeight: { get() { return this.h ?? 560; }, configurable: true },
   offsetWidth: { get() { return 402; }, configurable: true },
   parentElement: { get() { return this.parentNode?.nodeType === 1 ? this.parentNode : null; }, configurable: true },
@@ -46,21 +48,27 @@ const phoneHtml = html.slice(html.indexOf('<section id="phone">'), html.indexOf(
 const app = ({ motion = false } = {}) => {
   const storage = new Map([['afferent.checkin.test', JSON.stringify({ anchor: 1 })]]);
   const h = load({ finger: true, camera: true, storage });
-  const { ctx } = h, doc = makeDocument(), timers = [];
+  const { ctx } = h, doc = makeDocument(), timers = [], frames = [];
   let clock = 0;
   doc.body.replaceChildren(parse(doc, phoneHtml));
   if (!motion) doc.documentElement.dataset.motion = 'reduced';
   doc.activeElement = null;
   Object.assign(ctx, {
-    document: doc, clearInterval: () => {}, clearTimeout: () => {}, Event: class { constructor(type) { this.type = type; } },
-    setTimeout: f => { timers.push(f); return timers.length; }, requestAnimationFrame: () => 0, performance: { now: () => clock },
+    document: doc, clearInterval: () => {}, Event: class { constructor(type) { this.type = type; } }, performance: { now: () => clock },
+    setTimeout: f => { const t = { f }; timers.push(t); return t; }, clearTimeout: t => { if (t) t.f = null; },
+    requestAnimationFrame: f => { frames.push(f); return frames.length; }, cancelAnimationFrame: id => { frames[id - 1] = null; },
   });
-  doc.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => doc.getElementById(b.dataset.close).classList.add('hidden'); });
   for (const f of ['clipcheck.js', 'checkin.js', 'gui/swipe.js']) vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });
+  // main.js's own show() (cut out of main.js as it is), on its [data-open] and [data-close] buttons
+  const showSrc = read('js/main.js').match(/\n  const FADES = [\s\S]*?\n    set\(\);\n  \};\n/)[0];
+  const show = vm.runInContext(`(() => { const $ = id => document.getElementById(id); ${showSrc} return show; })()`, ctx);
+  doc.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => show(b.dataset.open, true); });
+  doc.querySelectorAll('[data-close]').forEach(b => { b.onclick = () => show(b.dataset.close, false); });
   ctx.A.Checkin.init({});
   const $ = id => doc.getElementById(id);
-  const runTimers = () => { for (const f of timers.splice(0)) f(); };
-  return { ...h, doc, $, runTimers, tick: ms => { clock += ms; }, A: ctx.A, ctx };
+  const runTimers = () => { for (const t of timers.splice(0)) t.f?.(); };
+  const runFrames = () => { for (const f of frames.splice(0)) f?.(); };
+  return { ...h, doc, $, show, runTimers, runFrames, frames, tick: ms => { clock += ms; }, A: ctx.A, ctx };
 };
 
 // A touch as WebKit sends it: to the element it started on, then up through its parents (if it still has any).
@@ -75,7 +83,7 @@ const fire = (target, type, x, y) => {
 const swipe = (p, target, { x = 200, y = 300, dx = 0, dy = 0, ms = 200, steps = 10, lift = true } = {}) => {
   fire(target, 'touchstart', x, y);
   let taken = false;
-  for (let i = 1; i <= steps; i++) { p.tick(ms / steps); taken = fire(target, 'touchmove', x + dx * i / steps, y + dy * i / steps).defaultPrevented || taken; }
+  for (let i = 1; i <= steps; i++) { p.tick(ms / steps); taken = fire(target, 'touchmove', x + dx * i / steps, y + dy * i / steps).defaultPrevented || taken; p.runFrames?.(); }
   if (lift) fire(target, 'touchend', x + dx, y + dy);
   return taken;
 };
@@ -174,7 +182,7 @@ const tests = {
     body.append(row);
     fire(row, 'touchstart', 200, 400);
     body.replaceChildren(p.doc.createElement('div'));
-    for (let i = 1; i <= 10; i++) { p.tick(20); fire(row, 'touchmove', 200, 400 + 25 * i); }
+    for (let i = 1; i <= 10; i++) { p.tick(20); fire(row, 'touchmove', 200, 400 + 25 * i); p.runFrames(); }
     fire(row, 'touchend', 200, 650);
     assert.ok(!shown(p, 'signals'));
   },
@@ -266,11 +274,11 @@ const tests = {
     assert.strictEqual(card().querySelectorAll('.ci-opt')[2].getAttribute('aria-checked'), 'true');
   },
 
-  'the code sheet (Show to my doctor) closes on a swipe down from its handle'() {
-    const doc = makeDocument(), ctx = {
+  'the code sheet (Show to my doctor) closes on a swipe down from its handle, and on Cancel and the scrim after a quick fade'() {
+    const doc = makeDocument(), timers = [], ctx = {
       console: { error() {}, log() {}, warn() {} }, Math, Date, JSON, Object, Array, Number, String, Promise, Error, Map, Set, URLSearchParams,
       document: doc, matchMedia: () => ({ matches: true }), localStorage: { getItem: () => null, setItem() {} },
-      requestAnimationFrame: () => 0, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, performance: { now: () => 0 },
+      requestAnimationFrame: () => 0, setTimeout: f => { timers.push(f); return timers.length; }, clearTimeout() {}, setInterval: () => 0, clearInterval() {}, performance: { now: () => 0 },
       addEventListener() {}, removeEventListener() {}, innerWidth: 402, innerHeight: 874, devicePixelRatio: 2,
       fetch: async () => ({ ok: false, status: 404, json: async () => null }), location: { search: '', hash: '' },
     };
@@ -283,7 +291,133 @@ const tests = {
     const root = doc.getElementById('qrSheet'), handle = doc.querySelector('.qs-handle');
     assert.ok(root && handle, 'the sheet is up');
     swipe({ tick() {} }, handle, { dy: 260 });
+    assert.ok(root.parentNode && root.classList.contains('out'), 'leaving (reduced motion here: a quick fade, qrshow.css .still.out)');
+    for (const f of timers.splice(0)) f();
     assert.ok(!root.parentNode, 'closed and gone');
+    const css = read('css/qrshow.css');
+    assert.ok(/\.qs-root\.out \.qs \{ transform: translateY\(100%\); transition: transform 280ms cubic-bezier\(0\.2, 0, 0, 1\)/.test(css), 'with motion it slides down like a swipe');
+    assert.ok(/\.qx\.still\.out \{ opacity: 0; transition: opacity 150ms linear/.test(css), 'reduced motion: a quick fade');
+    for (const closer of ['#qsCancel', '.qs-scrim']) {
+      const opener = doc.createElement('button');
+      doc.body.append(opener); opener.focus();
+      ctx.A.QRShow.open();
+      const r = doc.getElementById('qrSheet');
+      doc.querySelector(closer).click();
+      assert.ok(r.parentNode && r.classList.contains('out'), `${closer}: leaving, not gone at once`);
+      for (const f of timers.splice(0)) f();
+      assert.ok(!r.parentNode && doc.activeElement === opener, `${closer}: gone, focus back on what opened it`);
+    }
+  },
+
+  'the drag writes its styles at most once per frame, however many touchmoves arrive'() {
+    const p = app(), s = sheetOf(p, 'info'), h = handleOf(s);
+    open(p, 'info');
+    let writes = 0, value = '';
+    Object.defineProperty(s.style, 'translate', { get: () => value, set: v => { writes++; value = v; }, configurable: true });
+    fire(h, 'touchstart', 200, 300);
+    for (let i = 1; i <= 12; i++) { p.tick(4); fire(h, 'touchmove', 200, 300 + 10 * i); }
+    assert.strictEqual(writes, 0, 'nothing written between frames');
+    p.runFrames();
+    assert.deepStrictEqual([writes, value], [1, '0 120.0px'], 'one write, at the latest position');
+    for (let i = 13; i <= 15; i++) { p.tick(4); fire(h, 'touchmove', 200, 300 + 10 * i); }
+    p.runFrames(); p.runFrames();
+    assert.deepStrictEqual([writes, value], [2, '0 150.0px']);
+    assert.strictEqual(s.style.willChange, 'transform', 'on its own layer while it moves');
+    fire(h, 'touchend', 200, 450);
+    assert.strictEqual(p.frames.filter(Boolean).length, 0, 'no frame left over after the finger lifts');
+  },
+
+  'every close path of a sheet goes through the slide-out: button, scrim and Escape, How it works, Your signals, the hub, the clip check, the check-in'() {
+    const p = app({ motion: true }), A = p.A;
+    for (const [id, closer] of [['info', '.sheet-actions [data-close]'], ['info', '.scrim'], ['signals', '.sheet-actions [data-close]'], ['signals', '.scrim'], ['hubDialog', '.actions [data-close]'], ['hubDialog', '.scrim']]) {
+      open(p, id);
+      p.$(id).querySelector(closer).click();
+      assert.ok(shown(p, id) && A.Swipe.leaving(p.$(id)), `${id} ${closer}: still there, leaving`);
+      const sheet = sheetOf(p, id);
+      if (sheet) assert.ok(/^translate 280ms cubic-bezier\(0\.2, 0, 0, 1\)$/.test(sheet.style.transition) && /^0 \d+px$/.test(sheet.style.translate), `${id}: slides down`);
+      else assert.ok(p.$(id).style.opacity === '0', `${id}: the dialog fades`);
+      p.runTimers();
+      assert.ok(!shown(p, id) && !A.Swipe.leaving(p.$(id)), `${id} ${closer}: gone`);
+      assert.deepStrictEqual([sheet?.style.translate || '', p.$(id).style.opacity || ''], ['', ''], `${id}: put back for next time`);
+    }
+    // Escape (shell.js) clicks the layer's [data-close], the same path as the button
+    assert.ok(/open\.querySelector\('\[data-close\]'\)\?\.click\(\)/.test(read('js/gui/shell.js')), 'Escape goes through [data-close]');
+    assert.ok(/A\.Swipe\?\.out\?\.\(el, set\)/.test(read('js/main.js')), 'main.js show() lets a sheet leave through A.Swipe.out');
+
+    // the clip check: Done, and the scrim
+    for (const how of ['Done', 'scrim']) {
+      A.ClipCheck.open('settings');
+      if (how === 'Done') p.$('clipActions').children.find(b => b.textContent === 'Done').click();
+      else p.$('clipcheck').children.find(c => c.classList.contains('scrim')).click();
+      assert.ok(shown(p, 'clipcheck') && A.Swipe.leaving(p.$('clipcheck')), `clip check ${how}: leaving`);
+      p.runTimers();
+      assert.ok(!shown(p, 'clipcheck'), `clip check ${how}: gone`);
+    }
+    // the check-in: Later on the intro slides the card down
+    A.Checkin.open();
+    p.$('checkin').children[0].querySelectorAll('.ci-btn').find(b => text(b) === 'Later').click();
+    assert.ok(A.Swipe.leaving(p.$('checkin')) && /^0 \d+px$/.test(p.$('checkin').style.translate), 'check-in: slides down');
+    p.runTimers();
+    assert.ok(p.$('checkin').classList.contains('hidden'));
+  },
+
+  'every card closes animated and hands focus back to what opened it: sheets slide down, Settings and Talk slide right, the crisis card slides down'() {
+    const p = app({ motion: true }), opener = p.doc.querySelector('[data-open="info"]');
+    for (const [id, closer, way] of [['info', '.sheet-actions [data-close]', 'down'], ['signals', '.scrim', 'down'], ['settings', '[data-close]', 'right'], ['voice', '[data-close]', 'right'], ['crisis', '[data-close]', 'down']]) {
+      opener.focus();
+      p.show(id, true);
+      p.doc.body.querySelector('#' + id + ' .handle')?.focus();
+      if (id === 'settings') p.$(id).querySelector('[data-close]').focus();
+      p.$(id).querySelector(closer).click();
+      const moving = id === 'info' || id === 'signals' ? sheetOf(p, id) : p.$(id);
+      assert.ok(shown(p, id) && p.A.Swipe.leaving(p.$(id)), `${id}: leaving, not gone at once`);
+      assert.ok((way === 'right' ? /^402px 0$/ : /^0 \d+px$/).test(moving.style.translate), `${id}: slides ${way}, ${moving.style.translate}`);
+      assert.strictEqual(moving.style.transition, 'translate 280ms cubic-bezier(0.2, 0, 0, 1)', `${id}: like a finished swipe`);
+      p.runTimers();
+      assert.ok(!shown(p, id), `${id}: gone`);
+      assert.strictEqual(p.doc.activeElement, opener, `${id}: focus back on what opened it`);
+      assert.deepStrictEqual([moving.style.translate, moving.style.transition, moving.style.willChange], ['', '', ''], `${id}: put back for next time`);
+    }
+    // the clip check gives focus back too
+    const row = p.doc.createElement('button');
+    p.$('phone').append(row); row.focus();
+    p.A.ClipCheck.open('settings');
+    p.$('clipActions').children.find(b => b.textContent === 'Done').click();
+    p.runTimers();
+    assert.ok(!shown(p, 'clipcheck') && p.doc.activeElement === row, 'clip check: gone, focus back on the row');
+  },
+
+  'the world under a sheet waits while the sheet moves: dragged, sliding up, leaving, springing back'() {
+    const p = app({ motion: true }), S = p.A.Swipe, s = sheetOf(p, 'info');
+    assert.ok(!S.moving, 'nothing open');
+    p.show('info', true);
+    assert.ok(S.moving, 'sliding up');
+    p.tick(400);
+    assert.ok(!S.moving, 'up and still');
+    swipe(p, handleOf(s), { dy: 60, ms: 1000, lift: false });
+    assert.ok(S.moving && S.dragging, 'under the finger');
+    fire(handleOf(s), 'touchend', 200, 360);
+    assert.ok(S.moving && !S.dragging, 'springing back');
+    p.tick(400); p.runTimers();
+    assert.ok(!S.moving && shown(p, 'info'), 'back in place');
+    p.$('info').querySelector('.scrim').click();
+    assert.ok(S.moving, 'leaving');
+    p.tick(400); p.runTimers();
+    assert.ok(!S.moving && !shown(p, 'info'));
+    const main = read('js/main.js');
+    assert.ok(/if \(!A\.session && \(A\.Swipe\?\.moving \|\| /.test(main), 'main.js skips the world frame while a sheet moves (not in a session)');
+    assert.ok(/1000 \/ 30/.test(main) && /1000 \/ 15/.test(main), 'and paces it under an open sheet or a page');
+  },
+
+  'reduced motion: a closed sheet fades quickly instead of sliding; opened again while leaving, it stays'() {
+    const p = app();
+    open(p, 'info');
+    p.$('info').querySelector('.scrim').click();
+    assert.deepStrictEqual([p.$('info').style.opacity, p.$('info').style.transition], ['0', 'opacity 150ms linear']);
+    assert.strictEqual(sheetOf(p, 'info').style.translate || '', '', 'no slide');
+    p.A.Swipe.stay(p.$('info'));
+    p.runTimers();
+    assert.ok(shown(p, 'info') && p.$('info').style.opacity === '', 'kept open');
   },
 
   'no other sheet has a handle: a new one needs its swipe here too'() {
