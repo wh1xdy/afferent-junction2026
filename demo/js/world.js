@@ -61,7 +61,9 @@
         const ray = 0.45 + 0.55 * Math.pow(noise(i * 0.05 + 3) * 0.7 + noise(i * 0.17 + 9) * 0.3, 1.4) * (0.9 + 0.1 * ra());
         const gg = cx.createLinearGradient(0, 128, 0, 0);
         const c0 = grey ? [176, 202, 218] : cols[0], c1 = grey ? [143, 176, 214] : cols[1], c2 = grey ? [160, 150, 200] : cols[2];
-        gg.addColorStop(0, `rgba(${c0},0)`); gg.addColorStop(0.08, `rgba(${c0},${0.9 * ray})`); gg.addColorStop(0.3, `rgba(${c1},${0.45 * ray})`);
+        // The lower border eases in over the bottom 14 % of the curtain, so a flat stretch of it reads as a glowing
+        // hem rather than a ruled line across the sky.
+        gg.addColorStop(0, `rgba(${c0},0)`); gg.addColorStop(0.06, `rgba(${c0},${0.35 * ray})`); gg.addColorStop(0.14, `rgba(${c0},${0.9 * ray})`); gg.addColorStop(0.32, `rgba(${c1},${0.45 * ray})`);
         gg.addColorStop(0.7, `rgba(${c2},${0.14 * ray})`); gg.addColorStop(1, `rgba(${c2},0)`);
         cx.fillStyle = gg; cx.fillRect(i, 0, 1, 128);
       }
@@ -382,7 +384,9 @@
   }
 
   const nightLeft = k => 1 - st.ds.dawn * (I.night ? k : 1);
-  const moonX = () => Math.max(W * 0.25, W * 0.34 - off(LAYER.stars) * 0.25);
+  // The moon keeps to the upper right, between the SIMULATED badge (centre top) and the crisis button (top right),
+  // so no top control ever sits on it; it drifts left a little while walking.
+  const moonX = () => Math.max(W * 0.72, W * 0.76 - off(LAYER.stars) * 0.25);
 
   function moon(ctx) {
     const a = nightLeft(0.3) * (1 - n0(S.daylight, 0)) * (1 - st.sun) * (1 - 0.4 * st.heavy);
@@ -417,11 +421,31 @@
     ctx.drawImage(auroraC, -q, 0, w * q, h / s);
     ctx.imageSmoothingQuality = 'low';
     veneer(ctx, a, t, o, sg);
-    if (ART.has('sky_aurora')) {
-      const aw = W * 1.9, ah = aw / ART.aspect('sky_aurora'), span = aw * 1.25;
-      for (let ax = -((((o + t * 4) % span) + span) % span) - aw * 0.2; ax < W; ax += span) ART.draw(ctx, 'sky_aurora', ax, H * 0.08 + Math.sin(t * 0.07) * H * 0.01, aw, ah, sg, 1, 0.42 * a * (0.2 + 0.8 * sg) * (0.85 + 0.15 * Math.sin(t * 0.5)));
+    if (auroraArt()) {
+      const aw = W * 1.9, ah = aw / ART.aspect(AURORA_ART), span = aw * (1 - AURORA_FADE), y = H * 0.08 + Math.sin(t * 0.07) * H * 0.01;
+      const al = 0.42 * a * (0.2 + 0.8 * sg) * (0.85 + 0.15 * Math.sin(t * 0.5));
+      for (let ax = -((((o + t * 4) % span) + span) % span) - aw * AURORA_FADE; ax < W; ax += span) ART.draw(ctx, AURORA_ART, ax, y, aw, ah, sg, 1, al);
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // sky_aurora is painted right up to its left and right edges, so a tile of it ends in a hard vertical cut. It is
+  // baked once with both ends faded out (smoothstep over AURORA_FADE of the width), and the tiles overlap by exactly
+  // that fade: where one ribbon set dissolves the next one rises, and the two always add up to full strength, at any
+  // scroll position. The faded copy replaces the original, so it costs no extra memory.
+  const AURORA_ART = 'aurora:sky', AURORA_FADE = 0.3;
+  function auroraArt() {
+    if (A.Art.has(AURORA_ART)) return true;
+    if (!ART.has('sky_aurora')) return false;
+    const w = 1536, h = Math.round(w / ART.aspect('sky_aurora'));
+    const baked = A.Art.bake(AURORA_ART, 'sky_aurora', w, h, (x, src) => {
+      x.drawImage(src, 0, 0, w, h);
+      const g = x.createLinearGradient(0, 0, w, 0);
+      for (let i = 0; i <= 8; i++) { const p = i / 8, k = `rgba(0,0,0,${(p * p * (3 - 2 * p)).toFixed(4)})`; g.addColorStop(p * AURORA_FADE, k); g.addColorStop(1 - p * AURORA_FADE, k); }
+      x.globalCompositeOperation = 'destination-in'; x.fillStyle = g; x.fillRect(0, 0, w, h); x.globalCompositeOperation = 'source-over';
+    });
+    if (baked) A.Art.drop('sky_aurora');
+    return baked;
   }
 
   function veneer(ctx, a, t, o, sg) {
