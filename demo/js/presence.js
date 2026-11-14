@@ -4,7 +4,8 @@
 // stops unfiltered Bluetooth scans in the background), and every 30 s feeds the ported
 // decision logic (presence-core.js) with what the phone can see:
 //   ble   the bedside unit ("Afferent Finger", UNO Q) in Bluetooth range: Vlad's "patient token"
-//         turned around, the phone sees the home instead of the home seeing the phone
+//         turned around, the phone sees the home instead of the home seeing the phone. Heard =
+//         home; silence = could not look (the unit stops advertising while something is connected)
 //   wifi  this Wi-Fi is home: the home devices (TV, speakers, printer) that answer on it,
 //         stored as hashes. Stands in for Vlad's ARP probe; iOS gives a free-team app no
 //         SSID, no ARP table and no Wi-Fi scan
@@ -119,6 +120,8 @@
     // firmware on the board today notifies only with a finger on the clip) and no longer advertises.
     if (A.Sensors?.fingerLink?.state === 'connected') unitSeen();
     const btOk = radio.bluetooth === 'poweredOn' && !!radio.scanning;
+    // Learning counts watched ticks only: with Bluetooth unable to look there is nothing to learn from.
+    const blind = guests.calibrating() && !btOk;
     const sig = {
       wifi: P.wifiSighting({ learned: st.wifiLearned, visible: radio.lanDevices, onWifi: !!radio.wifi, browse: radio.lan }),
       ble: P.bleSighting({ known: st.unitKnown, ok: btOk, lastAt: unitAt, now }),
@@ -130,7 +133,7 @@
       stretchStart = now;
     }
     if (stretchStart === null) stretchStart = now;
-    events.push(...P.tick(presence, guests, now, sig, ads));
+    events.push(...(blind ? presence.update(now, sig) : P.tick(presence, guests, now, sig, ads)));
     if (events.includes('left_home')) awayDecidedAt = now;
     if (events.includes('calibrated')) st.calibratedAt = now;
     if (events.length) lastEvents = events;
@@ -200,7 +203,8 @@
   };
   const calibrate = () => {
     if (!running) return A.Shell?.toast?.('Turn on Home and visitors first.');
-    guests.start_calibration(nowS(), P.PROFILES[st.profile].calibrate_min * 60);
+    const dur = P.PROFILES[st.profile].calibrate_min * 60;
+    guests.start_calibration(nowS(), dur, Math.ceil(dur / P.SCAN_INTERVAL_S));
     st.calibratedAt = null; save(); render();
   };
   const rememberWifi = () => {
@@ -208,6 +212,7 @@
     if (!radio?.wifi) return A.Shell?.toast?.('Join your home Wi-Fi first.');
     if (radio.lan === 'denied') return A.Shell?.toast?.('Local Network is off for Afferent in iPhone Settings.');
     if (!vis.length) return A.Shell?.toast?.('No TV, speaker or printer answered on this Wi-Fi yet. Try again in a minute.');
+    if (vis.length < P.HOME_WIFI_MIN) return A.Shell?.toast?.('Only one home device answered. Two are needed to know this Wi-Fi again.');
     st.wifiLearned = [...vis]; save(); render();
     A.Shell?.toast?.(`Home Wi-Fi saved (${vis.length} home device${vis.length === 1 ? '' : 's'}).`);
   };
@@ -222,11 +227,13 @@
   const activity = () => { if (running) presence.activity(nowS()); };
   // For the finger plugin: a live notification from the bedside unit proves it is in range.
   // Whether the unit keeps advertising while a phone is connected is untested (BlueZ may stop),
-  // so a connected unit must report here or presence could see it vanish.
+  // so a connected unit reports here. Another phone or laptop holding the link cannot, which is
+  // why silence from the unit is could-not-look (presence-core.js bleSighting).
   const unitSeen = () => { if (running) { unitAt = nowS(); st.unitKnown = true; } };
 
   const sessionContext = () => {
-    if (!active() || !running || stretchStart === null) return { home: null, visitors_present: null, simulated: false };
+    const watching = active() && running && stretchStart !== null && nowS() - lastTickAt <= 2 * P.SCAN_INTERVAL_S;
+    if (!watching) return { home: null, visitors_present: null, simulated: false };
     const c = P.sessionContext(presence, guests, nowS(), { stretchStart, awayDecidedAt, calibrated: st.calibratedAt !== null });
     return { ...c, simulated: sim && (c.home !== null || c.visitors_present !== null) };
   };
@@ -243,11 +250,13 @@
     if (!lastTickAt) return pre + 'Looking around…';
     const why = { ble: 'bedside unit nearby', wifi: 'home Wi-Fi', hub: 'hub', activity: 'bedside unit used' };
     const recent = Object.keys(presence.last_seen_by).filter(k => presence.last_seen_by[k] >= lastTickAt - 1).map(k => why[k] || k);
-    let s = presence.state === P.HOME ? 'Home' + (recent.length ? ' · ' + recent.join(', ') : '')
-      : presence.state === P.AWAY ? 'Away'
+    // Same rule as the session: a state carried over from before the app was closed is not shown as now.
+    const home = sessionContext().home;
+    let s = home === true ? 'Home' + (recent.length ? ' · ' + recent.join(', ') : '')
+      : home === false ? 'Away'
       : st.unitKnown || st.wifiLearned.length ? 'Not sure yet' : 'Not sure yet · bedside unit not found';
     if (guests.calibrating()) s += ' · learning';
-    else if (guests.current > 0) s += ` · ${guests.current} visitor${guests.current === 1 ? '' : 's'}`;
+    else if (home === true && guests.current > 0) s += ` · ${guests.current} visitor${guests.current === 1 ? '' : 's'}`;
     return pre + s;
   };
 
@@ -263,7 +272,8 @@
     show(ui.calRow, extra);
     ui.wifi.textContent = st.wifiLearned.length ? `${st.wifiLearned.length} home device${st.wifiLearned.length === 1 ? '' : 's'} remembered` : 'Tap while you are at home';
     const cal = guests.calibrating() ? guests._cal : null;
-    ui.cal.textContent = cal ? `Learning, ${Math.max(1, Math.ceil((cal.until - nowS()) / 60))} min left. Keep Afferent open`
+    const left = cal ? Math.max(cal.until - nowS(), (cal.need - cal.snapshots.length) * P.SCAN_INTERVAL_S) : 0;
+    ui.cal.textContent = cal ? `Learning, ${Math.max(1, Math.ceil(left / 60))} min left. Keep Afferent open`
       : st.calibratedAt ? `Learned ${new Date(st.calibratedAt * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`
       : `Keep Afferent open ${P.PROFILES[st.profile].calibrate_min} min, nobody extra nearby`;
     if (ui.profileVal) ui.profileVal.textContent = st.profile;
@@ -302,6 +312,8 @@
       profileVal: $('presenceProfileBtn')?.querySelector('.val'),
     });
     ui.sw.onchange = () => (ui.sw.checked ? enable() : disable());
+    const info = $('presenceGroup')?.querySelector('[data-hint]');   // shell.js wired its own hints before this group existed
+    if (info) info.onclick = () => A.Shell?.toast?.(info.getAttribute('aria-label'));
     ui.wifiRow.onclick = rememberWifi;
     ui.calRow.onclick = calibrate;
     const names = Object.keys(P.PROFILES);
@@ -327,7 +339,7 @@
     available, native, sim: sim ? simWorld : null,
     get on() { return st.on; },
     enable, disable, calibrate, rememberWifi, setProfile, activity, unitSeen, sessionContext,
-    status: () => ({ on: st.on, running, profile: st.profile, radio, events: lastEvents, presence: presence.status(nowS()), guests: { ...guests.status(nowS()), nearby_devices: guests.nearby_devices(nowS()) } }),
+    status: () => ({ on: st.on, running, profile: st.profile, radio, events: lastEvents, text: statusText(), presence: presence.status(nowS()), guests: { ...guests.status(nowS()), nearby_devices: guests.nearby_devices(nowS()) } }),
     ticksJsonl: () => ticks.map(r => JSON.stringify(r)).join('\n'),
   };
 })();
