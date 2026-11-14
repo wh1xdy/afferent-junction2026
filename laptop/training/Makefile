@@ -20,6 +20,7 @@ AMP         ?=
 EXTRA       ?=
 
 .PHONY: help extract prelabel split train test export evaluate install-model tests check-env \
+	modal-push modal-train modal-pull modal-ls \
 	verda-up verda-sync verda-train verda-pull verda-down
 
 help:
@@ -63,6 +64,19 @@ tests: ## unit tests (numpy + pytest + pyyaml only)
 
 check-env: ## print the training stack versions
 	$(PY) -c "import torch,mmcv,mmengine,mmdet,mmpose;print(torch.__version__,torch.cuda.is_available(),mmcv.__version__,mmengine.__version__,mmdet.__version__,mmpose.__version__)"
+
+# --- remote training on Modal (see README "Remote training on Modal") -------
+modal-push: ## upload dataset + rtmlib ONNX cache to the Modal volume
+	bash modal/push.sh
+
+modal-train: ## build the Modal image + make $(MAKE_TARGETS) on a GPU
+	bash modal/train.sh
+
+modal-pull: ## download work_dirs/ back from the Modal volume
+	bash modal/pull.sh
+
+modal-ls: ## list Modal volume contents (+ optionally a path: make modal-ls P=/data)
+	bash modal/ls.sh $(P)
 
 # --- remote training on Verda (see README "Remote training on Verda") -------
 verda-up: ## create the Verda GPU instance (env/config in verda/config.env)

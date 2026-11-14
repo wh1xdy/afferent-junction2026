@@ -82,12 +82,47 @@ is untested there. Two options:
 - run without Docker: make a py3.10 venv, run the same `pip install` lines as the
   Dockerfile, then `make train`; or
 - run on remote GPUs:
-  - **Modal:** `modal.Image.from_dockerfile("laptop/training/Dockerfile")` (default
-    `TORCH_VARIANT=cu121`), then mount a Volume holding `data/`.
-  - **Verda:** scripted end-to-end in `verda/` — see the next section.
+  - **Modal (recommended):** scripted end-to-end in `modal/` — see the next
+    section. Serverless: no VM lifecycle, no ssh, billing only while training runs.
+  - **Verda:** scripted end-to-end in `verda/` — PAYG VM, see below.
 
   In both cases, ship only `data/annotations` and `data/frames` of
   consenting participants, over an encrypted transport. Delete them afterwards.
+
+## Remote training on Modal
+
+`modal/` + `modal_app.py` implement the push → train → pull loop on
+[Modal](https://modal.com) serverless GPUs. `modal_app.py` builds a native
+Modal image that mirrors `Dockerfile` pip layer for pip layer (torch 2.1.2
+cu121, mmcv 2.1.0, mmpose 1.3.2 — not `from_dockerfile`, whose `RUN --mount`
+and build-arg support is restricted). One `modal.Volume` carries the dataset
+in and the checkpoints out; it is mounted at `/vol` and symlinked into the
+exact local layout, so the Makefile runs unchanged remotely.
+
+```bash
+# once: install the client + authenticate (any one of)
+uv tool install modal        # or: pipx install modal / pip install modal
+                             # (no install needed: the wrappers fall back to uvx)
+modal token new              # web OAuth — or `modal token set`, or
+                             # MODAL_TOKEN_ID / MODAL_TOKEN_SECRET env vars
+
+cp modal/config.env.example modal/config.env   # optional overrides (gitignored)
+
+make modal-push    # data/ + rtmlib ONNX cache -> volume afferent-train
+make modal-train   # image build + `make train test` on a GPU (default A10)
+make modal-pull    # volume /work -> work_dirs/ (checkpoints, ONNX, reports)
+make modal-ls      # list the volume contents
+```
+
+GPU is chosen with `MODAL_GPU` (`T4` cheaper, `L40S`/`A100`/`H100` faster;
+note: no V100 on Modal). Timeout `MODAL_TIMEOUT` (default 24 h). Checkpoints
+commit to the volume every 5 min during the run and after each make target,
+so a timeout or preemption loses at most a few minutes.
+
+**Cost:** billed per second only while the function runs — there is nothing
+to shut down afterwards (no `down` step exists, unlike `verda/`). Storage on
+the volume is billed per GB-day; `modal volume rm` deletes data when the run
+is done. Check rates on the Modal pricing page / `modal cost` equivalents.
 
 ## Remote training on Verda
 
