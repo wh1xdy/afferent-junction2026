@@ -43,6 +43,8 @@ class GaitResult:
     mean_trunk_inclination_deg: float | None = None
     arm_swing_amp_deg: float | None = None    # median p2p per side, mean of L/R
     calibrated: bool = False
+    effective_fps: float | None = None        # n_samples / duration
+    undersampled: bool = False                # effective_fps < min_fps
     extras: dict = field(default_factory=dict)
 
 
@@ -166,9 +168,21 @@ def arm_swing_angle(kpts: np.ndarray) -> tuple[float | None, float | None]:
     return out[0], out[1]
 
 
-def analyze_gait(samples: list[GaitSample]) -> GaitResult:
-    """Compute all gait variables for one walking episode."""
+def analyze_gait(samples: list[GaitSample],
+                 min_fps: float = 8.0) -> GaitResult:
+    """Compute all gait variables for one walking episode.
+
+    `min_fps` is the minimum effective sample rate (n_samples/duration)
+    for the episode to be trustworthy — on a slow CPU the pose rate can
+    drop below what cadence/bounce estimation needs. Below it the result
+    is flagged `undersampled` but all variables are still computed.
+    """
     res = GaitResult(n_samples=len(samples))
+    if len(samples) >= 2:
+        span = float(samples[-1].t - samples[0].t)
+        res.duration_s = span
+        res.effective_fps = len(samples) / span if span > 0 else 0.0
+        res.undersampled = res.effective_fps < min_fps
     if len(samples) < 10:
         return res
     t = np.array([s.t for s in samples])

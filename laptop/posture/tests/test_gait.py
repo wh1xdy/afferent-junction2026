@@ -69,6 +69,27 @@ def test_too_few_samples():
     assert res.speed_m_s is None
 
 
+def test_undersampled_flag():
+    """Below GAIT_MIN_FPS the result is flagged but values still computed."""
+    slow = _samples(n=120, fps=4.0)          # 4 fps < default 8 fps
+    res = gait.analyze_gait(slow)
+    assert res.undersampled is True
+    assert res.effective_fps == pytest.approx(4.0, abs=0.1)
+    # variables are still computed despite the flag
+    assert res.cadence_hz == pytest.approx(1.8, abs=0.1)
+    assert res.speed_m_s == pytest.approx(0.9, abs=0.15)
+    # well-sampled episode: no flag
+    res_ok = gait.analyze_gait(_samples())
+    assert res_ok.undersampled is False
+    assert res_ok.effective_fps == pytest.approx(30.0, abs=0.5)
+
+
+def test_undersampled_respects_min_fps_param():
+    res = gait.analyze_gait(_samples(fps=10.0), min_fps=12.0)
+    assert res.effective_fps == pytest.approx(10.0, abs=0.1)
+    assert res.undersampled is True
+
+
 def test_uncalibrated_speed_none():
     samples = _samples()
     for s in samples:

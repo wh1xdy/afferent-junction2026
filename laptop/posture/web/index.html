@@ -86,7 +86,8 @@
       <h2>Minute angles (last 120 min)</h2>
       <canvas id="chart" width="900" height="220"></canvas>
       <div class="hint">median per minute — trunk inclination (deg),
-        neck flexion (deg), slump index</div>
+        neck flexion (deg), slump index · dominant activity×orientation
+        context per minute</div>
     </div>
   </section>
 
@@ -160,7 +161,10 @@ function renderStatus() {
   kv.push(['floor calib', s.floor_calibrated ? 'yes' : 'no']);
   kv.push(['refs', `trunk ${fmt(s.ref_trunk_len_px)}px · sh-hip ${fmt(s.ref_shoulder_hip_px)}px`]);
   kv.push(['session', s.session && s.session.active
-      ? `${s.session.phase}${s.session.simulated ? ' (sim)' : ''}` : 'idle']);
+      ? `${s.session.phase}${s.session.simulated ? ' (sim)' : ''}`
+      : (s.session && s.session.gait_undersampled ? 'idle (last gait: low fps)' : 'idle')]);
+  kv.push(['gait sampling', s.last_gait_undersampled == null
+      ? '-' : (s.last_gait_undersampled ? 'undersampled' : 'ok')]);
   kv.push(['recording', s.recording || '-']);
   kv.push(['db rows', `min ${s.minute_rows} · sess ${s.sessions} · ep ${s.episodes}`]);
   $('status').innerHTML = kv.map(([k,v]) => `<b>${k}</b><span>${v}</span>`).join('');
@@ -292,7 +296,15 @@ $('btn-days').onclick = async () => {
 
 /* ---------- charts & tables ---------- */
 async function loadMinutes() {
-  const rows = await api('/api/minutes?limit=240');
+  const all = await api('/api/minutes?limit=240');
+  // one minute can hold several activity x orientation context rows;
+  // plot the dominant context (most valid frames) per minute
+  const byTs = {};
+  all.forEach(r => {
+    const p = byTs[r.ts];
+    if (!p || (r.n_valid_frames || 0) > (p.n_valid_frames || 0)) byTs[r.ts] = r;
+  });
+  const rows = Object.values(byTs).sort((a, b) => a.ts - b.ts);
   const c = $('chart'), ctx = c.getContext('2d');
   ctx.clearRect(0,0,c.width,c.height);
   const series = [
@@ -347,8 +359,10 @@ async function loadSessions() {
               ['mean_trunk_inclination_deg','trunk'],['arm_swing_amp_deg','arm']];
   rows.slice(0,30).forEach(r=>{
     const g=gait(r); const tr=document.createElement('tr');
-    const when=r.start?new Date(r.start*1000).toLocaleString():'';
-    const cells=[when, r.simulated?'sim':'', fmt(g.speed_m_s), fmt(g.cadence_steps_min),
+    // session.start is epoch ms
+    const when=r.start?new Date(r.start).toLocaleString():'';
+    const cells=[when+(g.undersampled?' · low-fps':''), r.simulated?'sim':'',
+      fmt(g.speed_m_s), fmt(g.cadence_steps_min),
       fmt(g.step_length_m), fmt(g.bounce_mid_hip), fmt(g.mean_trunk_inclination_deg),
       fmt(g.arm_swing_amp_deg)];
     // mean±sd comparison for non-sim rows

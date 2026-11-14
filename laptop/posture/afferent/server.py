@@ -209,7 +209,8 @@ def days_refresh():
 
 @app.get("/api/episodes")
 def episodes(since: float = 0.0, limit: int = 200):
-    return JSONResponse(_STATE["storage"].episodes(since, limit))
+    # `since` is epoch seconds (client clock); rows store epoch ms
+    return JSONResponse(_STATE["storage"].episodes(int(since * 1000), limit))
 
 
 # -- dev recording ---------------------------------------------------------------------

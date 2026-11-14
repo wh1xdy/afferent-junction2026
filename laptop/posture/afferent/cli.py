@@ -73,8 +73,9 @@ def process_video(path: str, db_path: str, enroll_seconds: float = 20.0,
     proc.flush(t)
     wall = time.monotonic() - t_wall0
 
-    # gather summary
-    episodes = storage.episodes(since=0.0, limit=1000)
+    # gather summary (episode/session timestamps are stored as epoch ms;
+    # report them in seconds for readability)
+    episodes = storage.episodes(since_ms=0, limit=1000)
     sessions = storage.sessions()
     gait_vars = []
     for ep in episodes:
@@ -84,7 +85,7 @@ def process_video(path: str, db_path: str, enroll_seconds: float = 20.0,
             except json.JSONDecodeError:
                 variables = {}
             if variables:
-                gait_vars.append({"episode_start": ep["start"],
+                gait_vars.append({"episode_start_s": ep["start"] / 1000.0,
                                   **variables})
     summary = {
         "video": path,
@@ -94,7 +95,7 @@ def process_video(path: str, db_path: str, enroll_seconds: float = 20.0,
         "effective_fps": round(idx / wall, 2) if wall > 0 else None,
         "gallery_size": storage.gallery_count(),
         "episodes": [
-            {"type": e["type"], "start": round(e["start"], 2),
+            {"type": e["type"], "start_s": round(e["start"] / 1000.0, 2),
              "duration_s": round(e["duration_s"] or 0, 2),
              "orientation": e["orientation"], "valid": bool(e["valid"]),
              "distance_m": e["distance_m"], "n_steps": e["n_steps"]}

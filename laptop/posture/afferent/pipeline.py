@@ -52,13 +52,23 @@ class StepDetector:
         self.window_s = window_s
         self.min_step_s = min_step_s
         self._buf: deque[tuple[float, float]] = deque(maxlen=256)
+        self._trunk_hist: deque[float] = deque(maxlen=128)
         self._last_step_t = -10.0
         self._armed = False
 
-    def update(self, t: float, hip_y: float | None) -> bool:
-        """Returns True when a new step (bounce cycle) is detected."""
+    def update(self, t: float, hip_y: float | None,
+               trunk_len_px: float | None = None) -> bool:
+        """Returns True when a new step (bounce cycle) is detected.
+
+        `trunk_len_px` scales the minimum bounce range: a fixed pixel
+        threshold is unreachable for a person far from the camera, so the
+        required range is 2% of the median recent trunk length (floor of
+        1.5 px, and of 2 px while no trunk length is known yet)."""
         if hip_y is None or not np.isfinite(hip_y):
             return False
+        if (trunk_len_px is not None and np.isfinite(trunk_len_px)
+                and trunk_len_px > 0):
+            self._trunk_hist.append(float(trunk_len_px))
         self._buf.append((t, float(hip_y)))
         cutoff = t - self.window_s
         while self._buf and self._buf[0][0] < cutoff:
@@ -67,7 +77,11 @@ class StepDetector:
             return False
         ys = np.array([y for _, y in self._buf])
         rng = float(ys.max() - ys.min())
-        if rng < 2.0:  # no visible bounce -> cannot count steps
+        if self._trunk_hist:
+            min_range = max(1.5, 0.02 * float(np.median(self._trunk_hist)))
+        else:
+            min_range = 2.0
+        if rng < min_range:  # no visible bounce -> cannot count steps
             return False
         hyst = 0.25 * rng
         base = float(np.median(ys))
@@ -94,7 +108,10 @@ class FrameProcessor:
         self.identity = IdentityTracker(
             storage, threshold=cfg.face_match_threshold,
             lost_after_s=cfg.lost_after_s,
-            enroll_min=cfg.enroll_min, enroll_max=cfg.enroll_max)
+            enroll_min=cfg.enroll_min, enroll_max=cfg.enroll_max,
+            dedupe_cosine=cfg.enroll_dedupe_cosine,
+            mismatch_unlock_s=cfg.mismatch_unlock_s,
+            face_max_age_s=cfg.face_max_age_s)
         self.smoother = KeypointSmoother(
             kp.N_KEYPOINTS, cfg.one_euro_min_cutoff, cfg.one_euro_beta,
             cfg.kpt_conf_threshold)
@@ -117,6 +134,7 @@ class FrameProcessor:
         self._processed = 0
         self._persons_seen = 0
         self._frames_with_target = 0
+        self._last_had_persons = False  # read by process() from frame 0
         self.last_result: dict[str, Any] = {}
 
     # -- site (room) ------------------------------------------------------------
@@ -254,7 +272,7 @@ class FrameProcessor:
             self._gait_buf.append(gait_sample)
             mh = geo.mid_hip(kpts)
             if mh is not None and self._step_detector.update(
-                    t, float(mh[1])):
+                    t, float(mh[1]), fs.trunk_len_px):
                 self.episodes.note_step()
         else:
             self._close_gait(t)
@@ -291,7 +309,8 @@ class FrameProcessor:
 
     def _close_gait(self, t: float) -> None:
         if len(self._gait_buf) >= 10:
-            result = gait_mod.analyze_gait(self._gait_buf)
+            result = gait_mod.analyze_gait(
+                self._gait_buf, min_fps=self.cfg.gait_min_fps)
             self._last_gait = {
                 "start": self._gait_buf_start, "end": t,
                 "result": result,
@@ -317,6 +336,8 @@ class FrameProcessor:
                 "arm_swing_amp_deg": gait_res.arm_swing_amp_deg,
                 "distance_m": gait_res.distance_m,
                 "calibrated": gait_res.calibrated,
+                "effective_fps": gait_res.effective_fps,
+                "undersampled": gait_res.undersampled,
             }
         self.storage.add_episode(
             ep, variables=variables,
@@ -332,7 +353,7 @@ class FrameProcessor:
         self.storage.set_config("floor_homography", fm.to_json())
         return True
 
-    def calibrate_upright(self, window_s: float = 5.0) -> dict | None:
+    def calibrate_upright(self) -> dict | None:
         """Compute upright references from recent smoothed samples."""
         # Uses the session upright buffer if present, else recent history.
         if self.session is not None and self.session.upright_samples:
@@ -379,7 +400,8 @@ class FrameProcessor:
         day = _dt.datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
         day0 = _dt.datetime.fromtimestamp(ts).replace(
             hour=0, minute=0, second=0, microsecond=0).timestamp()
-        rows = self.storage.minutes_since(int(day0 * 1000), limit=2000)
+        # several context rows can share one minute -> headroom over 1440
+        rows = self.storage.minutes_since(int(day0 * 1000), limit=6000)
         if not rows:
             return None
         agg = daily_aggregate(rows)
@@ -400,6 +422,9 @@ class FrameProcessor:
             "floor_calibrated": self.floor.calibrated,
             "ref_shoulder_hip_px": self.ref_shoulder_hip_px,
             "ref_trunk_len_px": self.ref_trunk_len_px,
+            "last_gait_undersampled": (
+                self._last_gait["result"].undersampled
+                if self._last_gait is not None else None),
         }
 
 
@@ -482,7 +507,8 @@ class GuidedSession:
         self.phase_start = t
 
     def _finish(self, t: float) -> None:
-        gait_res = gait_mod.analyze_gait(self.walk_samples) \
+        gait_res = gait_mod.analyze_gait(
+            self.walk_samples, min_fps=self.p.cfg.gait_min_fps) \
             if len(self.walk_samples) >= 10 else None
         upright_ref = {
             "ref_trunk_len_px": self.p.ref_trunk_len_px,
@@ -490,7 +516,8 @@ class GuidedSession:
             "n_upright_samples": len(self.upright_samples),
         }
         variables = {"upright": upright_ref}
-        quality_ok = bool(gait_res and gait_res.n_samples >= 10)
+        quality_ok = bool(gait_res and gait_res.n_samples >= 10
+                          and not gait_res.undersampled)
         if gait_res is not None:
             variables["gait"] = {
                 "n_samples": gait_res.n_samples,
@@ -507,6 +534,8 @@ class GuidedSession:
                     gait_res.mean_trunk_inclination_deg,
                 "arm_swing_amp_deg": gait_res.arm_swing_amp_deg,
                 "calibrated": gait_res.calibrated,
+                "effective_fps": gait_res.effective_fps,
+                "undersampled": gait_res.undersampled,
             }
         if self.session_id is not None:
             self.p.storage.end_session(self.session_id, variables,
@@ -532,7 +561,6 @@ class Pipeline:
         self._recorder: cv2.VideoWriter | None = None
         self._rec_path: str | None = None
         self._rec_pending = False
-        self._last_had_persons = False
         self._models_ready = threading.Event()
         self.models_error: str | None = None
         self._pose_fps_ema = 0.0
@@ -736,6 +764,9 @@ class Pipeline:
                 "active": self.proc.session.active,
                 "phase": self.proc.session.phase,
                 "simulated": self.proc.session.simulated,
+                "gait_undersampled": (
+                    self.proc.session.result.get("gait", {})
+                    .get("undersampled")),
             },
             "recording": self._rec_path,
             "frame_w": self.proc.last_result.get("frame_w"),
