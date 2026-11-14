@@ -13,15 +13,24 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     @Published var recentMicro: ExpressionEvent?
     @Published var microCount = 0
     @Published var finished: ExpressionSession.Summary?
+    @Published var exportURL: URL?
+    @Published var gazeNow: (yaw: Double, pitch: Double) = (0, 0)
+    @Published var showDebug = false
 
     let supported = ARFaceTrackingConfiguration.isSupported
     weak var session: ARSession?
     private var expr = ExpressionSession()
     private var t0: TimeInterval?
+    // raw recording for offline tuning: t, gaze yaw/pitch, 52 blendshapes (fixed key order)
+    private var rec: [[Float]] = []
+    private var keys: [String] = []
 
     func start() {
         expr = ExpressionSession()
         t0 = nil
+        rec.removeAll(keepingCapacity: true)
+        keys = []
+        exportURL = nil
         finished = nil
         microCount = 0
         recentMicro = nil
@@ -34,6 +43,27 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
     func stop() {
         running = false
         finished = expr.summary
+        exportURL = writeRecording()
+    }
+
+    /// Session as JSON for offline analysis (AirDrop it to the Mac).
+    private func writeRecording() -> URL? {
+        let s = expr.summary
+        let doc: [String: Any] = [
+            "format": "afferent-expressions-v1",
+            "hz": 60,
+            "columns": ["t", "gaze_yaw_deg", "gaze_pitch_deg"] + keys,
+            "frames": rec.map { $0.map { (Double($0) * 1000).rounded() / 1000 } },
+            "events": expr.events.map { ["kind": $0.kind.rawValue, "start": $0.start, "duration": $0.duration, "peak": $0.peak] },
+            "summary": ["seconds": s.seconds, "smileShare": s.smileShare, "expressivity": s.expressivity,
+                        "gazeDownShare": s.gazeDownShare, "blinksPerMinute": s.blinksPerMinute,
+                        "gazeShiftsPerMinute": s.gazeShiftsPerMinute, "gazeAwayShare": s.gazeAwayShare,
+                        "eyeWideShare": s.eyeWideShare],
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: doc) else { return nil }
+        let f = DateFormatter(); f.dateFormat = "yyyyMMdd-HHmmss"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("afferent-session-\(f.string(from: Date())).json")
+        return (try? data.write(to: url)) != nil ? url : nil
     }
 
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
@@ -47,7 +77,10 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
         for (k, v) in face.blendShapes { b[k.rawValue] = v.doubleValue }
         let before = expr.events.count
         expr.feed(b, t: t)
-        if face.isTracked { expr.feedGaze(yaw: Self.gaze(face, frame).yaw, pitch: Self.gaze(face, frame).pitch, t: t) }
+        let g = Self.gaze(face, frame)
+        if face.isTracked { expr.feedGaze(yaw: g.yaw, pitch: g.pitch, t: t) }
+        if keys.isEmpty { keys = b.keys.sorted() }
+        rec.append([Float(t - (t0 ?? t)), Float(g.yaw), Float(g.pitch)] + keys.map { Float(b[$0] ?? 0) })
         let newMicro = expr.events.dropFirst(before).last { $0.isMicro }
         let el = t - (t0 ?? t)
         let vals = ExpressionKind.values(b)
@@ -55,6 +88,7 @@ final class ExpressionTracker: NSObject, ObservableObject, ARSessionDelegate {
             self.faceTracked = face.isTracked
             self.elapsed = el
             self.live = vals
+            self.gazeNow = g
             if let m = newMicro { self.recentMicro = m; self.microCount += 1 }
             if el >= Self.duration && self.running { self.stop() }
         }
@@ -100,7 +134,7 @@ struct ExpressionView: View {
                 Text("Face tracking needs a TrueDepth camera (iPhone X or newer).")
                     .multilineTextAlignment(.center).padding()
             } else if let s = tracker.finished {
-                ExpressionReport(summary: s, pulse: finger.freshBpm ?? lastCameraBpm) { tracker.start() }
+                ExpressionReport(summary: s, pulse: finger.freshBpm ?? lastCameraBpm, export: tracker.exportURL) { tracker.start() }
             } else {
                 VStack(spacing: 16) {
                     Text("EXPRESSIONS").font(.system(size: 13, weight: .semibold)).tracking(4)
@@ -118,12 +152,18 @@ struct ExpressionView: View {
                         Text(tracker.recentMicro.map { "micro-expression: \($0.kind.label) (\(Int($0.duration * 1000)) ms)" } ?? " ")
                             .font(.caption.monospacedDigit()).foregroundStyle(.purple)
                         Text("\(tracker.microCount) micro-expressions").font(.caption2).foregroundStyle(.black.opacity(0.4))
+                        if tracker.showDebug {
+                            Text(String(format: "gaze yaw %+.0f°  pitch %+.0f°", tracker.gazeNow.yaw, tracker.gazeNow.pitch))
+                                .font(.caption2.monospacedDigit()).foregroundStyle(.black.opacity(0.5))
+                        }
                     } else {
                         Text("A 60-second session: relax, think of something good, then of your week. We look at facial movement and your eyes — on the phone, nothing is stored or sent.")
                             .font(.footnote).multilineTextAlignment(.center).foregroundStyle(.black.opacity(0.6))
                             .padding(.horizontal, 28)
                         Button("Start session") { tracker.start() }
                             .buttonStyle(.borderedProminent).tint(.black)
+                        Toggle("Show gaze angles", isOn: $tracker.showDebug)
+                            .font(.footnote).frame(width: 220)
                     }
                     Spacer()
                 }
@@ -162,6 +202,7 @@ struct ExpressionView: View {
 struct ExpressionReport: View {
     let summary: ExpressionSession.Summary
     let pulse: Int?
+    let export: URL?
     let again: () -> Void
 
     var body: some View {
@@ -193,7 +234,13 @@ struct ExpressionReport: View {
                         row(k.label, "\(summary.micro[k] ?? 0) micro · \(summary.macro[k] ?? 0) longer")
                     }
                 }
-                Button("New session", action: again).buttonStyle(.borderedProminent).tint(.black)
+                HStack {
+                    Button("New session", action: again).buttonStyle(.borderedProminent).tint(.black)
+                    if let export {
+                        ShareLink(item: export) { Label("Export data", systemImage: "square.and.arrow.up") }
+                            .buttonStyle(.bordered).tint(.black)
+                    }
+                }
             }
             .padding(24)
         }

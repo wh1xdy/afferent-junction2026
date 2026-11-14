@@ -64,6 +64,12 @@ final class ExpressionTests: XCTestCase {
         XCTAssertTrue(act.notes.contains { $0.contains("pulse") })
     }
 
+    func testSadDoesNotTriggerSurprise() {
+        let sad = ExpressionKind.values(["browInnerUp": 0.7, "mouthFrownLeft": 0.6, "mouthFrownRight": 0.6])
+        XCTAssertGreaterThan(sad[.sad]!, 0.5)
+        XCTAssertLessThan(sad[.surprise]!, 0.05)
+    }
+
     func testPHQ9() {
         XCTAssertEqual(PHQ9.score([1, 1, 1, 1, 1, 0, 0, 0, 0]), 5)
         XCTAssertEqual(PHQ9.severity(5), "Mild")

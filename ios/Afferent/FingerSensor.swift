@@ -1,18 +1,19 @@
 import CoreBluetooth
 import Foundation
 
-/// Reads the finger PulseSensor on the UNO Q over Bluetooth LE.
-/// The UNO Q advertises the standard Heart Rate Service (0x180D) as "Afferent Finger";
-/// any heart-rate strap would work here too.
+/// Reads the finger PulseSensors on the UNO Q over Bluetooth LE.
+/// The UNO Q advertises "Afferent Finger": the standard Heart Rate Service (0x180D) carries
+/// the fused reading of both sensors; custom AFF0/AFF1 carries each sensor [finger 1, finger 2].
+/// Any heart-rate strap works for the main reading too.
 final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     enum State: Equatable { case off, unauthorized, scanning, connecting, connected }
 
     @Published var state: State = .off
     @Published var bpm: Int?
-    @Published var bpm2: Int?
+    @Published var sensors: [Int?] = [nil, nil]   // per sensor, detail only
     @Published var name: String?
     @Published var lastUpdate: Date?
-    @Published var lastUpdate2: Date?
+    @Published var sensorsUpdate: Date?
 
     private static let heartRateService = CBUUID(string: "180D")
     private static let measurement = CBUUID(string: "2A37")
@@ -33,9 +34,9 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
         return bpm
     }
 
-    var freshBpm2: Int? {
-        guard let bpm2, let t = lastUpdate2, Date().timeIntervalSince(t) < 5 else { return nil }
-        return bpm2
+    var freshSensors: [Int?] {
+        guard let t = sensorsUpdate, Date().timeIntervalSince(t) < 5 else { return [nil, nil] }
+        return sensors
     }
 
     func centralManagerDidUpdateState(_ c: CBCentralManager) {
@@ -75,7 +76,7 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
     private func reset() {
         peripheral = nil
         bpm = nil
-        bpm2 = nil
+        sensors = [nil, nil]
         scan()
     }
 
@@ -95,11 +96,11 @@ final class FingerSensor: NSObject, ObservableObject, CBCentralManagerDelegate, 
 
     func peripheral(_ p: CBPeripheral, didUpdateValueFor ch: CBCharacteristic, error: Error?) {
         if ch.uuid == Self.bothFingers {
-            // [finger 1, finger 2], 0 = no reading; only finger 2 is taken from here,
-            // finger 1 comes from the standard Heart Rate Measurement
+            // [finger 1, finger 2], 0 = no reading
             guard let d = ch.value, d.count >= 2 else { return }
             let b = [UInt8](d)
-            if b[1] > 0 { bpm2 = Int(b[1]); lastUpdate2 = Date() }
+            sensors = [b[0] > 0 ? Int(b[0]) : nil, b[1] > 0 ? Int(b[1]) : nil]
+            sensorsUpdate = Date()
             return
         }
         guard let v = Self.parse(ch.value) else { return }
