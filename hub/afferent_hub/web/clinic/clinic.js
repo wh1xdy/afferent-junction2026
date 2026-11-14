@@ -110,7 +110,7 @@
       closeMenu();
       if (!confirm('Reset demo data?')) return;
       await C.demo.reset();
-      toast('Demo data reset');
+      toast('Reset');
       if (location.hash && location.hash !== '#/' && S.route.name === 'patients') location.hash = '#/';
       else render();
     }

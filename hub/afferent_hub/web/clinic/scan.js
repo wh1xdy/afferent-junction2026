@@ -8,7 +8,7 @@
   const when = (x) => { const d = asDate(x); return `${day(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const icon = (n, cls = '') => `<span class="ms ${cls}" aria-hidden="true">${n}</span>`;
   const info = (t) => `<button class="info" type="button" aria-label="${esc(t)}" data-tip="${esc(t)}">${icon('info')}</button>`;
-  const TRUST_INFO = 'Compare with the patient\'s screen. Checks the phone, not the person.';
+  const TRUST_INFO = 'Match the patient\'s screen. Verifies the phone, not the person.';
 
   let db = null;
   const keys = new Map(), imports = new Map();
@@ -112,16 +112,16 @@
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-labelledby', 'scan-title');
-  el.innerHTML = `<div class="scan-top"><button class="icon-btn" data-qr="close" aria-label="Close">${icon('close')}</button><h2 id="scan-title">Scan patient QR</h2></div>
+  el.innerHTML = `<div class="scan-top"><button class="icon-btn" data-qr="close" aria-label="Close">${icon('close')}</button><h2 id="scan-title">Scan</h2></div>
     <div class="scan-body">
       <div class="scan-stage">
         <div class="scan-mirror"><video playsinline muted></video><canvas class="scan-freeze" hidden></canvas><svg class="scan-outline" preserveAspectRatio="xMidYMid slice"></svg></div>
         <div class="scan-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="scan-nocam" hidden>${icon('photo_camera')}<p>Camera needs localhost or https</p></div>
+        <div class="scan-nocam" hidden>${icon('photo_camera')}<p>Camera needs HTTPS</p></div>
         <span class="scan-pill num" hidden></span>
       </div>
       <div class="scan-card" hidden></div>
-      <div class="scan-alt"><button class="btn text" data-qr="wedge">${icon('keyboard')}Use a scanner</button><button class="btn text" data-qr="image">${icon('image')}Open image</button><span class="scan-ready" hidden>Ready for the scanner</span></div>
+      <div class="scan-alt"><button class="btn text" data-qr="wedge">${icon('keyboard')}Scanner</button><button class="btn text" data-qr="image">${icon('image')}Image</button><span class="scan-ready" hidden>Ready</span></div>
     </div>
     <textarea class="scan-wedge" aria-label="Scanner input" autocomplete="off" spellcheck="false"></textarea>
     <input class="scan-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>`;
@@ -221,42 +221,42 @@
     stage.hidden = false;
   }
   const errorCard = (ic, text, buttons) => showCard(`<div class="scard" data-kind="error">${icon(ic)}<p class="scard-t">${esc(text)}</p><div class="dactions">${buttons}</div></div>`);
-  const btnAgain = `<button class="btn filled" data-qr="again">${icon('qr_code_scanner')}Scan again</button>`;
+  const btnAgain = `<button class="btn filled" data-qr="again">${icon('qr_code_scanner')}Rescan</button>`;
   const btnClose = `<button class="btn filled" data-qr="close">Close</button>`;
 
   let held = null;
   async function handle(text) {
     const c = parts.add(C.qr.clean(text));
     if (c.status === 'part') {
-      pill.textContent = `${c.have} of ${c.n} scanned`;
+      pill.textContent = `${c.have}/${c.n}`;
       pill.hidden = false;
       return resume();
     }
     pill.hidden = true;
-    if (c.status !== 'complete') return errorCard('error', 'Not an Afferent code.', btnAgain);
+    if (c.status !== 'complete') return errorCard('error', 'Not Afferent', btnAgain);
     const r = C.qr.decode(c.text);
     r.raw = c.text;
     held = r;
     switch (r.status) {
-      case 'foreign': return errorCard('error', 'Not an Afferent code.', btnAgain);
-      case 'unavailable': return errorCard('error', 'The code reader did not load. Reload the dashboard.', btnClose);
-      case 'newer': return errorCard('update', 'Made by a newer Afferent version. Update the dashboard.', btnClose);
-      case 'expired': return errorCard('schedule', `This code expired on ${when(r.exp)}. Ask for a new one.`, `<button class="btn text" data-qr="once">View once</button>${btnAgain}`);
-      case 'future': return errorCard('schedule', "The patient's phone clock looks wrong. The data are shown, but check the dates.", `<button class="btn text" data-qr="again">Scan again</button><button class="btn filled" data-qr="future-import">Import</button>`);
+      case 'foreign': return errorCard('error', 'Not Afferent', btnAgain);
+      case 'unavailable': return errorCard('error', 'Reload page', btnClose);
+      case 'newer': return errorCard('update', 'Update dashboard', btnClose);
+      case 'expired': return errorCard('schedule', `Expired ${when(r.exp)}`, `<button class="btn text" data-qr="once">View once</button>${btnAgain}`);
+      case 'future': return errorCard('schedule', 'Phone clock wrong', `<button class="btn text" data-qr="again">Rescan</button><button class="btn filled" data-qr="future-import">Import</button>`);
       case 'ok': return accept(r, {});
-      default: return errorCard('error', 'This code could not be checked. Do not use it. Ask the patient to show it again.', btnAgain);
+      default: return errorCard('error', 'Invalid. Do not use.', btnAgain);
     }
   }
 
   async function accept(r, extra) {
     const prev = codes.get(r.cti);
-    if (prev) { close(); go(prev.cti); return toast(`Already received ${when(prev.scanned_iso)}`); }
+    if (prev) { close(); go(prev.cti); return toast('Already received'); }
     const k = codes.key(r.fp);
     if (k) {
       const imp = await codes.add(r, k, extra);
       close();
       go(imp.cti);
-      return toast('Export received', async () => { await codes.remove(imp.cti); if (location.hash === '#/e/' + imp.cti) location.hash = '#/'; else C.rerender?.(); });
+      return toast('Received', async () => { await codes.remove(imp.cti); if (location.hash === '#/e/' + imp.cti) location.hash = '#/'; else C.rerender?.(); });
     }
     held = { ...r, extra };
     const recs = codes.records();
@@ -265,7 +265,7 @@
       <h3>New phone ${info(TRUST_INFO)}</h3>
       <div class="fp num" aria-label="${esc([...r.fp.replace(/ /g, '')].join(' '))}">${esc(r.fp)}</div>
       <label class="field"><span>Label</span><input id="scan-label" value="${esc(pre)}" maxlength="40" required autocomplete="off"></label>
-      ${recs.length ? `<label class="field"><span>Same patient as</span><select id="scan-rec"><option value="">None</option>${recs.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</select></label>` : ''}
+      ${recs.length ? `<label class="field"><span>Same patient</span><select id="scan-rec"><option value="">None</option>${recs.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</select></label>` : ''}
       <div class="dactions"><button class="btn text" data-qr="again">Cancel</button><button class="btn filled" data-qr="trust">Import</button></div></div>`);
   }
 
@@ -347,7 +347,7 @@
       }
     } catch {}
     open();
-    if (!text) return errorCard('image', 'No code found in this image.', btnAgain);
+    if (!text) return errorCard('image', 'No code found', btnAgain);
     live = false;
     processing = true;
     await handle(text);
@@ -430,8 +430,8 @@
     }
     document.querySelectorAll('.xmenu').forEach((x) => (x.hidden = true));
     if (a === 'download') return codes.download(cti);
-    if (a === 'delete' && imp) { await codes.remove(cti); toast('Export deleted'); }
-    else if (a === 'forget' && imp) { await codes.forget(imp.fp); toast(`Forgot the phone ${imp.fp}`); }
+    if (a === 'delete' && imp) { await codes.remove(cti); toast('Deleted'); }
+    else if (a === 'forget' && imp) { await codes.forget(imp.fp); toast('Phone forgotten'); }
     if (location.hash.startsWith('#/e/') && !codes.get(decodeURIComponent(location.hash.slice(4)))) location.hash = '#/';
     else C.rerender?.();
   });
