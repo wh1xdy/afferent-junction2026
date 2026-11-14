@@ -537,6 +537,19 @@ function replayJs(sc) {
 }
 
 const norm = x => JSON.parse(JSON.stringify(x, (k, v) => Object.is(v, -0) ? 0 : v));
+// Canonical JSON (sorted keys) for a fast equality check; on a mismatch, name the first field.
+const canon = x => JSON.stringify(x, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(key => [key, v[key]])) : v);
+const firstDiff = (a, b, at = '') => {
+  if (canon(a) === canon(b)) return null;
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      const d = firstDiff(a[k], b[k], `${at}.${k}`);
+      if (d) return d;
+    }
+  }
+  return `${at}: port ${JSON.stringify(a)} vs core.py ${JSON.stringify(b)}`;
+};
+const same = (a, b, what) => { const d = firstDiff(a, b); if (d) throw new Error(`${what}: ${d}`); };
 
 const SEEDS = Number(process.env.PRESENCE_SEEDS) || 12;   // PRESENCE_SEEDS=200 for a deeper run
 tests[`differential: ${SEEDS} random traces match jetson/presence/core.py tick by tick`] = () => {
@@ -549,11 +562,11 @@ tests[`differential: ${SEEDS} random traces match jetson/presence/core.py tick b
     assert.strictEqual(r.status, 0, r.stderr);
     const want = norm(JSON.parse(r.stdout)), got = norm(replayJs(sc));
     for (let i = 0; i < want.out.length; i++) {
-      assert.deepStrictEqual(got.out[i], want.out[i], `seed ${seed} tick ${i} (t=${sc.steps[i].t}) differs`);
+      same(got.out[i], want.out[i], `seed ${seed} tick ${i} (t=${sc.steps[i].t})`);
       events += want.out[i].ev.length;
     }
-    assert.deepStrictEqual(got.p, want.p, `seed ${seed}: presence state differs`);
-    assert.deepStrictEqual(got.g, want.g, `seed ${seed}: guest state differs`);
+    same(got.p, want.p, `seed ${seed}: presence state`);
+    same(got.g, want.g, `seed ${seed}: guest state`);
     ticks += want.out.length;
   }
   assert.ok(events > 100, `traces too quiet (${events} events)`);
