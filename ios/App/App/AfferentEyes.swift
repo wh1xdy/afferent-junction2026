@@ -2,7 +2,7 @@ import ARKit
 import Capacitor
 
 @objc(AfferentEyesPlugin)
-public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate {
+public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AfferentEyesPlugin"
     public let jsName = "AfferentEyes"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -10,31 +10,22 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
     ]
 
-    private var session: ARSession?
     private var lastSent: TimeInterval = 0
 
     @objc func start(_ call: CAPPluginCall) {
-        guard ARFaceTrackingConfiguration.isSupported else {
+        guard FaceSession.supported else {
             call.reject("TrueDepth camera not available")
             return
         }
         DispatchQueue.main.async {
-            FaceFrames.shared.eyesSession(true)
-            let session = ARSession()
-            session.delegate = self
-            let config = ARFaceTrackingConfiguration()
-            config.isLightEstimationEnabled = true
-            session.run(config, options: [.resetTracking, .removeExistingAnchors])
-            self.session = session
+            FaceSession.shared.hold(.eyes, anchors: { [weak self] session, anchors in self?.eyes(session, anchors) })
             call.resolve()
         }
     }
 
     @objc func stop(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            self.session?.pause()
-            self.session = nil
-            FaceFrames.shared.eyesSession(false)
+            FaceSession.shared.release(.eyes)
             call.resolve()
         }
     }
@@ -46,12 +37,7 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
         return Double(atan2(-forward.x, forward.z)) * 180.0 / Double.pi
     }
 
-    public func session(_ session: ARSession, didUpdate frame: ARFrame) {
-        guard session === self.session else { return }
-        FaceFrames.shared.onFrame?(frame)
-    }
-
-    public func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
+    private func eyes(_ session: ARSession, _ anchors: [ARAnchor]) {
         guard let face = anchors.compactMap({ $0 as? ARFaceAnchor }).first else { return }
         let now = CACurrentMediaTime()
         guard now - lastSent >= 1.0 / 30.0 else { return }
@@ -72,7 +58,7 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin, ARSessionDelegate 
         if let light = frame?.lightEstimate {
             data["ambient"] = max(0, min(1, Double(light.ambientIntensity) / 2000.0))
         }
-        notifyListeners("eyes", data: data)
+        DispatchQueue.main.async { self.notifyListeners("eyes", data: data) }
     }
 }
 
@@ -83,5 +69,6 @@ class AfferentViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AfferentEyesPlugin())
         bridge?.registerPluginInstance(AfferentPulsePlugin())
         bridge?.registerPluginInstance(AfferentVisionPlugin())
+        bridge?.registerPluginInstance(AfferentFacePlugin())
     }
 }

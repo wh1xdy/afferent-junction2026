@@ -315,6 +315,18 @@ const tests = {
     assert.strictEqual(at(), null);
     assert.deepStrictEqual(plain(S.cameraState(A.now())), { link: 'unavailable', face: false, reason: null });
 
+    assert.deepStrictEqual(plain(S.cameraWhy(A.now())), { reason: null, warmup_s_left: null }, 'a plugin that gives no reason: none is made up');
+    cam(S, { bpm: null, trust: undefined, reason: 'warming_up', warmup_s_left: 3.5 });
+    assert.deepStrictEqual(plain(S.cameraWhy(A.now())), { reason: 'warming_up', warmup_s_left: 3.5 });
+    cam(S, { bpm: null, trust: undefined, face: false, reason: 'no_face', warmup_s_left: null });
+    assert.deepStrictEqual(plain(S.cameraWhy(A.now())), { reason: 'no_face', warmup_s_left: null });
+    cam(S, { bpm: null, trust: undefined, reason: 'feeling unwell', warmup_s_left: -2 });
+    assert.deepStrictEqual(plain(S.cameraWhy(A.now())), { reason: null, warmup_s_left: null }, 'only the plugin\'s own reasons are taken');
+    cam(S, { reason: null });
+    assert.deepStrictEqual(plain(S.cameraWhy(A.now())), { reason: null, warmup_s_left: null });
+    tick(3.1);
+    assert.strictEqual(S.cameraWhy(A.now()), null, 'a reason counts for 3 s like the reading');
+
     cam(S);
     assert.strictEqual(at().bpm, 80);
     cam(S, { bpm: null, trust: undefined });
@@ -593,6 +605,40 @@ const tests = {
     const bare = load();
     await bare.A.CamPulse.sync();
     assert.deepStrictEqual([bare.A.CamPulse.available(), bare.A.Sensors.camLink.state], [false, 'unavailable'], 'no plugin in this build');
+  },
+
+  async 'r: on iOS the camera starts on the ARKit eyes; the capture plugin is the fallback and its pulse stays a camera estimate'() {
+    const { A, ctx } = load(), S = A.Sensors;
+    const fake = () => {
+      const ls = {};
+      return {
+        starts: 0, stops: 0, fail: false,
+        async start() { if (this.fail) throw new Error('TrueDepth camera not available'); this.starts++; },
+        async stop() { this.stops++; },
+        async addListener(ev, fn) { (ls[ev] = ls[ev] || []).push(fn); return { remove() { ls[ev] = ls[ev].filter(f => f !== fn); } }; },
+        emit(ev, d) { (ls[ev] || []).forEach(f => f(d)); },
+      };
+    };
+    const eyes = fake(), vision = fake();
+    ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: { AfferentEyes: eyes, AfferentVision: vision } };
+    assert.strictEqual(await S.startCamera(), 'arkit');
+    assert.deepStrictEqual([eyes.starts, vision.starts], [1, 0], 'with a TrueDepth camera the one ARKit session is used, not a second capture');
+    eyes.emit('pulse', { source: 'rppg', bpm: 91, trust: { score: 90, label: 'reliable', reasons: [] } });
+    assert.strictEqual(S.cameraPulse(A.now()), null, 'the eyes plugin is not listened to for a pulse');
+    S.stop();
+    await S.stopping;
+
+    eyes.fail = true;
+    assert.strictEqual(await S.startCamera(), 'vision');
+    assert.deepStrictEqual([eyes.starts, vision.starts], [1, 1]);
+    vision.emit('eyes', { tracked: true, blink_l: 0.1, blink_r: 0.1, openness: 0.9 });
+    assert.strictEqual(S.read(A.now(), 0.05).tracked, true);
+    vision.emit('pulse', { source: 'rppg', bpm: 88, quality: 0.8, face: true, trust: { score: 80, label: 'reliable', reasons: [] } });
+    assert.deepStrictEqual([S.cameraPulse(A.now()).bpm, S.cameraState(A.now()).link], [88, 'on']);
+    S.enabled.simulator = false;
+    assert.deepStrictEqual([S.pulse(A.now()).bpm, S.realProducer(A.now())], [null, false], 'never the pulse the game uses');
+    S.stop();
+    assert.strictEqual(vision.stops, 1);
   },
 };
 

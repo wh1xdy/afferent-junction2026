@@ -335,6 +335,46 @@ const tests = {
     assert.strictEqual(text.match(LABELS), null, `label in patient text: ${text.match(LABELS)}`);
     assert.strictEqual(text.match(/\b(hrv|high|low|normal|abnormal|elevated|healthy|unhealthy|good|bad|poor|calm|anxious|tense|relaxed|worried|risk|alert|warning|stress\w*|screen\w*)\b/gi), null);
   },
+
+  async 'i: the fake plugin answers the gaze calibration calls like the native one'() {
+    const { facePlugin: p } = load({ face: true });
+    const none = { gain_x: null, gain_y: null, offset_x_deg: null, offset_y_deg: null, residual_deg: null };
+    assert.deepStrictEqual(await p.calibrationStatus(), { calibrated: false, at_ms: null, residual_deg: null });
+    assert.deepStrictEqual(await p.calibrationPoint({ x: 0.5, y: 0.5, hold_ms: 1000 }), { ok: false, samples: 0, spread_deg: null, reason: 'not_started' });
+    assert.deepStrictEqual(await p.calibrationFinish(), { ok: false, ...none, samples: 0, points: 0, reason: 'not_started' });
+    assert.deepStrictEqual(keys(await p.calibrationStart()), ['density', 'screen_h_cm', 'screen_w_cm']);
+    assert.strictEqual((await p.calibrationPoint({ x: 0.5, y: 0.5 })).reason, 'not_running', 'no frames before start()');
+    await p.start();
+    await assert.rejects(p.calibrationPoint({ x: 1.2, y: 0.5 }), e => e.code === 'bad_point');
+    const dots = [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]];
+    for (const [x, y] of dots.slice(0, 4)) assert.deepStrictEqual(await p.calibrationPoint({ x, y, hold_ms: 1000 }), { ok: true, samples: 60, spread_deg: 0.4, reason: null });
+    p.cal.point = () => ({ ok: false, samples: 55, spread_deg: 4.2, reason: 'unsteady' });
+    assert.strictEqual((await p.calibrationPoint({ x: 0.1, y: 0.9 })).reason, 'unsteady');
+    assert.deepStrictEqual(await p.calibrationFinish(), { ok: false, ...none, samples: 0, points: 4, reason: 'too_few_points' });
+    assert.strictEqual((await p.calibrationStatus()).calibrated, false, 'a run that ended without a fit stores nothing');
+
+    p.cal.point = null;
+    await p.calibrationStart();
+    for (const [x, y] of dots) await p.calibrationPoint({ x, y, hold_ms: 800 });
+    p.cal.fit = { ok: false, gain_x: 0.5, gain_y: 3.1, offset_x_deg: 2, offset_y_deg: -4, residual_deg: 6.5, reason: 'poor_fit' };
+    const rejected = await p.calibrationFinish();
+    assert.deepStrictEqual([rejected.ok, rejected.reason, rejected.residual_deg, rejected.points, rejected.samples], [false, 'poor_fit', 6.5, 5, 240]);
+    assert.strictEqual((await p.calibrationStatus()).calibrated, false, 'a fit that is not ok is not stored');
+
+    p.cal.fit = null;
+    await p.calibrationStart();
+    for (const [x, y] of dots) await p.calibrationPoint({ x, y });
+    const fit = await p.calibrationFinish();
+    assert.deepStrictEqual(keys(fit), ['gain_x', 'gain_y', 'offset_x_deg', 'offset_y_deg', 'ok', 'points', 'reason', 'residual_deg', 'samples']);
+    assert.deepStrictEqual([fit.ok, fit.reason, fit.points], [true, null, 5]);
+    const status = await p.calibrationStatus();
+    assert.deepStrictEqual([status.calibrated, typeof status.at_ms, status.residual_deg], [true, 'number', 1.1]);
+    assert.deepStrictEqual(await p.calibrationClear(), {});
+    assert.deepStrictEqual(await p.calibrationStatus(), { calibrated: false, at_ms: null, residual_deg: null });
+
+    const core = load({ face: 'core' }).facePlugin;
+    for (const m of ['calibrationStart', 'calibrationPoint', 'calibrationFinish', 'calibrationStatus', 'calibrationClear']) await assert.rejects(core[m]({}), e => e.code === 'UNIMPLEMENTED');
+  },
 };
 
 (async () => {

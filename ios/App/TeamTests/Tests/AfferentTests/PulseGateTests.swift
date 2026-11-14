@@ -59,4 +59,35 @@ final class PulseGateTests: XCTestCase {
         XCTAssertFalse(PulseGate.held(exposureLocked: false, whiteBalanceLocked: true, whiteBalanceLockable: true))
         XCTAssertFalse(PulseGate.held(exposureLocked: false, whiteBalanceLocked: false, whiteBalanceLockable: false))
     }
+
+    func testWhyThereIsNoCameraPulse() {
+        typealias Why = PulseGate.Why
+        let ok = (luma: 120.0, clipped: 0.0)
+        func why(tracked: Bool = true, locked: Bool = true, settle: Double = 0, light: (luma: Double, clipped: Double)? = ok,
+                 fresh: Bool = true, buffered: Double = 10, reading: (trust: Int, motion: Double)? = nil) -> Why {
+            PulseGate.why(tracked: tracked, locked: locked, settleLeftS: settle, light: light, fresh: fresh, bufferedS: buffered, reading: reading)
+        }
+        XCTAssertEqual(why(reading: (72, 0.01)), Why())
+        XCTAssertEqual(why(reading: (40, 0.2)), Why())
+        XCTAssertEqual(why(tracked: false, reading: (90, 0)), Why(reason: .noFace))
+        XCTAssertEqual(why(locked: false, settle: 2.8, light: nil, buffered: 0), Why(reason: .exposureNotLocked, warmupLeftS: 8.8))
+        XCTAssertEqual(why(locked: false, settle: -3, light: nil, buffered: 0), Why(reason: .exposureNotLocked, warmupLeftS: 6))
+        XCTAssertEqual(why(buffered: 0), Why(reason: .warmingUp, warmupLeftS: 6))
+        XCTAssertEqual(why(buffered: 2.54), Why(reason: .warmingUp, warmupLeftS: 3.5))
+        XCTAssertEqual(why(buffered: 6), Why(reason: .weakSignal))
+        XCTAssertEqual(why(light: (30, 0), buffered: 2), Why(reason: .tooDark))
+        XCTAssertEqual(why(light: (230, 0), buffered: 2), Why(reason: .tooBright))
+        XCTAssertEqual(why(light: (180, 0.2), reading: (25, 0.01)), Why(reason: .tooBright))
+        XCTAssertEqual(why(light: (255, 1), fresh: false), Why(reason: .tooBright))
+        XCTAssertEqual(why(fresh: false, buffered: 0), Why(reason: .noFace))
+        XCTAssertEqual(why(reading: (39, 0.2)), Why(reason: .moving))
+        XCTAssertEqual(why(reading: (39, 0.01)), Why(reason: .weakSignal))
+        XCTAssertEqual(why(light: (30, 0), reading: (55, 0.01)), Why())
+    }
+
+    func testTheReasonsReadAsPlainWords() {
+        let all: [PulseGate.Reason] = [.off, .unsupported, .unauthorized, .noFace, .exposureNotLocked, .tooDark, .tooBright, .moving, .warmingUp, .weakSignal]
+        XCTAssertEqual(all.map(\.rawValue), ["off", "unsupported", "unauthorized", "no_face", "exposure_not_locked", "too_dark", "too_bright",
+                                             "moving", "warming_up", "weak_signal"])
+    }
 }

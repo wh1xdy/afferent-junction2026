@@ -55,6 +55,14 @@ public enum FaceGazeMath {
         let cam = simd_mul(simd_inverse(face), camera.columns.3)
         return angles(SIMD3<Float>(cam.x, cam.y, cam.z))
     }
+
+    /// Direction from the face to a point given in camera space (metres), in the face frame.
+    /// With the point at the lens this is `cameraAngles`.
+    public static func pointAngles(face: simd_float4x4, camera: simd_float4x4, cameraPoint p: SIMD3<Float>) -> FaceAngles {
+        let world = simd_mul(camera, SIMD4<Float>(p.x, p.y, p.z, 1))
+        let v = simd_mul(simd_inverse(face), world)
+        return angles(SIMD3<Float>(v.x, v.y, v.z))
+    }
 }
 
 public struct FaceGazeCalibration: Codable, Equatable {
@@ -63,6 +71,8 @@ public struct FaceGazeCalibration: Codable, Equatable {
     /// RMS error after the fit, degrees
     public var residualDeg: Double?
     public var samples = 0
+    /// when the fit was stored, ms since 1970 (absent in fits stored by the reference app)
+    public var atMs: Double?
 
     public static let identity = FaceGazeCalibration()
 
@@ -79,17 +89,24 @@ public struct FaceGazeCalibration: Codable, Equatable {
 
     /// pairs of (ARKit eye angles, direction to the camera) while the person looks at the phone
     public static func fit(_ pairs: [(eye: FaceAngles, camera: FaceAngles)]) -> FaceGazeCalibration? {
+        fitDetail(pairs)?.calibration
+    }
+
+    /// The fit and, per axis, the slope the data gave before it was limited to the gain range
+    /// (nil where the axis had too little spread and kept gain 1).
+    static func fitDetail(_ pairs: [(eye: FaceAngles, camera: FaceAngles)])
+        -> (calibration: FaceGazeCalibration, slopeYaw: Double?, slopePitch: Double?)? {
         guard pairs.count >= FaceTuning.calibrationMinPairs else { return nil }
-        func axis(_ e: [Double], _ c: [Double]) -> (Double, Double) {
+        func axis(_ e: [Double], _ c: [Double]) -> (Double, Double, Double?) {
             let me = e.reduce(0, +) / Double(e.count), mc = c.reduce(0, +) / Double(c.count)
             let ve = e.reduce(0) { $0 + ($1 - me) * ($1 - me) }
             let cov = zip(e, c).reduce(0) { $0 + ($1.0 - me) * ($1.1 - mc) }
             let spreadC = (c.max() ?? 0) - (c.min() ?? 0)
             // not enough head movement on this axis: keep gain 1, only fix the offset
-            guard ve > 1e-6, spreadC >= FaceTuning.calibrationMinSpreadDeg else { return (1, mc - me) }
+            guard ve > 1e-6, spreadC >= FaceTuning.calibrationMinSpreadDeg else { return (1, mc - me, nil) }
             let r = FaceTuning.calibrationGainRange
             let gain = min(max(cov / ve, r.lowerBound), r.upperBound)
-            return (gain, mc - gain * me)
+            return (gain, mc - gain * me, cov / ve)
         }
         let y = axis(pairs.map(\.eye.yaw), pairs.map(\.camera.yaw))
         let p = axis(pairs.map(\.eye.pitch), pairs.map(\.camera.pitch))
@@ -100,7 +117,7 @@ public struct FaceGazeCalibration: Codable, Equatable {
         }
         cal.residualDeg = sqrt(sq / Double(pairs.count))
         cal.samples = pairs.count
-        return cal
+        return (cal, y.2, p.2)
     }
 }
 

@@ -49,6 +49,20 @@ public enum FaceTuning {
     public static let calibrationMinPairs = 60
     public static let calibrationMinSpreadDeg = 8.0
     public static let calibrationGainRange = 0.5...4.0
+    /// The reference ran its calibration for 8 s of tracked frames (ExpressionView.calibrationSeconds).
+    /// Here it is a number of dots; these are the limits around that. All NEW, the reference
+    /// stored whatever its fit returned, and none is tuned on a real face:
+    /// one dot is held 0.3 to 5 s (1 s when the caller gives nothing),
+    public static let calibrationHoldRangeS = 0.3...5.0
+    public static let calibrationHoldDefaultS = 1.0
+    /// a dot counts with at least 20 tracked frames (a third of a second),
+    public static let calibrationMinPointSamples = 20
+    /// whose ARKit eye angles stay within 3 degrees RMS of their mean (the eyes left the dot otherwise),
+    public static let calibrationMaxPointSpreadDeg = 3.0
+    /// a fit needs 5 such dots (four corners and the middle),
+    public static let calibrationMinPoints = 5
+    /// and is kept only when it leaves no more than 3 degrees RMS between the corrected gaze and the dots.
+    public static let calibrationMaxResidualDeg = 3.0
 
     // MARK: Smile (reference: Expressions.swift ExpressionSession.feed)
 

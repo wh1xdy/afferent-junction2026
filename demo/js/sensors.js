@@ -61,6 +61,7 @@
   const PULSE_SOURCES = ['finger_ppg', 'ky039', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   const FRESH_S = 3, PRODUCER_S = 10, MIN_QUALITY = 0.3;
   const CAM_MIN_TRUST = 40, CAM_LABELS = ['reliable', 'uncertain', 'unreliable'];
+  const CAM_WHY = ['no_face', 'exposure_not_locked', 'too_dark', 'too_bright', 'moving', 'warming_up', 'weak_signal'];
   const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
   const FACE_REGIONS = ['brow', 'eye', 'cheek', 'nose', 'mouth', 'jaw'];
   const FACE = { MIN_TRACKED_S: 30, SMILE_RISE: 0.04, WINDOW_S: 60, MICRO_MS: [40, 500], BREATHS: [4, 36], REGIONS: FACE_REGIONS };
@@ -191,7 +192,14 @@
       this.camPulse = {
         bpm: score == null ? null : pos(d.bpm), trust_score: score, trust_label: CAM_LABELS.includes(d.trust?.label) ? d.trust.label : null,
         face: typeof d.face === 'boolean' ? d.face : null, reason: typeof reason === 'string' ? reason : null, at: A.now() - late,
+        why: CAM_WHY.includes(d.reason) ? d.reason : null, warmup: Number.isFinite(d.warmup_s_left) && d.warmup_s_left >= 0 ? d.warmup_s_left : null,
       };
+    },
+
+    cameraWhy(now) {
+      const c = this.camPulse;
+      if (!c || !this.enabled.phone_camera || now - c.at >= FRESH_S) return null;
+      return { reason: c.why, warmup_s_left: c.warmup };
     },
 
     cameraPulse(now) {

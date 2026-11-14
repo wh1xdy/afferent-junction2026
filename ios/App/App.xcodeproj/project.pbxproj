@@ -28,6 +28,9 @@
 		AE0000000000000000000205 /* AfferentPulseGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000105 /* AfferentPulseGate.swift */; };
 		AE0000000000000000000206 /* AfferentVision.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000106 /* AfferentVision.swift */; };
 		AE0000000000000000000209 /* FacePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000109 /* FacePulse.swift */; };
+		AE000000000000000000020A /* FaceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010A /* FaceSession.swift */; };
+		AE000000000000000000020B /* AfferentFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010B /* AfferentFace.swift */; };
+		AE0000000000000000000400 /* FaceCore in Frameworks */ = {isa = PBXBuildFile; productRef = AE0000000000000000000401 /* FaceCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +57,8 @@
 		AE0000000000000000000105 /* AfferentPulseGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPulseGate.swift; sourceTree = "<group>"; };
 		AE0000000000000000000106 /* AfferentVision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentVision.swift; sourceTree = "<group>"; };
 		AE0000000000000000000109 /* FacePulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FacePulse.swift; path = ../Afferent/FacePulse.swift; sourceTree = SOURCE_ROOT; };
+		AE000000000000000000010A /* FaceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceSession.swift; sourceTree = "<group>"; };
+		AE000000000000000000010B /* AfferentFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentFace.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +67,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+				AE0000000000000000000400 /* FaceCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -92,6 +98,8 @@
 				AE0000000000000000000002 /* AfferentEyes.swift */,
 				AE0000000000000000000100 /* AfferentPulse.swift */,
 				AE0000000000000000000105 /* AfferentPulseGate.swift */,
+				AE000000000000000000010A /* FaceSession.swift */,
+				AE000000000000000000010B /* AfferentFace.swift */,
 				AE0000000000000000000106 /* AfferentVision.swift */,
 				AE0000000000000000000101 /* VisionEyes.swift */,
 				AE0000000000000000000300 /* Shared */,
@@ -139,6 +147,7 @@
 			name = App;
 			packageProductDependencies = (
 				4D22ABE82AF431CB00220026 /* CapApp-SPM */,
+				AE0000000000000000000401 /* FaceCore */,
 			);
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
@@ -171,6 +180,7 @@
 			mainGroup = 504EC2FB1FED79650016851F;
 			packageReferences = (
 				D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */,
+				AE0000000000000000000402 /* XCLocalSwiftPackageReference "FaceCore" */,
 			);
 			productRefGroup = 504EC3051FED79650016851F /* Products */;
 			projectDirPath = "";
@@ -216,6 +226,8 @@
 				AE0000000000000000000205 /* AfferentPulseGate.swift in Sources */,
 				AE0000000000000000000206 /* AfferentVision.swift in Sources */,
 				AE0000000000000000000209 /* FacePulse.swift in Sources */,
+				AE000000000000000000020A /* FaceSession.swift in Sources */,
+				AE000000000000000000020B /* AfferentFace.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -422,6 +434,10 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "CapApp-SPM";
 		};
+		AE0000000000000000000402 /* XCLocalSwiftPackageReference "FaceCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = FaceCore;
+		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -429,6 +445,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D4C12C0A2AAA248700AAC8A2 /* XCLocalSwiftPackageReference "CapApp-SPM" */;
 			productName = "CapApp-SPM";
+		};
+		AE0000000000000000000401 /* FaceCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AE0000000000000000000402 /* XCLocalSwiftPackageReference "FaceCore" */;
+			productName = FaceCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

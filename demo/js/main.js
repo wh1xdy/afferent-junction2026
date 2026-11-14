@@ -80,7 +80,7 @@
     camGlyph();
   };
   const camGlyph = () => {
-    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera() || ['starting', 'on'].includes(S.camLink.state));
+    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera() || ['starting', 'on'].includes(S.camLink.state) || ['starting', 'tracking', 'no_face'].includes(S.faceState));
     $('camBtn').hidden = !on;
   };
   const setProfile = (p, from) => {
@@ -219,7 +219,7 @@
     if (ui.input === 'camera' && !S.camera()) {
       $('begin').disabled = true;
       log('starting camera');
-      try { log(`camera on (${await S.startCamera()}), only eye openness, head tilt${S.camLink.state === 'on' ? ' and the pulse estimate' : ''} are read`); }
+      try { log(`camera on (${await S.startCamera()}), only numbers are read: eye openness, head tilt${S.camLink.state === 'on' ? ', the pulse estimate' : ''}${['starting', 'tracking', 'no_face'].includes(S.faceState) ? ', face measures' : ''}`); }
       catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
       $('begin').disabled = false;
     } else if (ui.input !== 'camera' && S.camera()) S.stop();

@@ -34,20 +34,54 @@ const fakeCamera = () => {
       return { state: 'on' };
     },
     async stop() { this.running = false; this.stops++; },
+    async status() {
+      const off = { state: this.reject || 'off', measuring: false, reason: this.reject || 'off', warmup_s_left: null, face: null, locked: false, t_ms: null };
+      return this.running ? { state: 'on', measuring: false, reason: 'exposure_not_locked', warmup_s_left: 8.8, face: null, locked: false, t_ms: null, ...this.now } : off;
+    },
     emit(d) { ls.forEach(f => f(d)); },
     count() { return ls.length; },
   };
 };
 
-// Same surface as the AfferentFace contract: start() -> { state }, stop(), status() -> { state }, events state, face, micro.
+// Same surface as the AfferentFace plugin (ios/App/App/AfferentFace.swift): start() -> { state }, stop(), status() -> { state },
+// events state, face, micro, and the five gaze calibration methods with the native results and reasons.
+// The native plugin holds calibrationPoint open for hold_ms; this one answers at once. `cal.point` and `cal.fit` script the answers:
+// cal.point = ({ x, y, hold_ms }) => ({ ok, samples, spread_deg, reason }), cal.fit = { ok, gain_x, ..., reason }.
 const fakeFace = () => {
   const ls = { state: [], face: [], micro: [] };
+  const none = { gain_x: null, gain_y: null, offset_x_deg: null, offset_y_deg: null, residual_deg: null };
   return {
     running: false, starts: 0, stops: 0, first: 'starting',
+    cal: { started: false, dots: [], stored: null, point: null, fit: null },
     async addListener(ev, fn) { ls[ev].push(fn); return { remove: () => { ls[ev] = ls[ev].filter(f => f !== fn); } }; },
     async start() { this.running = true; this.starts++; return { state: this.first }; },
     async stop() { this.running = false; this.stops++; return {}; },
     async status() { return { state: this.running ? this.first : 'off' }; },
+    async calibrationStart() {
+      Object.assign(this.cal, { started: true, dots: [] });
+      return { screen_w_cm: 6.5, screen_h_cm: 14.1, density: 'model' };
+    },
+    async calibrationPoint({ x, y, hold_ms } = {}) {
+      if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1)) throw Object.assign(new Error('x and y are 0 to 1 of the page'), { code: 'bad_point' });
+      const no = reason => ({ ok: false, samples: 0, spread_deg: null, reason });
+      if (!this.cal.started) return no('not_started');
+      if (!this.running) return no('not_running');
+      const hold = Math.min(5000, Math.max(300, hold_ms ?? 1000));
+      const r = this.cal.point?.({ x, y, hold_ms: hold }) ?? { ok: true, samples: Math.round(hold * 0.06), spread_deg: 0.4, reason: null };
+      if (r.ok) this.cal.dots.push({ x, y, samples: r.samples });
+      return r;
+    },
+    async calibrationFinish() {
+      const c = this.cal, points = c.dots.length, samples = c.dots.reduce((a, d) => a + d.samples, 0);
+      if (!c.started) return { ok: false, ...none, samples: 0, points: 0, reason: 'not_started' };
+      c.started = false;
+      if (points < 5) return { ok: false, ...none, samples: 0, points, reason: 'too_few_points' };
+      const r = { ok: true, gain_x: 2.1, gain_y: 2.4, offset_x_deg: -1.5, offset_y_deg: 3.2, residual_deg: 1.1, reason: null, ...c.fit, samples, points };
+      if (r.ok) c.stored = { at_ms: Date.now(), residual_deg: r.residual_deg };
+      return r;
+    },
+    async calibrationStatus() { const s = this.cal.stored; return { calibrated: !!s, at_ms: s?.at_ms ?? null, residual_deg: s?.residual_deg ?? null }; },
+    async calibrationClear() { this.cal.stored = null; return {}; },
     emit(ev, d) { ls[ev].forEach(f => f(d)); },
     count(ev) { return ls[ev].length; },
   };
@@ -56,7 +90,8 @@ const fakeFace = () => {
 // What @capacitor/core's registerPlugin gives for a name the native side has not registered: every call rejects.
 const unimplemented = () => {
   const fail = async () => { throw Object.assign(new Error('"AfferentFace" plugin is not implemented on ios'), { code: 'UNIMPLEMENTED' }); };
-  return { calls: 0, addListener() { this.calls++; return fail(); }, start: fail, stop: fail, status: fail };
+  return { calls: 0, addListener() { this.calls++; return fail(); }, start: fail, stop: fail, status: fail,
+    calibrationStart: fail, calibrationPoint: fail, calibrationFinish: fail, calibrationStatus: fail, calibrationClear: fail };
 };
 
 const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false } = {}) => {
