@@ -15,7 +15,11 @@ The standard service carries the fused reading of both sensors. Each sensor is o
       byte 5:     1 idle, 2 probing, 3 active, 0 unknown
       byte 6:     flags. Bit 0 (FLAG_TWO_HEARTS): the two clips are on two different people
                   (/state finger.two_hearts, Heart Duel); the fused pulse, HRV and breathing are
-                  then not one person's. Other bits are 0. A 6-byte v2 client ignores the byte.
+                  then not one person's. Bits 1 / 2 (FLAG_UNTRUSTED_1 / _2): finger 1 / finger 2 is
+                  left out of the fused pulse because it is noisy while the other is clean
+                  (/state finger.untrusted); its byte 0 / 1 is then 0. Other bits are 0. Clients
+                  read bit 0 with a mask, so the new bits do not change them. A 6-byte v2 client
+                  ignores the byte.
   breaths/min comes from the heart-rate rhythm (respiratory sinus arrhythmia)
   AFF1 is notified at least every 2 s (keepalive), also while idle, so a client can tell
   "link alive, no finger" from "link lost". 2A37 is notified only while there is a fused pulse.
@@ -38,6 +42,7 @@ PRESENCE_CODE = {'idle': 1, 'probing': 2, 'active': 3}      # AFF1 byte 5; 0 = u
 QUALITY_NA = 255                                            # AFF1 byte 4 when there is no quality
 RMSSD_OVER = 255                                            # AFF1 byte 3: RMSSD above 254 ms, not a reading
 FLAG_TWO_HEARTS = 0x01                                      # AFF1 byte 6 bit 0: two people on the clips
+FLAG_UNTRUSTED = (0x02, 0x04)                               # AFF1 byte 6 bits 1, 2: finger 1 / 2 left out
 EMPTY_AFF1 = bytearray([0, 0, 0, 0, QUALITY_NA, 0, 0])      # nothing measured, nobody on the clips
 
 
@@ -59,16 +64,21 @@ def rmssd_byte(rmssd_ms):
     return RMSSD_OVER if v > 254 else max(0, v)
 
 
-def pack_aff1(bpm, breath, rmssd, quality, mode, two_hearts=False) -> bytearray:
+def pack_aff1(bpm, breath, rmssd, quality, mode, two_hearts=False, untrusted=()) -> bytearray:
     """AFF1 v3 payload. bpm = [finger 1, finger 2]; quality 0..1 or None; mode = presence mode;
-    two_hearts = the clips are on two people (only an explicit True sets the flag)."""
+    two_hearts = the clips are on two people (only an explicit True sets the flag);
+    untrusted = the fingers (0, 1) left out of the fused pulse."""
     fingers = list(bpm or [])[:2] + [0, 0]
     try:
         q = QUALITY_NA if quality is None else max(0, min(100, int(round(float(quality) * 100))))
     except (TypeError, ValueError):
         q = QUALITY_NA
+    flags = FLAG_TWO_HEARTS if two_hearts is True else 0
+    for c in untrusted or ():
+        if c in (0, 1):
+            flags |= FLAG_UNTRUSTED[c]
     return bytearray([_u8(fingers[0]), _u8(fingers[1]), _u8(breath), rmssd_byte(rmssd),
-                      q, PRESENCE_CODE.get(mode, 0), FLAG_TWO_HEARTS if two_hearts is True else 0])
+                      q, PRESENCE_CODE.get(mode, 0), flags])
 
 
 class HeartRateBroadcaster:
@@ -82,6 +92,7 @@ class HeartRateBroadcaster:
         self._quality = None          # fused rhythm quality 0..1, None = not available
         self._mode = None             # presence mode: idle / probing / active
         self._two = False             # two people on the clips (AFF1 byte 6 bit 0)
+        self._untrusted = ()          # fingers left out of the fused pulse (AFF1 byte 6 bits 1, 2)
         self._sent = None             # last AFF1 payload handed to _push
         if start:                     # start=False: offline tests (no thread, no Bluetooth)
             threading.Thread(target=self._run, daemon=True).start()
@@ -144,11 +155,12 @@ class HeartRateBroadcaster:
             self._rmssd = v
             self._notify()
 
-    def update_status(self, quality, mode, keepalive=False, two_hearts=False):
+    def update_status(self, quality, mode, keepalive=False, two_hearts=False, untrusted=()):
         """Fused quality (0..1 or None), presence mode and two people on the clips -> AFF1 bytes 4..6.
         Notifies when the packed payload changed, or always with keepalive=True (the hub sets it
         every other second, so a client sees a notification at least every 2 s, also while idle)."""
         self._quality, self._mode, self._two = quality, mode, two_hearts is True
+        self._untrusted = tuple(untrusted or ())
         if keepalive or bytes(self._payload()) != self._sent:
             self._notify()
 
@@ -162,7 +174,8 @@ class HeartRateBroadcaster:
         self._notify(hrm_reset=True)
 
     def _payload(self) -> bytearray:
-        return pack_aff1(self._bpm, self._breath, self._rmssd, self._quality, self._mode, self._two)
+        return pack_aff1(self._bpm, self._breath, self._rmssd, self._quality, self._mode, self._two,
+                         self._untrusted)
 
     def _notify(self, hrm=None, hrm_reset=False):
         both = self._payload()

@@ -249,9 +249,13 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
         last_locked[c] = now
         with lock:
             # a measurement for the guard: the rhythm behind these beats (this finger's own, or
-            # both fingers' together) is clear enough for the data manager
-            clear = max(q, fused.get("quality") or 0) >= data_manager_push.MIN_QUALITY
-            shown = finger_guards[c].offer(bpm, now, clear) or 0
+            # both fingers' together) is clear enough for the data manager. A finger left out of
+            # the fused pulse (judge_clips) shows no number: the fused rhythm is the other's.
+            if clip_state[c]["trusted"]:
+                clear = max(q, fused.get("quality") or 0) >= data_manager_push.MIN_QUALITY
+                shown = finger_guards[c].offer(bpm, now, clear) or 0
+            else:
+                shown = 0
         if shown or sent_bpm[c]:            # a held value: the byte says "no reading" once
             sent_bpm[c] = shown
             ble.update_finger(c, shown)
@@ -315,6 +319,108 @@ def fused_period(curves, qualities):
         return None, 0.0
     wsum = sum(q for q in qualities if q > 0) or 1.0
     return lag, max(acc[lag] / wsum, 0.0)
+
+
+# ── which clip to trust ──────────────────────────────────────────────────────────────
+# Seen on Alex's phone (2026-11-14, new printed case): clip 1 showed a false 131-139 BPM (light
+# into the clip or a bad seat), clip 2 a plausible 87-99. The combined rhythm averaged clip 2's
+# clean curve with clip 1's noise, so the fused quality fell to 0.08-0.35, mostly below the 0.3
+# the app and the data manager need, and no pulse went out; clip 2 alone gave 87 at 0.63. A
+# weighted average of two curves is never clearer than the clearer one, so a noisy clip only
+# ever drags the good one down. Each clip is therefore judged on its own every second:
+#   clean = a real rhythm peak inside 0.33-1.6 s (rhythm_peak's edge rule), quality >= 0.3,
+#           a pulse swing of at least CLIP_MIN_AMP, samples not stuck at the rails, DC on scale.
+# One clean clip next to one that is not: only the clean one is trusted. The fused rhythm, the
+# fused pulse and its quality then come from that clip alone, and the other is named in /state
+# finger.untrusted (AFF1 flag bits 1-2, its BPM byte 0). Both clean: both trusted, as before (the
+# same rhythm is fused, two different rhythms are two people). Neither clean: both used, as
+# before (two weak curves of one heart still add up).
+CLIP_CLEAN_Q = 0.3            # rhythm quality of a clean clip (= TWO_HEARTS_MIN_Q, = MIN_QUALITY)
+CLIP_MIN_AMP = 200            # p5-p95 of the detrended signal (raw counts): a pulse, not the
+                              # noise of an empty clip (measured: empty ~50-150, finger 1500-3000)
+CLIP_RAIL_LO, CLIP_RAIL_HI = 200, 13500   # beyond these the amplifier is saturated
+CLIP_MAX_RAILED = 0.05        # more than 5 % of the samples at a rail = saturated
+CLIP_DC_LO, CLIP_DC_HI = 1000, 14500      # mean outside this = off scale (amp stuck, sensor off)
+
+
+def clip_signal(ch=0, window_ms=6000):
+    """Amplitude, saturation and DC level of one finger over the same 6 s as autocorr().
+    amplitude = p5-p95 of the signal minus its 1 s moving mean; railed = share of samples at a
+    rail; dc = mean. None when there are too few samples."""
+    pts = list(ppgs[ch])
+    if len(pts) < 150:
+        return None
+    t_end = pts[-1][0]
+    v = [p[1] for p in pts if p[0] >= t_end - window_ms]
+    n = len(v)
+    half = max(1, int((n - 1) / (window_ms / 1000)) // 2)
+    cs = [0]
+    for x in v:
+        cs.append(cs[-1] + x)
+    hp = sorted(v[i] - (cs[min(n, i + half + 1)] - cs[max(0, i - half)]) / (min(n, i + half + 1) - max(0, i - half))
+                for i in range(n))
+    railed = sum(1 for x in v if x < CLIP_RAIL_LO or x > CLIP_RAIL_HI) / n
+    return {"amplitude": round(hp[int(0.95 * (n - 1))] - hp[int(0.05 * (n - 1))]),
+            "railed": round(railed, 2), "dc": round(sum(v) / n)}
+
+
+def clip_clean(period, sig):
+    """(clean, reason): is one finger's own signal a pulse one can trust on its own?
+    period = period_state[c] (period_ms, quality); sig = clip_signal(). reason says why not."""
+    if not sig:
+        return False, "no samples"
+    if sig["railed"] > CLIP_MAX_RAILED:
+        return False, "saturated"
+    if not CLIP_DC_LO <= sig["dc"] <= CLIP_DC_HI:
+        return False, "off scale"
+    if not period.get("period_ms"):
+        return False, "no rhythm"                # incl. the edge of the range: a drift
+    if (period.get("quality") or 0) < CLIP_CLEAN_Q:
+        return False, "weak rhythm"
+    if sig["amplitude"] < CLIP_MIN_AMP:
+        return False, "flat"
+    return True, None
+
+
+def clip_trust(cleans):
+    """Per finger: may it go into the fused pulse? Only when exactly the other one is clean is
+    a finger left out; otherwise both are used as before."""
+    if any(cleans) and not all(cleans):
+        return [bool(c) for c in cleans]
+    return [True] * len(cleans)
+
+
+clip_state = [{"clean": None, "trusted": True, "reason": None, "amplitude": None, "railed": None, "dc": None}
+              for _ in range(CHANNELS)]
+
+
+def untrusted_fingers():
+    return [c for c in range(CHANNELS) if not clip_state[c]["trusted"]]
+
+
+def reset_clips():
+    with lock:
+        for s in clip_state:
+            s.update(clean=None, trusted=True, reason=None, amplitude=None, railed=None, dc=None)
+
+
+def judge_clips():
+    """Once a second from period_loop, after period_state is updated: judge each finger, store
+    it in clip_state (/state finger.clips) and return which fingers are trusted."""
+    judged = []
+    for c in range(CHANNELS):
+        try:
+            sig = clip_signal(c)
+        except Exception as e:
+            print(f"clip signal failed (ch {c}): {e}", flush=True)
+            sig = None
+        judged.append((sig, *clip_clean(period_state[c], sig)))
+    trusted = clip_trust([ok for _, ok, _ in judged])
+    with lock:
+        for c, (sig, ok, why) in enumerate(judged):
+            clip_state[c].update(clean=ok, trusted=trusted[c], reason=why, **(sig or
+                                 {"amplitude": None, "railed": None, "dc": None}))
+    return trusted
 
 
 # ── one person or two? ───────────────────────────────────────────────────────────
@@ -384,24 +490,26 @@ def stale_fingers(now):
 
 
 fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None],
-         "two_hearts": False, "held": None}
+         "two_hearts": False, "held": None, "untrusted": []}
 
 
 def fuse():
     """One finger reading from both sensors.
     Agree within 10 % -> quality-weighted mean; disagree -> the one closest to the fused period;
-    one valid -> that one; none -> fused period itself if it is strong."""
+    one valid -> that one; none -> fused period itself if it is strong.
+    A finger that is not trusted (judge_clips: noisy next to a clean one) is never a candidate."""
     with lock:
         f = [dict(state["fingers"][c] or {}) for c in range(CHANNELS)]
         per = [dict(period_state[c]) for c in range(CHANNELS)]
         fp, fq = fused["period_ms"], fused["quality"] or 0
+        untrusted = untrusted_fingers()
     now = time.time()
     cands = []
     for c in range(CHANNELS):
         bpm = f[c].get("bpm_live")
         fresh = f[c].get("t") and now - f[c]["t"] < 5
         q = per[c].get("quality") or 0
-        if bpm and fresh and q >= 0.2:
+        if bpm and fresh and q >= 0.2 and c not in untrusted:
             cands.append((c, bpm, q))
     period_bpm = 60000 / fp if fp and fq >= 0.3 else None
     if len(cands) == 2 and abs(cands[0][1] - cands[1][1]) <= 0.1 * max(cands[0][1], cands[1][1]):
@@ -416,7 +524,7 @@ def fuse():
         bpm, sources = None, []
     with lock:
         # per finger: its candidate, as far as that finger's own number is out (finger_guards)
-        fused.update(bpm=round(bpm) if bpm else None, sources=sources,
+        fused.update(bpm=round(bpm) if bpm else None, sources=sources, untrusted=untrusted,
                      fingers=[c[1] if c and sent_bpm[c[0]] else None for c in
                               [next((x for x in cands if x[0] == ch), None) for ch in range(CHANNELS)]])
         state["beat"] = {**(state["beat"] or {}), "bpm_live": fused["bpm"], "fused": True, "t": time.time()}
@@ -444,29 +552,37 @@ def ble_status(tick):
     idle. The two-people flag lets the phone keep Heart Duel readings out of the patient's data."""
     on = sensing()
     ble.update_status(fused.get('quality') if on else None, presence['mode'],
-                      keepalive=(tick % 2 == 0), two_hearts=on and fused.get('two_hearts') is True)
+                      keepalive=(tick % 2 == 0), two_hearts=on and fused.get('two_hearts') is True,
+                      untrusted=untrusted_fingers() if on else ())
 
 
 def period_loop(stopped):
     tick = 0
     while not stopped.wait(1.0):
         tick += 1
-        curves, quals = [], []
+        curves, quals = [None] * CHANNELS, [0.0] * CHANNELS
         for c in range(CHANNELS):
             try:
                 ac = autocorr(c)
                 if ac:
                     ms, q, sig = rhythm_peak(*ac)
-                    curves.append(ac); quals.append(q)
+                    curves[c], quals[c] = ac, q
                 else:
                     ms, q, sig = None, 0.0, 0.0
                 with lock:
                     period_state[c].update(period_ms=ms, quality=round(q, 2), signal=round(sig, 2))
             except Exception as e:
                 print(f"period failed (ch {c}): {e}", flush=True)
-        fp, fq = fused_period(curves, quals) if curves else (None, 0.0)
+        trusted = judge_clips()
+        # the combined rhythm only from the clips that are trusted (a noisy clip only drags it down)
+        use = [(curves[c], quals[c]) for c in range(CHANNELS) if curves[c] and trusted[c]]
+        fp, fq = fused_period([u for u, _ in use], [q for _, q in use]) if use else (None, 0.0)
         if sensing():
-            two = update_two_hearts(periods_apart([dict(period_state[c]) for c in range(CHANNELS)]))
+            # two people = two CLEAN clips at different rhythms; a noisy clip next to a clean
+            # one cannot tell (periods_apart: None)
+            per = [dict(period_state[c]) if clip_state[c]["clean"] else {**period_state[c], "quality": 0}
+                   for c in range(CHANNELS)]
+            two = update_two_hearts(periods_apart(per))
         else:
             reset_two_hearts()
             two = False
@@ -497,9 +613,14 @@ def period_loop(stopped):
             sent_bpm[c] = 0
             reset_guards([c], fused_too=False)   # put back on, it settles again
             ble.update_finger(c, 0)            # that clip came off; 0 = no reading
+        for c in untrusted_fingers():
+            if sent_bpm[c]:                    # left out of the fused pulse: its number goes too
+                sent_bpm[c] = 0
+                reset_guards([c], fused_too=False)
+                ble.update_finger(c, 0)
         if not sensing():
             with lock:
-                fused.update(bpm=None, sources=[], fingers=[None, None], held=None)
+                fused.update(bpm=None, sources=[], fingers=[None, None], held=None, untrusted=[])
                 state["beat"] = {**(state["beat"] or {}), "bpm_live": None, "t": time.time()}
         ble_status(tick)
         if bpm:
@@ -588,6 +709,7 @@ def _forget_beats():
             state["fingers"][c] = None
             sent_bpm[c] = 0
     reset_guards()            # a new wearing: no pulse goes out until it is steady (PulseGuard)
+    reset_clips()             # ...and no clip is judged yet
     ble.clear_readings()      # AFF1 kept the last per-finger numbers after the finger left
 
 
@@ -856,6 +978,8 @@ def state_snapshot() -> dict:
         ps["period"] = dict(period_state[c])
         out["pulses"].append(ps)
     out["finger"] = dict(fused)     # the one combined finger reading
+    with lock:                      # each clip as judged (judge_clips): clean, trusted, why not
+        out["finger"]["clips"] = [dict(s) for s in clip_state]
     out["breathing"] = dict(breathing)
     out["hrv"] = dict(hrv)
     out["presence"] = {k: v for k, v in presence.items() if k != "t_on"}

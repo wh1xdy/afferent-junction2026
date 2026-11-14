@@ -73,6 +73,7 @@ def reset():
         app.sent_bpm[c] = 0
     app.last_ppg = 0.0
     app.reset_guards()
+    app.reset_clips()
 
 
 def beats_with_breathing(rate_per_min, base_bpm=72, swing_bpm=8, n=70):
