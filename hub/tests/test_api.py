@@ -358,7 +358,8 @@ def test_pause_and_export(client):
     assert z.read("README.txt").decode().startswith("SIMULATED DATA.")
     header = z.read("daily.csv").decode().splitlines()[0].split(",")
     assert {"streak_protection", "pause_source", "pause_until", "simulated", "missed"} <= set(header)
-    assert "rt_median.z" in z.read("features.csv").decode().splitlines()[0]
+    feat_header = z.read("features.csv").decode().splitlines()[0]
+    assert "rt_median.z" in feat_header and "game_rt_norm.value" in feat_header
     first = json.loads(z.read("sessions.ndjson").decode().splitlines()[0])
     assert first["schema"] == "afferent.session/3" and "simulated" in first
     cols = {row.split(",")[1] for row in z.read("codebook.csv").decode().splitlines()[1:]}

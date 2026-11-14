@@ -222,6 +222,7 @@
       ${head}${banners}
       <section>${chartHead}<div class="chart-wrap" id="dchart"></div></section>
       <section><div class="sect-h"><h2>What moved</h2>${info('Each signal against this person\'s first two weeks. Select one to see it on the chart.')}</div><div class="moved">${moved}</div></section>
+      ${V.gameRt(A)}
       <div class="suggest">${esc(STATE[A.state]?.suggest || '')}</div>
       <div class="actions">
         <button class="btn filled" data-action="summary">${icon('description')}Weekly summary</button>
@@ -263,6 +264,23 @@
         tip: (i) => `<div class="tip-h">${dateShort(dates[i])}</div><div class="tip-r"><span>Index</span><b>${vals[i] == null ? '-' : signed(vals[i])}</b></div><div class="tip-r"><span>State</span><b>${V.chip(st[i])}</b></div>` };
     }
     C.seriesChart(el, { ...o, h: 196, xlabels: xl });
+    const rtEl = document.getElementById('dchart-rt');
+    const g = gameRtFeature(A, 'game_rt_norm');
+    if (!rtEl || !g) return;
+    const vals = g.series.value.slice(from);
+    const ms = (gameRtFeature(A, 'game_rt_median')?.series.value || []).slice(from);
+    const b = g.baseline;
+    C.seriesChart(rtEl, { values: vals, connect: true, band: b.ready ? [b.band_lo, b.band_hi] : null, mid: b.ready ? b.median : null, h: 140, xlabels: xl,
+      aria: 'In-game reaction time against the personal baseline over 6 weeks, exploratory',
+      tip: (i) => `<div class="tip-h">${dateShort(dates[i])}</div><div class="tip-r"><span>Against usual</span><b>${vals[i] == null ? 'no value' : signed(vals[i])}</b></div><div class="tip-r"><span>Median</span><b>${ms[i] == null ? '-' : num(ms[i], 0) + ' ms'}</b></div>` });
+  };
+
+  const gameRtFeature = (A, key) => (A.secondary_features || []).find((f) => f.key === key);
+
+  V.gameRt = function (A) {
+    const g = gameRtFeature(A, 'game_rt_norm');
+    if (!g || !g.series.value.slice(-42).some((v) => v != null)) return '';
+    return `<section><div class="sect-h"><h2>In-game reaction time</h2><span class="muted">exploratory</span>${info('Reaction times inside the games, each task kind against this person\'s own usual, adjusted for game difficulty where logged. Difficulty and motivation still change it. Not part of the index; the morning reaction trial stays the primary measure.')}</div><div class="chart-wrap" id="dchart-rt"></div></section>`;
   };
 
   V.phq = function (D) {

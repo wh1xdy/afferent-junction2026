@@ -5,6 +5,7 @@ import zipfile
 
 from . import views
 from .analytics.features import FEATURES
+from .analytics.game_rt import SECONDARY
 from .settings import ROOT
 
 DAILY_SCHEMA = ROOT / "contracts" / "daily.v1.schema.json"
@@ -54,6 +55,16 @@ def _schema_docs(props: dict, prefix: str = "") -> dict:
     return out
 
 
+SECONDARY_PARTS = {
+    "value": ("raw value", None),
+    "ewma": ("EWMA of the value", None),
+    "n_cells": ("task kinds with a z that day", "count"),
+    "n_tasks": ("tasks with at least 3 responses that day", "count"),
+    "n_trials": ("responses behind the day median", "count"),
+    "dda_d_mean": ("mean presented difficulty extra.dda.d_mean of those tasks (covariate)", "0-1"),
+}
+
+
 def feature_rows(analytics: dict, daily: list[dict], sessions: list[dict]) -> list[dict]:
     tl = analytics.get("timeline") or {}
     by_key = {f["key"]: f.get("series") or {} for f in analytics.get("features") or []}
@@ -67,6 +78,10 @@ def feature_rows(analytics: dict, daily: list[dict], sessions: list[dict]) -> li
             for part in ("value", "z", "ewma_z"):
                 vals = series.get(part) or []
                 row[f"{f['key']}.{part}"] = vals[i] if i < len(vals) else None
+        for f in analytics.get("secondary_features") or []:
+            for part, vals in (f.get("series") or {}).items():
+                if part in SECONDARY_PARTS:
+                    row[f"{f['key']}.{part}"] = vals[i] if i < len(vals) else None
         for k in ("composite", "cusum", "state", "completeness"):
             vals = tl.get(k) or []
             row[k] = vals[i] if i < len(vals) else None
@@ -103,11 +118,17 @@ def codebook(daily_cols: list[str], feature_cols: list[str], checkin_cols: list[
              "composite": ("Composite early-warning index", "z"), "cusum": ("One-sided CUSUM of the index", ""),
              "state": ("stable, watch, check_in or booster (suggestion only)", ""),
              "completeness": ("Share of index weight with data", "0-1")}
+    secondary = {f["key"]: f for f in SECONDARY}
     for c in feature_cols:
+        key, _, part = c.rpartition(".")
         if c in fixed:
             desc, unit = fixed[c]
+        elif key in secondary:
+            f = secondary[key]
+            what, unit = SECONDARY_PARTS[part]
+            desc = f"{f['label']}, {what}. Exploratory, not in the composite; confounded by task difficulty and motivation"
+            unit = unit or f["unit"]
         else:
-            key, part = c.rsplit(".", 1)
             desc, unit = f"{feats[key]['label']}, {parts[part]}", feats[key]["unit"] if part == "value" else "z"
         rows.append({"file": "features.csv", "column": c, "description": desc, "unit": unit})
     return _csv(rows)

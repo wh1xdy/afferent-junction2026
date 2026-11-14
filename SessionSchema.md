@@ -88,7 +88,9 @@ Fork and Two lanterns are skipped (never replaced) when the director is in rest 
 | `head_pitch_start_deg`, `head_pitch_delta_deg`, `upright_s` | Posture response; upright = pitch >= rest pitch - 5 degrees |
 | `eye_openness_mean`, `perclos`, `long_closures` | Eye response; PERCLOS = share of tracked frames closed; long closure > 0.5 s |
 | `breath_sync`, `eyes_closed_s` | Breath only: pacer compliance and eyes-closed seconds (both estimates) |
-| `extra` | Free-form task numbers |
+| `extra` | Free-form task numbers, except the documented keys below |
+| `extra.rt` | Optional in-game reaction times from the shared app module `A.RT`: `{n, median_ms, iqr_ms, lapses, anticipations, by_kind: {<kind>: {n, median_ms}}}`. Kinds are per task (for example `tap_target`, `catch`, `beat`, `choice`). Same conventions as `core.rt` (median and IQR over responses >= 150 ms, lapses and anticipations as counts); every number may be `null`; older sessions without it stay valid. Exploratory, see `Statistics.md` |
+| `extra.dda` | Adaptive difficulty summary of the task (minigames spec); the hub reads only `d_mean` (presented difficulty 0 to 1) as a covariate for `extra.rt` |
 
 ### fork (effort-based choice)
 
@@ -124,4 +126,4 @@ Counts: `rich_correct` (rich larger, tapped rich), `rich_incorrect` (rich larger
 
 ## 4. How the hub uses it
 
-The analytics engine (`contracts/api.md` section 5.1) turns sessions and daily records into per-day features, robust z-scores against the person's own 14-day baseline, EWMA trends, the composite early-warning index with visible contributions, a CUSUM state (stable, watch, consider a check-in call, consider discussing a booster session) and the per-person bandit ("What helps"). The clinician decides; the system only suggests.
+The analytics engine (`contracts/api.md` section 5.1) turns sessions and daily records into per-day features, robust z-scores against the person's own 14-day baseline, EWMA trends, the composite early-warning index with visible contributions, a CUSUM state (stable, watch, consider a check-in call, consider discussing a booster session) and the per-person bandit ("What helps"). In-game reaction times (`tasks[].extra.rt`) become exploratory secondary features outside the composite; `core.rt` stays the reaction-time input of the index. The clinician decides; the system only suggests.
