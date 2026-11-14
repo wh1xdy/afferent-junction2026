@@ -3,6 +3,7 @@
 // it only drags when its content is scrolled to the top, or when the drag starts on the handle.
 // Touch events, because WKWebView answers a pan with pointercancel and a pointer drag dies there; pointer events for a
 // mouse or a pen. Used by the app shell (bottom of this file), checkin.js, qrshow.js and patient.js.
+// Felt: a tick when a pull passes the distance that closes or goes back, a soft touch when it does; a spring back is not.
 (() => {
   const T = {
     decide: 4,                                  // px of travel before the direction is read
@@ -129,7 +130,16 @@
       g.samples.push([t, d]);
       while (g.samples.length > 2 && t - g.samples[0][0] > T.window) g.samples.shift();
       g.d = shown(d);
+      crossing(g);
       if (!raf) raf = frame(() => { raf = 0; if (g?.mode) paint(g.d); });
+    };
+    // One tick as the pull passes the distance that closes (or goes back), so the finger knows letting go now does it.
+    // It ticks again only after the pull went well back under it, so a finger resting on the line does not buzz.
+    const crossing = s => {
+      if (!(s.mode === 'down' ? s.c.down : s.c.back)) return;
+      const t = threshold(s.size, s.mode === 'down' ? 'y' : 'x');
+      if (!s.past && s.d >= t) { s.past = true; A.Haptics?.play('tick'); }
+      else if (s.past && s.d < t * 0.8) s.past = false;
     };
     const end = cancelled => {
       const s = g; drop();
@@ -143,9 +153,13 @@
       const go = mode === 'down' ? c.down : c.back;
       const verdict = cancelled || !go ? 'stay' : release({ d: s.d, v, size, axis: mode === 'down' ? 'y' : 'x' });
       if (verdict === 'stay') { spring(s); return; }
-      if (c.leaves === 'self') { el.style.transition = ''; if (scrim) { scrim.style.transition = ''; scrim.style.opacity = ''; } hold(T.slide + 40); go(); return; }
-      if (c.leaves === 'spring') { spring(s); go(); return; }
-      if (reduced()) { go(); if (!c.keep) reset(s); return; }
+      // Closed: a soft touch as it goes, after what closing plays itself (the check-in's "Saved." success hushes it).
+      // The click it sends to its scrim or back button is not felt again (gui/feel.js).
+      const closed = () => A.Haptics?.play('touch', 0.8);
+      if (c.leaves === 'self') { el.style.transition = ''; if (scrim) { scrim.style.transition = ''; scrim.style.opacity = ''; } hold(T.slide + 40); go(); closed(); return; }
+      if (c.leaves === 'spring') { spring(s); go(); closed(); return; }
+      if (reduced()) { go(); closed(); if (!c.keep) reset(s); return; }
+      closed();
       const ms = Math.round(clamp((size - s.d) / Math.max(Math.abs(v), 1.2), 120, T.slide));
       const ease = `${ms}ms ${EASE}`;
       hold(ms + 40);

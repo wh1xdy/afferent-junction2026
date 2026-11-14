@@ -162,7 +162,10 @@
   }
 
   async function refresh(manual) {
-    await apply(await bump(manual));
+    const rec = await bump(manual);
+    // Update data now, felt: a success with fresh data from the hub, a soft miss when only the saved data is left
+    if (manual) A.Haptics?.play(rec?.src === 'hub' ? 'success' : 'miss', rec?.src === 'hub' ? 0.7 : 0.6);
+    await apply(rec);
     const s = $('qeSim');
     if (s) s.hidden = !(current && current.body && current.body.sim);
   }
