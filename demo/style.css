@@ -85,6 +85,9 @@ pre { margin: 0; white-space: pre-wrap; font: 11px/1.5 var(--md-ref-typeface-mon
 .sw { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: -4px; }
 
 @media (max-width: 760px), (hover: none) and (pointer: coarse) {
+  /* On a phone #phone covers the screen; the page itself stays the launch navy, which Chrome (Android) can paint for
+     a moment before the loading screen is parsed. The gradient is the desktop demo's backdrop. */
+  html, body { background: #0D182A; }
   #app { padding: 0; }
   #phone { height: 100vh; height: 100dvh; width: 100vw; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
   #panel { display: none; }

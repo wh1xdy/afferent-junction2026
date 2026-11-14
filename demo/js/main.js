@@ -540,10 +540,13 @@
       if (k >= 1) { const then = curtain.then; curtain = null; then?.(); }
     }
     if (curtainV > 0.001) { ctx.fillStyle = `rgba(0,0,0,${curtainV})`; ctx.fillRect(0, 0, W, H); }
+    A.Loader?.frame(t);
     if (++frame % 8 === 0) panel(s, now);
     requestAnimationFrame(loop);
   };
   A.bus.on('artLoaded', names => log(`art layers: ${names.length ? names.join(', ') : 'none, procedural only'}`));
-  A.Art.load();
+  // The loading screen (loader.js) stays until the painted art and the fonts are in, and leaves on the first frame
+  // of the world drawn with them. The art is what takes the time; without it the world falls back to the procedural one.
+  A.Loader?.when(A.Art.load(), document.fonts?.ready);
   loop();
 })();
