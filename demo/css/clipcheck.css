@@ -1,0 +1,82 @@
+/* Clip check (js/clipcheck.js): a bottom sheet like Your signals, one live card for the clips and, when they give
+   nothing, one for the phone camera. OK is the tertiary container in both schemes. */
+#clipcheck { z-index: 8; }
+#clipcheck .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
+#clipcheck .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+.clip-sheet:focus { outline: none; }
+.clip-lede { margin: -4px 24px 16px; color: var(--md-sys-color-on-surface-variant); }
+.clip-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.clip-body { display: flex; flex-direction: column; gap: 10px; }
+
+.clip-card {
+  margin: 0 16px; padding: 16px 20px 18px; border-radius: 28px;
+  background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
+  transition: background-color var(--af-dur-state) var(--af-ease-std), color var(--af-dur-state) var(--af-ease-std), box-shadow var(--af-dur-state) var(--af-ease-std);
+}
+.clip-card.tone-act { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-sys-color-primary) 45%, transparent); }
+.clip-card.tone-ok { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+.clip-card.tone-rest { background: var(--md-sys-color-surface-container); color: var(--md-sys-color-on-surface-variant); }
+
+.clip-top { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+.clip-tile { transition: background-color var(--af-dur-state) var(--af-ease-std), color var(--af-dur-state) var(--af-ease-std); }
+.clip-card.tone-ok .clip-tile { background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary); }
+.clip-card.tone-rest .clip-tile { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface-variant); }
+.clip-name { flex: 1; min-width: 0; font: 500 15px/20px var(--af-font-ui); letter-spacing: 0.1px; }
+.clip-tag { flex: none; font: 600 12px/16px var(--af-font-ui); letter-spacing: var(--af-label-track); text-transform: uppercase; color: var(--md-sys-color-on-surface-variant); }
+.clip-card.tone-ok .clip-tag { padding: 4px 12px; border-radius: 12px; background: var(--md-sys-color-tertiary); color: var(--md-sys-color-on-tertiary); letter-spacing: 0.12em; }
+.clip-card.tone-act .clip-tag { color: var(--md-sys-color-primary); }
+
+.clip-head { margin: 14px 0 0; font: 400 22px/28px var(--af-font-brand); letter-spacing: -0.1px; text-wrap: balance; }
+.clip-sub { margin: 6px 0 0; font: 400 15px/22px var(--af-font-ui); letter-spacing: 0.15px; opacity: 0.86; text-wrap: pretty; }
+
+.clip-num { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
+.clip-num .num { font: 300 52px/56px var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.clip-num .unit { font: 400 15px/20px var(--af-font-ui); opacity: 0.86; }
+.clip-beat { align-self: center; font-size: 26px; color: var(--md-sys-color-tertiary); animation: clipBeat var(--beat, 0.85s) var(--af-ease-std) infinite; }
+.clip-card.tone-ok .clip-beat { color: currentColor; }
+@keyframes clipBeat { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.18); } 28% { transform: scale(1); } }
+
+.clip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.clip-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px 0 8px; border-radius: 16px;
+  background: color-mix(in srgb, currentColor 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 22%, transparent);
+  font: 500 14px/20px var(--af-font-ui); letter-spacing: 0.1px;
+}
+.clip-chip .ms { font-size: 18px; opacity: 0.7; }
+.clip-chip.on { background: color-mix(in srgb, var(--md-sys-color-tertiary) 22%, transparent); box-shadow: none; }
+.clip-chip.on .ms { color: var(--md-sys-color-tertiary); opacity: 1; }
+.clip-card.tone-ok .clip-chip.on { background: color-mix(in srgb, currentColor 12%, transparent); }
+.clip-card.tone-ok .clip-chip.on .ms { color: currentColor; }
+.clip-signal { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.clip-signal .k { font: 500 12px/16px var(--af-font-ui); letter-spacing: 0.04em; opacity: 0.8; }
+.clip-bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 18px; }
+.clip-bars i { width: 5px; border-radius: 2px; background: color-mix(in srgb, currentColor 20%, transparent); transition: background-color var(--af-dur-state) var(--af-ease-std); }
+.clip-bars i:nth-child(1) { height: 6px; } .clip-bars i:nth-child(2) { height: 9px; } .clip-bars i:nth-child(3) { height: 12px; }
+.clip-bars i:nth-child(4) { height: 15px; } .clip-bars i:nth-child(5) { height: 18px; }
+.clip-bars i.on { background: var(--md-sys-color-primary); }
+.clip-card.tone-ok .clip-bars i.on { background: currentColor; }
+
+.clip-inline { margin: 8px -12px -6px; }
+.clip-privacy { margin: 10px 0 0; display: flex; gap: 6px; font: 400 13px/18px var(--af-font-ui); letter-spacing: 0.2px; opacity: 0.8; }
+.clip-privacy::before { content: "lock"; font: 16px/18px var(--md-ref-typeface-icons); font-feature-settings: "liga"; }
+.clip-note { margin: 2px 24px 0; font: 400 15px/22px var(--af-font-ui); color: var(--md-sys-color-on-surface-variant); }
+
+.clip-actions { justify-content: space-between; align-items: center; }
+.clip-actions .btn:only-child { margin-left: auto; }
+
+.clip-offer {
+  width: 100%; max-width: 400px; margin: 0 0 20px; text-align: left;
+  background: color-mix(in srgb, var(--md-sys-color-surface-container-high) 88%, transparent);
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  animation: fadeIn var(--af-dur-enter) var(--af-ease-in);
+}
+.clip-offer p { margin: 0 0 2px; }
+.clip-offer .t-title { color: var(--md-sys-color-on-surface); }
+.clip-offer .offer-btns { margin-top: 6px; }
+
+:root[data-motion="reduced"] #clipcheck .sheet { animation: fadeIn 150ms linear; }
+:root[data-motion="reduced"] .clip-beat, :root[data-motion="reduced"] .clip-offer { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  #clipcheck .sheet { animation: fadeIn 150ms linear; }
+  .clip-beat, .clip-offer { animation: none; }
+}
