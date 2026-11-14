@@ -162,6 +162,7 @@
 .talk { z-index: 9; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); overflow: auto; overscroll-behavior: contain; animation: rise var(--af-dur-enter) var(--af-ease-in); }
 .talk-body { flex: 1; padding: calc(var(--safe-top) + 56px) 16px 16px; display: flex; flex-direction: column; }
 .talk-tile { width: 56px; height: 56px; margin: 0 8px; border-radius: 18px; }
+.talk h2 { text-wrap: balance; }
 .talk-tile svg { width: 20px; height: 32px; }
 .talk h2 { margin: 20px 8px 24px; color: var(--md-sys-color-on-surface); }
 .contacts { margin: 0; }
@@ -173,12 +174,13 @@
 .talk-actions { padding: 16px 16px calc(var(--safe-bottom) + 24px); }
 
 .settings { z-index: 6; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); animation: rise var(--af-dur-enter) var(--af-ease-in); }
-.app-bar { min-height: 64px; padding-left: 4px; padding-right: 4px; background: var(--md-sys-color-surface); }
+.app-bar { min-height: 64px; padding-left: calc(var(--af-safe-l) + 4px); padding-right: calc(var(--af-safe-r) + 4px); background: transparent; }
 .app-bar .title { flex: 1; margin: 0 0 0 4px; font: 400 22px/28px var(--af-font-brand); color: var(--md-sys-color-on-surface); }
 .settings-body { flex: 1; overflow: auto; overscroll-behavior: contain; padding-bottom: calc(var(--safe-bottom) + 24px); scrollbar-width: none; }
 .settings-body::-webkit-scrollbar { display: none; }
 .set-group { margin-bottom: 8px; }
 .set-group .subhead { font-weight: 600; color: var(--md-sys-color-secondary); }
+.settings, .talk { background-image: var(--af-grain); background-size: var(--af-grain-size); }
 [data-scheme="kevat"] .set-group .subhead { color: var(--md-sys-color-primary); }
 #pauseRow:has(+ .pause-menu.hidden) { border-bottom-left-radius: 24px; border-bottom-right-radius: 24px; }
 .set-group .lead-glyph { width: 24px; height: 24px; display: grid; place-items: center; color: var(--md-sys-color-on-surface-variant); flex: none; }
@@ -213,7 +215,7 @@
 #info .scrim, #hubDialog .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
 #hubDialog { z-index: 8; }
 #hubDialog .dialog { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
-.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 8px 24px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px 12px 24px; }
 .sheet-head h2 { margin: 0; color: var(--md-sys-color-on-surface); }
 .how { list-style: none; margin: 0; padding: 4px 24px 0; display: flex; flex-direction: column; gap: 4px; }
 .how li { display: flex; align-items: center; gap: 16px; min-height: 56px; color: var(--md-sys-color-on-surface); }
