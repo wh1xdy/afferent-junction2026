@@ -41,7 +41,7 @@ interface FingerRadio {
     /** Devices connected to this phone, possibly through another app (they do not advertise). */
     fun connectedDevices(): List<FingerDevice>
 
-    /** Start looking for peripherals that advertise the Heart Rate Service. */
+    /** Start looking for peripherals that advertise the Heart Rate Service or Wendy Net's. */
     fun startScan(): Boolean
     fun stopScan()
 
@@ -85,8 +85,11 @@ object FingerRetry {
 
 /**
  * Rules this class keeps (the same as the iOS plugin):
- *  - It connects only to a device named exactly "Afferent Finger" that also has the AFF0
- *    service. A stranger's heart-rate strap must never be shown as the patient's finger.
+ *  - It connects only to a device named exactly "Afferent Finger", or to one advertising Wendy
+ *    Net's service named exactly "wendyos-uno-q" (the same board, seen through Wendy Net's
+ *    advertisement while ours is off the air), and trusts it only once it has the AFF0
+ *    service. A stranger's heart-rate strap or another Wendy device must never be shown as the
+ *    patient's finger.
  *  - It only subscribes to notifications and never asks the peripheral for a stored value, so
  *    every reading is a value the board sent just now. (A stored value can be minutes old and
  *    would be stamped as fresh.)
@@ -150,7 +153,7 @@ class AfferentFingerLink(
     private var attempt = 0
     /** Changes when the app comes back to the foreground: cancels a pending pause(). */
     private var backgroundTurn = 0
-    /** The right name but no AFF0 service: not our board. Left alone until stop(). */
+    /** The right name but no AFF0 service: not our board (e.g. another team's WendyOS UNO Q). Left alone until stop(). */
     private val ignored = HashSet<String>()
     /** Setting up the connection failed MAX_FAILURES times in a row: left alone until this time. */
     private val restUntil = HashMap<String, Long>()
@@ -212,9 +215,12 @@ class AfferentFingerLink(
 
     // ── called by the radio ──────────────────────────────────────────────
 
-    /** A peripheral that advertises the Heart Rate Service was seen. */
-    fun onScanResult(address: String, advertisedName: String?, deviceName: String?) {
-        if (scanning) consider(address, advertisedName, deviceName)
+    /**
+     * A peripheral that advertises the Heart Rate Service or Wendy Net's was seen.
+     * wendyNet = Wendy Net's service is in its advertisement.
+     */
+    fun onScanResult(address: String, advertisedName: String?, deviceName: String?, wendyNet: Boolean = false) {
+        if (scanning) consider(address, advertisedName, deviceName, wendyNet)
     }
 
     /** The scan could not start or was stopped by the system. */
@@ -243,7 +249,7 @@ class AfferentFingerLink(
             return
         }
         if (!radio.hasService(AfferentFingerParser.AFFERENT_SERVICE)) {
-            drop(ignore = true)                      // right name, not our board
+            drop(ignore = true)                      // right name, not our board (or not running the hub)
             return
         }
         attempt++                                    // connected: the timeout no longer applies
@@ -318,9 +324,10 @@ class AfferentFingerLink(
         release()
         set("scanning", null)
         // The board may already be connected to this phone through another app; such a
-        // peripheral does not advertise, so a scan alone would miss it.
+        // peripheral does not advertise, so a scan alone would miss it. Android lists these
+        // devices without their services, so only the name "Afferent Finger" counts here.
         for (d in radio.connectedDevices()) {
-            if (consider(d.address, null, d.name)) return
+            if (consider(d.address, null, d.name, wendyNet = false)) return
         }
         val wait = scanBudget.take(timer.nowMs())
         if (wait > 0) {
@@ -335,10 +342,10 @@ class AfferentFingerLink(
         later(SCAN_REFRESH_MS) { scan() }            // cancelled by whatever happens before
     }
 
-    /** Connects when the device is our board. Returns true if it was taken. */
-    private fun consider(address: String, advertisedName: String?, deviceName: String?): Boolean {
+    /** Connects when the device may be our board. Returns true if it was taken. */
+    private fun consider(address: String, advertisedName: String?, deviceName: String?, wendyNet: Boolean): Boolean {
         if (!running || device != null || state != "scanning" || address in ignored ||
-            !AfferentFingerParser.isAfferentFinger(advertisedName, deviceName) || resting(address)
+            !AfferentFingerParser.mayBeAfferentBoard(advertisedName, deviceName, wendyNet) || resting(address)
         ) return false
         release()
         device = address

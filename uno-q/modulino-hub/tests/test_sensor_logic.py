@@ -72,6 +72,7 @@ def reset():
         app.last_locked[c] = 0.0
         app.sent_bpm[c] = 0
     app.last_ppg = 0.0
+    app.reset_guards()
 
 
 def beats_with_breathing(rate_per_min, base_bpm=72, swing_bpm=8, n=70):
@@ -315,6 +316,7 @@ class TwoHearts(unittest.TestCase):
     def test_a_beat_refreshes_only_its_own_finger(self):
         now = time.time()
         app.period_state[0].update(period_ms=940, quality=0.8)
+        app.finger_guards[0].trusted, app.finger_guards[0].trusted_t = 64, now   # worn for a while
         for k in range(4):
             app.on_beat(0, 1000 + 940 * k, 940, 900, True)
         self.assertEqual(app.sent_bpm, [64, 0])

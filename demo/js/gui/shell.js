@@ -30,6 +30,9 @@
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
+    { title: 'While you play', rows: [
+      { icon: 'vital_signs', label: 'Live vitals', sup: 'Your pulse and breathing in a corner, and why the games change', sw: 'id="vitalsSw"' },
+    ] },
     { title: 'Before a session', rows: [
       { icon: 'back_hand', label: 'Check the finger clips', sup: 'Not checked yet', supId: 'clipState', attrs: 'id="clipCheckRow"', chevron: true },
       { icon: 'checklist', label: 'Ask before each session', sup: 'Only when the clips give no pulse yet', sw: 'id="clipAskSw"' },
@@ -105,7 +108,7 @@
     if (!btn) return;
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
     const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
-    let p = 0, t0 = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
+    let p = 0, t0 = 0, heldFrom = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
     const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 && v < 1 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
     const buzz = (n, k) => A.Haptics?.play(n, k);
     const fire = () => { lit = true; btn.classList.add('lit'); A.Haptics?.lit(); btn.dispatchEvent(new CustomEvent('kindle')); };
@@ -124,6 +127,10 @@
       const step = () => { if (holding || lit) return; const k = Math.min(1, (performance.now() - s) / 320); set(from * (1 - k)); if (k < 1) raf = requestAnimationFrame(step); };
       raf = requestAnimationFrame(step);
     };
+    // When the finger really went down or up. A busy frame (as right after launch) can run the pointerdown handler late,
+    // and the ring times the hold from the handler, so a 1.3 s hold could end with the ring barely started and drain.
+    // On release the event times decide; the ring itself still counts from the handler, so a stall never fills it early.
+    const at = e => { const n = performance.now(), t = e?.timeStamp; return t > 0 && t <= n + 1 && t > n - 5000 ? t : n; };
     btn.addEventListener('pointerdown', e => {
       if (btn.disabled || lit || e.button > 0) return;
       e.preventDefault();
@@ -132,10 +139,16 @@
       cancelAnimationFrame(raf);
       holding = true; btn.classList.add('holding'); buzzAt = performance.now() + buildGap(p); swell = p >= 0.75;
       if (!(smoothHap() && A.Haptics.hold((1 - p) * HOLD_MS, p))) buzz('tick');
-      t0 = performance.now() - p * HOLD_MS;
+      t0 = performance.now() - p * HOLD_MS; heldFrom = at(e) - p * HOLD_MS;
       raf = requestAnimationFrame(tick);
     });
-    const release = () => { if (!holding) return; holding = false; btn.classList.remove('holding'); if (!lit) { A.Haptics?.release(); drain(); hint(); } };
+    const release = e => {
+      if (!holding) return;
+      holding = false; btn.classList.remove('holding');
+      if (lit) return;
+      if ((at(e) - heldFrom) / HOLD_MS >= 1) { cancelAnimationFrame(raf); set(1); fire(); return; }
+      A.Haptics?.release(); drain(); hint();
+    };
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(t => btn.addEventListener(t, release));
     btn.addEventListener('contextmenu', e => e.preventDefault());
     btn.addEventListener('click', e => { if (e.detail === 0 && !lit && !btn.disabled) { set(1); fire(); } });
@@ -254,7 +267,7 @@
       const b = e.target.closest('[data-open]');
       if (!b) return;
       const id = b.dataset.open, el = $(id);
-      if (!el || !['settings', 'info', 'signals', 'voice'].includes(id)) return;
+      if (!el || !['settings', 'info', 'signals', 'voice', 'hubDialog'].includes(id)) return;
       if (A.Theme.scheme === 'kaamos' && local() === 'kevat') el.dataset.scheme = 'kevat';
       else delete el.dataset.scheme;
     }, true);

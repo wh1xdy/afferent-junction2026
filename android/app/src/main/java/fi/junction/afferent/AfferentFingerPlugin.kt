@@ -295,12 +295,16 @@ class AfferentFingerPlugin : Plugin() {
                 // Not a state of its own on iOS, so the link stays "scanning" (which is true).
                 Log.w(TAG, "Location is switched off: Android 11 and earlier then deliver no scan results")
             }
-            val filter = ScanFilter.Builder()
-                .setServiceUuid(ParcelUuid(AfferentFingerParser.HEART_RATE_SERVICE)).build()
+            // Heart Rate finds our own advertisement; Wendy Net's finds the board while a Wendy
+            // Net peer holds a link through ours (that advertisement is then off the air).
+            // Several filters: a result matches any of them.
+            val filters = AfferentFingerParser.SCAN_SERVICES.map {
+                ScanFilter.Builder().setServiceUuid(ParcelUuid(it)).build()
+            }
             val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
             val callback = ScanEvents()
             scan = callback
-            scanner.startScan(listOf(filter), settings, callback)
+            scanner.startScan(filters, settings, callback)
             true
         }
 
@@ -390,7 +394,9 @@ class AfferentFingerPlugin : Plugin() {
                     val device = result.device ?: return@post
                     seen[device.address] = device
                     val name = guarded("device name", null as String?) { device.name }
-                    link.onScanResult(device.address, result.scanRecord?.deviceName, name)
+                    val wendyNet = result.scanRecord?.serviceUuids
+                        ?.contains(ParcelUuid(AfferentFingerParser.WENDY_NET_SERVICE)) == true
+                    link.onScanResult(device.address, result.scanRecord?.deviceName, name, wendyNet)
                 }
             }
         }

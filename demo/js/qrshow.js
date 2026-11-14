@@ -306,7 +306,9 @@
     print.onclick = () => go(true);
     cancel.onclick = () => close();
     scrim.onclick = () => close();
-    dragToClose(panel, panel, () => close());
+    // a swipe down closes it, from the handle or once the content is scrolled to the top (gui/swipe.js on the phone)
+    if (A.Swipe) A.Swipe.bind(root, () => (sheet ? { sheet: panel, scrim, handle: '.qs-handle, .qs-head', down: () => close(), leaves: 'self' } : null));
+    else dragToClose(panel, panel, () => close());
     sheet = { close: () => close() };
     requestAnimationFrame(() => { root.classList.add('in'); title.focus({ preventScroll: true }); });
     const mine = sheet;

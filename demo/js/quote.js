@@ -1,6 +1,7 @@
 (() => {
   const SHOW_AT = 1600, SEEN = 'afferent.quotes.seen.v1';
-  const POOLS = { morning: ['morning', 'any', 'after_hard_day'], night: ['night', 'any'] };
+  // night mode draws the night pool; otherwise the pool follows the time of day, so no "new day" quote in the evening
+  const POOLS = { morning: ['morning', 'any', 'after_hard_day'], afternoon: ['any', 'after_hard_day'], evening: ['any', 'after_hard_day'], night: ['night', 'any'] };
   let quotes = [], offered = false, live = false, timer = 0, el = null;
 
   const read = () => { try { const v = JSON.parse(localStorage.getItem(SEEN)); return Array.isArray(v) ? v : []; } catch { return []; } };
@@ -12,7 +13,7 @@
     .catch(() => { quotes = []; });
 
   const pick = clock => {
-    const tags = POOLS[clock === 'night' ? 'night' : 'morning'];
+    const tags = POOLS[clock] || POOLS.morning;
     const pool = quotes.filter(q => q.tags.some(t => tags.includes(t)));
     if (!pool.length) return null;
     let seen = read().filter(id => quotes.some(q => q.id === id));
@@ -38,7 +39,7 @@
   const show = (q, night) => {
     el.querySelector('p').textContent = q.text;
     const cite = el.querySelector('cite');
-    cite.textContent = q.author || 'Morning note';
+    cite.textContent = q.author || A.Guide?.note?.() || 'A note';
     el.className = ['quote-line', size(q), night ? 'night' : ''].filter(Boolean).join(' ');
     el.dataset.id = q.id;
     void el.offsetWidth;
@@ -66,7 +67,7 @@
     live = true;
     timer = setTimeout(() => ready.then(() => {
       if (!live || offered || !el) return;
-      const q = pick(night ? 'night' : 'morning');
+      const q = pick(night ? 'night' : A.Guide?.partOfDay?.() || 'morning');
       if (q) show(q, night);
     }), SHOW_AT);
   });

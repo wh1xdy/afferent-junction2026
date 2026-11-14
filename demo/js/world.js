@@ -16,7 +16,7 @@
   };
   A.P = P;
 
-  const LAYER = { stars: 0.02, aurora: 0.04, far: 0.1, islands: 0.2, fogFar: 0.3, mid: 0.5, fogNear: 0.7, ground: 1, fore: 1.35 };
+  const LAYER = { stars: 0.02, aurora: 0.04, far: 0.1, islands: 0.2, fogFar: 0.3, mid: 0.5, fogNear: 0.7, ground: 1, fore: 1.5 };
   const GROUPS = ['yellow', 'blue', 'green', 'dawn'];
 
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0); return [c, c.getContext('2d')]; };
@@ -119,11 +119,12 @@
   const RIPPLES = Array.from({ length: 46 }, () => ({ x: r0(), y: r0(), w: 6 + r0() * 26, p: r0() * 6.28 }));
   const GLINTS = Array.from({ length: 70 }, () => ({ x: r0() * 1400, y: Math.pow(r0(), 0.8), p: r0() * 6.28, f: 0.8 + r0() * 2 }));
 
-  let S = null, W = 0, H = 0, gy = 0, hy = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
+  let S = null, W = 0, H = 0, gy = 0, hy = 0, my = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
   const states = new WeakMap();
   const MQ = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let sized = { W: 0, H: 0 }, vign = null, darkC = null, darkX = null, grainPat = null, borderC = null, auroraC = null, auroraX = null;
   const n0 = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
+  const { layout } = A.Layers;
 
   function newState() {
     const N = 120;
@@ -192,13 +193,34 @@
   const ART_V3 = new URLSearchParams(location.search).get('art') === 'v3';
   const ART = { ...A.Art, has: n => A.Art.has(n) && (ART_V3 || n === 'sky_aurora' || A.Art.has('figure_ride')) };
   const art = (n, x, y, w, h, g, a = 1, lt = 1) => ART.draw(ctxRef, n, x, y, w, h, satOf(g), Math.min(1, lightOf(g) * lt), a);
-  function strip(n, f, bottom, h, g, a = 1, lt = 1, gap = 0.985) {
-    if (!ART.has(n)) return false;
-    const w = h * ART.aspect(n), span = w * gap, o = off(f);
-    for (let x = -(((o % span) + span) % span); x < W; x += span) art(n, x, bottom - h, w, h, g, a, lt);
-    return true;
+  const specOf = n => A.Layers.spec(n, A.Art.meta?.(n));
+  function strip(n, f, anchor, g, a = 1, lt = 1) {
+    if (!ART.has(n)) return null;
+    const sp = specOf(n), sz = A.Art.size(n), h = sz.h / sp.density * u, w = h * sz.w / sz.h, span = w * (sp.tile ? 1 : 0.985), o = off(f);
+    const top = anchor + sp.dy * u - sp.base * h;
+    for (let x = -(((o % span) + span) % span); x < W; x += span) art(n, x, top, w + (sp.tile ? 0.75 : 0), h, g, a, lt);
+    if (sp.fill && top + h < H) { const c = stripBase(n, g, lt); if (c) { ctxRef.fillStyle = rgb(c); ctxRef.fillRect(0, top + h - 2 * u, W, H - top - h + 2 * u); } }
+    return { top, bottom: top + h };
   }
   const at = (wx, f = 1) => fx + (wx - S.worldX) * f;
+  const bases = new Map();
+  function stripBase(n, g, lt) {
+    const sat = satOf(g), li = Math.min(1, lightOf(g) * lt), key = n + ':' + sat.toFixed(2) + ':' + li.toFixed(2);
+    if (bases.has(key)) return bases.get(key);
+    let c = null;
+    try {
+      const [cv, x] = mk(16, 16);
+      ART.draw(x, n, 0, -48, 16, 64, sat, li, 1);
+      const d = x.getImageData(0, 13, 16, 1).data;
+      let r = 0, gg = 0, b = 0, a = 0;
+      for (let i = 0; i < d.length; i += 4) { r += d[i] * d[i + 3]; gg += d[i + 1] * d[i + 3]; b += d[i + 2] * d[i + 3]; a += d[i + 3]; }
+      if (a > 0) c = [r / a, gg / a, b / a];
+      cv.width = 0;
+    } catch {}
+    if (bases.size > 40) bases.clear();
+    bases.set(key, c);
+    return c;
+  }
 
   function sprite(ctx, name, c, x, y, w, h, a, add) {
     if (a <= 0.003) return;
@@ -462,7 +484,7 @@
   }
 
   function mountains(ctx) {
-    if (strip('far_mountains', LAYER.far, hy + 3 * u, H * 0.085, 'blue', 0.62, 0.72)) return;
+    if (strip('far_mountains', LAYER.far, hy, 'blue', 0.62, 0.72)) return;
     const FELLS = [[H * 0.1, LAYER.far, 3, P.silver100, P.silver300, 0.62], [H * 0.07, LAYER.far * 1.6, 8, P.silver300, P.mountain, 0.42], [H * 0.04, LAYER.far * 2.3, 13, P.mountain, P.mountain2, 0.26]];
     const rim = I.night ? 0 : 0.8 * st.sun;
     FELLS.forEach(([amp, f, seed, c0, c1, hz], i) => {
@@ -496,7 +518,7 @@
   }
 
   function islands(ctx) {
-    if (strip('far_islands', LAYER.islands, hy + H * 0.008, H * 0.05, 'blue', 0.92, 0.9)) { lighthouse(ctx); return; }
+    if (strip('far_islands', LAYER.islands, hy, 'blue', 0.92, 0.9)) { lighthouse(ctx); return; }
     const o = off(LAYER.islands), span = 3120 * u, fill = col(P.spruce, 'green', 1, 0.45), humps = [];
     ctx.fillStyle = fill; ctx.beginPath();
     for (const is of ISLANDS) {
@@ -605,8 +627,8 @@
 
   function sea(ctx) {
     const top = col(mixc(mixc(HAZE, P.sea, 0.5), P.dawnSky, 0.5 * st.ds.dawn), 'blue', 1, 0.15), bot = col(mixc(P.seaDeep, P.sea, 0.5 * st.ds.dawn), 'blue');
-    ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H, hy, gy, [[0, top], [1, bot]]);
-    ctx.fillRect(0, hy, W, gy - hy + 2);
+    ctx.fillStyle = vgrad(ctx, 'sea' + top + bot + H + ':' + Math.round(hy), hy, gy, [[0, top], [1, bot]]);
+    ctx.fillRect(0, hy, W, H - hy);
     const t = n0(S.t, 0), o = off(LAYER.islands), c = grade(P.silver200, 'blue');
     ctx.fillStyle = rgb(c);
     for (const r of RIPPLES) {
@@ -623,15 +645,15 @@
   }
 
   function midHills(ctx) {
-    if (strip('mid_hills_spruce', LAYER.mid, gy + 8 * u, H * 0.13, 'green', 1, 0.82)) return;
+    if (strip('mid_hills_spruce', LAYER.mid, my, 'green', 1, 0.82)) return;
     const c1 = col(mixc(P.snow, P.frost, 0.4), 'blue', 1, 0.22), c2 = col(mixc(P.dusk, P.kaamos, 0.4), 'blue', 1, 0.3), tc = col(mixc(P.spruce, P.night800, 0.35), 'green', 1, 0.28);
-    const base = hy + H * 0.1, f = LAYER.mid, o = off(f), sc = 1 / u, step = 6 * u;
+    const base = my - H * 0.12, f = LAYER.mid, o = off(f), sc = 1 / u, step = 6 * u;
     const yAt = x => { const q = (x + o) * sc; return base - H * 0.05 * (0.25 + 0.75 * noise(q * 0.006 + 41)) - H * 0.02 * noise(q * 0.02 + 7); };
-    ctx.beginPath(); ctx.moveTo(-step, gy);
+    ctx.beginPath(); ctx.moveTo(-step, H);
     const pts = [];
     for (let x = -step; x <= W + step; x += step) { pts.push([x, yAt(x)]); ctx.lineTo(x, yAt(x)); }
-    ctx.lineTo(W + step, gy); ctx.closePath();
-    ctx.fillStyle = vgrad(ctx, 'mh' + c1 + c2 + H, base - H * 0.07, gy, [[0, c1], [0.3, c1], [0.75, c2], [1, c2]]); ctx.fill();
+    ctx.lineTo(W + step, H); ctx.closePath();
+    ctx.fillStyle = vgrad(ctx, 'mh' + c1 + c2 + H + ':' + Math.round(my), base - H * 0.07, my, [[0, c1], [0.3, c1], [0.75, c2], [1, c2]]); ctx.fill();
     laminate(ctx, pts, 0.3, 1, 0.85);
     const gapU = 22 * u, i0 = Math.floor((o - 40 * u) / gapU), i1 = Math.ceil((o + W + 40 * u) / gapU);
     ctx.beginPath();
@@ -688,7 +710,8 @@
   }
 
   const chunks = () => (Array.isArray(S.chunks) && S.chunks.length ? S.chunks : [{ type: 'harbour', x0: -700, x1: 420, seed: 1 }]);
-  const visible = () => chunks().filter(c => sx(c.x1) > -160 && sx(c.x0) < W + 160);
+  const visible = (m = 160) => chunks().filter(c => sx(c.x1) > -m && sx(c.x0) < W + m);
+  const every = (c, k, at = 0) => ((c.n || 0) % k) === at;
   const GROUND = {
     harbour: [() => mixc(P.seaDeep, P.sea, 0.35), 'blue'], forest: [() => mixc(P.snow, P.moss, 0.12), 'green'],
     lake: [() => mixc(P.ice, P.silver200, 0.35), 'blue'], sauna: [() => mixc(P.snow, P.bark, 0.5), 'yellow'], shore: [() => mixc(P.snow, P.peach, 0.45 * st.ds.dawn), 'base'],
@@ -696,15 +719,18 @@
   const groundAt = type => GROUND[type] || GROUND.shore;
   const terr = wx => (typeof S.terrain === 'function' ? S.terrain(wx) * u : 0);
   const gyAt = wx => gy - terr(wx) + 3 * u * noise(wx * 0.012) - 2 * u;
+  const terrAt = x => terr(S.worldX + x - fx);
 
-  const GTOP = { forest: 0.36, shore: 0.16, sauna: 0.06, harbour: 0.03, lake: 0.03 }, GF = 60, PW = 560;
-  function groundArt(ctx, c) {
-    const n = 'ground_' + c.type;
-    if (!ART.has(n)) return false;
-    const dpr = Math.min(1.5, Math.abs(ctx.getTransform().a) || 1), top = GTOP[c.type] || 0;
-    const gh = (H - gy + 8 * u) / (1 - top), f = GF, key = `g:${c.type}:${Math.round(gh)}:${dpr}`;
+  const GF = 60, PW = 560;
+  function groundBake(ctx, type) {
+    const n = 'ground_' + type;
+    if (!ART.has(n)) return null;
+    const sp = specOf(n), top = sp.base, sz = A.Art.size(n), g = groundAt(type)[1];
+    const gh = sp.density ? sz.h / sp.density * u : (H * 0.18 + 8 * u) / (1 - top), y = gy - 3 * u - gh * top;
+    if (sp.tile) return { key: n, tile: true, gh, y, g, tw: gh * sz.w / sz.h };
+    const dpr = Math.min(1.5, (ctx.canvas?.width || W) / W || 1), key = `g:${type}:${Math.round(gh)}:${dpr.toFixed(2)}`;
     if (!ART.has(key)) {
-      ART.drop(`g:${c.type}:`);
+      ART.drop(`g:${type}:`);
       const cw = (PW + 2 * GF) * dpr, th = gh * dpr;
       ART.bake(key, n, cw, th, (x, src, w, h) => {
         const tw = th * w / h;
@@ -712,15 +738,49 @@
         ART.feather(x, cw, th, GF / (PW + 2 * GF));
       });
     }
-    const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, y = gy - 3 * u - gh * top;
-    for (let i = 0; i < k; i++) {
-      const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f;
-      if (x > W || x + w < 0) continue;
-      if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8); ctx.restore(); }
-      else art(key, x, y, w, gh, groundAt(c.type)[1], 1, 0.8);
+    return { key, gh, y, g };
+  }
+
+  function groundArt(ctx, c) {
+    const cur = groundBake(ctx, c.type);
+    if (!cur) return false;
+    const from = c.from ? groundBake(ctx, c.from) : null;
+    const k = Math.max(1, Math.round((c.x1 - c.x0) / PW)), pw = (c.x1 - c.x0) / k, f = GF;
+    const bent = typeof S.terrain === 'function', SW = 16 * u;
+    const slice = (L, a, s0, s1, x, w) => ART.slice(ctx, L.key, (s0 - x) / w, (s1 - x) / w, x, L.y, w, L.gh, satOf(L.g), Math.min(1, lightOf(L.g) * 0.8), a);
+    const draw = (L, a, s0, s1) => {
+      if (a <= 0.003) return;
+      if (L.tile) {
+        const t0 = (((S.worldX + s0 - fx) % L.tw) + L.tw) % L.tw, x = s0 - t0;
+        slice(L, a, s0, Math.min(s1, x + L.tw), x, L.tw);
+        if (s1 > x + L.tw) slice(L, a, x + L.tw, s1, x + L.tw, L.tw);
+        return;
+      }
+      for (let i = 0; i < k; i++) {
+        const x = sx(c.x0 + i * pw) - f, w = pw + 2 * f, a0 = Math.max(s0, x), a1 = Math.min(s1, x + w);
+        if (a1 <= a0) continue;
+        if ((c.seed + i) % 2) { ctx.save(); ctx.translate(2 * x + w, 0); ctx.scale(-1, 1); slice(L, a, 2 * x + w - a1, 2 * x + w - a0, x, w); ctx.restore(); }
+        else slice(L, a, a0, a1, x, w);
+      }
+    };
+    const ext = cur.tile ? 0 : f, e0 = Math.max(sx(c.x0) - ext, -SW), e1 = Math.min(sx(c.x1) + ext, W + SW);
+    if (e1 <= e0) return true;
+    if (!bent && !from) { draw(cur, 1, e0, e1); return true; }
+    const m = ctx.getTransform(), ma = m.a || 1, D = Math.max(4, Math.round(SW * ma)), toX = dv => (dv - m.e) / ma;
+    for (let dv = Math.floor((e0 * ma + m.e) / D) * D; dv < e1 * ma + m.e; dv += D) {
+      const x0 = toX(dv), x1 = toX(dv + D), s0 = Math.max(x0, e0), s1 = Math.min(x1, e1);
+      if (s1 <= s0) continue;
+      const d0 = bent ? -terr(S.worldX + x0 - fx) : 0, d1 = bent ? -terr(S.worldX + x1 - fx) : 0, kk = (d1 - d0) / (x1 - x0);
+      const q = from ? ease(clamp((S.worldX + (x0 + x1) / 2 - fx - c.x0) / (c.x1 - c.x0), 0, 1)) : 1;
+      ctx.save(); ctx.transform(1, kk, 0, 1, 0, d0 - kk * x0);
+      if (from) draw(from, 1, s0, s1);
+      draw(cur, q, s0, s1);
+      ctx.restore();
     }
     return true;
   }
+
+
 
   function ground(ctx) {
     const vs = visible(), step = 8 * u, cs = chunks();
@@ -733,8 +793,9 @@
       if (k < 0) k = wx < cs[0].x0 ? 0 : cs.length - 1;
       const c = cs[k], blend = 70;
       let cc = cOf(c);
-      if (wx - c.x0 < blend && k > 0) cc = mixc(cOf(cs[k - 1]), cc, 0.5 + 0.5 * (wx - c.x0) / blend);
-      else if (c.x1 - wx < blend && k < cs.length - 1) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
+      if (c.from) cc = mixc(cOf({ type: c.from }), cc, ease((wx - c.x0) / (c.x1 - c.x0)));
+      else if (wx - c.x0 < blend && k > 0) cc = mixc(cOf(cs[k - 1]), cc, 0.5 + 0.5 * (wx - c.x0) / blend);
+      else if (c.x1 - wx < blend && k < cs.length - 1 && !cs[k + 1].from) cc = mixc(cOf(cs[k + 1]), cc, 0.5 + 0.5 * (c.x1 - wx) / blend);
       g.addColorStop(i / 16, rgb(cc));
     }
     ctx.beginPath(); ctx.moveTo(-step, H + 2);
@@ -847,28 +908,28 @@
     if (!ART.has(n)) return false;
     const w = h * ART.aspect(n), x = at(wx, f) - w / 2;
     if (x > W + 20 || x + w < -20) return true;
-    return art(n, x, gy + h * sink - h, w, h, g, 1, lt);
+    return art(n, x, (f >= 1 ? gy - terrAt(x + w / 2) : my) + h * sink - h, w, h, g, 1, lt);
   }
   function backProps(c) {
     const m = (c.x0 + c.x1) / 2, cw = c.x1 - c.x0;
-    if (c.type === 'harbour') prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
-    if (c.type === 'shore' && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
-      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = gy + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
+    if (c.type === 'harbour' && every(c, 3)) prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
+    if (c.type === 'shore' && every(c, 4) && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
+      const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = my + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
       glow(ctxRef, lx, ly, lh * 0.12, P.flame, 0.6 * on); glow(ctxRef, lx, ly, lh * 0.035, P.daylight, 0.8 * on);
     }
-    if (c.type === 'sauna') prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
-    if (c.type === 'forest' && ART.has('mid_birch_grove')) prop('mid_birch_grove', m, 0.9, 300 * u, 'yellow', 0.82, 0.05);
+    if (c.type === 'sauna' && every(c, 2)) prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
+    if (c.type === 'forest' && every(c, 3) && ART.has('mid_birch_grove')) prop('mid_birch_grove', m, 0.9, 300 * u, 'yellow', 0.82, 0.05);
   }
 
   function props(ctx, back) {
-    for (const c of visible()) {
+    for (const c of visible(W)) {
       if (c.type === 'forest') {
         if (!ART.has('mid_birch_grove')) birches(ctx, c, back);
-        else if (!back) prop('birch_cluster', c.x0 + 70, 1, H * 0.31, 'yellow', 0.95, 0.05);
+        else if (!back && every(c, 2, 1)) prop('birch_cluster', c.x0 + 70, 1, H * 0.31, 'yellow', 0.95, 0.05);
       }
       if (back) { if (c.type === 'lake') lakeShore(ctx, c); backProps(c); continue; }
-      if (c.type === 'harbour') pier(ctx, c);
-      if (c.type === 'sauna') hut(ctx, c);
+      if (c.type === 'harbour' && every(c, 3)) pier(ctx, c);
+      if (c.type === 'sauna' && every(c, 4)) hut(ctx, c);
       if (c.type === 'shore') shore(ctx, c);
     }
   }
@@ -1005,6 +1066,7 @@
   }
 
   function shore(ctx, c) {
+    if (S.ride) return;
     const rr = rng((c.seed | 0) + 7);
     for (let i = 0; i < 5; i++) {
       const wx = c.x0 + 60 + rr() * (c.x1 - c.x0 - 120), x = sx(wx), w = (24 + rr() * 40) * u, h = (10 + rr() * 16) * u;
@@ -1031,8 +1093,8 @@
     const pa = st.hk.pose ?? st.hk.lastPose ?? 0, pp = st.hk.poseS, tx = hx + pp * 24 * Math.cos(pa), ty = hy2 - pp * 24 * Math.sin(pa);
     if (st.hk.pose !== null) st.hk.lastPose = st.hk.pose;
     const Rd = S.ride, air = Rd ? n0(Rd.air, 0) * u : 0, sq = Rd?.squash || [1, 1];
-    const a = Rd ? -n0(Rd.angle, 0) * 0.6 : 0, sxk = k * (rm ? 1 : sq[0]), syk = k * (rm ? 1 : sq[1]) * (1 - 0.12 * n0(Rd?.crouch, 0)) * (1 - 0.3 * n0(Rd?.sit, 0));
-    const ox = fx, oy = gyAt(S.worldX) + 1 - air, ca = Math.cos(a), sa = Math.sin(a);
+    const a = Rd ? -n0(Rd.angle, 0) : 0, sxk = k * (rm ? 1 : sq[0]), syk = k * (rm ? 1 : sq[1]) * (1 - 0.12 * n0(Rd?.crouch, 0)) * (1 - 0.3 * n0(Rd?.sit, 0));
+    const ox = fx, oy = gyAt(S.worldX) + 1 - air + n0(Rd?.dip, 0) * u, ca = Math.cos(a), sa = Math.sin(a);
     const map = (px, py) => { const X = sxk * px, Y = syk * (py - bob); return [ox + ca * X - sa * Y, oy + sa * X + ca * Y]; };
     const swing2 = swing + (Rd ? -0.5 * n0(Rd.speed01, 0) * (rm ? 0.3 : 1) : 0);
     st.fig = { k, walk, ph, bob, breath, swing: swing2, hx, hy: hy2, tx, ty, pole: pp, a, sxk, syk, ox, oy, air, map, spread: n0(Rd?.spread, 0), speed: n0(Rd?.speed01, 0) };
@@ -1041,7 +1103,7 @@
     st.ly = st.tip[1] + k * Math.cos(swing2) * 5;
     const sp = figSprite();
     if (sp) {
-      const [n, ax, , lx, ly] = sp, fh = H * FIG_H, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = oy + 2 * u - fh - bob * k;
+      const [n, ax, , lx, ly, fs = 1] = sp, fh = H * FIG_H * fs, fw = fh * ART.aspect(n), x0 = fx - fw * ax, y0 = oy + 2 * u - fh - bob * k;
       st.fig.sp = { n, x0, y0, fw, fh };
       const qx = (x0 + fw * lx - ox) * sxk / k, qy = (y0 + fh * ly - oy) * syk / k;
       st.hand = [ox + ca * qx - sa * qy, oy + sa * qx + ca * qy];
@@ -1050,8 +1112,8 @@
       st.ly = st.tip[1];
     }
   }
-  const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4] };
-  const figSprite = () => { const s = st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
+  const FIG_H = 0.1, FIGS = { walk: ['figure_walk', 0.48, 0, 0.93, 0.44], stand: ['figure_stand', 0.33, 0, 0.9, 0.4], ski: ['figure_crouch', 0.42, 0, 0.89, 0.8, 1.02], air: ['figure_ride', 0.42, 0, 0.89, 0.7, 1.22] };
+  const figSprite = () => { const p = S.ride?.pose, s = p && FIGS[p] && ART.has(FIGS[p][0]) ? FIGS[p] : st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
 
   function figure(ctx) {
     const F = st.fig, { k, walk, ph, bob, breath } = F, t = n0(S.t, 0), sway = rm ? 0.3 : 1;
@@ -1145,8 +1207,9 @@
     const gyL = gyAt(S.worldX), airK = clamp(1 - (gyL - y) / (180 * u), 0, 1);
     sprite(ctx, 'soft', warm, x - pr, gyL - pr * 0.17, 2 * pr, pr * 0.44, 0.42 * br * fl * airK, true);
     if (f > 0.01) glow(ctx, x, y, H * 0.2, mixc(P.glow, P.amber, 0.3), 0.34 * f, 'soft');
-    const under = chunkAtX(S.worldX)?.type;
-    if (under === 'harbour' || under === 'lake') sprite(ctx, 'soft', P.glow, x - R * 0.25, gyL, R * 0.5, R * 1.6, 0.25 * br * fl * airK, true);
+    const ch = chunkAtX(S.worldX), wet = t => (t === 'harbour' || t === 'lake' ? 1 : 0);
+    const wk = !ch ? 0 : ch.from ? lerp(wet(ch.from), wet(ch.type), ease((S.worldX - ch.x0) / (ch.x1 - ch.x0))) : wet(ch.type);
+    if (wk > 0.01) sprite(ctx, 'soft', P.glow, x - R * 0.25, gyL, R * 0.5, R * 1.6, 0.25 * br * fl * airK * wk, true);
   }
   const chunkAtX = wx => chunks().find(c => wx >= c.x0 && wx < c.x1);
 
@@ -1297,6 +1360,7 @@
     waymarks(ctx);
     footprints(ctx);
     props(ctx, false);
+    if (env) A.Traverse.cur?.drawMid?.(ctx, env);
     landmarkLights(ctx);
     fog(ctx, true);
     darkness(ctx);
@@ -1318,7 +1382,7 @@
       glow: (cx, x, y, r, c, a, name) => glow(cx, x, y, r, typeof c === 'string' ? hex(c) : c, a, name),
       soft: (cx, x, y, r, c, a) => sprite(cx, 'soft', typeof c === 'string' ? hex(c) : c, x - r, y - r, 2 * r, 2 * r, a, false),
       art: (name, x, y, w, h) => A.Art.draw(ctx, name, x, y, w, h, satOf('yellow'), Math.min(1, lightOf('yellow')), 1),
-      rgb: (c, a = 1) => rgb(c, a), mix: (a, b, t) => mixc(a, b, t),
+      rgb: (c, a = 1) => rgb(c, a), mix: (a, b, t) => mixc(a, b, t), surf: wx => gyAt(wx),
     };
   }
 
@@ -1409,15 +1473,22 @@
       u = H / 844;
       rm = !!(A.config && A.config.reducedMotion) || !!(MQ && MQ.matches);
       const cam = !rm && S.cam ? S.cam : null;
-      gy = H * 0.82 + n0(cam?.y, 0); hy = H * 0.6; fx = W * 0.35 + n0(cam?.x, 0);
+      fx = W * 0.35 + n0(cam?.x, 0);
       pm = rm ? 0.5 : 1;
       st = states.get(S); if (!st) { st = newState(); states.set(S, st); }
+      const L = layout(W, H, n0(cam?.y, 0), 0);
+      gy = L.gy; hy = L.hy;
+      let low = 0;
+      if (typeof S.terrain === 'function') for (let i = 0; i <= 12; i++) low = Math.max(low, -S.terrain(S.worldX + i / 12 * W - fx) * u);
+      st.low = st.low == null ? low : st.low + (low - st.low) * (1 - Math.exp(-Math.max(st.dt, 0.001) / 0.35));
+      my = layout(W, H, n0(cam?.y, 0), st.low).my;
       const sess = A.session && A.session.V === S ? A.session : null;
       I = { night: S.night ?? !!sess?.night, mode: S.mode ?? sess?.mode ?? null, phase: S.phase ?? sess?.phase ?? null };
       if (sized.W !== W || sized.H !== H || !vign) resize();
       step(); rig();
+      const z = Math.max(1, n0(cam?.z, 1));
       ctx.save();
-      scene(ctx);
+      if (z > 1.0005) { ctx.save(); ctx.translate(fx, gy); ctx.scale(z, z); ctx.translate(-fx, -gy); scene(ctx); ctx.restore(); } else scene(ctx);
       overlays(ctx);
       ctx.restore();
     },
