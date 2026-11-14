@@ -12,6 +12,7 @@ xcuserdata/
 *.xcuserstate
 DerivedData/
 jetson/presence/data/
+jetson/data_manager/data/
 
 # posture-analysis/posture POC runtime data (models, db, dev recordings)
 posture-analysis/posture/models/*

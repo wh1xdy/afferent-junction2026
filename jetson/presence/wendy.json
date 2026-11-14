@@ -9,7 +9,9 @@
     "SIM": "${SIM}",
     "PROFILE": "${PROFILE}",
     "SCAN_INTERVAL_S": "30",
-    "ISOLATION_DAYS": "2"
+    "ISOLATION_DAYS": "2",
+    "DATA_MANAGER_URL": "${DATA_MANAGER_URL}",
+    "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}"
   },
   "entitlements": [
     {

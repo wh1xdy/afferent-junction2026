@@ -2,6 +2,10 @@
   "appId": "afferent-vision",
   "version": "0.1.0",
   "platform": "linux",
+  "env": {
+    "DATA_MANAGER_URL": "${DATA_MANAGER_URL}",
+    "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}"
+  },
   "entitlements": [
     {
       "type": "camera"

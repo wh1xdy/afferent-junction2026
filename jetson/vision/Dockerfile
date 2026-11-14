@@ -146,7 +146,7 @@ RUN python3 -c "from ultralytics import YOLO; YOLO('yolov8n.pt')" && \
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ "$WENDY_DEBUG" = "true" ]; then pip install debugpy; fi
 
-COPY app.py hub.py network.py rppg.py index.html ./
+COPY app.py hub.py network.py rppg.py data_manager_client.py index.html ./
 COPY assets/ ./assets/
 
 ENV PYTHONUNBUFFERED=1
