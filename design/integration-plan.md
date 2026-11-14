@@ -4,7 +4,7 @@ Source: round 3 of the integration debate (architect, hardware, vision, data, cl
 
 Hard rule (David): no assumptions, nothing prepared for information we do not have. Everything below is either ours to decide (with reason and ref), a fact read from code, or an exact question to the one person who knows, with what we do for each answer. No answer is picked for a teammate.
 
-Refs: `ours:` = our main `94e65f5`. `mg:` = `minigames` `a9163ab` (worktree `/Users/david/code/afferent-game-mg`). `im:` = `ios-merge` `7444b17` (worktree `/Users/david/code/afferent-game-ios`). `T:` = team `junction/main` `d70eb17`. `TA:` = team branch Alex (`ab64f38`, now `cef6c9b`, which only changes `jetson/hub/grounding.py`). No prefix = our main. Input map: `design/sensing-integration.md` (its 40 questions are dispositioned in Appendix A).
+Refs: `ours:` = our main `94e65f5`. `mg:` = `minigames` `a9163ab` (worktree `../afferent-game-mg`). `im:` = `ios-merge` `7444b17` (worktree `../afferent-game-ios`). `T:` = team `junction/main` `d70eb17`. `TA:` = team branch Alex (`ab64f38`, now `cef6c9b`, which only changes `jetson/hub/grounding.py`). No prefix = our main. Input map: `design/sensing-integration.md` (its 40 questions are dispositioned in Appendix A).
 
 State of the trees when this was written (checked, not assumed):
 
@@ -340,7 +340,7 @@ Owners: "agents" = David's coding agents (software that needs no unanswered ques
 |---|---|---|---|---|
 | 0a | Now | Send 5.1 to 5.5 | David | none |
 | 0b | Now | P0 hotfix on main, committed alone: clinic row non-tappable everywhere (I32), sharing pause options hidden (I33), onboarding line (I35); then push and redeploy | agents, David's go | D9 |
-| 0c | Now, parallel | D3 device run on `/Users/david/code/afferent-game-ios` (no code change needed) | David | none |
+| 0c | Now, parallel | D3 device run on `../afferent-game-ios` (no code change needed) | David | none |
 | 0d | Now | Docs on main: I13 (api.md 4 and 3.4), I50, I38 schema descriptions | agents | none |
 | 1 | After D8 = idle | One integration on `minigames`: merge main (with 0b, 0d); I29 firewall fix and test; ios-merge fold with I8, I10, I23, I24, I25, I26, I27, I28; I19 freeze plus test; I20; I30; I31; I15 press gate; I33 enforcement (both layers, expiry); I34 switches, defaults, `OFF_NOTE`; I36; the I-rows into `Decisions.md` after D10 | agents | D8, D10 |
 | 2 | End of step 1 | Gates: hub pytest, e2e 13/13 (`hub/tests/e2e_live_demo.js`), contract tests, game A10 gate, one device build; one push with main briefly frozen | agents, David (device build, go) | step 1 |
