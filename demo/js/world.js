@@ -61,7 +61,9 @@
         const ray = 0.45 + 0.55 * Math.pow(noise(i * 0.05 + 3) * 0.7 + noise(i * 0.17 + 9) * 0.3, 1.4) * (0.9 + 0.1 * ra());
         const gg = cx.createLinearGradient(0, 128, 0, 0);
         const c0 = grey ? [176, 202, 218] : cols[0], c1 = grey ? [143, 176, 214] : cols[1], c2 = grey ? [160, 150, 200] : cols[2];
-        gg.addColorStop(0, `rgba(${c0},0)`); gg.addColorStop(0.08, `rgba(${c0},${0.9 * ray})`); gg.addColorStop(0.3, `rgba(${c1},${0.45 * ray})`);
+        // The lower border eases in over the bottom 14 % of the curtain, so a flat stretch of it reads as a glowing
+        // hem rather than a ruled line across the sky.
+        gg.addColorStop(0, `rgba(${c0},0)`); gg.addColorStop(0.06, `rgba(${c0},${0.35 * ray})`); gg.addColorStop(0.14, `rgba(${c0},${0.9 * ray})`); gg.addColorStop(0.32, `rgba(${c1},${0.45 * ray})`);
         gg.addColorStop(0.7, `rgba(${c2},${0.14 * ray})`); gg.addColorStop(1, `rgba(${c2},0)`);
         cx.fillStyle = gg; cx.fillRect(i, 0, 1, 128);
       }
@@ -194,6 +196,8 @@
   const ART = { ...A.Art, has: n => A.Art.has(n) && (ART_V3 || n === 'sky_aurora' || A.Art.has('figure_ride')) };
   const art = (n, x, y, w, h, g, a = 1, lt = 1) => ART.draw(ctxRef, n, x, y, w, h, satOf(g), Math.min(1, lightOf(g) * lt), a);
   const specOf = n => A.Layers.spec(n, A.Art.meta?.(n));
+  // Tiles art n across the screen at parallax f: where it sits, and its tile period (so things standing on it can
+  // scroll with it and come back to the same spot of the art). null when the art isn't loaded.
   function strip(n, f, anchor, g, a = 1, lt = 1) {
     if (!ART.has(n)) return null;
     const sp = specOf(n), sz = A.Art.size(n), h = sz.h / sp.density * u, w = h * sz.w / sz.h, span = w * (sp.tile ? 1 : 0.985), o = off(f);
@@ -201,7 +205,7 @@
     const sat = satOf(g), li = Math.min(1, lightOf(g) * lt), ww = w + (sp.tile ? 0.75 : 0);
     for (let x = -(((o % span) + span) % span); x < W; x += span) ART.slice(ctxRef, n, Math.max(0, -x / ww), Math.min(1, (W - x) / ww), x, top, ww, h, sat, li, a);
     if (sp.fill && top + h < H) { const c = stripBase(n, g, lt); if (c) { ctxRef.fillStyle = rgb(c); ctxRef.fillRect(0, top + h - 2 * u, W, H - top - h + 2 * u); } }
-    return { top, bottom: top + h };
+    return { top, bottom: top + h, span };
   }
   const at = (wx, f = 1) => fx + (wx - S.worldX) * f;
   const bases = new Map();
@@ -397,7 +401,9 @@
   }
 
   const nightLeft = k => 1 - st.ds.dawn * (I.night ? k : 1);
-  const moonX = () => Math.max(W * 0.25, W * 0.34 - off(LAYER.stars) * 0.25);
+  // The moon keeps to the upper right, between the SIMULATED badge (centre top) and the crisis button (top right),
+  // so no top control ever sits on it; it drifts left a little while walking.
+  const moonX = () => Math.max(W * 0.72, W * 0.76 - off(LAYER.stars) * 0.25);
 
   function moon(ctx) {
     const a = nightLeft(0.3) * (1 - n0(S.daylight, 0)) * (1 - st.sun) * (1 - 0.4 * st.heavy);
@@ -432,11 +438,31 @@
     ctx.drawImage(auroraC, -q, 0, w * q, h / s);
     ctx.imageSmoothingQuality = 'low';
     veneer(ctx, a, t, o, sg);
-    if (ART.has('sky_aurora')) {
-      const aw = W * 1.9, ah = aw / ART.aspect('sky_aurora'), span = aw * 1.25;
-      for (let ax = -((((o + t * 4) % span) + span) % span) - aw * 0.2; ax < W; ax += span) ART.draw(ctx, 'sky_aurora', ax, H * 0.08 + Math.sin(t * 0.07) * H * 0.01, aw, ah, sg, 1, 0.42 * a * (0.2 + 0.8 * sg) * (0.85 + 0.15 * Math.sin(t * 0.5)));
+    if (auroraArt()) {
+      const aw = W * 1.9, ah = aw / ART.aspect(AURORA_ART), span = aw * (1 - AURORA_FADE), y = H * 0.08 + Math.sin(t * 0.07) * H * 0.01;
+      const al = 0.42 * a * (0.2 + 0.8 * sg) * (0.85 + 0.15 * Math.sin(t * 0.5));
+      for (let ax = -((((o + t * 4) % span) + span) % span) - aw * AURORA_FADE; ax < W; ax += span) ART.draw(ctx, AURORA_ART, ax, y, aw, ah, sg, 1, al);
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  }
+
+  // sky_aurora is painted right up to its left and right edges, so a tile of it ends in a hard vertical cut. It is
+  // baked once with both ends faded out (smoothstep over AURORA_FADE of the width), and the tiles overlap by exactly
+  // that fade: where one ribbon set dissolves the next one rises, and the two always add up to full strength, at any
+  // scroll position. The faded copy replaces the original, so it costs no extra memory.
+  const AURORA_ART = 'aurora:sky', AURORA_FADE = 0.3;
+  function auroraArt() {
+    if (A.Art.has(AURORA_ART)) return true;
+    if (!ART.has('sky_aurora')) return false;
+    const w = 1536, h = Math.round(w / ART.aspect('sky_aurora'));
+    const baked = A.Art.bake(AURORA_ART, 'sky_aurora', w, h, (x, src) => {
+      x.drawImage(src, 0, 0, w, h);
+      const g = x.createLinearGradient(0, 0, w, 0);
+      for (let i = 0; i <= 8; i++) { const p = i / 8, k = `rgba(0,0,0,${(p * p * (3 - 2 * p)).toFixed(4)})`; g.addColorStop(p * AURORA_FADE, k); g.addColorStop(1 - p * AURORA_FADE, k); }
+      x.globalCompositeOperation = 'destination-in'; x.fillStyle = g; x.fillRect(0, 0, w, h); x.globalCompositeOperation = 'source-over';
+    });
+    if (baked) A.Art.drop('sky_aurora');
+    return baked;
   }
 
   function veneer(ctx, a, t, o, sg) {
@@ -519,7 +545,8 @@
   }
 
   function islands(ctx) {
-    if (strip('far_islands', LAYER.islands, hy, 'blue', 0.92, 0.9)) { lighthouse(ctx); return; }
+    const strip0 = strip('far_islands', LAYER.islands, hy, 'blue', 0.92, 0.9);
+    if (strip0) { lighthouse(ctx, strip0.span); return; }
     const o = off(LAYER.islands), span = 3120 * u, fill = col(P.spruce, 'green', 1, 0.45), humps = [];
     ctx.fillStyle = fill; ctx.beginPath();
     for (const is of ISLANDS) {
@@ -536,22 +563,31 @@
     }
     ctx.fill();
     for (const [x, w, h] of humps) laminate(ctx, bez(x, hy + 1, x + w * 0.2, hy - h, x + w * 0.7, hy - h * 1.1, x + w, hy + 1, 10), 0.45, 0.6, 0.7);
-    lighthouse(ctx);
+    lighthouse(ctx, span);
   }
   const bez = (x0, y0, x1, y1, x2, y2, x3, y3, n) => Array.from({ length: n + 1 }, (_, i) => {
     const t = i / n, m = 1 - t;
     return [m * m * m * x0 + 3 * m * m * t * x1 + 3 * m * t * t * x2 + t * t * t * x3, m * m * m * y0 + 3 * m * m * t * y1 + 3 * m * t * t * y2 + t * t * t * y3];
   });
 
-  function lighthouse(ctx) {
-    const x = W * 0.84 - off(LAYER.islands) * 0.08, base = hy + 1, h = H * 0.06, wb = h * 0.2, wt = h * 0.13, t = n0(S.t, 0);
-    const vis = 1 - st.focus, ga = ctx.globalAlpha;
-    let lampY = base - h - h * 0.05;
-    if (ART.has('lighthouse')) {
+  // The far lighthouse stands on the island strip, so it scrolls with it (same layer, same speed) and comes back
+  // after a whole number of strip tiles (tile = the strip's period), which keeps it on the same spot of the art.
+  // Its lamp and beam fade out just past the screen edges, so the wrap never shows, and only an on-screen lamp is
+  // offered as a landmark to the tasks.
+  function lighthouse(ctx, tile) {
+    const m = W * 0.15, period = tile * Math.max(1, Math.ceil((W + 2 * m) / tile));
+    const x = (((W * 0.84 + m - off(LAYER.islands)) % period) + period) % period - m;
+    st.hk.lh = null;
+    if (x < -m * 0.8 || x > W + m * 0.8) return;
+    const edge = clamp(Math.min(x + m * 0.8, W + m * 0.8 - x) / (m * 0.8), 0, 1);
+    const base = hy + 1, h = H * 0.06, wb = h * 0.2, wt = h * 0.13, t = n0(S.t, 0);
+    const vis = 1 - st.focus, ga = ctx.globalAlpha, painted = ART.has('lighthouse'), lh = H * 0.075;
+    const lampY = painted ? base + lh * 0.04 - lh * 0.87 : base - h - h * 0.05;
+    if (x >= 0 && x <= W) st.hk.lh = [x, lampY];
+    if (painted) {
       if (vis <= 0.01) return;
-      const lh = H * 0.075, lw = lh * ART.aspect('lighthouse');
+      const lw = lh * ART.aspect('lighthouse');
       art('lighthouse', x - lw * 0.495, base + lh * 0.04 - lh, lw, lh, 'yellow', 0.9 * vis, 0.85);
-      lampY = base + lh * 0.04 - lh * 0.87;
       ctx.globalAlpha = ga * vis;
     } else {
     ctx.fillStyle = col(P.spruce, 'green', 1, 0.4);
@@ -563,13 +599,12 @@
     tower(ctx, x, base, h, wb, wt);
     }
     const day = Math.max(st.ds.dawn, st.sun, ease(n0(S.sweep, 0))), beam = n0(S.beam, 0) * (1 - day), fl = st.hk.flare, lamp = clamp(0.35 + beam + st.hk.lamp + fl, 0, 1) * (1 - 0.7 * day);
-    st.hk.lh = [x, lampY];
-    glow(ctx, x, lampY, h * 0.5 * (0.6 + lamp + 2.5 * fl), P.flame, 0.7 * lamp);
-    if (fl > 0.01) glow(ctx, x, lampY, h * (1.5 + 3 * fl), P.glow, 0.35 * fl, 'soft');
-    if (beam > 0.02) {
+    glow(ctx, x, lampY, h * 0.5 * (0.6 + lamp + 2.5 * fl), P.flame, 0.7 * lamp * edge);
+    if (fl > 0.01) glow(ctx, x, lampY, h * (1.5 + 3 * fl), P.glow, 0.35 * fl * edge, 'soft');
+    if (beam * edge > 0.02) {
       ctx.save(); ctx.translate(x, lampY); ctx.globalCompositeOperation = 'lighter';
       const ang = Math.PI + Math.sin(t * (rm ? 0.4 : 0.8)) * 0.5;
-      ctx.rotate(ang); ctx.globalAlpha = ga * vis * 0.55 * beam;
+      ctx.rotate(ang); ctx.globalAlpha = ga * vis * 0.55 * beam * edge;
       ctx.drawImage(tint('beam', P.flame), 0, -H * 0.07, W * 1.1, H * 0.14);
       ctx.restore();
     }
