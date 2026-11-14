@@ -3,7 +3,8 @@
 Tar emot Knob/Thermo-värden från sketchen via Arduino Bridge och publicerar dem
 som HTTP-tjänst i Wendy Net (mDNS _http._tcp, TXT role=modulino-hub).
 
-  GET  /state                      -> knob, climate, modulinos, finger (fused reading of both sensors),
+  GET  /state                      -> knob, climate, modulinos, finger (fused reading of both sensors;
+                                      finger.held = a value held back by PulseGuard and why),
                                       beat (= fused, for the Jetson), fingers[0..1], pulses[0..1],
                                       breathing, hrv, presence, now (device clock, for staleness)
   GET  /ppg?ch=0|1                 -> raw 30 s of finger 1 (A1) / finger 2 (A2)
@@ -131,6 +132,100 @@ last_locked = [0.0] * CHANNELS    # time.time() of each finger's newest locked b
 sent_bpm = [0] * CHANNELS         # each finger's BPM as last handed to Bluetooth (0 = no reading)
 
 
+# ── a pulse that has not earned trust yet ─────────────────────────────────────────
+# Seen in the data manager (2026-11-14 19:08:25-29): 164 BPM four times at quality 0.36-0.38,
+# right after a finger went on, nothing stored for minutes before or after; 19:20:36 a single
+# 171. Most likely beats counted twice while the finger settled into the clip. One way that
+# happens (reproduced in tests/test_pulse_guard.py): the second (dicrotic) wave of each beat is
+# as tall as the first, the rhythm repeats every half beat, the STM32 detector gets half the
+# period as its refractory time and counts every beat twice. Quality cannot tell (a doubled
+# rhythm is a clean rhythm), so the number itself is held back:
+#   - right after a finger is detected (or GUARD_FORGET_S without a trusted value) nothing is
+#     known yet: a value goes out once it has stayed steady for GUARD_HOLD_S;
+#   - a jump to about double or half of the last trusted value is held the same way.
+# Every other value goes out at once, and a held value that stays steady goes out after
+# GUARD_HOLD_S, so a real change is delayed by a few seconds at most, never blocked.
+# The same rule holds back the fused pulse (2A37, /state finger.bpm, the data manager) and each
+# finger's own number (AFF1 bytes 0-1, /state finger.fingers).
+GUARD_HOLD_S = 6.0            # seconds a held value must stay steady before it goes out
+                              # (the 164s lasted 4 s; a finger's median of 8 beats lags ~2 s)
+GUARD_STEADY = 0.12           # steady = the held values of those seconds are within 12 % (max/min)
+GUARD_HARMONIC = 0.15         # about double / half = a ratio within 15 % of 2 (as TWO_HEARTS_HARMONIC)
+GUARD_FORGET_S = 10.0         # a trusted value older than this is no reference: settling again
+GUARD_GAP_S = 3.0             # a held run ends after this long without a usable value
+GUARD_MIN_VALUES = 3          # ...and needs at least this many values
+
+
+def harmonic(a, b):
+    """True when a is about double or half of b."""
+    hi, lo = max(a, b), min(a, b)
+    return lo > 0 and abs(hi / lo - 2) <= 2 * GUARD_HARMONIC
+
+
+class PulseGuard:
+    """Decides whether a pulse may leave the box. One per stream (the fused pulse, each finger).
+    offer() returns the value to send and store, or None while it is held back. usable=False:
+    a value that does not count as a measurement (quality below the limit, nothing live behind
+    it). It cannot make a held value go out or become the reference, but it passes when it is
+    not a jump, as before."""
+
+    def __init__(self, hold_s=GUARD_HOLD_S):
+        self.hold_s = hold_s
+        self.reset()
+
+    def reset(self):
+        """A finger was put on or taken off: nothing is known about this wearing yet."""
+        self.trusted = None        # last value that went out as a measurement
+        self.trusted_t = None
+        self.run = []              # (t, bpm): the steady usable values held so far
+        self.reason = None         # why the newest value is held: settling / double / half
+        self.held_bpm = None
+
+    def offer(self, bpm, now, usable=True):
+        if not bpm or bpm <= 0:
+            return None
+        if self.trusted is not None and not 0 <= now - self.trusted_t <= GUARD_FORGET_S:
+            self.trusted = None                      # too long ago (or the clock was set back)
+        if self.trusted is not None and not harmonic(bpm, self.trusted):
+            self.run, self.reason, self.held_bpm = [], None, None
+            if usable:
+                self.trusted, self.trusted_t = bpm, now
+            return bpm
+        self.reason = "settling" if self.trusted is None else ("double" if bpm > self.trusted else "half")
+        self.held_bpm = bpm
+        if not usable:
+            return None
+        if self.run and now - self.run[-1][0] > GUARD_GAP_S:
+            self.run = []
+        self.run.append((now, bpm))
+        while len(self.run) > 1 and max(b for _, b in self.run) > (1 + GUARD_STEADY) * min(b for _, b in self.run):
+            self.run.pop(0)                          # keep the newest values that agree
+        if len(self.run) >= GUARD_MIN_VALUES and self.run[-1][0] - self.run[0][0] >= self.hold_s:
+            self.trusted, self.trusted_t = bpm, now
+            self.run, self.reason, self.held_bpm = [], None, None
+            return bpm
+        return None
+
+    def held(self):
+        """For GET /state: what is held back and why, None when nothing is."""
+        if self.held_bpm is None:
+            return None
+        steady = self.run[-1][0] - self.run[0][0] if self.run else 0.0
+        return {"bpm": self.held_bpm, "reason": self.reason, "steady_s": round(steady, 1)}
+
+
+pulse_guard = PulseGuard()                              # the fused pulse
+finger_guards = [PulseGuard() for _ in range(CHANNELS)]  # each finger's own number
+
+
+def reset_guards(chans=range(CHANNELS), fused_too=True):
+    with lock:
+        for c in chans:
+            finger_guards[c].reset()
+        if fused_too:
+            pulse_guard.reset()
+
+
 ble = HeartRateBroadcaster()
 dm = data_manager_push.Push()     # started in main(); until then nothing is handed over
 
@@ -145,14 +240,21 @@ def on_beat(c, t_ms, ibi_ms, peak, locked):
     if per and q >= 0.3:
         ibis = [b for b in ibis if 0.75 * per <= b <= 1.35 * per]
     bpm = round(60000 / sorted(ibis)[len(ibis) // 2]) if len(ibis) >= 3 else None
+    now = time.time()
     info = {"bpm_live": bpm, "locked": bool(locked), "ibi_ms": int(ibi_ms),
-            "peak_slope": int(peak), "locked_count": len(beats[c]), "t": time.time()}
+            "peak_slope": int(peak), "locked_count": len(beats[c]), "t": now}
     with lock:
         state["fingers"][c] = info
     if locked and bpm:
-        last_locked[c] = time.time()
-        sent_bpm[c] = bpm
-        ble.update_finger(c, bpm)
+        last_locked[c] = now
+        with lock:
+            # a measurement for the guard: the rhythm behind these beats (this finger's own, or
+            # both fingers' together) is clear enough for the data manager
+            clear = max(q, fused.get("quality") or 0) >= data_manager_push.MIN_QUALITY
+            shown = finger_guards[c].offer(bpm, now, clear) or 0
+        if shown or sent_bpm[c]:            # a held value: the byte says "no reading" once
+            sent_bpm[c] = shown
+            ble.update_finger(c, shown)
 
 
 period_state = [{"period_ms": None, "quality": None, "signal": None} for _ in range(CHANNELS)]
@@ -282,7 +384,7 @@ def stale_fingers(now):
 
 
 fused = {"bpm": None, "period_ms": None, "quality": None, "sources": [], "fingers": [None, None],
-         "two_hearts": False}
+         "two_hearts": False, "held": None}
 
 
 def fuse():
@@ -313,11 +415,27 @@ def fuse():
     else:
         bpm, sources = None, []
     with lock:
+        # per finger: its candidate, as far as that finger's own number is out (finger_guards)
         fused.update(bpm=round(bpm) if bpm else None, sources=sources,
-                     fingers=[c[1] if c else None for c in
+                     fingers=[c[1] if c and sent_bpm[c[0]] else None for c in
                               [next((x for x in cands if x[0] == ch), None) for ch in range(CHANNELS)]])
         state["beat"] = {**(state["beat"] or {}), "bpm_live": fused["bpm"], "fused": True, "t": time.time()}
     return fused["bpm"]
+
+
+def guard_pulse(bpm, now):
+    """The fused pulse as it leaves the box (2A37, /state finger.bpm and beat.bpm_live, the data
+    manager), after PulseGuard. A value counts as a measurement for the guard when the data
+    manager would take it: quality at least MIN_QUALITY and a live finger behind it."""
+    with lock:
+        quality = fused.get("quality") or 0
+        sources = list(fused.get("sources") or [])
+    usable = bool(bpm) and quality >= data_manager_push.MIN_QUALITY and fingers_live(sources, now)
+    with lock:
+        out = pulse_guard.offer(bpm, now, usable)
+        fused.update(bpm=out, held=pulse_guard.held() if bpm and out is None else None)
+        state["beat"] = {**(state["beat"] or {}), "bpm_live": out, "fused": True, "t": now}
+    return out
 
 
 def ble_status(tick):
@@ -374,13 +492,14 @@ def period_loop(stopped):
             br = rm = None
         ble.update_breathing(br or 0)
         ble.update_hrv(rm or 0)
-        bpm = fuse() if sensing() else None
+        bpm = guard_pulse(fuse(), time.time()) if sensing() else None
         for c in stale_fingers(time.time()):
             sent_bpm[c] = 0
+            reset_guards([c], fused_too=False)   # put back on, it settles again
             ble.update_finger(c, 0)            # that clip came off; 0 = no reading
         if not sensing():
             with lock:
-                fused.update(bpm=None, sources=[], fingers=[None, None])
+                fused.update(bpm=None, sources=[], fingers=[None, None], held=None)
                 state["beat"] = {**(state["beat"] or {}), "bpm_live": None, "t": time.time()}
         ble_status(tick)
         if bpm:
@@ -468,6 +587,7 @@ def _forget_beats():
             beats[c].clear()
             state["fingers"][c] = None
             sent_bpm[c] = 0
+    reset_guards()            # a new wearing: no pulse goes out until it is steady (PulseGuard)
     ble.clear_readings()      # AFF1 kept the last per-finger numbers after the finger left
 
 
