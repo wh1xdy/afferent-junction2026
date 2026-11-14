@@ -63,6 +63,14 @@ async def export(pid: str, request: Request):
     name, data = hub(request).export(pid)
     return Response(data, media_type="application/zip", headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+@router.post("/export/publish")
+async def export_publish(request: Request, body=Body(...)):
+    return hub(request).export_publish(_obj(body))
+
+@router.get("/export/dashboard")
+async def export_dashboard(request: Request):
+    return Response(hub(request).export_dashboard(), media_type="text/html")
+
 @router.post("/patients/{pid}/flags/clear")
 async def flags_clear(pid: str, request: Request):
     await hub(request).clear_flags(pid)
