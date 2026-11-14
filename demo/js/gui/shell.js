@@ -30,10 +30,10 @@
       { icon: 'sensor_occupied', label: 'Presence sensor', sw: 'data-sensor="presence"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
-    { title: 'Export to your clinic', hint: 'One export a day, at 07:00. Nobody watches live.', rows: [
+    { title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
       { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
         <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
-      { icon: 'schedule', label: 'Next export', static: true, val: '', valId: 'nextExport' },
+      { icon: 'ios_share', label: 'Show to my doctor', href: 'patient.html#settings', id: 'qrBtn' },
       { icon: 'router', label: 'Home hub', sup: 'Offline', supId: 'hubState', attrs: 'data-open="hubDialog"', chevron: true },
       { icon: 'description', label: 'What is in an export', sup: 'Lanterns, play times, sensor numbers', static: true },
     ] },
@@ -76,12 +76,6 @@
     };
     body.querySelectorAll('[data-anchor]').forEach(b => b.onclick = () => A.Checkin?.anchor?.());
     body.querySelectorAll('[data-hint]').forEach(b => b.onclick = () => toast(b.getAttribute('aria-label')));
-    const next = () => {
-      const d = new Date(), h = d.getHours();
-      $('nextExport').textContent = h < 7 ? 'Today 07:00' : 'Tomorrow 07:00';
-    };
-    next();
-    document.querySelectorAll('[data-open="settings"]').forEach(b => b.addEventListener('click', next));
   };
 
   let toastEl = null, toastT = 0;
