@@ -71,7 +71,7 @@ class AfferentFingerParserTest {
     @Test
     fun aff1V1FourBytes() {
         assertEquals(
-            FingerAff1(finger1 = 71, finger2 = 73, breathing = 6, rmssd = 46, quality = null, presence = null, length = 4),
+            FingerAff1(finger1 = 71, finger2 = 73, breathing = 6, rmssd = 46, quality = null, presence = null, twoHearts = null, length = 4),
             AfferentFingerParser.aff1(data(0x47, 0x49, 0x06, 0x2E))
         )
     }
@@ -86,7 +86,26 @@ class AfferentFingerParserTest {
         assertEquals(46, r.rmssd)
         assertEquals(0.62, r.quality!!, 1e-9)
         assertEquals("active", r.presence)
+        assertNull("a v2 board does not say whether two people wear the clips", r.twoHearts)
         assertEquals(6, r.length)
+    }
+
+    @Test
+    fun aff1V3SevenBytesTwoHearts() {
+        assertEquals(
+            FingerAff1(finger1 = 64, finger2 = 92, breathing = null, rmssd = null, quality = 0.41, presence = "active", twoHearts = true, length = 7),
+            AfferentFingerParser.aff1(data(0x40, 0x5C, 0x00, 0x00, 0x29, 0x03, 0x01))
+        )
+        val one = AfferentFingerParser.aff1(data(0x47, 0x49, 0x06, 0x2E, 0x3E, 0x03, 0x00))!!
+        assertEquals(false, one.twoHearts)
+        assertEquals("active", one.presence)
+    }
+
+    @Test
+    fun aff1TwoHeartsIsBitZeroOnly() {
+        // other bits are reserved: they never set the flag
+        assertEquals(false, AfferentFingerParser.aff1(data(0, 0, 0, 0, 255, 1, 0xFE))!!.twoHearts)
+        assertEquals(true, AfferentFingerParser.aff1(data(0, 0, 0, 0, 255, 1, 0x03))!!.twoHearts)
     }
 
     @Test
@@ -145,7 +164,7 @@ class AfferentFingerParserTest {
     @Test
     fun aff1IdleNoReadings() {
         assertEquals(
-            FingerAff1(finger1 = null, finger2 = null, breathing = null, rmssd = null, quality = null, presence = "idle", length = 6),
+            FingerAff1(finger1 = null, finger2 = null, breathing = null, rmssd = null, quality = null, presence = "idle", twoHearts = null, length = 6),
             AfferentFingerParser.aff1(data(0x00, 0x00, 0x00, 0x00, 0xFF, 0x01))
         )
     }
@@ -153,7 +172,7 @@ class AfferentFingerParserTest {
     @Test
     fun aff1TwoBytesFingersOnly() {
         assertEquals(
-            FingerAff1(finger1 = 71, finger2 = 73, breathing = null, rmssd = null, quality = null, presence = null, length = 2),
+            FingerAff1(finger1 = 71, finger2 = 73, breathing = null, rmssd = null, quality = null, presence = null, twoHearts = null, length = 2),
             AfferentFingerParser.aff1(data(0x47, 0x49))
         )
     }
@@ -180,6 +199,9 @@ class AfferentFingerParserTest {
         assertEquals(71, r.finger1)
         assertEquals("active", r.presence)
         assertEquals(7, r.length)
+        val longer = AfferentFingerParser.aff1(data(0x47, 0x49, 0x06, 0x2E, 0x3E, 0x03, 0x00, 0x99))!!
+        assertEquals(false, longer.twoHearts)
+        assertEquals(8, longer.length)
     }
 
     @Test
@@ -249,13 +271,23 @@ class AfferentFingerParserTest {
         val r = AfferentFingerParser.aff1(data(0x47, 0x49, 0x06, 0x2E, 0x32, 0x03))!!
         val e = AfferentFingerEvents.aff1(r, 1_000)
         assertEquals(
-            setOf("kind", "finger_bpm", "breathing_per_min", "rmssd_ms", "quality", "presence", "payload_len", "t_ms"),
+            setOf("kind", "finger_bpm", "breathing_per_min", "rmssd_ms", "quality", "presence", "two_hearts", "payload_len", "t_ms"),
             e.keys().asSequence().toSet()
         )
         assertEquals(
             """{"breathing_per_min":6,"finger_bpm":[71,73],"kind":"aff1","payload_len":6,""" +
-                """"presence":"active","quality":0.5,"rmssd_ms":46,"t_ms":1000}""",
+                """"presence":"active","quality":0.5,"rmssd_ms":46,"t_ms":1000,"two_hearts":null}""",
             json(e)
+        )
+    }
+
+    @Test
+    fun aff1EventV3TwoHearts() {
+        val r = AfferentFingerParser.aff1(data(0x40, 0x5C, 0x00, 0x00, 0x32, 0x03, 0x01))!!
+        assertEquals(
+            """{"breathing_per_min":null,"finger_bpm":[64,92],"kind":"aff1","payload_len":7,""" +
+                """"presence":"active","quality":0.5,"rmssd_ms":null,"t_ms":1000,"two_hearts":true}""",
+            json(AfferentFingerEvents.aff1(r, 1_000))
         )
     }
 
@@ -266,11 +298,12 @@ class AfferentFingerParserTest {
         val e = AfferentFingerEvents.aff1(r, 1_000)
         assertEquals(
             """{"breathing_per_min":null,"finger_bpm":[71,null],"kind":"aff1","payload_len":4,""" +
-                """"presence":null,"quality":null,"rmssd_ms":null,"t_ms":1000}""",
+                """"presence":null,"quality":null,"rmssd_ms":null,"t_ms":1000,"two_hearts":null}""",
             json(e)
         )
         assertSame(JSONObject.NULL, e.get("quality"))
         assertSame(JSONObject.NULL, e.get("presence"))
+        assertSame(JSONObject.NULL, e.get("two_hearts"))
     }
 
     @Test
@@ -278,7 +311,7 @@ class AfferentFingerParserTest {
         val r = AfferentFingerParser.aff1(data(0x47, 0x49, 0x06, 0x2E, 0x3E, 0x03))!!
         assertEquals(
             """{"breathing_per_min":6,"finger_bpm":[71,73],"kind":"aff1","payload_len":6,""" +
-                """"presence":"active","quality":0.62,"rmssd_ms":46,"t_ms":1700000000123}""",
+                """"presence":"active","quality":0.62,"rmssd_ms":46,"t_ms":1700000000123,"two_hearts":null}""",
             json(AfferentFingerEvents.aff1(r, 1_700_000_000_123))
         )
     }

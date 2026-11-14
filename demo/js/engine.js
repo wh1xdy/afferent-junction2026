@@ -72,7 +72,7 @@
       targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', state: null, candidate: null, candidateAt: 0,
       pulseNow: null, phys: null, physAt: 0, base: { rmssd: [], breathing: [] },
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
-      slots: { fork: null, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
+      slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
       core: { trials: [], trial: null, nextTrialAt: 0, pulse: [], pulseQ: [], closed: [], open: [], pitch: [], ambient: [], frames: 0, tracked: 0 },
       coreRec: null, moodEnd: undefined, pauses: 0, inputs: 0, lastLightLevel: null,
@@ -619,7 +619,7 @@
 
         if (this.phase === 'fadein') {
           V.black = this.fromIdle ? 0.35 * Math.sin(Math.PI * clamp(t / 2, 0, 1)) : 1 - clamp(t / 2, 0, 1);
-          if (t >= 2) { this.core.restStart = this.core.restEnd = now; this.stage ? this.finishCore(now) : this.startRt(now); }
+          if (t >= 2) { this.core.restStart = now; this.stage ? this.finishCore(now) : forced() === 'reaction' ? this.startRt(now) : this.startRest(); }
           return;
         }
         if (this.phase === 'rest') { this.updateRest(now, dt, p, f); return; }

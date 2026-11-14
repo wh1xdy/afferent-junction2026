@@ -25,10 +25,10 @@
 
   const hooks = () => A.World?.hooks || {};
   const geo = () => {
-    const { W, H, gy } = J.size(), U = H / 844, sp = hooks().biteSpot?.();
+    const { W, H, gy } = J.size(), U = H / 844, S = 390 * U, sp = hooks().biteSpot?.();
     const [x, y] = sp || [W * 0.56, (gy ?? H * 0.82) + H * 0.042];
     const [lx, ly] = A.World?.lanternPos?.() || [W * 0.42, H * 0.78];
-    return { W, H, U, x, y, lx, ly };
+    return { W, H, U, S, x, y, lx, ly };
   };
   const lighthouse = g => {
     const m = hooks().landmarks?.()?.find(l => l.kind === 'lighthouse');
@@ -56,7 +56,7 @@
     B.fl = { m: 'none', t: at };
     B.hit = at; B.yank = at; B.whip = at;
     J.hitstop(null, 50);
-    J.bloom(g.x, g.y, g.W * 0.16, C.flame, 0.5, 0.12, 0.3);
+    J.bloom(g.x, g.y, g.S * 0.16, C.flame, 0.5, 0.12, 0.3);
     ripple(B, g.x, g.y, 10 * U, 46 * U, 0.6, 0.5);
     ripple(B, g.x, g.y, 6 * U, 30 * U, 0.7, 0.35);
     B.rip[B.rip.length - 1].t += 0.12;
@@ -115,7 +115,7 @@
           s.kick(f.demo ? 0.4 : 0.6);
           J.fx.burst(g.lx, g.ly, 8, C.glow, 90 * g.U, { life: 0.45, size: [2.4 * g.U, 0.8 * g.U] });
           J.sfx('bite_catch', { step: f.bead, piano: [f.demo ? 4 : STEP[clamp(f.bead, 1, 5) - 1], f.demo ? 0.07 : 0.11] });
-        } else { s.kick(0.3); J.bloom(g.lx, g.ly, g.W * 0.08, C.glow, 0.3, 0.2, 0.5); }
+        } else { s.kick(0.3); J.bloom(g.lx, g.ly, g.S * 0.08, C.glow, 0.3, 0.2, 0.5); }
       }
       if (!rm && p > 0 && p < 1 && f.kind === 'catch' && (f.n = (f.n || 0) + 1) % 2 === 0) {
         const [x, y] = fishPos(f, g, p);
@@ -138,13 +138,13 @@
       ang = lerp(ang, LIFT, E.outSoft(clamp(pt / 0.3, 0, 1)));
       if (pt >= 0.25 && !B.gathered) {
         B.gathered = true; s.kick(0.8);
-        J.bloom(g.lx, g.ly, g.W * 0.12, C.glow, 0.45, 0.2, 0.6);
+        J.bloom(g.lx, g.ly, g.S * 0.12, C.glow, 0.45, 0.2, 0.6);
       }
       if (pt >= 0.45 && !B.ignited) {
         B.ignited = true;
         const flare = hooks().flareLighthouse, [hx, hy] = lighthouse(g);
-        if (flare) { flare(1); J.bloom(hx, hy, g.W * 0.1, C.glow, 0.5, 0.3, 0.9); }
-        else J.bloom(g.lx, g.ly, g.W * 0.2, C.glow, 0.5, 0.3, 0.9);
+        if (flare) { flare(1); J.bloom(hx, hy, g.S * 0.1, C.glow, 0.5, 0.3, 0.9); }
+        else J.bloom(g.lx, g.ly, g.S * 0.2, C.glow, 0.5, 0.3, 0.9);
         J.hap('success'); J.sfx('bite_swell', { piano: [0, 0.1] });
       }
       if (pt >= 0.8 && !B.released) { B.released = true; hooks().lanternPose?.(null); }
@@ -228,13 +228,13 @@
     const sq = rm ? 1 : 1 + 0.6 * E.outSoft(clamp(t / 0.25, 0, 1));
     const ga = rm ? 1 - t / 0.42 : 1 - clamp(t / 0.25, 0, 1);
     const [sx, sy] = J.squash(t, 0.85, 0.25);
-    img(ctx, BITE, g.x, g.y, g.W * 0.09 * sq, ga, sx, sy);
-    J.sprite(ctx, 'glow', C.silver050, g.x, g.y, g.W * 0.05, 0.9 * ga, true);
+    img(ctx, BITE, g.x, g.y, g.S * 0.09 * sq, ga, sx, sy);
+    J.sprite(ctx, 'glow', C.silver050, g.x, g.y, g.S * 0.05, 0.9 * ga, true);
     if (rm) return;
     if (t > 0.28) return;
     const f = t < 0.1 ? 1 : 2, fa = t < 0.16 ? 1 : 1 - (t - 0.16) / 0.12;
     if (A.Art?.has(SPLASH)) {
-      const fw = g.W * 0.26, fh = fw / (A.Art.aspect(SPLASH) / 4), y0 = g.y - fh * 0.82;
+      const fw = g.S * 0.26, fh = fw / (A.Art.aspect(SPLASH) / 4), y0 = g.y - fh * 0.82;
       ctx.save(); ctx.beginPath(); ctx.rect(g.x - fw / 2, y0, fw, fh); ctx.clip();
       ctx.globalCompositeOperation = 'lighter';
       A.Art.draw(ctx, SPLASH, g.x - fw / 2 - f * fw, y0, fw * 4, fh, 1, 1, 0.75 * fa);
@@ -263,10 +263,10 @@
 
   const drawGhost = (ctx, B, g, at) => {
     if (B.ghostA <= 0.01) return;
-    const U = g.U, x = g.x + g.W * 0.21, y = g.y - g.H * 0.01, p = (at - B.ghostPress) / 0.32;
+    const U = g.U, x = g.x + g.S * 0.21, y = g.y - g.H * 0.01, p = (at - B.ghostPress) / 0.32;
     const press = p >= 0 && p < 1 && !J.rm() ? Math.sin(Math.PI * p) : 0;
     if (press > 0) J.sprite(ctx, 'glow', C.flame, x, y, 22 * U, 0.5 * press * B.ghostA / 0.62, true);
-    J.finger(ctx, x + 2 * U, y + (2 + 12 * (1 - press)) * U, 32 * U, B.ghostA);
+    J.touch(ctx, x, y, U, B.ghostA, press);
   };
 
   const drawPayoff = (ctx, B, g, at, rm) => {
@@ -343,7 +343,7 @@
       tick(s, B, g);
       const pt = B.payAt == null ? -1 : at - B.payAt;
       const plate = clamp((at - B.t0) / 0.4, 0, 1) * (pt < 0 ? 1 : 1 - clamp((pt - 0.4) / 0.5, 0, 1));
-      img(ctx, PLATE, g.x, g.y, g.W * 0.15, plate, 1.3, 0.92);
+      img(ctx, PLATE, g.x, g.y, g.S * 0.15, plate, 1.3, 0.92);
 
       for (const r of B.rip) {
         const p = clamp((at - r.t) / r.dur, 0, 1);
@@ -360,10 +360,10 @@
         const a = B.fl.m === 'cast' && rm ? clamp(t / 0.25, 0, 1) : B.fl.m === 'reel' ? 1 - clamp((t - 0.15) / 0.15, 0, 1) * (rm ? 1 : 0.7) : 1;
         drawFloat(ctx, fp[0], fp[1], U, a * plate);
       }
-      if (B.fl.m === 'bite') img(ctx, BITE, g.x, g.y, g.W * 0.09);
+      if (B.fl.m === 'bite') img(ctx, BITE, g.x, g.y, g.S * 0.09);
       if (B.fl.m === 'sink') {
         const p = clamp((at - B.fl.t) / 0.45, 0, 1);
-        img(ctx, BITE, g.x, g.y + (rm ? 0 : 7 * U * E.inOut(p)), g.W * 0.09 * (1 - 0.3 * p), 1 - E.outSoft(p), 1, rm ? 1 : 1 - 0.4 * p);
+        img(ctx, BITE, g.x, g.y + (rm ? 0 : 7 * U * E.inOut(p)), g.S * 0.09 * (1 - 0.3 * p), 1 - E.outSoft(p), 1, rm ? 1 : 1 - 0.4 * p);
       }
       drawSplash(ctx, g, at - B.hit, rm);
 
