@@ -6,22 +6,22 @@
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
   const DT = 1 / 240;
-  const AIR_TILT = 0.3, LOOK = 140, G = 520, GA = 640, JV = 250, HOLD_G = 0.55, HOLD_T = 0.22, APEX_V = 55, APEX_G = 0.7, BUF = 0.15, LEAD = 0.25;
+  const AIR_TILT = 0.3, LOOK = 220, G = 900, GA = 820, JV = 300, CREST = 0.7, HOLD_G = 0.55, HOLD_T = 0.22, APEX_V = 55, APEX_G = 0.7, BUF = 0.15, LEAD = 0.25;
 
   const MODES = {
-    calm: { vt: 125, slope: 0.11, A: 22, L: [460, 680], space: 2.9, kinds: { drift: 3, rock: 2, log: 1 } },
-    flow: { vt: 155, slope: 0.15, A: 32, L: [380, 600], space: 2.5, kinds: { rock: 3, log: 2, drift: 2, gap: 2 } },
-    wake: { vt: 180, slope: 0.19, A: 40, L: [340, 540], space: 2.0, kinds: { rock: 3, log: 2, gap: 3, drift: 1 } },
-    fatigue: { vt: 170, slope: 0.17, A: 38, L: [360, 560], space: 2.2, kinds: { rock: 3, log: 3, gap: 2, drift: 1 } },
+    calm: { vt: 215, slope: 0.17, A: 40, L: [700, 1050], space: 2.9, kinds: { drift: 3, rock: 2, log: 1 } },
+    flow: { vt: 280, slope: 0.22, A: 58, L: [620, 980], space: 2.5, kinds: { rock: 3, log: 2, drift: 2, gap: 2 } },
+    wake: { vt: 325, slope: 0.27, A: 72, L: [560, 900], space: 2.0, kinds: { rock: 3, log: 2, gap: 3, drift: 1 } },
+    fatigue: { vt: 300, slope: 0.24, A: 66, L: [600, 940], space: 2.2, kinds: { rock: 3, log: 3, gap: 2, drift: 1 } },
     rest: { vt: 36, slope: 0, A: 5, L: [520, 680], space: 0, kinds: {} },
   };
   const MODE = (m, k = 0.4) => {
     const id = MODES[m] ? m : 'flow', P = { ...MODES[id], m: id, k };
-    if (id === 'wake' || id === 'fatigue') { P.vt += 20 * k; P.space -= 0.4 * k; }
+    if (id === 'wake' || id === 'fatigue') { P.vt += 35 * k; P.space -= 0.4 * k; }
     if (id === 'calm') P.space += 0.6 * k;
     return P;
   };
-  const OBS = { rock: { w: 26, h: 18 }, log: { w: 42, h: 13 }, drift: { w: 48, h: 12 }, gap: { w: 56, h: 0 } };
+  const OBS = { rock: { w: 28, h: 20 }, log: { w: 46, h: 14 }, drift: { w: 52, h: 13 }, gap: { w: 76, h: 0 } };
 
   const COL = {
     violet: '#9C8AD6', amber: '#F2B544', glow: '#FFD9A0', flame: '#F2E6C9', aurora: '#5FE3A1', ice: '#7FC8E8',
@@ -199,10 +199,10 @@
     }
 
     function roll(P, o = {}) {
-      const r0 = TR(), r1 = TR(), r2 = TR();
-      const len = o.len ?? lerp(P.L[0], P.L[1], r0);
-      const A = o.A ?? (P.A * (0.5 + 0.6 * r1) * (r2 < 0.7 ? 1 : -0.6));
-      const g = T.add({ len, b1: T.endH() - P.slope * len, d1: -P.slope, A, P, m: P.m, free: !!o.free });
+      const r0 = TR(), r1 = TR(), r2 = TR(), kick = o.len == null && P.m !== 'calm' && r2 > 0.72;
+      const len = o.len ?? (kick ? lerp(280, 360, r0) : lerp(P.L[0], P.L[1], r0));
+      const A = o.A ?? (kick ? P.A * (0.9 + 0.3 * r1) : P.A * (0.5 + 0.6 * r1) * (r2 < 0.5 ? 1 : -0.6));
+      const g = T.add({ len, b1: T.endH() - P.slope * len, d1: -P.slope, A, P, m: P.m, free: !!o.free, roll: true });
       chunk(biome(P.m), g.x0, g.x1);
       place(g, P);
       return g;
@@ -353,6 +353,11 @@
       sfx('ride_jump');
     }
 
+    function crest(now) {
+      st.takeoffAt = now;
+      fx(b.x - 4, b.y, 5, COL.snow, 60, 0.6, 2, { dir: PI * 0.8, spread: 0.8 });
+    }
+
     function land(now, impact) {
       const k = clamp(impact / 300, 0, 1);
       squash(now, 1 + 0.1 * k, 1 - 0.14 * k, 0.16);
@@ -369,6 +374,13 @@
         b.v += (-G * Math.sin(th) - drag * b.v * b.v) * h;
         b.v = clamp(b.v, vmin, 1.6 * P.vt);
         b.x += b.v * Math.cos(th) * h; b.y = T.h(b.x); b.ang = th;
+        const g = T.seg(b.x);
+        if (g?.roll && g.A > 0) {
+          const d2 = (T.d(b.x + 2) - T.d(b.x - 2)) / 4, c = Math.cos(th);
+          if (d2 < 0 && -d2 * c * c * c * b.v * b.v > GA * c * CREST) {
+            b.air = true; b.vx = b.v * c; b.vy = b.v * Math.sin(th); b.airT = HOLD_T; b.apex = 0; b.ev = { crest: true };
+          }
+        }
         return;
       }
       b.airT += h;
@@ -455,13 +467,13 @@
       const n = Math.max(1, Math.ceil(dt / DT - 1e-6)), h = dt / n;
       for (let i = 0; i < n; i++) {
         step(h, P, vmin, hold);
-        if (b.ev) land(now, b.ev.impact);
+        if (b.ev?.crest) crest(now); else if (b.ev) land(now, b.ev.impact);
         obstacles(now);
         if (b.air) st.rec.air_s += h;
       }
       if (!b.air && !rm()) {
-        st.sprayAcc += dt * (6 + 26 * st.speed01);
-        while (st.sprayAcc >= 1) { st.sprayAcc -= 1; fx(b.x - 6, b.y + 1, 1, COL.snow, 30 + 40 * st.speed01, 0.55, 1.7, { dir: PI * 0.82, spread: 0.7 }); }
+        st.sprayAcc += dt * (10 + 45 * st.speed01);
+        while (st.sprayAcc >= 1) { st.sprayAcc -= 1; fx(b.x - 8, b.y + 1, 1, COL.snow, 40 + 70 * st.speed01, 0.5 + 0.4 * st.speed01, 1.6, { dir: PI * 0.86, spread: 0.6, vx: -0.25 * b.v }); }
       }
       if (now - st.lastInput > st.idleMax) st.idleMax = now - st.lastInput;
       if (b.air) return;
@@ -484,9 +496,9 @@
       const air = b.air ? Math.max(0, b.y - T.h(b.x)) : 0;
       let tx = 0, ty = 0, tz = 1;
       if (riding && !rm()) {
-        tx = -(0.04 * W + 0.08 * W * st.speed01);
-        ty = clamp((air - 30) * u * 0.7, 0, 0.16 * H);
-        tz = 1.05 - 0.05 * clamp((air - 20) / 80, 0, 1);
+        tx = -(0.07 * W + 0.13 * W * st.speed01);
+        ty = clamp((air - 30) * u * 0.6, 0, 0.18 * H);
+        tz = Math.max(1, 1.08 - 0.05 * st.speed01 - 0.04 * clamp((air - 20) / 90, 0, 1));
       }
       const c = st.cam;
       c.x = ema(c.x, tx, dt, 0.7); c.y = ema(c.y, ty, dt, 0.35); c.z = ema(c.z, tz, dt, 0.6);
