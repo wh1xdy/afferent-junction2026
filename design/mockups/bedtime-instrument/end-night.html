@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-sky="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>End, night</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/end.css">
+<style>
+  .end .world { background-image: url("img/sky-night-phone.jpg"); filter: brightness(0.55) saturate(0.7); }
+  .end .scrim { background: linear-gradient(to bottom, transparent 40%, var(--md-sys-color-surface-container-lowest) 88%); }
+  .end-msg { margin-top: 150px; color: var(--md-sys-color-on-surface); opacity: 0.92; }
+  .moon { display: block; margin: 20px auto 0; color: var(--md-sys-color-on-surface-variant); font-size: 28px; }
+  .grow { flex: 1; }
+  .low { padding: 0 20px 40px; }
+  .low .week { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main class="end">
+  <div class="world" aria-hidden="true"></div>
+  <div class="scrim" aria-hidden="true"></div>
+  <div class="safe-top"></div>
+  <div class="end-bar">
+    <button class="icon-btn state" aria-label="Talk to someone"><span class="ms">support</span></button>
+    <a class="icon-btn state" href="start.html" aria-label="Close"><span class="ms">close</span></a>
+  </div>
+  <h1 class="end-msg display-l">Rest well.</h1>
+  <span class="ms moon" aria-hidden="true">bedtime</span>
+  <div class="grow"></div>
+  <div class="low"><div class="week" role="list" aria-label="Your week"><div class="day" aria-label="Sunday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#5A7CA6" data-glow="0.5"></span></span><span class="d">S</span></div><div class="day" aria-label="Monday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">M</span></div><div class="day" aria-label="Tuesday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">T</span></div><div class="day" aria-label="Wednesday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern style="color:var(--md-sys-color-outline-variant)"></span></span><span class="d">W</span></div><div class="day" aria-label="Thursday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span></span><span class="d">T</span></div><div class="day" aria-label="Friday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">F</span></div><div class="day today" aria-label="Today"><span style="color:var(--md-sys-color-on-surface-variant)"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span></span><span class="d">S</span></div></div></div>
+</main>
+<script src="js/ui.js"></script>
+</body>
+</html>

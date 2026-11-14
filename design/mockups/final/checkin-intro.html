@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-sky="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Check-in</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .body p { margin: 0 0 12px; }
+  .lines { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+  .line { display: flex; gap: 16px; align-items: flex-start; }
+  .line .ms { color: var(--md-sys-color-on-surface-variant); font-size: 22px; margin-top: 1px; }
+  .acts { display: flex; flex-direction: column; gap: 8px; }
+  .mark { width: 56px; height: 56px; border-radius: var(--md-sys-shape-corner-large); background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); display: grid; place-items: center; margin-bottom: 24px; }
+  .mark .ms { font-size: 28px; }
+</style>
+</head>
+<body>
+<div class="phone center-screen">
+  <div class="safe-top"></div>
+  <div class="bar" style="padding:0"><span class="sp"></span><a class="icon-btn state" href="crisis.html?v=talk" aria-label="Talk to someone"><span class="ms">chat_bubble</span></a></div>
+
+  <div class="body" data-show="v=|phq">
+    <div class="mark"><span class="ms">checklist</span></div>
+    <h1 class="headline-l" style="margin:0 0 20px">Check-in.</h1>
+    <div class="lines body-l">
+      <div class="line"><span class="ms">schedule</span><span>Nine short questions about the last 2 weeks.</span></div>
+      <div class="line"><span class="ms">description</span><span>Your clinic will see your answers. This is not watched around the clock.</span></div>
+      <div class="line" data-show="paused"><span class="ms">shield</span><span>Sharing is paused, but answers about your safety still reach your clinic.</span></div>
+      <div class="line"><span class="ms">swipe</span><span>You can stop at any time by swiping down.</span></div>
+    </div>
+  </div>
+  <div class="acts" data-show="v=|phq">
+    <a class="btn filled block state" href="question.html?q=1">Start</a>
+    <a class="btn text block state" href="start.html?sky=dawn">Later</a>
+  </div>
+
+  <div class="body" data-show="v=cssrs">
+    <p class="headline-m">A few more questions, so your clinic can understand.</p>
+    <p class="body-l muted">Answer yes or no.</p>
+  </div>
+  <div class="acts" data-show="v=cssrs">
+    <a class="btn filled block state" href="question.html?set=cssrs&q=1">Continue</a>
+  </div>
+</div>
+<script src="js/ui.js"></script>
+</body>
+</html>

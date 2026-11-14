@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-scheme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111220">
+<title>Your week</title>
+<link rel="stylesheet" href="lp.css">
+<style>
+  .hero { position: relative; height: 400px; display: flex; flex-direction: column; background: url("img/bg_start.jpg") 50% 22% / cover; }
+  [data-scheme="dawn"] .hero { background-image: url("img/bg_patient.jpg"); background-position: 50% 30%; }
+  .hero::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, color-mix(in srgb, var(--md-sys-color-surface) 45%, transparent) 0%, transparent 18%, transparent 46%, color-mix(in srgb, var(--md-sys-color-surface) 70%, transparent) 78%, var(--md-sys-color-surface) 100%); }
+  [data-scheme="night"] .hero { filter: brightness(0.85); }
+  .hero > * { position: relative; z-index: 1; }
+  .top-bar .icon-btn { color: var(--md-sys-color-on-surface); }
+  .top-bar .grow { display: flex; justify-content: center; }
+  .today { flex: 1; padding: 20px 24px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .today .date { color: var(--md-sys-color-on-surface-variant); }
+  .arc { display: flex; align-items: center; gap: 4px; margin-top: auto; }
+  .arc .lantern-halo { width: 44px; height: 60px; }
+  .arc .lantern-halo svg { width: 30px; height: 42px; }
+  .arc .path { width: 72px; color: var(--md-sys-color-outline); }
+  .content { padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+  .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .day { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 6px; border-radius: var(--md-sys-shape-corner-large); color: var(--md-sys-color-on-surface-variant); border: 0; background: none; }
+  .day .lantern-halo { width: 34px; height: 46px; }
+  .day svg { width: 26px; height: 36px; }
+  .day.today { background: var(--md-sys-color-surface-container-highest); color: var(--md-sys-color-on-surface); }
+  .day.none .lantern { opacity: 0.45; }
+  .day.none .glass { fill-opacity: 0; stroke-dasharray: 3 3; }
+  .day.none .flame { opacity: 0; }
+  .card .li { padding-left: 0; padding-right: 0; }
+  .lead-c.t { background: var(--md-sys-color-tertiary-container); color: var(--md-sys-color-on-tertiary-container); }
+  .lead-c.p { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); }
+  .lead-c .ms { font-variation-settings: "FILL" 1, "wght" 400; }
+  .export-meta { display: flex; align-items: center; gap: 12px; padding: 16px 4px 0; color: var(--md-sys-color-on-surface-variant); }
+  .li .chev { color: var(--md-sys-color-on-surface-variant); }
+</style>
+</head>
+<body>
+<main class="phone">
+  <section class="hero" aria-labelledby="headline">
+    <header class="top-bar">
+      <a class="icon-btn sl" href="start.html" aria-label="Back"><span class="c"><span class="ms i-arrow-back"></span></span></a>
+      <div class="grow"><span class="sim-badge">Simulated</span></div>
+      <a class="icon-btn sl" href="crisis.html" aria-label="Talk to someone"><span class="c"><span class="ms i-support"></span></span></a>
+    </header>
+    <div class="today">
+      <p class="date label-l">Saturday 14 November</p>
+      <h1 id="headline" class="headline-l">You reached dawn.</h1>
+      <div class="arc" role="img" aria-label="Lantern 2 before, lantern 4 after">
+        <span class="lantern-halo" data-lantern="2"></span>
+        <svg class="path" viewBox="0 0 72 12" aria-hidden="true"><path d="M2 6 q4.5 -5 9 0 t9 0 t9 0 t9 0 t9 0 t9 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M62 2 l6 4 -6 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="lantern-halo" data-lantern="4"></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="content">
+    <section class="card paper" aria-labelledby="weekH">
+      <div class="card-head"><h2 id="weekH" class="title-m grow">Your week</h2></div>
+      <div class="week">
+        <button class="day sl"><span class="lantern-halo" data-lantern="2"></span><span class="label-m">S</span></button>
+        <button class="day sl"><span class="lantern-halo" data-lantern="2"></span><span class="label-m">M</span></button>
+        <button class="day sl"><span class="lantern-halo" data-lantern="3"></span><span class="label-m">T</span></button>
+        <button class="day none sl" aria-label="Wednesday, no session"><span class="lantern-halo" data-lantern="1"></span><span class="label-m">W</span></button>
+        <button class="day sl"><span class="lantern-halo" data-lantern="3"></span><span class="label-m">T</span></button>
+        <button class="day sl"><span class="lantern-halo" data-lantern="4"></span><span class="label-m">F</span></button>
+        <button class="day today sl" aria-current="date"><span class="lantern-halo" data-lantern="4"></span><span class="label-m">S</span></button>
+      </div>
+    </section>
+
+    <section class="card paper" aria-labelledby="helpH">
+      <div class="card-head"><h2 id="helpH" class="title-m grow">What helped</h2><button class="icon-btn sl" aria-label="How this is learned"><span class="c"><span class="ms s20 i-info"></span></span></button></div>
+      <div class="li"><span class="lead-c p"><span class="ms i-air"></span></span><span class="txt body-l">Slow breathing</span></div>
+      <div class="li"><span class="lead-c t"><span class="ms i-auto-awesome"></span></span><span class="txt row-txt body-l">Fireflies<span class="badge-learn">learning</span></span></div>
+      <div class="li"><span class="lead-c t"><span class="ms i-wb-twilight"></span></span><span class="txt row-txt body-l">Dawn light<span class="badge-learn">learning</span></span></div>
+    </section>
+
+    <section class="card paper" aria-labelledby="expH">
+      <div class="card-head"><h2 id="expH" class="title-m grow">Export</h2><button class="icon-btn sl" aria-label="What the export contains"><span class="c"><span class="ms s20 i-info"></span></span></button></div>
+      <div class="btn-group" role="radiogroup" aria-labelledby="expH">
+        <button class="sl" role="radio" aria-checked="true"><span class="ms i-check"></span>Summary</button>
+        <button class="sl" role="radio" aria-checked="false">Skip today</button>
+        <button class="sl" role="radio" aria-checked="false">Pause 7 d</button>
+      </div>
+      <p class="export-meta body-m"><span class="ms s20 i-drive-export"></span><span class="num">Last export Mon 10 Nov, 08:00</span></p>
+    </section>
+
+    <div class="list-group">
+      <a class="li sl" href="settings.html"><span class="ms i-tune"></span><span class="txt body-l">Sensors</span><span class="ms chev i-chevron-right"></span></a>
+      <a class="li sl" href="crisis.html"><span class="ms i-support"></span><span class="txt body-l">Talk to someone</span><span class="ms chev i-chevron-right"></span></a>
+    </div>
+  </div>
+</main>
+<script src="lp.js"></script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f131c">
+<title>Afferent check-in</title>
+<link rel="stylesheet" href="m3.css">
+<link rel="stylesheet" href="scheme.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  body { background: var(--md-sys-color-surface); }
+  .q { min-height: 100svh; display: flex; flex-direction: column; padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px calc(env(safe-area-inset-bottom, 0px) + 24px); }
+  .q-top { display: flex; align-items: center; gap: 8px; height: 56px; }
+  .q-top .progress { flex: 1; margin-right: 56px; }
+  .q-body { flex: 1; display: flex; flex-direction: column; padding: 0 8px; }
+  .stem { margin-top: 12vh; color: var(--md-sys-color-on-surface-variant); }
+  .ask { margin-top: 12px; text-wrap: balance; }
+  .answers { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+  .answer {
+    display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 0 24px;
+    border-radius: var(--md-sys-shape-corner-large-increased); text-align: left;
+    background: var(--md-sys-color-surface-container-high); color: var(--md-sys-color-on-surface);
+    font: var(--md-sys-typescale-title-medium); letter-spacing: 0.15px;
+    transition: border-radius var(--md-sys-motion-duration-medium2) var(--md-sys-motion-spring-standard-fast-effects), background var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard);
+  }
+  .answer .ms { margin-left: auto; opacity: 0; transform: scale(0.6); transition: all var(--md-sys-motion-duration-short4) var(--md-sys-motion-easing-standard); }
+  .answer[aria-checked="true"] { border-radius: 32px; background: radial-gradient(160px 100px at calc(100% - 40px) 50%, color-mix(in srgb, var(--md-sys-color-primary) 34%, var(--md-sys-color-primary-container)) 0, var(--md-sys-color-primary-container) 100%); color: var(--md-sys-color-on-primary-container); }
+  .answer[aria-checked="true"] .ms { opacity: 1; transform: none; color: var(--md-sys-color-primary); }
+</style>
+</head>
+<body class="sky-night">
+<main class="q" role="dialog" aria-labelledby="ask">
+  <div class="q-top">
+    <a class="icon-btn state" href="start.html" aria-label="Later"><span class="ms">close</span></a>
+    <div class="progress" id="progress" role="progressbar" aria-valuemin="1"></div>
+  </div>
+  <div class="q-body">
+    <p class="stem title-medium" id="stem"></p>
+    <h1 class="ask headline-medium" id="ask"></h1>
+    <div class="answers" id="answers" role="radiogroup" aria-labelledby="ask"></div>
+  </div>
+</main>
+<script>
+const SET = {
+  stem: 'Over the last week',
+  scale: ['Not at all', 'Several days', 'More than half the days', 'Nearly every day'],
+  items: [
+    'Little interest or pleasure in doing things',
+    'Feeling down, depressed or hopeless',
+    'Thoughts that you would be better off dead, or of hurting yourself'
+  ]
+};
+const qs = new URLSearchParams(location.search), i = Math.min(SET.items.length, Math.max(1, Number(qs.get('q')) || 1)) - 1, sel = qs.get('sel');
+document.getElementById('stem').textContent = SET.stem;
+document.getElementById('ask').textContent = SET.items[i];
+const pr = document.getElementById('progress');
+pr.setAttribute('aria-valuemax', SET.items.length); pr.setAttribute('aria-valuenow', i + 1);
+pr.innerHTML = SET.items.map((_, k) => `<i class="${k <= i ? 'done' : ''}"></i>`).join('');
+document.getElementById('answers').innerHTML = SET.scale.map((t, k) =>
+  `<button class="answer state" role="radio" aria-checked="${String(k) === sel}" data-v="${k}">${t}<span class="ms">check</span></button>`).join('');
+document.getElementById('answers').onclick = e => {
+  const b = e.target.closest('.answer'); if (!b) return;
+  document.querySelectorAll('.answer').forEach(x => x.setAttribute('aria-checked', x === b));
+  setTimeout(() => {
+    if (i === SET.items.length - 1 && Number(b.dataset.v) > 0) location.href = 'crisis.html?selfharm=1';
+    else location.href = i === SET.items.length - 1 ? 'start.html' : `question.html?q=${i + 2}`;
+  }, 450);
+};
+</script>
+</body>
+</html>

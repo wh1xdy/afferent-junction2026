@@ -1,0 +1,101 @@
+{
+  "name": "raita-nordic-graphic",
+  "version": "0.1.0",
+  "concept": "Raita: every morning is a print run. Night is the bare screen in one ink; each finished minigame pulls one colour pass back through the screen; dawn is the finished print. The streak is a fabric that grows one stripe per morning.",
+  "palette": {
+    "ink": {
+      "night_ink": { "hex": "#0E1433", "role": "Pass 0 base, dark surface, text on light, silhouettes, the hood" },
+      "indigo": { "hex": "#1B2457", "role": "Night sky band 2, icon background, surface container" },
+      "violet": { "hex": "#3D2F80", "role": "Horizon band at night, light-scheme secondary" },
+      "snow": { "hex": "#F3F0E8", "role": "Snow, moon, text on dark, light surface container" },
+      "paper": { "hex": "#FBF8F1", "role": "Light-scheme surface" }
+    },
+    "passes": {
+      "gold": { "hex": "#FFC23D", "deep": "#B07A00", "pass": 1, "role": "Kulta: lantern, sun, birch light, primary action" },
+      "ice": { "hex": "#4FB3F0", "deep": "#1C4FA0", "pass": 2, "role": "Jaa: lake, sea, fjord bands, secondary" },
+      "aurora": { "hex": "#36D39A", "deep": "#0B5C4B", "pass": 3, "role": "Revontuli: spruce, aurora ribbons, tertiary" },
+      "dawn": { "hex": "#FF9A62", "soft": "#B8A4FF", "pass": 4, "role": "Aamu: apricot and lilac sky bands, the sunrise" }
+    },
+    "light": {
+      "lantern_glow": { "hex": "#FFD37A", "role": "Glow sprites, the only warm pixel at pass 0" },
+      "daylight": { "hex": "#FFF3DC", "role": "Bedside wake light at dawn, never pure white" }
+    },
+    "rules": [
+      "No red. Attention uses apricot, never a red hue.",
+      "At most six colours per frame plus snow.",
+      "Gradients are banded: 5 to 8 flat bands with 2 px soft seams, never a smooth airbrush."
+    ]
+  },
+  "m3": {
+    "dark_night": {
+      "primary": "#FFC23D", "onPrimary": "#2A1C00", "primaryContainer": "#5C4300", "onPrimaryContainer": "#FFDF9E",
+      "secondary": "#8FD0FF", "onSecondary": "#00344F", "secondaryContainer": "#1C4FA0", "onSecondaryContainer": "#D6ECFF",
+      "tertiary": "#5FE3AE", "onTertiary": "#00382A", "tertiaryContainer": "#0B5C4B", "onTertiaryContainer": "#B6F5DA",
+      "attention": "#FFB38A", "onAttention": "#4A1D00", "attentionContainer": "#6E3412", "onAttentionContainer": "#FFDCC7",
+      "surface": "#0E1433", "surfaceDim": "#0A0F28", "surfaceBright": "#2C3466",
+      "surfaceContainerLowest": "#080C22", "surfaceContainerLow": "#141B3E", "surfaceContainer": "#182047",
+      "surfaceContainerHigh": "#1F2853", "surfaceContainerHighest": "#27305F",
+      "onSurface": "#F3F0E8", "onSurfaceVariant": "#C3C2D9", "outline": "#8C8BA8", "outlineVariant": "#3A4170",
+      "inverseSurface": "#F3F0E8", "inverseOnSurface": "#1B2457", "inversePrimary": "#7A5A00", "scrim": "#000000"
+    },
+    "light_morning": {
+      "primary": "#1C4FA0", "onPrimary": "#FFFFFF", "primaryContainer": "#FFC23D", "onPrimaryContainer": "#2A1C00",
+      "secondary": "#3D2F80", "onSecondary": "#FFFFFF", "secondaryContainer": "#E4DDFF", "onSecondaryContainer": "#1E1250",
+      "tertiary": "#0B6B55", "onTertiary": "#FFFFFF", "tertiaryContainer": "#B6F5DA", "onTertiaryContainer": "#00382A",
+      "attention": "#8E3F12", "onAttention": "#FFFFFF", "attentionContainer": "#FFDCC7", "onAttentionContainer": "#3A1400",
+      "surface": "#FBF8F1", "surfaceDim": "#DEDACE", "surfaceBright": "#FFFDF8",
+      "surfaceContainerLowest": "#FFFFFF", "surfaceContainerLow": "#F7F4EC", "surfaceContainer": "#F3F0E8",
+      "surfaceContainerHigh": "#EDE9DF", "surfaceContainerHighest": "#E6E1D5",
+      "onSurface": "#0E1433", "onSurfaceVariant": "#464A66", "outline": "#767A96", "outlineVariant": "#C9C8D6",
+      "inverseSurface": "#1B2457", "inverseOnSurface": "#F3F0E8", "inversePrimary": "#FFC23D", "scrim": "#000000"
+    },
+    "contrast": "Checked WCAG: onPrimary/primary 10.3 (dark), onSurface/surface 15.8 (dark) and 17.0 (light), onSurfaceVariant 9.0 (dark) and 7.1 (light), outline 5.5 (dark) and 4.0 (light, non-text)."
+  },
+  "type": {
+    "families": {
+      "display": { "family": "Familjen Grotesk", "license": "OFL 1.1", "files": ["fonts/FamiljenGrotesk-latin.woff2", "fonts/FamiljenGrotesk-latin-ext.woff2"], "weights": "400 to 700" },
+      "ui": { "family": "Figtree", "license": "OFL 1.1", "files": ["fonts/Figtree-latin.woff2", "fonts/Figtree-latin-ext.woff2"], "weights": "300 to 900" },
+      "mono": { "family": "JetBrains Mono", "license": "OFL 1.1", "files": ["../../fonts/JetBrainsMono-latin.woff2"], "weights": "400 to 500" }
+    },
+    "scale": {
+      "displayLarge": { "family": "display", "size": 57, "line": 60, "weight": 700, "tracking": "-0.03em", "use": "Streak number" },
+      "displayMedium": { "family": "display", "size": 44, "line": 48, "weight": 600, "tracking": "-0.025em", "use": "Good morning, Rest well" },
+      "headlineMedium": { "family": "display", "size": 28, "line": 34, "weight": 500, "tracking": "-0.015em", "use": "Quote, patient view headings" },
+      "titleLarge": { "family": "ui", "size": 22, "line": 28, "weight": 600, "tracking": "0", "use": "Card titles, dashboard patient name" },
+      "titleMedium": { "family": "ui", "size": 16, "line": 24, "weight": 600, "tracking": "0.005em", "use": "List items" },
+      "bodyLarge": { "family": "ui", "size": 16, "line": 24, "weight": 400, "tracking": "0", "use": "Body" },
+      "bodyMedium": { "family": "ui", "size": 14, "line": 20, "weight": 400, "tracking": "0.01em", "use": "Secondary text" },
+      "labelLarge": { "family": "ui", "size": 15, "line": 20, "weight": 600, "tracking": "0.01em", "use": "Buttons" },
+      "labelSmall": { "family": "ui", "size": 11, "line": 16, "weight": 600, "tracking": "0.08em", "use": "Caps labels, weekday initials" }
+    }
+  },
+  "shape": {
+    "primitives": ["circle", "dome", "band", "spike", "dash", "hood"],
+    "radius": { "none": 0, "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 28, "full": 9999 },
+    "components": { "button": "full", "card": "xl", "sheet": "xl top", "chip": "sm", "taskDisc": "circle", "streakStripe": "full" }
+  },
+  "motion": {
+    "m3": {
+      "emphasizedDecelerate": "cubic-bezier(0.05, 0.7, 0.1, 1)",
+      "emphasizedAccelerate": "cubic-bezier(0.3, 0, 0.8, 0.15)",
+      "standard": "cubic-bezier(0.2, 0, 0, 1)",
+      "durations_ms": { "short": 150, "medium": 300, "long": 500, "extraLong": 800 }
+    },
+    "signature": {
+      "pull_ms": 1200, "pull_ease": "cubic-bezier(0.05, 0.7, 0.1, 1)",
+      "registration_snap_px": 2, "registration_snap_ms": 140,
+      "band_reink_stagger_ms": 90,
+      "disc_open_ms": 500, "disc_close_ms": 380,
+      "sun_lift_ms": 6000, "dawn_pull_ms": 2400,
+      "breath_in_ms": 4000, "breath_out_ms": 6000
+    },
+    "reduced": "Pulls become 600 ms crossfades, no registration snap, no parallax above 0.1, sun lift is a fade."
+  },
+  "bedside": {
+    "pass_0": { "rgb": "#FFD37A", "level": 5 },
+    "pass_1": { "rgb": "#FFC98A", "level": 12 },
+    "pass_2": { "rgb": "#FFDDB0", "level": 22 },
+    "pass_3": { "rgb": "#FFE9C8", "level": 35 },
+    "pass_4_dawn": { "rgb": "#FFF3DC", "level": 60, "fade_ms": 6000 }
+  }
+}

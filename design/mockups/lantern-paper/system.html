@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en" data-scheme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern paper system</title>
+<link rel="stylesheet" href="lp.css">
+<style>
+  body { padding: 40px 48px 64px; }
+  h1 { margin-bottom: 4px; }
+  .lede { color: var(--md-sys-color-on-surface-variant); max-width: 760px; margin-bottom: 32px; }
+  h2 { margin: 40px 0 16px; }
+  .schemes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .scheme { border-radius: var(--md-sys-shape-corner-extra-large); padding: 20px; background: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant); }
+  .scheme h3 { margin-bottom: 4px; }
+  .scheme p { color: var(--md-sys-color-on-surface-variant); margin-bottom: 16px; }
+  .sw { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .sw div { height: 56px; border-radius: var(--md-sys-shape-corner-medium); padding: 6px 8px; display: flex; align-items: flex-end; font: 500 10px/12px var(--md-ref-typeface-plain); }
+  .sw .wide { grid-column: span 2; }
+  .surf { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; margin-top: 6px; border-radius: var(--md-sys-shape-corner-medium); overflow: hidden; }
+  .surf div { height: 40px; padding: 4px 6px; font: 500 9px/11px var(--md-ref-typeface-plain); color: var(--md-sys-color-on-surface-variant); display: flex; align-items: flex-end; }
+  .states { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .states > span { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px 0 6px; border-radius: 8px; font: 500 12px/1 var(--md-ref-typeface-plain); }
+  .states > span > .ms { font-size: 16px; font-variation-settings: "FILL" 1; }
+  .seeds { display: flex; gap: 12px; flex-wrap: wrap; }
+  .seed { display: flex; align-items: center; gap: 10px; padding: 8px 14px 8px 8px; border-radius: var(--md-sys-shape-corner-full); background: var(--md-sys-color-surface-container); }
+  .seed i { width: 32px; height: 32px; border-radius: 50%; }
+  .type { display: grid; grid-template-columns: 140px 1fr; gap: 6px 24px; align-items: baseline; }
+  .type .k { color: var(--md-sys-color-on-surface-variant); font: 500 12px/16px var(--md-ref-typeface-plain); }
+  .shapes { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+  .shape { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--md-sys-color-on-surface-variant); }
+  .shape div { width: 72px; height: 72px; background: var(--md-sys-color-secondary-container); }
+  .comp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .comp .card { display: flex; flex-direction: column; gap: 16px; }
+  .comp .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .comp .cap { color: var(--md-sys-color-on-surface-variant); }
+  .moods { display: flex; gap: 10px; }
+  .moods .lantern-halo { width: 40px; height: 54px; }
+  .moods svg { width: 30px; height: 42px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--md-sys-color-outline-variant); vertical-align: top; }
+  th { color: var(--md-sys-color-on-surface-variant); font: 500 12px/16px var(--md-ref-typeface-plain); }
+</style>
+</head>
+<body>
+<h1 class="display-s">Lantern paper</h1>
+<p class="lede body-l">Material 3 Expressive, 1:1 in structure. The sky of the game seeds the tonal surfaces, the lantern seeds the one accent, watercolour paper gives surfaces their grain, and pressed things bloom with lantern light.</p>
+
+<h2 class="headline-s">Seeds</h2>
+<div class="seeds body-m">
+  <span class="seed"><i style="background:#1C2548"></i>Night sky, neutral and secondary</span>
+  <span class="seed"><i style="background:#9FC3E0"></i>Dawn sky, secondary</span>
+  <span class="seed"><i style="background:#F2E6C9"></i>Paper, dawn neutral</span>
+  <span class="seed"><i style="background:#F2B544"></i>Lantern, primary</span>
+  <span class="seed"><i style="background:#4FC3D9"></i>Aurora, tertiary</span>
+  <span class="seed"><i style="background:#F49D6E"></i>Dawn coral, error slot</span>
+</div>
+
+<h2 class="headline-s">Schemes</h2>
+<div class="schemes">
+  <section class="scheme" data-scheme="night">
+    <h3 class="title-l">Night</h3><p class="body-s">Every screen before dawn, and the whole app after 21:00. Dark, low luminance.</p>
+    <div class="sw">
+      <div style="background:var(--md-sys-color-primary);color:var(--md-sys-color-on-primary)">primary</div>
+      <div style="background:var(--md-sys-color-primary-container);color:var(--md-sys-color-on-primary-container)">primary container</div>
+      <div style="background:var(--md-sys-color-secondary-container);color:var(--md-sys-color-on-secondary-container)">secondary container</div>
+      <div style="background:var(--md-sys-color-tertiary-container);color:var(--md-sys-color-on-tertiary-container)">tertiary container</div>
+    </div>
+    <div class="surf"><div style="background:var(--md-sys-color-surface-container-lowest)">lowest</div><div style="background:var(--md-sys-color-surface)">surface</div><div style="background:var(--md-sys-color-surface-container-low)">low</div><div style="background:var(--md-sys-color-surface-container)">container</div><div style="background:var(--md-sys-color-surface-container-high)">high</div><div style="background:var(--md-sys-color-surface-container-highest)">highest</div></div>
+  </section>
+  <section class="scheme" data-scheme="dawn">
+    <h3 class="title-l">Dawn</h3><p class="body-s">Earned: only after the game reached dawn in the morning. Warm paper surfaces.</p>
+    <div class="sw">
+      <div style="background:var(--md-sys-color-primary);color:var(--md-sys-color-on-primary)">primary</div>
+      <div style="background:var(--md-sys-color-primary-container);color:var(--md-sys-color-on-primary-container)">primary container</div>
+      <div style="background:var(--md-sys-color-secondary-container);color:var(--md-sys-color-on-secondary-container)">secondary container</div>
+      <div style="background:var(--md-sys-color-tertiary-container);color:var(--md-sys-color-on-tertiary-container)">tertiary container</div>
+    </div>
+    <div class="surf"><div style="background:var(--md-sys-color-surface-container-lowest)">lowest</div><div style="background:var(--md-sys-color-surface)">surface</div><div style="background:var(--md-sys-color-surface-container-low)">low</div><div style="background:var(--md-sys-color-surface-container)">container</div><div style="background:var(--md-sys-color-surface-container-high)">high</div><div style="background:var(--md-sys-color-surface-container-highest)">highest</div></div>
+  </section>
+  <section class="scheme" data-scheme="clinic">
+    <h3 class="title-l">Clinic</h3><p class="body-s">Same seeds, lower chroma, medium contrast. States as harmonised custom colours.</p>
+    <div class="sw">
+      <div style="background:var(--md-sys-color-primary);color:var(--md-sys-color-on-primary)">primary</div>
+      <div style="background:var(--md-sys-color-primary-container);color:var(--md-sys-color-on-primary-container)">primary container</div>
+      <div style="background:var(--md-sys-color-secondary-container);color:var(--md-sys-color-on-secondary-container)">secondary container</div>
+      <div style="background:var(--md-sys-color-surface-container-high);color:var(--md-sys-color-on-surface)">surface high</div>
+    </div>
+    <div class="states">
+      <span style="background:var(--lp-booster-container);color:var(--lp-on-booster-container)"><span class="ms i-neurology"></span>Booster</span>
+      <span style="background:var(--lp-call-container);color:var(--lp-on-call-container)"><span class="ms i-call"></span>Call</span>
+      <span style="background:var(--lp-watch-container);color:var(--lp-on-watch-container)"><span class="ms i-visibility"></span>Watch</span>
+      <span style="box-shadow:inset 0 0 0 1px var(--md-sys-color-outline-variant);color:var(--md-sys-color-on-surface-variant)"><span class="ms i-check-circle" style="color:var(--lp-stable)"></span>Stable</span>
+    </div>
+  </section>
+</div>
+
+<h2 class="headline-s">Type, Google Sans Flex</h2>
+<div class="type">
+  <span class="k">Display M 45, ROND 100</span><span class="display-m">Good morning.</span>
+  <span class="k">Headline M 28, ROND 100</span><span class="headline-m">Little interest or pleasure in doing things</span>
+  <span class="k">Title L 22</span><span class="title-l">Settings</span>
+  <span class="k">Title M 16 / 500</span><span class="title-m">MIELI Crisis Helpline</span>
+  <span class="k">Body L 16</span><span class="body-l">Hold to breathe in, let go to breathe out</span>
+  <span class="k">Label L 14 / 500</span><span class="label-l">Last 7 days</span>
+</div>
+
+<h2 class="headline-s">Shape</h2>
+<div class="shapes label-m">
+  <div class="shape"><div style="border-radius:8px"></div>small 8</div>
+  <div class="shape"><div style="border-radius:12px"></div>medium 12</div>
+  <div class="shape"><div style="border-radius:20px"></div>large incr. 20</div>
+  <div class="shape"><div style="border-radius:28px"></div>extra large 28</div>
+  <div class="shape"><div style="border-radius:999px"></div>full</div>
+  <div class="shape"><div style="border-radius:var(--lp-shape-lantern);background:var(--md-sys-color-primary-container)"></div>lantern</div>
+</div>
+
+<h2 class="headline-s">Components</h2>
+<div class="comp">
+  <div class="card paper">
+    <span class="title-m">Buttons</span>
+    <div class="row"><button class="btn filled sl">Filled</button><button class="btn tonal sl">Tonal</button><button class="btn outlined sl">Outlined</button><button class="btn text sl">Text</button></div>
+    <div class="row"><span class="lantern-glow"><button class="fab-ext lit sl" style="height:80px;font-size:24px"><span class="ms fill i-play-arrow"></span>Begin</button></span></div>
+    <span class="cap body-s">Press: corners morph full to 12 (spring), lantern light blooms from the touch point.</span>
+  </div>
+  <div class="card paper">
+    <span class="title-m">Selection</span>
+    <div class="row">
+      <span class="switch"><input type="checkbox" checked aria-label="On"><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span>
+      <span class="switch"><input type="checkbox" aria-label="Off"><span class="track"></span><span class="handle"><span class="ms i-check"></span></span></span>
+      <button class="chip sl" aria-pressed="true"><span class="ms i-check"></span>Filter</button>
+      <button class="chip sl"><span class="ms i-edit-note"></span>Assist</button>
+    </div>
+    <div class="btn-group" role="radiogroup"><button class="sl" role="radio" aria-checked="true"><span class="ms i-check"></span>Summary</button><button class="sl" role="radio" aria-checked="false">Skip today</button><button class="sl" role="radio" aria-checked="false">Pause 7 d</button></div>
+    <span class="cap body-s">The switch handle is the flame: dim amber track at night, glowing handle.</span>
+  </div>
+  <div class="card paper">
+    <span class="title-m">Lanterns and progress</span>
+    <div class="moods"><span class="lantern-halo" data-lantern="1"></span><span class="lantern-halo" data-lantern="2"></span><span class="lantern-halo" data-lantern="3"></span><span class="lantern-halo" data-lantern="4"></span><span class="lantern-halo" data-lantern="5"></span></div>
+    <div data-wavy="0.66" style="width:220px"></div>
+    <span class="cap body-s">Mood 1 to 5: colour and glow rise together. The dimmest lantern still glows.</span>
+  </div>
+</div>
+
+<h2 class="headline-s">States and motion</h2>
+<table class="body-m">
+  <tr><th>Token</th><th>Value</th><th>Use</th></tr>
+  <tr><td>State layer</td><td>hover 8%, focus 10%, pressed 10%, dragged 16%</td><td>M3 1:1, on every interactive element (class sl)</td></tr>
+  <tr><td>Bloom</td><td>radial lantern light, 650 ms emphasized decelerate</td><td>Replaces the ripple; flame colour on filled, content colour elsewhere; off with reduced motion</td></tr>
+  <tr><td>Spatial spring fast / default</td><td>350 / 500 ms, slight overshoot</td><td>Shape morphs, switch handle, selected option</td></tr>
+  <tr><td>Effects</td><td>200 ms, no overshoot</td><td>Colour, opacity, icon fill</td></tr>
+  <tr><td>Scheme change</td><td>2000 ms ease in-out</td><td>Night to dawn re-tint, never a hard cut</td></tr>
+  <tr><td>Lantern breathe</td><td>10 s loop, 0.55 to 1 opacity</td><td>Only the Begin halo; static with reduced motion</td></tr>
+</table>
+<script src="lp.js"></script>
+</body>
+</html>

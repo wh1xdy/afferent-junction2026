@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-sky="dawn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>End, morning</title>
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/theme.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/end.css">
+<style>
+  .end .world { background-image: url("img/sky-dawn-phone.jpg"); background-position: center 30%; height: 640px; filter: brightness(0.86); }
+  .end .scrim { background: linear-gradient(to bottom, color-mix(in srgb, var(--md-sys-color-surface) 35%, transparent) 0, transparent 140px); }
+  .grow { flex: 1; }
+  .sheet .handle { display: none; }
+  .sheet h1 { margin: 0 8px 4px; }
+  .sheet .when { margin: 0 8px 24px; }
+</style>
+</head>
+<body>
+<main class="end">
+  <div class="world" aria-hidden="true"></div>
+  <div class="scrim" aria-hidden="true"></div>
+  <div class="safe-top"></div>
+  <div class="end-bar">
+    <button class="icon-btn glass state" aria-label="Talk to someone"><span class="ms">support</span></button>
+    <a class="icon-btn glass state" href="patient.html" aria-label="Your week"><span class="ms">view_week</span></a>
+  </div>
+  <div class="grow"></div>
+  <section class="sheet">
+    <h1 class="display-s">Good morning.</h1>
+    <p class="when label-l muted"><span class="num">07:48</span> · Sat 14 Nov</p>
+    <div class="week" role="list" aria-label="Your week"><div class="day" aria-label="Sunday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#5A7CA6" data-glow="0.5"></span></span><span class="d">S</span></div><div class="day" aria-label="Monday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">M</span></div><div class="day" aria-label="Tuesday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">T</span></div><div class="day" aria-label="Wednesday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern style="color:var(--md-sys-color-outline-variant)"></span></span><span class="d">W</span></div><div class="day" aria-label="Thursday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span></span><span class="d">T</span></div><div class="day" aria-label="Friday"><span style="color:var(--md-sys-color-outline)"><span class="lamp" data-lantern="#A9A79A" data-glow="0.65"></span></span><span class="d">F</span></div><div class="day today" aria-label="Today"><span style="color:var(--md-sys-color-on-surface-variant)"><span class="lamp" data-lantern="#E8B867" data-glow="0.82"></span></span><span class="d">S</span></div></div>
+    <a class="btn tonal done state" href="start.html">Done</a>
+  </section>
+</main>
+<script src="js/ui.js"></script>
+</body>
+</html>

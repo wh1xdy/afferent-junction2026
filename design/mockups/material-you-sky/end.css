@@ -1,0 +1,23 @@
+.world.full { top: 0; bottom: 0; }
+.world.full::before { display: none; }
+.end .world.full::after {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--md-sys-color-surface) 30%, transparent) 0, transparent 40%),
+    linear-gradient(0deg, color-mix(in srgb, var(--md-sys-color-surface) 85%, transparent) 0, transparent 180px);
+}
+.end-main { position: relative; z-index: 1; min-height: 100svh; display: flex; flex-direction: column; align-items: center; }
+.greet { margin-top: 24svh; text-align: center; padding: 0 24px; color: var(--md-sys-color-on-surface); }
+.sky-dawn .greet { text-shadow: 0 0 32px color-mix(in srgb, var(--md-sys-color-surface) 70%, transparent); }
+.ingame { position: absolute; left: 0; right: 0; top: 63svh; display: flex; justify-content: center; }
+.moods { width: 300px; height: 70px; overflow: visible; }
+.moods .m .halo { fill: var(--c); opacity: calc(var(--g) * 0.35); filter: blur(6px); }
+.moods .m .frame { fill: none; }
+.moods .m .hook, .moods .m .base { fill: none; stroke: #46546A; stroke-width: 2.4; stroke-linecap: round; }
+.moods .m .glass { fill: var(--c); fill-opacity: calc(0.3 + 0.5 * var(--g)); stroke: #46546A; stroke-width: 2.4; }
+.moods .m .flame { fill: #FFF3DC; opacity: calc(0.35 + 0.65 * var(--g)); }
+.moods:has(.on) .m:not(.on) { opacity: 0.4; }
+.moods .m.on .halo { opacity: 0.9; }
+.end .dock { gap: 8px; }
+.night .greet { margin-top: 30svh; color: var(--md-sys-color-on-surface-variant); }
+.night .world.full::after { background: linear-gradient(0deg, color-mix(in srgb, var(--md-sys-color-surface-container-lowest) 80%, transparent) 0, transparent 200px); }
+.night .btn.text { color: var(--md-sys-color-on-surface-variant); }

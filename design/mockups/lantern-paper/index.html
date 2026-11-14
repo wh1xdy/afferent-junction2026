@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-scheme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern paper mockups</title>
+<link rel="stylesheet" href="lp.css">
+<style>
+  body { padding: 40px 48px 64px; }
+  p.lede { color: var(--md-sys-color-on-surface-variant); margin: 4px 0 32px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 24px; }
+  .grid a { display: flex; flex-direction: column; gap: 10px; color: var(--md-sys-color-on-surface); }
+  .grid img { width: 100%; border-radius: var(--md-sys-shape-corner-extra-large); box-shadow: inset 0 0 0 1px var(--md-sys-color-outline-variant); background: var(--md-sys-color-surface-container); }
+  .grid a.wide { grid-column: span 3; }
+  .links { display: flex; gap: 8px; margin-bottom: 32px; }
+</style>
+</head>
+<body>
+<h1 class="display-s">Lantern paper</h1>
+<p class="lede body-l">Material 3 Expressive with the sky, the lantern and watercolour paper of the game.</p>
+<div class="links"><a class="btn tonal sl" href="system.html"><span class="ms s18 i-tune"></span><span>System</span></a></div>
+<div class="grid title-s">
+  <a href="start.html"><img src="shots/start.png" alt="">Start</a>
+  <a href="settings.html"><img src="shots/settings.png" alt="">Settings</a>
+  <a href="info.html"><img src="shots/info.png" alt="">Info</a>
+  <a href="question.html"><img src="shots/question.png" alt="">Question</a>
+  <a href="question.html?sel=1"><img src="shots/question-selected.png" alt="">Question, answered</a>
+  <a href="crisis.html"><img src="shots/crisis.png" alt="">Talk to someone</a>
+  <a href="end-morning.html"><img src="shots/end-morning.png" alt="">End, morning</a>
+  <a href="end-night.html"><img src="shots/end-night.png" alt="">End, night</a>
+  <a href="end-night.html?asleep=1"><img src="shots/end-asleep.png" alt="">End, fell asleep</a>
+  <a href="patient.html"><img src="shots/patient.png" alt="">Patient, night</a>
+  <a href="patient.html?t=dawn"><img src="shots/patient-dawn.png" alt="">Patient, dawn</a>
+  <a class="wide" href="clinic.html"><img src="shots/clinic.png" alt="">Clinic dashboard</a>
+</div>
+<script src="lp.js"></script>
+</body>
+</html>

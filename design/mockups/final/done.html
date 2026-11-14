@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" data-sky="day">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thank you</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../../gui-tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/m3.css">
+<link rel="stylesheet" href="css/app.css">
+<style>
+  .glow { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 28px; background: radial-gradient(circle, color-mix(in srgb, var(--md-sys-color-primary) 26%, transparent), transparent 70%); color: var(--md-sys-color-primary); }
+  .glow svg { width: 30px; height: 46px; }
+  .body { text-align: center; }
+</style>
+</head>
+<body>
+<div class="phone center-screen">
+  <div class="safe-top"></div>
+  <div class="bar" style="padding:0"><span class="sp"></span><a class="icon-btn state" href="crisis.html?v=talk" aria-label="Talk to someone"><span class="ms">chat_bubble</span></a></div>
+  <div class="body">
+    <div class="glow" aria-hidden="true"><span data-lantern="flame" data-glow="1"></span></div>
+    <h1 class="display-s" style="margin:0" data-show="v=thanks|">Thank you.</h1>
+    <h1 class="display-s" style="margin:0" data-show="v=saved">Saved.</h1>
+  </div>
+  <a class="btn tonal block state" href="start.html?sky=dawn">Close</a>
+</div>
+<script src="js/ui.js"></script>
+</body>
+</html>
