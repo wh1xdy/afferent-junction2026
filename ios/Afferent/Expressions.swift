@@ -15,7 +15,7 @@ enum ExpressionKind: String, CaseIterable, Codable {
         switch self {
         case .happy: return "Smile"
         case .sad: return "Sadness"
-        case .anger: return "Anger"
+        case .anger: return "Frown / anger"   // AU4 brow lowerer: frowning, not necessarily anger
         case .disgust: return "Disgust"
         case .surprise: return "Surprise / fear"
         case .contempt: return "Contempt"
@@ -31,7 +31,12 @@ enum ExpressionKind: String, CaseIterable, Codable {
             .sad: 0.5 * v("browInnerUp") + 0.5 * (v("mouthFrownLeft") + v("mouthFrownRight")) / 2,         // AU1 + AU15
             .anger: 0.6 * (v("browDownLeft") + v("browDownRight")) / 2 + 0.4 * (v("mouthPressLeft") + v("mouthPressRight")) / 2, // AU4 + AU24
             .disgust: 0.6 * (v("noseSneerLeft") + v("noseSneerRight")) / 2 + 0.4 * (v("mouthUpperUpLeft") + v("mouthUpperUpRight")) / 2, // AU9 + AU10
-            .surprise: 0.4 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.3 * v("browInnerUp") + 0.3 * v("jawOpen"), // AU5 + AU1/2 + AU26
+            // AU2 + AU5 + AU26, led by the outer brow raise (AU2). Inner brow (AU1) is also sadness, and
+            // wide eyes alone happen when looking away/up (measured: eyeWide 0.3-0.4 with browOuterUp ~0),
+            // so without raised outer brows it barely counts.
+            .surprise: { let bo = (v("browOuterUpLeft") + v("browOuterUpRight")) / 2
+                         let raw = 0.6 * bo + 0.2 * (v("eyeWideLeft") + v("eyeWideRight")) / 2 + 0.2 * v("jawOpen")
+                         return bo > 0.2 ? raw : 0.3 * raw }(),
             .contempt: abs(smileL - smileR),                                                                     // unilateral AU12/14
         ]
     }
@@ -53,7 +58,15 @@ struct BurstDetector {
     var history: [Double] = []          // last ~5 s for the baseline
     var active: (start: Double, peak: Double)?
     let historyLen = 300                 // 5 s at 60 Hz
-    let minRise = 0.12                   // blendshape units above baseline
+    /// blendshape units above the person's baseline. Measured on a real face: a slight smile
+    /// is only +0.05-0.09 (big smile +0.77), so smile gets a low threshold.
+    var minRise: Double {
+        switch kind {
+        case .happy: return 0.04
+        case .contempt: return 0.05
+        default: return 0.10
+        }
+    }
 
     mutating func feed(_ x: Double, t: Double) -> ExpressionEvent? {
         let base = baseline()
@@ -94,6 +107,9 @@ struct ExpressionSession {
     private(set) var start: Double?
     private(set) var lastT = 0.0
     private var smileFrames = 0, gazeDownFrames = 0
+    private var calHappy: [Double] = []
+    private var baseHappy: Double?
+
     private var blinkClosed = false
     private(set) var blinks = 0
     private var sums = [String: Double](), sumsSq = [String: Double]()
@@ -102,11 +118,34 @@ struct ExpressionSession {
     private(set) var gazeShifts = 0             // saccade-like jumps > 3 deg at > 60 deg/s
     private var shiftCooldownUntil = 0.0
     private var gazeAwayFrames = 0, eyeWideFrames = 0, gazeFrames = 0
+    // Personal baselines from the first `calibrationS` seconds ("look at the screen"):
+    // people hold the phone below eye level, so "at the screen" is not 0 deg / not lookDown 0.
+    static let calibrationS = 10.0
+    static let awayDeg = 10.0          // from the running gaze median (where the person mostly looks)
+    static let farDeg = 25.0           // beyond this ARKit's blendshapes are unreliable: no expression onsets
+    private var gazeHistY: [Double] = [], gazeHistP: [Double] = []
+    private var lastAwayDeg = 0.0
+    private var calYaw: [Double] = [], calPitch: [Double] = [], calDown: [Double] = []
+    private var baseGaze: (yaw: Double, pitch: Double)?
+    private var baseDown: Double?
 
-    /// gaze yaw/pitch in degrees from ARFaceAnchor.lookAtPoint (nil if not tracked)
+    private static func median(_ v: [Double]) -> Double {
+        let s = v.sorted(); return s.isEmpty ? 0 : s[s.count / 2]
+    }
+
+    /// gaze yaw/pitch in degrees relative to the camera (ARFaceAnchor.lookAtPoint)
     mutating func feedGaze(yaw: Double, pitch: Double, t: Double) {
         gazeFrames += 1
-        if hypot(yaw, pitch) > 12 { gazeAwayFrames += 1 }
+        // running baseline: median of where the person has looked so far (most of the time: the
+        // screen), so glancing away during the first seconds doesn't spoil it (measured: it did)
+        if gazeFrames % 6 == 0 {            // 10 Hz is plenty for a median
+            gazeHistY.append(yaw); gazeHistP.append(pitch)
+            if gazeHistY.count > 600 { gazeHistY.removeFirst(); gazeHistP.removeFirst() }   // 60 s
+            baseGaze = (Self.median(gazeHistY), Self.median(gazeHistP))
+        }
+        let b = baseGaze ?? (yaw, pitch)
+        lastAwayDeg = hypot(yaw - b.yaw, pitch - b.pitch)
+        if lastAwayDeg > Self.awayDeg { gazeAwayFrames += 1 }
         if let g = lastGaze, t > g.t {
             let jump = hypot(yaw - g.yaw, pitch - g.pitch)
             let speed = jump / (t - g.t)
@@ -123,19 +162,48 @@ struct ExpressionSession {
         lastT = t
         frames += 1
         let vals = ExpressionKind.values(b)
+        let happy = vals[.happy] ?? 0
         for i in detectors.indices {
-            if let e = detectors[i].feed(vals[detectors[i].kind] ?? 0, t: t) { events.append(e) }
+            guard let e = detectors[i].feed(vals[detectors[i].kind] ?? 0, t: t) else { continue }
+            if farUntil > e.start { continue }       // started while looking far away
+            add(e, minRise: detectors[i].minRise)
         }
-        if (vals[.happy] ?? 0) > 0.3 { smileFrames += 1 }
-        if ((b["eyeLookDownLeft"] ?? 0) + (b["eyeLookDownRight"] ?? 0)) / 2 > 0.35 { gazeDownFrames += 1 }
+        if lastAwayDeg > Self.farDeg { farUntil = t + 0.3 }
+        if let s = start, t - s < Self.calibrationS { calHappy.append(happy) }
+        else if baseHappy == nil { baseHappy = Self.median(calHappy) }
+        if happy > (baseHappy ?? 0.02) + 0.04 { smileFrames += 1 }
+        let down = ((b["eyeLookDownLeft"] ?? 0) + (b["eyeLookDownRight"] ?? 0)) / 2
+        if let s = start, t - s < Self.calibrationS { calDown.append(down) }
+        else if baseDown == nil { baseDown = Self.median(calDown) }
+        if down > (baseDown ?? 0.2) + 0.15 { gazeDownFrames += 1 }
         let blink = ((b["eyeBlinkLeft"] ?? 0) + (b["eyeBlinkRight"] ?? 0)) / 2
         if ((b["eyeWideLeft"] ?? 0) + (b["eyeWideRight"] ?? 0)) / 2 > 0.4 { eyeWideFrames += 1 }
         if !blinkClosed && blink > 0.6 { blinkClosed = true; blinks += 1 }
-        if blinkClosed && blink < 0.3 { blinkClosed = false }
+        if blinkClosed && blink < 0.4 { blinkClosed = false }   // resting eyeBlink is 0.2-0.3 on real faces
         for (k, v) in b {
             sums[k, default: 0] += v
             sumsSq[k, default: 0] += v * v
         }
+    }
+
+    /// One facial action moves several blendshapes (a hard frown also wrinkles the nose, a big
+    /// smile raises the upper lip), so overlapping bursts of different kinds are the same action:
+    /// keep the one that is strongest relative to its own threshold. Measured on a real face:
+    /// 5 frowns (mouthFrown 0.8) each also fired "disgust" via noseSneer 0.3.
+    private var strengths: [Double] = []
+    private var farUntil = -Double.infinity
+    private mutating func add(_ e: ExpressionEvent, minRise: Double) {
+        let strength = e.peak / minRise
+        let end = e.start + e.duration
+        let overlapping = events.indices.filter { i in
+            let o = events[i]
+            let overlap = min(end, o.start + o.duration) - max(e.start, o.start)
+            return o.kind != e.kind && overlap > 0.5 * min(e.duration, o.duration)
+        }
+        if overlapping.contains(where: { strengths[$0] >= strength }) { return }
+        for i in overlapping.reversed() { events.remove(at: i); strengths.remove(at: i) }
+        events.append(e)
+        strengths.append(strength)
     }
 
     var seconds: Double { start.map { lastT - $0 } ?? 0 }
@@ -147,7 +215,7 @@ struct ExpressionSession {
         var gazeDownShare: Double
         var blinksPerMinute: Double
         var gazeShiftsPerMinute: Double  // saccade-like jumps
-        var gazeAwayShare: Double        // looking > 12 deg away from the camera
+        var gazeAwayShare: Double        // looking > 7 deg away from where the person looked during calibration
         var eyeWideShare: Double
         var micro: [ExpressionKind: Int]
         var macro: [ExpressionKind: Int]
@@ -182,7 +250,7 @@ struct Activation: Equatable {
     var score: Int                      // 0-100
     var notes: [String]
 
-    static func from(_ s: ExpressionSession.Summary, restingBpm: Int?) -> Activation {
+    static func from(_ s: ExpressionSession.Summary, restingBpm: Int?, breathsPerMinute: Int? = nil) -> Activation {
         var parts: [Double] = [], notes: [String] = []
         // typical resting blink rate ~15-20/min (Bentivoglio et al. 1997)
         let blink = min(max((s.blinksPerMinute - 18) / 20, 0), 1)
@@ -194,6 +262,10 @@ struct Activation: Equatable {
         if let bpm = restingBpm {
             let hr = min(max((Double(bpm) - 80) / 30, 0), 1)
             parts.append(hr); if hr > 0.5 { notes.append("elevated pulse (\(bpm) BPM)") }
+        }
+        if let br = breathsPerMinute {   // adult resting ~12-20 breaths/min
+            let b = min(max((Double(br) - 18) / 10, 0), 1)
+            parts.append(b); if b > 0.5 { notes.append("fast breathing (\(br)/min)") }
         }
         let score = Int((100 * parts.reduce(0, +) / Double(max(parts.count, 1))).rounded())
         return Activation(score: score, notes: notes)
