@@ -187,6 +187,29 @@ test('the physics give the same path at 60 and at 120 frames a second', () => {
   assert.ok(Math.abs(a - b) < 8, `${a} vs ${b}`);
 });
 
+test('the background layers cover the whole screen at every camera height, dip and zoom along a ride', () => {
+  const Layers = require('../js/layers.js');
+  const t = session({ input: 'auto' });
+  t.A.config.forceRide = 'wake';
+  const W = 390, H = 844, u = H / 844;
+  let samples = 0, maxLow = 0, maxCy = 0;
+  until(t, () => t.games.length >= 2, 120, () => {
+    const V = t.s.V, cam = V.cam || { x: 0, y: 0, z: 1 };
+    if (typeof V.terrain !== 'function') return;
+    const fx = W * 0.35 + cam.x;
+    let low = 0;
+    for (let i = 0; i <= 12; i++) low = Math.max(low, -V.terrain(V.worldX + i / 12 * W - fx) * u);
+    const L = Layers.layout(W, H, cam.y, low);
+    samples++; maxLow = Math.max(maxLow, low); maxCy = Math.max(maxCy, cam.y);
+    assert.ok(Layers.covered(H, L.layers), `uncovered rows at cam ${JSON.stringify(cam)} low ${low}`);
+    for (const [name, , bottom] of L.layers.slice(1)) assert.ok(bottom >= H, `${name} stops above the bottom of the screen`);
+    assert.ok(L.hy <= L.my && L.my <= L.gy + low, 'layers keep their depth order');
+    assert.ok(cam.z >= 1, 'the zoom never shows the outside of the scene');
+  });
+  assert.ok(samples > 200 && maxLow > 20 && maxCy > 0, `the ride dipped and flew: ${samples} ${maxLow} ${maxCy}`);
+  assert.ok(!Layers.covered(H, [['sky', 0, 300], ['mid', 400, H]]), 'the check finds a gap');
+});
+
 test('reduced motion keeps the camera still', () => {
   const t = session();
   t.A.config.reducedMotion = true;
