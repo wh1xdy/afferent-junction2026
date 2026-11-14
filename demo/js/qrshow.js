@@ -1,5 +1,9 @@
+// "Show to my doctor": the code is a link to the patient's dashboard, not the numbers themselves.
+// The dashboard is the one the Share tab makes (qrexport.js, dashboard_gen.js). handover.js locks it on this
+// phone and puts it on the relay (link with the key after '#'), or on the paired home hub (home network only);
+// with neither it offers the file. The patient shows the code; nothing goes to a clinician by itself.
 (() => {
-  const SCREEN_TTL = 600, PAPER_TTL = 2592000, CYCLE_MS = 2500, LOG_MAX = 10;
+  const LOG_MAX = 10;
   const FJORD = '#0E1A2E';
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -13,13 +17,13 @@
     taskAlt: '<path d="M20 11.2V12a8 8 0 1 1-4.7-7.3"/><path d="M8.5 11.5l3 3L20 6"/>',
     visOff: '<path d="M3.5 12s3-6 8.5-6c1.6 0 3 .5 4.2 1.2M20.5 12s-3 6-8.5 6c-1.6 0-3-.5-4.2-1.2"/><path d="M10 10a2.8 2.8 0 0 0 4 4"/><path d="M4.5 4.5l15 15"/>',
     sun: '<circle cx="12" cy="12" r="3.8"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>',
-    prev: '<path d="M14.5 6l-6 6 6 6"/>',
-    next: '<path d="M9.5 6l6 6-6 6"/>',
     chev: '<path d="M9.5 6l6 6-6 6"/>',
     pulse: '<path d="M3 12.5h4l2.2-6 4 12 2.3-6H21"/>',
+    thermo: '<path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a3.8 3.8 0 1 1-4 0z"/><path d="M12 9.5v6"/>',
+    lock: '<rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+    wifi: '<path d="M3.5 9.5a12 12 0 0 1 17 0M6.5 12.8a7.5 7.5 0 0 1 11 0M9.6 16a3 3 0 0 1 4.8 0"/><path d="M12 19.2v.01"/>',
   };
-  const VITALS = [['pulse_bpm', 'pulse', 'Pulse, finger sensor', 'bpm'], ['breathing_per_min', 'breathing rate', 'Breathing rate', 'per minute'], ['rmssd_ms', 'HRV (RMSSD)', 'HRV (RMSSD)', 'ms']];
-  const DASH = '–';
+  const VITALS = [['pulse_bpm', 'pulse'], ['breathing_per_min', 'breathing rate'], ['rmssd_ms', 'HRV (RMSSD)']];
   const svg = (p, cls = '') => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true">${p}</svg>`;
   const h = (tag, attrs = {}, kids = []) => {
     const n = document.createElement(tag);
@@ -51,8 +55,9 @@
     } finally { clearTimeout(t); }
   }
 
-  const record = body => body && typeof body === 'object' && body.period ? { body, saved_iso: body.cached_iso || null } : null;
+  const record = (body, src) => body && typeof body === 'object' && body.period ? { body, saved_iso: body.cached_iso || null, src } : null;
 
+  // The summary the dashboard is made from: the hub's qr-body, cached on this phone (qrpayload.js keeps the cache).
   async function sync() {
     const Q = codec();
     if (!cfg.hub || !Q) return null;
@@ -60,15 +65,15 @@
       const body = await fetchJSON(`${cfg.hub}/api/patients/${encodeURIComponent(cfg.pid)}/qr-body`);
       if (!record(body)) return null;
       await Q.cacheBody(body);
-      return { body, saved_iso: new Date().toISOString() };
+      return { body, saved_iso: new Date().toISOString(), src: 'hub' };
     } catch { return null; }
   }
 
   async function source() {
     const Q = codec();
     if (!Q) return null;
-    try { const rec = record(await Q.cachedBody()); if (rec) return rec; } catch {}
-    if (cfg.pid === 'anna') try { return record(await fetchJSON('js/qr_body_fallback.json')); } catch {}
+    try { const rec = record(await Q.cachedBody(), 'cache'); if (rec) return rec; } catch {}
+    if (cfg.pid === 'anna') try { return record(await fetchJSON('js/qr_body_fallback.json'), 'saved'); } catch {}
     return null;
   }
 
@@ -76,8 +81,9 @@
   const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
   const longDay = d => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
   const fullDay = d => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  const shortDay = d => `${WD[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
   const hm = d => `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-  const stamp = d => `${WD[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)} ${hm(d)}`;
+  const stamp = d => `${shortDay(d)} ${hm(d)}`;
 
   function period(body) {
     const p = body?.period || {};
@@ -86,37 +92,45 @@
     return { from: addDays(end, Math.max(from, 0)), to: addDays(end, to), a: Math.max(1, Math.ceil(Math.max(from, 1) / 7)), b: Math.max(1, Math.ceil(to / 7)) };
   }
 
-  const crockford = s => String(s || '').toUpperCase().replace(/[^0-9A-Z]/g, '');
-  const fpGroups = s => { const c = crockford(s); return c ? c.match(/.{1,4}/g).join(' ') : ''; };
-  const fpSpoken = s => crockford(s).split('').join(', ');
-
-  function vitalRows(body) {
-    const Q = codec();
-    let v = null;
-    try { v = Q.unpack(Q.pack(body)).vitals || null; } catch {}
-    return VITALS.map(([k, name, label, unit]) => ({ name, label, unit, weeks: v?.weekly?.[k] || [], sim: !!v?.simulated?.[k] })).filter(r => r.weeks.some(x => x !== null));
-  }
-
+  // Which finger sensor numbers the dashboard has: a week counts when it holds a reading (never 0).
   function vitalsLine(body) {
-    const rows = vitalRows(body);
+    const v = body?.vitals || {};
+    const rows = VITALS.filter(([k]) => (v.weekly?.[k] || []).some(x => Number.isFinite(x) && x > 0));
     if (!rows.length) return 'No finger sensor numbers: no reading in these weeks';
-    const names = rows.map(r => r.name);
+    const names = rows.map(([, name]) => name);
     const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
-    return `Weekly ${list} from the finger sensor${rows.some(r => r.sim) ? ' (simulated)' : ''}`;
+    return `Weekly ${list} from the finger sensor${rows.some(([k]) => v.simulated?.[k]) ? ' (simulated)' : ''}`;
   }
 
-  async function key(Q) {
-    try { return await Q.deviceKey(); } catch { return Q.newKey(); }
+  // What the patient is told before the code is made, by the way it will most likely travel.
+  function route() {
+    if (A.Handover?.relay?.() && globalThis.crypto?.subtle) return 'relay';
+    if (cfg.hub) return 'hub';
+    return 'file';
+  }
+  const NOTE = {
+    relay: 'The code is a link to this dashboard. It is locked on this phone, and only the code holds the key. The link lasts 7 days, and you can take it back in Settings.',
+    hub: 'The code is a link to this dashboard on your home hub. It opens on your home network only.',
+    file: 'There is no link to make here yet. You can save the dashboard as a file and hand it over.',
+  };
+
+  async function dashboard(rec, initial) {
+    const extra = initial ? { initial } : {};
+    if (A.Dashboard?.make) return A.Dashboard.make(rec, extra);
+    return { body: rec.body, html: A.DashGen.render(rec.body, { source: rec.src, patient: cfg.pid, saved_iso: rec.saved_iso, ...extra }) };
   }
 
-  async function build(rec, paper, initial) {
-    const Q = codec();
-    const r = Q.encode(rec.body, { key: await key(Q), paper, initial: initial || undefined, ttl: paper ? PAPER_TTL : SCREEN_TTL });
-    return { parts: r.parts, ecl: r.ecl, iat: r.iat, exp: r.exp, fp: fpGroups(r.fingerprint), sim: !!rec.body.sim, period: period(rec.body), vitals: vitalRows(rec.body) };
+  async function handOver(rec, initial) {
+    const dash = await dashboard(rec, initial);
+    const H = A.Handover;
+    const sim = !!rec.body.sim;
+    const out = H ? await H.share({ html: dash.html, envelope: H.envelope(dash.html, { sim }), pid: cfg.pid, hub: cfg.hub }) : { kind: 'file', tried: ['no handover'] };
+    if (out.tried?.length) console.log('handover:', out.kind, out.tried.join('; '));
+    return { ...out, html: dash.html, sim, period: period(rec.body) };
   }
 
-  function matrix(text, ecl) {
-    const m = codec().matrix(text, ecl);
+  function matrix(text) {
+    const m = codec().matrix(text, 'M');
     return Array.from({ length: m.size }, (_, r) => Array.from({ length: m.size }, (_, c) => m.isDark(r, c)));
   }
 
@@ -127,6 +141,7 @@
     canvas.width = px; canvas.height = px;
     canvas.style.width = canvas.style.height = px / dpr + 'px';
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, px, px);
     ctx.fillStyle = FJORD;
     for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (rows[r][c]) ctx.fillRect((c + 4) * per, (r + 4) * per, per, per);
@@ -146,7 +161,7 @@
         d += `M${s + 4} ${r + 4}h${c - s}v1h${s - c}z`;
       }
     }
-    return `<svg viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges" role="img" aria-label="Code for your clinic"><rect width="${t}" height="${t}" fill="#FFFFFF"/><path d="${d}" fill="#000000"/></svg>`;
+    return `<svg viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges" role="img" aria-label="Link to the dashboard"><rect width="${t}" height="${t}" fill="#FFFFFF"/><path d="${d}" fill="#000000"/></svg>`;
   }
 
   const device = (() => {
@@ -198,7 +213,7 @@
     return b;
   }
 
-  function dragToClose(handle, target, close, horizontal) {
+  function dragToClose(handle, target, close) {
     let g = null;
     handle.addEventListener('pointerdown', e => {
       if (e.button || e.target.closest('button, input, a')) return;
@@ -215,11 +230,12 @@
       target.style.transform = '';
       if (e.type === 'pointercancel') return;
       if (dy > 100 && dy > Math.abs(dx) * 1.3) close();
-      else if (horizontal && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) horizontal(dx < 0 ? 1 : -1);
     };
     handle.addEventListener('pointerup', end);
     handle.addEventListener('pointercancel', end);
   }
+
+  function fileName() { return `afferent-dashboard-${cfg.pid}.html`; }
 
   function openSheet() {
     if (sheet || view) return;
@@ -237,25 +253,33 @@
     const cancel = h('button', { type: 'button', class: 'qx-btn text', id: 'qsCancel', text: 'Cancel' });
     const item = (icon, text) => h('li', {}, [h('span', { class: 'qs-li', html: svg(icon) }), h('span', { text })]);
     const vitalsItem = item(ICON.pulse, '');
+    const way = route();
     const content = h('div', { class: 'qs-content' }, [
-      h('p', { class: 'qs-sub', text: 'This code holds' }),
+      h('p', { class: 'qs-sub', text: 'The code opens a dashboard with' }),
       h('ul', { class: 'qs-list' }, [
         item(ICON.twilight, '8 weeks of mornings: lanterns, play and the measures from play'),
         vitalsItem,
+        item(ICON.thermo, 'Bedroom temperature and humidity at night, when measured'),
         item(ICON.checklist, 'Check-in totals, and safety answers as levels'),
         item(ICON.taskAlt, 'How complete the data is'),
         item(ICON.visOff, 'No name. No camera images. No pulse traces, only weekly numbers.'),
       ]),
-      h('p', { class: 'qs-note', text: 'Anyone who scans this code can read it. It is not sent anywhere: you show it or hand it over yourself.' }),
-      h('div', { class: 'qf' }, [ini, h('label', { for: 'qsIni', class: 'qf-label', text: 'Add an initial' }), h('p', { class: 'qf-help', id: 'qsIniHelp', text: 'Optional. Up to 3 letters.' })]),
+      h('p', { class: 'qs-note', id: 'qsNote', 'data-way': way, text: NOTE[way] }),
+      h('div', { class: 'qf' }, [ini, h('label', { for: 'qsIni', class: 'qf-label', text: 'Add an initial' }), h('p', { class: 'qf-help', id: 'qsIniHelp', text: 'Optional. Up to 3 letters, shown on the dashboard.' })]),
     ]);
     const empty = h('p', { class: 'qs-empty', text: 'Open Afferent at home once, so there is something to show.', hidden: true });
-    const err = h('p', { class: 'qs-err', role: 'alert', hidden: true, text: 'The code could not be made. Try again.' });
+    const err = h('p', { class: 'qs-err', role: 'alert', hidden: true, text: 'The dashboard could not be made. Try again.' });
+    const save = h('a', { class: 'qx-btn text', id: 'qsSave', href: '#', text: 'Save file' });
+    const shareFile = h('button', { type: 'button', class: 'qx-btn text', id: 'qsShareFile', text: 'Share', hidden: true });
+    const fileBox = h('div', { class: 'qs-file', id: 'qsFile', role: 'status', hidden: true }, [
+      h('p', { class: 'qs-file-t', text: 'No link could be made just now. Save the dashboard as a file, or share it from this phone, and hand it over yourself.' }),
+      h('div', { class: 'qs-row' }, [save, shareFile]),
+    ]);
     const actions = h('div', { class: 'qs-actions' }, [show, h('div', { class: 'qs-row' }, [print, cancel])]);
     const panel = h('div', { class: 'qs', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'qsTitle' }, [
       h('div', { class: 'qs-handle', 'aria-hidden': 'true' }),
       h('div', { class: 'qs-head' }, [title, iconBtn('Talk to someone', ICON.talk, 'tonal', () => cfg.talk())]),
-      periodLine, stale, content, empty, err, actions,
+      periodLine, stale, content, empty, err, fileBox, actions,
       h('p', { class: 'qs-foot', text: 'Research prototype. Not a CE-marked medical device. Not for clinical use.' }),
     ]);
     const root = h('div', { class: 'qx qs-root' + (reduced() ? ' still' : ''), id: 'qrSheet' }, [scrim, panel]);
@@ -278,31 +302,56 @@
     };
     update(rec);
 
-    let busy = false;
+    let busy = false, fileUrl = null;
     const close = (keepFocus) => {
       if (!sheet) return;
       sheet = null;
       ini.value = '';
+      if (fileUrl) { try { URL.revokeObjectURL(fileUrl); } catch {} fileUrl = null; }
       root.classList.add('out');
       const done = () => { root.remove(); if (!view) setInert(false); if (!keepFocus) opener?.focus?.(); };
       // slides down like a finished swipe (qrshow.css .out), or fades quickly with reduced motion
       setTimeout(done, reduced() ? 150 : 280);
       A.Swipe?.hold?.(reduced() ? 190 : 320);
     };
+    const offerFile = html => {
+      fileBox.hidden = false;
+      try {
+        if (fileUrl) URL.revokeObjectURL(fileUrl);
+        fileUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+        save.setAttribute('href', fileUrl);
+        save.setAttribute('download', fileName());
+      } catch {}
+      const file = typeof File === 'function' ? new File([html], fileName(), { type: 'text/html' }) : null;
+      let can = false;
+      try { can = !!(file && navigator.canShare && navigator.canShare({ files: [file] })); } catch {}
+      shareFile.hidden = !can;
+      shareFile.onclick = async () => { try { await navigator.share({ files: [file], title: 'Afferent dashboard' }); } catch {} };
+    };
     const go = async paper => {
       if (busy || !rec) return;
       busy = true;
       err.hidden = true;
+      fileBox.hidden = true;
+      show.disabled = print.disabled = true;
+      const label = show.textContent;
+      show.textContent = 'Making the link…';
       const initial = ini.value;
       try {
-        const enc = await build(rec, paper, initial);
-        if (paper) { printCode(enc); return; }
+        const out = await handOver(rec, initial);
+        if (out.kind === 'file') { offerFile(out.html); return; }
+        log(out);
+        if (paper) { printCode(out); renderLog(); return; }
         close(true);
-        await openView(rec, enc, initial);
+        openView(rec, out, initial);
       } catch (e) {
-        console.error('qr build failed', e);
+        console.error('handover failed', e);
         err.hidden = false;
-      } finally { busy = false; }
+      } finally {
+        busy = false;
+        show.textContent = label;
+        show.disabled = print.disabled = false;
+      }
     };
     show.onclick = () => go(false);
     print.onclick = () => go(true);
@@ -321,92 +370,55 @@
     });
   }
 
-  async function openView(rec, enc, initial) {
+  function whereText(share) {
+    if (share.kind === 'hub') return 'On this network only';
+    const until = new Date(share.expires || '');
+    return isNaN(until) ? 'Open for 7 days' : `Open until ${shortDay(until)}`;
+  }
+
+  function openView(rec, share, initial) {
     const canvas = h('canvas', { class: 'qv-canvas', 'aria-hidden': 'true' });
-    const codeBox = h('div', { class: 'qv-code', role: 'img', 'aria-label': 'Code for your doctor. Valid for 10 minutes.' }, [canvas]);
-    const pill = h('span', { class: 'qv-pill', id: 'qvPill' });
-    const prev = iconBtn('Previous code', ICON.prev, 'plain', () => step(-1, true));
-    const next = iconBtn('Next code', ICON.next, 'plain', () => step(1, true));
-    const chunk = h('div', { class: 'qv-chunk', hidden: true }, [prev, pill, next]);
+    const relay = share.kind === 'relay';
+    const codeBox = h('div', { class: 'qv-code', role: 'img', 'aria-label': relay ? 'Code for your doctor: a link to your dashboard.' : 'Code for your doctor: a link to your dashboard on your home network.' }, [canvas]);
+    const where = h('p', { class: 'qv-where' + (relay ? '' : ' local'), id: 'qvWhere', text: whereText(share) });
+    const how = h('p', { class: 'qv-how', id: 'qvHow', html: svg(relay ? ICON.lock : ICON.wifi) + `<span>${relay ? 'Locked. Only this code holds the key.' : 'Opens on the same Wi-Fi as your hub.'}</span>` });
     const bright = h('p', { class: 'qv-bright', html: svg(ICON.sun) + '<span>Turn brightness up</span>', hidden: device.native() });
-    const fp = h('p', { class: 'qv-fp', id: 'qvFp' });
-    const ring = h('span', { class: 'qv-ring', html: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="trk" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9" pathLength="100"/></svg>' });
-    const countText = h('span', { id: 'qvCount' });
-    const count = h('p', { class: 'qv-count' }, [ring, countText]);
     const weeks = h('p', { class: 'qv-weeks' });
-    const again = h('button', { type: 'button', class: 'qx-btn filled', id: 'qvAgain', text: 'Show again', hidden: true });
+    const takeBack = h('button', { type: 'button', class: 'qx-btn text', id: 'qvRevoke', text: 'Take back', hidden: !relay });
+    const again = h('button', { type: 'button', class: 'qx-btn filled', id: 'qvAgain', text: 'Make a new code', hidden: true });
     const live = h('p', { class: 'qx-sr', 'aria-live': 'polite' });
-    const sim = h('span', { class: 'qv-sim', text: 'Simulated', hidden: true });
+    const sim = h('span', { class: 'qv-sim', text: 'Simulated', hidden: !share.sim });
     const closeBtn = iconBtn('Close', ICON.close, 'plain', () => close());
-    const root = h('div', { class: 'qx qv' + (reduced() ? ' still' : ''), id: 'qrView', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Show to my doctor' }, [
+    const root = h('div', { class: 'qx qv' + (reduced() ? ' still' : ''), id: 'qrView', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Show to my doctor', 'data-kind': share.kind }, [
       h('div', { class: 'qv-bar' }, [closeBtn, sim, iconBtn('Talk to someone', ICON.talk, 'plain', () => cfg.talk())]),
-      h('div', { class: 'qv-main' }, [codeBox, chunk, bright, fp, count, weeks, again]),
+      h('div', { class: 'qv-main' }, [codeBox, where, how, bright, weeks, takeBack, again]),
       live,
     ]);
     document.body.append(root);
     setInert(true);
 
-    let i = 0, mats = [], cycle = 0, tick = 0, manual = false, expired = false;
-    const avail = () => Math.max(120, Math.min(innerWidth - 32, innerHeight - 260, 640));
-    const paint = () => { if (mats[i]) draw(canvas, mats[i], avail()); };
-    const step = (d, byHand) => {
-      if (mats.length < 2) return;
-      if (byHand) { manual = true; clearInterval(cycle); pill.setAttribute('aria-live', 'polite'); }
-      i = (i + d + mats.length) % mats.length;
-      pill.textContent = `${i + 1} of ${mats.length}`;
-      paint();
-    };
-    const fmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-    const update = () => {
-      const left = Math.max(0, Math.ceil(enc.exp - Date.now() / 1000));
-      const ttl = Math.max(1, enc.exp - enc.iat);
-      ring.querySelector('.arc').style.strokeDashoffset = String(100 - 100 * Math.min(1, left / ttl));
-      if (left > 0) { countText.textContent = `Valid for ${fmt(left)}`; return; }
-      if (expired) return;
-      expired = true;
-      clearTimeout(tick); clearInterval(cycle);
-      root.classList.add('expired');
-      countText.textContent = 'Expired';
-      again.hidden = false;
-      live.textContent = 'Expired';
-    };
-    const run = () => {
-      clearTimeout(tick);
-      update();
-      if (!expired) tick = setTimeout(run, 1000 - Date.now() % 1000 + 20);
-    };
-    const load = async e => {
-      enc = e;
-      expired = false; manual = false; i = 0;
+    let rows = null;
+    const avail = () => Math.max(120, Math.min(innerWidth - 32, innerHeight - 300, 520));
+    const paint = () => { if (rows) draw(canvas, rows, avail()); };
+    const load = s => {
+      share = s;
       root.classList.remove('expired');
+      root.dataset.kind = s.kind;
       again.hidden = true;
-      sim.hidden = !enc.sim;
-      fp.textContent = enc.fp;
-      fp.hidden = !enc.fp;
-      fp.setAttribute('aria-label', `Fingerprint ${fpSpoken(enc.fp)}`);
-      const p = enc.period;
+      takeBack.hidden = s.kind !== 'relay';
+      takeBack.disabled = false;
+      takeBack.textContent = 'Take back';
+      where.textContent = whereText(s);
+      const p = s.period;
       weeks.textContent = p.a ? `Weeks ${p.a} to ${p.b} after TMS` : `${longDay(p.from)} to ${longDay(p.to)}`;
-      mats = enc.parts.map(pt => matrix(pt, enc.ecl));
-      chunk.hidden = mats.length < 2;
-      pill.textContent = `1 of ${mats.length}`;
-      pill.removeAttribute('aria-live');
-      root.dataset.parts = mats.length;
+      rows = matrix(s.link);
       paint();
-      clearInterval(cycle); clearTimeout(tick);
-      if (mats.length > 1) cycle = setInterval(() => { if (!manual) step(1); }, CYCLE_MS);
-      run();
-      log(enc);
     };
     const onResize = () => paint();
-    const onVis = () => {
-      if (document.hidden) { device.off(); return; }
-      run();
-      if (!expired) device.on();
-    };
+    const onVis = () => { if (document.hidden) device.off(); else device.on(); };
     const close = () => {
       if (!view) return;
       view = null;
-      clearInterval(cycle); clearTimeout(tick);
       removeEventListener('resize', onResize);
       document.removeEventListener('visibilitychange', onVis);
       device.off();
@@ -414,68 +426,113 @@
       const done = () => { root.remove(); setInert(false); opener?.focus?.(); renderLog(); };
       reduced() ? done() : setTimeout(done, 200);
     };
+    takeBack.onclick = async () => {
+      takeBack.disabled = true;
+      const ok = await revoke(share);
+      if (!view) return;
+      if (ok) {
+        root.classList.add('expired');
+        where.textContent = 'Taken back. The link no longer opens.';
+        takeBack.hidden = true;
+        again.hidden = false;
+        live.textContent = 'Taken back';
+        again.focus?.();
+      } else {
+        takeBack.disabled = false;
+        takeBack.textContent = 'Try again';
+        live.textContent = 'Could not reach the server to take it back';
+      }
+    };
     again.onclick = async () => {
       again.disabled = true;
-      try { await load(await build(rec, false, initial)); await device.on(); closeBtn.focus(); } finally { again.disabled = false; }
+      try {
+        const out = await handOver(rec, initial);
+        if (out.kind === 'file') { close(); openSheet(); return; }
+        log(out);
+        load(out);
+        closeBtn.focus();
+      } finally { again.disabled = false; }
     };
-    dragToClose(root, codeBox, close, d => step(d, true));
+    dragToClose(root, codeBox, close);
     addEventListener('resize', onResize);
     document.addEventListener('visibilitychange', onVis);
-    view = { close, step };
-    await load(enc);
+    view = { close };
+    load(share);
     device.on();
     requestAnimationFrame(() => { root.classList.add('in'); closeBtn.focus({ preventScroll: true }); });
   }
 
-  function log(enc) {
+  // What was handed over, newest first. A relay share keeps its id and revoke token here so it can be taken back;
+  // the key never is: it lives only in the code.
+  function log(share) {
     const list = store.get(logKey()) || [];
-    list.unshift({ t: new Date().toISOString(), from: isoDay(enc.period.from), to: isoDay(enc.period.to) });
+    const e = { t: new Date().toISOString(), kind: share.kind, from: isoDay(share.period.from), to: isoDay(share.period.to) };
+    if (share.kind === 'relay') Object.assign(e, { id: share.id, base: share.base, revoke: share.revoke, expires: share.expires });
+    list.unshift(e);
     store.set(logKey(), list.slice(0, LOG_MAX));
   }
   const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  async function revoke(share) {
+    let ok = false;
+    try { ok = await A.Handover.revoke(share); } catch {}
+    if (ok) {
+      const list = store.get(logKey()) || [];
+      list.forEach(e => { if (e.kind === 'relay' && e.id === share.id) { e.revoked = true; delete e.revoke; } });
+      store.set(logKey(), list);
+    }
+    return ok;
+  }
+
+  const active = e => e.kind === 'relay' && !e.revoked && e.revoke && !(Date.parse(e.expires) <= Date.now());
 
   function renderLog() {
     const ul = document.getElementById('qrLog');
     if (!ul) return;
     const list = (store.get(logKey()) || []).slice(0, 3);
-    ul.replaceChildren(...list.map(e => h('li', { text: `Shown to your doctor · ${stamp(new Date(e.t))}` })));
+    ul.replaceChildren(...list.map(e => {
+      const when = stamp(new Date(e.t));
+      if (e.kind === 'hub') return h('li', { text: `Shown on your home network · ${when}` });
+      if (e.kind !== 'relay') return h('li', { text: `Shown to your doctor · ${when}` });
+      const until = new Date(e.expires || '');
+      const state = e.revoked ? 'taken back' : !active(e) ? 'ended' : isNaN(until) ? 'open' : `open until ${shortDay(until)}`;
+      const li = h('li', { class: 'qr-log-share' }, [h('span', { text: `Shared with your doctor · ${when} · ${state}` })]);
+      if (active(e)) {
+        const b = h('button', { type: 'button', class: 'qr-take', text: 'Take back', 'aria-label': `Take back the link shared ${when}` });
+        b.onclick = async () => {
+          b.disabled = true;
+          if (await revoke(e)) renderLog();
+          else { b.disabled = false; b.textContent = 'Try again'; }
+        };
+        li.append(b);
+      }
+      return li;
+    }));
     ul.hidden = !list.length;
   }
 
-  function printCode(enc) {
+  function printCode(share) {
     const sec = document.getElementById('qrPrint');
     if (!sec) return;
-    const n = enc.parts.length;
-    const codes = enc.parts.map((t, i) => h('figure', { class: 'qp-code' }, [h('div', { html: svgCode(matrix(t, enc.ecl)) }), n > 1 ? h('figcaption', { text: `${i + 1} of ${n}` }) : null]));
-    const p = enc.period, made = new Date(enc.iat * 1000), until = new Date(enc.exp * 1000);
-    const shortDay = d => `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
-    const cells = (tag, list) => list.map(text => h(tag, { text }));
-    const weekFrom = k => { const d = addDays(p.to, 7 * k - 55); return shortDay(d < p.from ? p.from : d); };
-    const vitals = enc.vitals?.length ? h('table', { class: 'qp-vit' }, [
-      h('caption', { text: 'Finger sensor, weekly medians. A dash is a week without a reading.' }),
-      h('tr', {}, cells('th', ['Week from', ...Array.from({ length: 8 }, (_, k) => weekFrom(k))])),
-      ...enc.vitals.map(r => h('tr', {}, [h('th', { text: `${r.label}, ${r.unit}${r.sim ? ', simulated' : ''}` }), ...cells('td', r.weeks.map(x => (x === null ? DASH : x.toFixed(1))))])),
-    ]) : null;
+    const p = share.period, made = new Date();
+    const until = new Date(share.expires || '');
     sec.replaceChildren(
       h('p', { class: 'qp-mark', text: 'afferent' }),
-      enc.sim ? h('p', { class: 'qp-sim', text: 'SIMULATED DATA' }) : null,
-      h('h1', { class: 'qp-title', text: 'Summary code for your clinic' }),
-      h('div', { class: 'qp-codes' + (n > 2 ? ' three' : '') }, codes),
-      enc.fp ? h('p', { class: 'qp-fp', text: enc.fp }) : null,
-      h('p', { text: `Data from ${fullDay(p.from)} to ${fullDay(p.to)}` }),
-      vitals,
-      h('p', { text: `Made ${fullDay(made)} · valid until ${fullDay(until)}` }),
-      h('p', { text: 'Scan it in the Afferent clinic dashboard with Scan patient code.' }),
+      share.sim ? h('p', { class: 'qp-sim', text: 'SIMULATED DATA' }) : null,
+      h('h1', { class: 'qp-title', text: 'Dashboard link for your clinic' }),
+      h('div', { class: 'qp-codes' }, [h('figure', { class: 'qp-code' }, [h('div', { html: svgCode(matrix(share.link)) })])]),
+      h('p', { text: 'Scan the code to open the dashboard in a browser.' }),
+      h('p', { text: share.kind === 'hub' ? 'It opens on the patient’s home network only.' : `It is locked, and only this code holds the key. Open until ${isNaN(until) ? '7 days after it was made' : fullDay(until)}.` }),
+      h('p', { text: `Data from ${fullDay(p.from)} to ${fullDay(p.to)} · made ${fullDay(made)}` }),
       h('p', { class: 'qp-foot', text: 'Research prototype. Not a CE-marked medical device. Not for clinical use.' }),
     );
-    sec.dataset.parts = n;
+    sec.dataset.kind = share.kind;
     window.print();
   }
 
   addEventListener('keydown', e => {
     if (supportOpen()) return;
     if (e.key === 'Escape' && (view || sheet)) { e.preventDefault(); (view || sheet).close(); }
-    else if (view && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.target.closest?.('input')) view.step(e.key === 'ArrowRight' ? 1 : -1, true);
   });
   window.Capacitor?.Plugins?.App?.addListener?.('backButton', () => {
     if (supportOpen()) return;

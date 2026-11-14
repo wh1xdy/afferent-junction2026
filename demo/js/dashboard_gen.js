@@ -79,7 +79,8 @@
     };
 
     const top = h('header', 'top');
-    const t = h('h1', null, 'Afferent summary');
+    const ini = String(META.initial || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+    const t = h('h1', null, ini ? `Afferent summary · ${ini.split('').join('.')}.` : 'Afferent summary');
     if (D.sim) t.append(h('span', 'sim', 'SIMULATED DATA'));
     top.append(t, h('p', 'sub', `Data from ${dayDate(D.period?.from_day ?? 0)} to ${dayDate(D.period?.to_day ?? 0)}`));
     const made = D.generated_iso || META.generated_iso;

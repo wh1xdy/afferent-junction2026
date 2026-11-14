@@ -7,16 +7,22 @@
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
   };
   const pid = q.get('patient') || 'anna';
+  // The paired hub as patient.js has it: the pairing token (/k/<token>) stays on for API calls, and only
+  // the bare address (hubBase) is shown or put in a link.
   const norm = s => {
     if (!s) return null;
     try {
       const u = new URL(s);
-      if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host;
-      return u.origin;
+      const key = (u.pathname.match(/^\/k\/[^/]+/) || [''])[0];
+      if (u.protocol === 'ws:' || u.protocol === 'wss:') return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host + key;
+      return u.origin + key;
     } catch { return null; }
   };
-  const hubBase = norm(q.get('hub')) || norm(q.get('ws')) || norm(store.get('afferent.hub'))
+  let saved = null;
+  try { saved = localStorage.getItem('afferent.hub'); } catch {}
+  const apiBase = norm(q.get('hub')) || norm(q.get('ws')) || norm(saved)
     || (/^https?:$/.test(location.protocol) ? location.origin : null);
+  const hubBase = apiBase ? new URL(apiBase).origin : null;
   const record = body => (body && typeof body === 'object' && body.period) ? { body, saved_iso: body.cached_iso || null } : null;
 
   const codec = () => window.A?.QR || window.AfferentQR || null;
@@ -68,9 +74,9 @@
 
   // The bedroom at night for the dashboard (hub/afferent_hub/room.py). Only the dashboard gets it, not the QR code.
   async function roomNights() {
-    if (!hubBase) return null;
+    if (!apiBase) return null;
     try {
-      const r = await fetchJSON(`${hubBase}/api/patients/${encodeURIComponent(pid)}/room-nights`, 3000);
+      const r = await fetchJSON(`${apiBase}/api/patients/${encodeURIComponent(pid)}/room-nights`, 3000);
       return r && r.weekly ? r : null;
     } catch { return null; }
   }
@@ -88,14 +94,16 @@
   async function publish(html) {
     const box = $('qeCode'), urlEl = $('qeUrl'), wifiBox = $('qeWifi');
     try {
-      const res = await fetch(`${hubBase}/api/export/publish`, {
+      const res = await fetch(`${apiBase}/api/export/publish`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ patient_id: pid, html }),
       });
       if (!res.ok) throw new Error(res.status);
       const out = await res.json();
-      if (!out || !out.url) throw new Error('no url');
-      const url = out.url.startsWith('http') ? out.url : hubBase + out.url;
+      // share_url opens without the pairing token (a hub from before it only has url, which needs it)
+      const path = out && (out.share_url || out.url);
+      if (!path) throw new Error('no url');
+      const url = path.startsWith('http') ? path : hubBase + path;
       box.hidden = false;
       draw($('qeUrlQr'), url, 'M');
       urlEl.textContent = url;
@@ -125,8 +133,8 @@
     try {
       const r = A.QRShow?.sync ? await A.QRShow.sync().catch(() => null) : null;
       if (r) return { body: r.body, saved_iso: r.saved_iso, src: 'hub' };
-      if (hubBase) {
-        const body = await fetchJSON(`${hubBase}/api/patients/${encodeURIComponent(pid)}/qr-body`);
+      if (apiBase) {
+        const body = await fetchJSON(`${apiBase}/api/patients/${encodeURIComponent(pid)}/qr-body`);
         if (!body || !body.period) throw new Error('bad body');
         if (A.QR?.cacheBody) await A.QR.cacheBody(body).catch(() => {});
         return { body, saved_iso: new Date().toISOString(), src: 'hub' };
@@ -144,6 +152,14 @@
       return null;
     }
     finally { if (btn) btn.disabled = false; }
+  }
+
+  // The dashboard page for a summary record: the summary plus the bedroom at night, rendered by dashboard_gen.js.
+  // Also what "Show to my doctor" hands over (qrshow.js, through A.Dashboard).
+  async function dashboard(rec, extra = {}) {
+    const room = await roomNights();
+    const body = room ? { ...rec.body, room } : rec.body;
+    return { body, html: A.DashGen.render(body, { source: rec.src, patient: pid, saved_iso: rec.saved_iso, ...extra }) };
   }
 
   async function apply(rec) {
@@ -179,10 +195,10 @@
       try { await navigator.share({ files: [file], title: 'Afferent dashboard' }); } catch {}
     };
     refresh(false);
-    if (hubBase && typeof WebSocket !== 'undefined') {
+    if (apiBase && typeof WebSocket !== 'undefined') {
       let last = 0;
       try {
-        const ws = new WebSocket(hubBase.replace(/^http/, 'ws') + '/ws/clinic');
+        const ws = new WebSocket(apiBase.replace(/^http/, 'ws') + '/ws/clinic');
         ws.onmessage = e => {
           let d;
           try { d = JSON.parse(e.data); } catch { return; }
@@ -192,6 +208,10 @@
     }
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  A.Dashboard = { make: dashboard, latest: () => bump(false), apiBase, hubBase, pid };
+
+  // Only the Share tab of patient.html has the share panel; the builder above works without it.
+  const start = () => { if ($('p-share')) init(); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

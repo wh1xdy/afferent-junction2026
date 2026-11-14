@@ -85,6 +85,19 @@
 .qs-actions .filled { width: 100%; }
 .qs-row { display: flex; justify-content: space-between; margin: 0 -12px; }
 .qs-foot { margin-top: 16px; font-size: 13px; line-height: 18px; color: var(--ll-on-surface-variant); }
+/* no link could be made: the file instead (qrshow.js offerFile) */
+.qs-file { margin-top: 20px; padding: 16px 16px 4px; border-radius: 16px; background: var(--ll-surface-high); }
+.qs-file-t { font-size: 15px; line-height: 22px; color: var(--ll-on-surface); }
+.qs-file .qs-row { justify-content: flex-start; gap: 8px; margin: 4px -12px 0; }
+.qs-file a.qx-btn { text-decoration: none; }
+/* Settings: what was shared, with Take back while a link is open */
+.qr-log .qr-log-share { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.qr-take {
+  flex: none; min-height: 48px; margin: -12px -8px -12px 0; padding: 0 12px; border: 0; border-radius: 999px; background: none;
+  color: var(--ll-primary); font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.qr-take:disabled { opacity: 0.38; }
+.qr-take:focus-visible { outline: 3px solid var(--ll-secondary); outline-offset: 2px; }
 
 .qv {
   display: flex; flex-direction: column; background: radial-gradient(120% 70% at 50% 45%, #FFFFFF 40%, #F3F5F9 100%); color: #0E1A2E;
@@ -110,22 +123,17 @@
 .qv-code { display: grid; place-items: center; padding: 12px; border-radius: 28px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(14, 26, 46, 0.06), 0 2px 6px rgba(14, 26, 46, 0.06), 0 18px 48px rgba(14, 26, 46, 0.12); transition: transform 200ms var(--ll-ease); }
 .qv-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; transition: opacity 600ms var(--ll-ease); }
 .qv.expired .qv-canvas { opacity: 0.08; }
-.qv-chunk { display: flex; align-items: center; gap: 4px; }
-.qv-pill {
-  min-width: 72px; height: 32px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
-  background: #0E1A2E; color: #FFFFFF; font-size: 14px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums;
-  box-shadow: 0 6px 16px rgba(14, 26, 46, 0.22);
-}
 .qv-bright { display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 22px; }
 .qv-bright svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-.qv-fp { margin-top: 4px; font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; font-size: 22px; line-height: 28px; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
-.qv-count { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.qv-ring svg { width: 20px; height: 20px; transform: rotate(-90deg); }
-.qv-ring circle { fill: none; stroke-width: 2; }
-.qv-ring .trk { stroke: #D5DAE3; }
-.qv-ring .arc { stroke: #0E1A2E; stroke-dasharray: 100; stroke-linecap: round; transition: stroke-dashoffset 1000ms linear; }
-.qv.expired .qv-ring { display: none; }
 .qv-weeks { font-size: 15px; line-height: 22px; color: #3B4658; }
+.qv-where { margin-top: 4px; font-size: 20px; line-height: 28px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.qv-where.local {
+  font-size: 13px; line-height: 18px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
+  padding: 3px 12px; border-radius: 999px; border: 1px solid #0E1A2E;
+}
+.qv-how { display: flex; align-items: center; gap: 8px; font-size: 15px; line-height: 22px; color: #3B4658; }
+.qv-how svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.qv.expired .qv-how { visibility: hidden; }
 .qv .qx-btn.filled { margin-top: 8px; min-width: 200px; }
 
 #qrPrint { display: none; }
@@ -141,13 +149,5 @@
   #qrPrint .qp-codes { display: flex; flex-wrap: wrap; gap: 8mm; margin: 6mm 0; }
   #qrPrint .qp-code { margin: 0; width: 80mm; break-inside: avoid; }
   #qrPrint .qp-code svg { display: block; width: 80mm; height: 80mm; }
-  #qrPrint .qp-codes.three .qp-code, #qrPrint .qp-codes.three .qp-code svg { width: 62mm; }
-  #qrPrint .qp-codes.three .qp-code svg { height: 62mm; }
-  #qrPrint figcaption { margin-top: 2mm; font-weight: 600; }
-  #qrPrint .qp-fp { font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 14pt; letter-spacing: 0.1em; }
-  #qrPrint .qp-vit { border-collapse: collapse; margin: 4mm 0 5mm; font-size: 9pt; font-variant-numeric: tabular-nums; break-inside: avoid; }
-  #qrPrint .qp-vit caption { margin-bottom: 1.5mm; text-align: left; font-weight: 600; }
-  #qrPrint .qp-vit th, #qrPrint .qp-vit td { padding: 1mm 0 1mm 3mm; border-bottom: 0.2mm solid #000000; text-align: right; font-weight: 400; white-space: nowrap; }
-  #qrPrint .qp-vit th:first-child { padding-left: 0; text-align: left; }
   #qrPrint .qp-foot { margin-top: 10mm; font-size: 9pt; }
 }
