@@ -76,6 +76,7 @@
         try {
           s.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
         } catch { throw fail('mic'); }
+        if (this.s !== s) { s.stream.getTracks().forEach(t => t.stop()); return; }
         await s.inCtx.audioWorklet.addModule('js/voice-worklet.js');
         if (this.s !== s) return;
 

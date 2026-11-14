@@ -34,6 +34,7 @@
       const g = this.master.gain, t = this.ctx.currentTime;
       g.cancelScheduledValues(t); g.setValueAtTime(0, t);
       g.linearRampToValueAtTime(this.on ? level : 0, t + 3);
+      Object.values(this.voices).forEach(v => v.stop());
       this.voices = {}; this.nextBeat = t + 0.5; this.beat = 0;
     },
 

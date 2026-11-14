@@ -8,7 +8,7 @@
   const when = (x) => { const d = asDate(x); return `${day(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
   const icon = (n, cls = '') => `<span class="ms ${cls}" aria-hidden="true">${n}</span>`;
   const info = (t) => `<button class="info" type="button" aria-label="${esc(t)}" data-tip="${esc(t)}">${icon('info')}</button>`;
-  const TRUST_INFO = 'Afferent checks that a code is unchanged and comes from this phone. It cannot check who the patient is or that the data are true.';
+  const TRUST_INFO = 'Compare with the patient\'s screen. Checks the phone, not the person.';
 
   let db = null;
   const keys = new Map(), imports = new Map();
@@ -58,8 +58,8 @@
       for (const k of keys.values()) if (!seen.has(k.record_id)) seen.set(k.record_id, codes.label({ record_id: k.record_id }));
       return [...seen].map(([id, label]) => ({ id, label }));
     },
-    async trust(r, label, recordId) {
-      const k = { fp: r.fp, pub: [...r.pub], label, first_seen_iso: new Date().toISOString(), record_id: recordId || r.fp };
+    async trust(r, label, recordId, at) {
+      const k = { fp: r.fp, pub: [...r.pub], label, first_seen_iso: at || new Date().toISOString(), record_id: recordId || r.fp };
       keys.set(k.fp, k);
       await write('keys', (s) => s.put(k));
       return k;
@@ -72,14 +72,14 @@
     },
     async remove(cti) { imports.delete(cti); await write('imports', (s) => s.delete(cti)); },
     async forget(fp) { keys.delete(fp); await write('keys', (s) => s.delete(fp)); },
-    async clear() { imports.clear(); await write('imports', (s) => s.clear()); },
+    async clear() { imports.clear(); keys.clear(); await write('imports', (s) => s.clear()); await write('keys', (s) => s.clear()); },
     download(cti) {
       const imp = codes.get(cti);
       if (!imp) return;
       const data = { schema: 'afferent.qr-import/1', label: codes.label(imp), fingerprint: imp.fp, scanned_iso: imp.scanned_iso, signed_iso: new Date(imp.iat * 1000).toISOString(), valid_until_iso: new Date(imp.exp * 1000).toISOString(), body: imp.body };
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-      a.download = `afferent-code-${codes.label(imp).replace(/[^A-Za-z0-9]+/g, '-')}-${imp.scanned_iso.slice(0, 10)}.json`;
+      a.download = `afferent-export-${codes.label(imp).replace(/[^A-Za-z0-9]+/g, '-')}-${imp.scanned_iso.slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -112,16 +112,15 @@
   el.setAttribute('role', 'dialog');
   el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-labelledby', 'scan-title');
-  el.innerHTML = `<div class="scan-top"><button class="icon-btn" data-qr="close" aria-label="Close">${icon('close')}</button><h2 id="scan-title">Scan patient code</h2></div>
+  el.innerHTML = `<div class="scan-top"><button class="icon-btn" data-qr="close" aria-label="Close">${icon('close')}</button><h2 id="scan-title">Scan patient QR</h2></div>
     <div class="scan-body">
       <div class="scan-stage">
         <div class="scan-mirror"><video playsinline muted></video><canvas class="scan-freeze" hidden></canvas><svg class="scan-outline" preserveAspectRatio="xMidYMid slice"></svg></div>
         <div class="scan-guide" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <div class="scan-nocam" hidden>${icon('photo_camera')}<p>Camera needs the dashboard opened at localhost or over https.</p></div>
+        <div class="scan-nocam" hidden>${icon('photo_camera')}<p>Camera needs localhost or https</p></div>
         <span class="scan-pill num" hidden></span>
       </div>
       <div class="scan-card" hidden></div>
-      <p class="scan-hint">Hold the code about 20 cm from the camera.</p>
       <div class="scan-alt"><button class="btn text" data-qr="wedge">${icon('keyboard')}Use a scanner</button><button class="btn text" data-qr="image">${icon('image')}Open image</button><span class="scan-ready" hidden>Ready for the scanner</span></div>
     </div>
     <textarea class="scan-wedge" aria-label="Scanner input" autocomplete="off" spellcheck="false"></textarea>
@@ -129,7 +128,7 @@
   document.body.appendChild(el);
   const $ = (s) => el.querySelector(s);
   const video = $('video'), freeze = $('.scan-freeze'), outline = $('.scan-outline'), stage = $('.scan-stage'), card = $('.scan-card');
-  const pill = $('.scan-pill'), nocam = $('.scan-nocam'), hint = $('.scan-hint'), wedge = $('.scan-wedge'), file = $('.scan-file'), ready = $('.scan-ready');
+  const pill = $('.scan-pill'), nocam = $('.scan-nocam'), wedge = $('.scan-wedge'), file = $('.scan-file'), ready = $('.scan-ready');
   const work = document.createElement('canvas');
 
   let stream = null, live = false, timer = 0, busy = false, processing = false, lastText = '', lastAt = 0, returnFocus = null;
@@ -212,7 +211,6 @@
     live = false;
     clearTimeout(timer);
     stage.hidden = true;
-    hint.hidden = true;
     card.innerHTML = html;
     card.hidden = false;
     (card.querySelector('input') || card.querySelector('.btn.filled') || card.querySelector('button'))?.focus();
@@ -221,7 +219,6 @@
     card.hidden = true;
     card.innerHTML = '';
     stage.hidden = false;
-    hint.hidden = false;
   }
   const errorCard = (ic, text, buttons) => showCard(`<div class="scard" data-kind="error">${icon(ic)}<p class="scard-t">${esc(text)}</p><div class="dactions">${buttons}</div></div>`);
   const btnAgain = `<button class="btn filled" data-qr="again">${icon('qr_code_scanner')}Scan again</button>`;
@@ -253,13 +250,13 @@
 
   async function accept(r, extra) {
     const prev = codes.get(r.cti);
-    if (prev) { close(); go(prev.cti); return toast(`Already imported ${when(prev.scanned_iso)}`); }
+    if (prev) { close(); go(prev.cti); return toast(`Already received ${when(prev.scanned_iso)}`); }
     const k = codes.key(r.fp);
     if (k) {
       const imp = await codes.add(r, k, extra);
       close();
       go(imp.cti);
-      return toast(`Imported. Signed by ${r.fp}, known since ${day(k.first_seen_iso)}`, async () => { await codes.remove(imp.cti); if (location.hash === '#/codes/' + imp.cti) location.hash = '#/exports'; else C.rerender?.(); });
+      return toast('Export received', async () => { await codes.remove(imp.cti); if (location.hash === '#/e/' + imp.cti) location.hash = '#/'; else C.rerender?.(); });
     }
     held = { ...r, extra };
     const recs = codes.records();
@@ -267,7 +264,6 @@
     showCard(`<div class="scard" data-kind="key">${icon('key')}
       <h3>New phone ${info(TRUST_INFO)}</h3>
       <div class="fp num" aria-label="${esc([...r.fp.replace(/ /g, '')].join(' '))}">${esc(r.fp)}</div>
-      <p>Check that the patient's screen shows the same code. From now on, codes from this phone will be recognised.</p>
       <label class="field"><span>Label</span><input id="scan-label" value="${esc(pre)}" maxlength="40" required autocomplete="off"></label>
       ${recs.length ? `<label class="field"><span>Same patient as</span><select id="scan-rec"><option value="">None</option>${recs.map((x) => `<option value="${esc(x.id)}">${esc(x.label)}</option>`).join('')}</select></label>` : ''}
       <div class="dactions"><button class="btn text" data-qr="again">Cancel</button><button class="btn filled" data-qr="trust">Import</button></div></div>`);
@@ -291,7 +287,7 @@
   }
 
   function go(cti) {
-    const h = '#/codes/' + encodeURIComponent(cti);
+    const h = '#/e/' + encodeURIComponent(cti);
     if (location.hash === h) C.rerender?.();
     else location.hash = h;
   }
@@ -434,12 +430,11 @@
     }
     document.querySelectorAll('.xmenu').forEach((x) => (x.hidden = true));
     if (a === 'download') return codes.download(cti);
-    if (a === 'delete' && imp) { await codes.remove(cti); toast('Import deleted'); }
+    if (a === 'delete' && imp) { await codes.remove(cti); toast('Export deleted'); }
     else if (a === 'forget' && imp) { await codes.forget(imp.fp); toast(`Forgot the phone ${imp.fp}`); }
-    else if (a === 'clear') { if (!confirm('Clear all scanned codes from this browser?')) return; await codes.clear(); }
-    if (location.hash.startsWith('#/codes/') && !codes.get(decodeURIComponent(location.hash.slice(8)))) location.hash = '#/exports';
+    if (location.hash.startsWith('#/e/') && !codes.get(decodeURIComponent(location.hash.slice(4)))) location.hash = '#/';
     else C.rerender?.();
   });
 
-  C.scan = { open, close, fromImage, fromScanner, handle };
+  C.scan = { open, close, fromImage, fromScanner, handle, trust };
 })();

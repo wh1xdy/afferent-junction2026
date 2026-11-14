@@ -28,12 +28,14 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
 
   const clinic = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   watch(clinic, 'clinic');
-  const clinicMsgs = [];
-  clinic.on('websocket', (ws) => ws.on('framereceived', (f) => { const m = parse(f); if (m) clinicMsgs.push({ t: Date.now(), m }); }));
+  const clinicSockets = [], clinicApi = [];
+  clinic.on('websocket', (ws) => clinicSockets.push(ws.url()));
+  clinic.on('request', (r) => { const u = new URL(r.url()); if (u.pathname.startsWith('/api/')) clinicApi.push(u.pathname); });
   await clinic.goto(HUB + '/clinic/', { waitUntil: 'networkidle' });
-  await clinic.waitForFunction(() => window.C && C.state && C.state.list && C.state.ws && C.state.ws.readyState === 1, null, { timeout: 15000 });
+  await clinic.waitForFunction(() => window.C && C.codes && document.querySelector('.erow, .xempty'), null, { timeout: 15000 });
   await clinic.evaluate(() => { window.__noReload = true; });
-  const rowBefore = await clinic.evaluate((id) => JSON.parse(JSON.stringify(C.state.list.patients.find((p) => p.id === id))), PATIENT);
+  const rowsOf = () => clinic.evaluate(() => [...document.querySelectorAll('.erow')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
+  const rowsBefore = await rowsOf();
 
   const bedsideLights = [];
   const bedside = new WebSocket(HUB.replace(/^http/, 'ws') + '/ws/bedside');
@@ -91,22 +93,11 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
   check('hub stores it as newest session', sid && !beforeIds.has(sid) && newest && newest.session_id === sid && latest && latest.session_id === sid,
     `sessions ${before.sessions.length} -> ${after.sessions.length}, newest ${newest && newest.session_id}, day ${newest && newest.day_index}`);
 
-  const types = (list, pred) => list.filter((x) => pred(x.m)).map((x) => x.m.type);
-  const forPatient = (m) => !m.patient_id || m.patient_id === PATIENT;
-  const seen = new Set(types(clinicMsgs, forPatient));
-  check('dashboard got session_started', seen.has('session_started'));
-  check('dashboard got session_added', seen.has('session_added'));
-  check('dashboard got analytics_updated', clinicMsgs.some((x) => x.m.type === 'analytics_updated' && x.m.patient_id === PATIENT));
-
-  const state = await clinic.evaluate((id) => ({
-    noReload: window.__noReload === true,
-    row: JSON.parse(JSON.stringify(C.state.list.patients.find((p) => p.id === id))),
-    toasts: [...document.querySelectorAll('#toasts .toast')].map((t) => t.textContent),
-  }), PATIENT);
-  check('dashboard did not reload', state.noReload);
-  const rowChanged = JSON.stringify(state.row) !== JSON.stringify(rowBefore);
-  check('dashboard row updated in place', rowChanged,
-    `composite ${rowBefore.composite} -> ${state.row.composite}, last session ${rowBefore.last_session_iso} -> ${state.row.last_session_iso}, live_now ${state.row.live_now}`);
+  check('dashboard did not reload', await clinic.evaluate(() => window.__noReload === true));
+  const rowsAfter = await rowsOf();
+  check('dashboard shows only received exports, unchanged by the session', JSON.stringify(rowsAfter) === JSON.stringify(rowsBefore), `${rowsBefore.length} -> ${rowsAfter.length} rows`);
+  check('dashboard opened no socket', clinicSockets.length === 0, clinicSockets.join(' '));
+  check('dashboard asked the hub for no patient data', clinicApi.every((p) => p === '/api/validation'), [...new Set(clinicApi)].join(' '));
 
   const dawnSent = appSent.find((s) => s.m.type === 'light' && s.m.reason === 'dawn');
   const atDawn = dawnSent && bedsideLights.find((l) => l.t >= dawnSent.t - 200 && l.reason === 'dawn');
@@ -122,11 +113,6 @@ const parse = (f) => { try { return JSON.parse(String(f.payload)); } catch { ret
     && (doc.simulated_fields || []).includes('vitals') && !(doc.vitals && doc.vitals.finger);
   check('simulated run stays labelled simulated, no finger data', simOk,
     doc ? `pulse_source ${doc.signal && doc.signal.pulse_source}, simulated_fields has vitals ${(doc.simulated_fields || []).includes('vitals')}, finger ${JSON.stringify(doc.vitals && doc.vitals.finger)}` : 'no session');
-
-  // The game streams live_metrics to the hub during play; none of it may reach the dashboard.
-  const streamed = clinicMsgs.filter((x) => ['live', 'live_metrics', 'physio', 'pulse', 'bedside_state'].includes(x.m.type) || 'physio' in x.m);
-  check('nothing live from the sensors reached the dashboard', appSent.some((s) => s.m.type === 'live_metrics') && streamed.length === 0,
-    `${appSent.filter((s) => s.m.type === 'live_metrics').length} live_metrics sent by the game, ${streamed.length} sensor messages at the dashboard: ${[...new Set(streamed.map((x) => x.m.type))].join(' ')}`);
 
   check('no errors in clinic page', errors.clinic.length === 0, errors.clinic.slice(0, 5).join(' | '));
   check('no errors in app page', errors.app.length === 0, errors.app.slice(0, 5).join(' | '));
