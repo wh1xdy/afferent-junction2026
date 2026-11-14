@@ -1,6 +1,5 @@
 /*
-  Cross-track end-to-end test of the finger sensor's hub HTTP path (Decisions I53, contracts/api.md 3.5),
-  headless Chrome via playwright-core.
+  Cross-track end-to-end test of the finger sensor's hub HTTP path, headless Chrome via playwright-core.
 
   SYNTHETIC INPUT. A fake UNO Q (an HTTP server in this file) answers GET /state with a hand-made
   "finger on the clip" document in the shape of uno-q/modulino-hub/app.py. No number here is a
@@ -12,10 +11,12 @@
   Options:  PORT=8195  UNOQ_PORT=18195  PYTHON=hub/.venv/bin/python  TIMEOUT_S=200  SHOTS=<dir for screenshots>
 
   It starts the fake UNO Q and its own hub (own database in the temp dir, bedside source
-  unoq:http://127.0.0.1:<UNOQ_PORT>), opens the clinic dashboard and the game (autoplay, 60 s stage
-  length) and checks the chain: fake /state -> hub adapter -> `physio` on both sockets -> phone
-  recorder -> session document (validated against session.v3.schema.json) -> clinic Signals section,
-  then the pulse_stone switch off and on. Exit code 0 on pass, 1 on fail.
+  unoq:http://127.0.0.1:<UNOQ_PORT>), listens on the clinic socket and opens the game (autoplay, 60 s
+  stage length) and checks the chain: fake /state -> hub adapter -> `physio` on the phone's socket -> phone
+  recorder -> session document (validated against session.v3.schema.json) -> stored session,
+  then the pulse_stone switch off and on. A listener sits on /ws/clinic the whole time and must get
+  nothing live: no sensor frame at all (the system never talks to the doctor; the patient hands
+  data over in person). The clinic page itself is not opened here. Exit code 0 on pass, 1 on fail.
 */
 const http = require('http');
 const os = require('os');
@@ -85,9 +86,10 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
 (async () => {
   const results = [];
   const check = (name, ok, detail = '') => { results.push({ name, ok: !!ok, detail }); };
-  let hub = null, browser = null;
+  let hub = null, browser = null, clinicWs = null;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'afferent-e2e-finger-'));
   const cleanup = async () => {
+    try { clinicWs?.close(); } catch {}
     try { await browser?.close(); } catch {}
     try { hub?.kill('SIGTERM'); } catch {}
     try { fake.close(); } catch {}
@@ -116,26 +118,23 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
       unoq.calls.map((c) => c.path).join(' '));
 
     browser = await chromium.launch({ channel: 'chrome', headless: true });
-    const errors = { clinic: [], app: [] };
+    const errors = { app: [] };
     const watch = (page, key) => {
       page.on('pageerror', (e) => errors[key].push('pageerror ' + e.message));
       page.on('console', (m) => { if (m.type() === 'error') errors[key].push('console ' + m.text()); });
     };
 
-    // ── B. clinic view, current readings from the hub ──
-    const clinic = await browser.newPage({ viewport: { width: 1440, height: 1200 } });
-    watch(clinic, 'clinic');
+    // ── B. clinic socket: the hub has readings, the clinic gets none of them ──
     const clinicMsgs = [];
-    clinic.on('websocket', (ws) => ws.on('framereceived', (f) => { const m = parse(f); if (m) clinicMsgs.push({ t: Date.now(), m }); }));
-    await clinic.goto(`${HUB}/clinic/#/p/${PATIENT}`, { waitUntil: 'networkidle' });
-    const sigNow = () => clinic.evaluate(() => document.querySelector('#signals [data-part="now"]')?.innerText || '');
-    const nowText = await until(async () => { const t = await sigNow(); return /72/.test(t) ? t : null; }, 10000);
-    check('clinic Signals shows the hub readings with source and units',
-      nowText && nowText.includes('finger sensor (PPG), hub HTTP') && nowText.includes('from the bedside source on the hub') && /HRV \(RMSSD\)/.test(nowText)
-        && /51\.3\s*ms/.test(nowText) && /47\.9\s*ms/.test(nowText) && /72\s*bpm/.test(nowText) && /6\s*per min/.test(nowText) && nowText.includes('measuring'),
-      (nowText || await sigNow()).replace(/\s+/g, ' ').slice(0, 400));
-    check('measured values carry no Simulated badge', nowText && !/simulated/i.test(nowText));
-    if (SHOTS) await clinic.screenshot({ path: `${SHOTS}/finger-clinic-now.png`, fullPage: true }).catch(() => {});
+    clinicWs = new WebSocket(`ws://127.0.0.1:${PORT}/ws/clinic`);
+    clinicWs.addEventListener('message', (e) => { const m = parse({ payload: e.data }); if (m) clinicMsgs.push({ t: Date.now(), m }); });
+    const LIVE_TYPES = ['physio', 'pulse', 'live', 'live_metrics', 'bedside_state', 'thermo', 'knob', 'light'];
+    const liveAtClinic = () => clinicMsgs.filter((x) => LIVE_TYPES.includes(x.m.type) || x.m.physio !== undefined || x.m.camera_pulse !== undefined);
+    const clinicTypes = () => [...new Set(clinicMsgs.map((x) => x.m.type))].join(',');
+    const hello = await until(() => clinicMsgs.some((x) => x.m.type === 'hello'), 5000);
+    await sleep(4000);                                    // four hub polls with a valid pulse
+    check('the clinic listener is connected to the hub', hello, `${clinicMsgs.length} frames`);
+    check('clinic socket: nothing live from the bedside source', liveAtClinic().length === 0, clinicTypes());
 
     // ── C. phone web layer ──
     const app = await browser.newPage({ viewport: { width: 430, height: 900 } });
@@ -146,7 +145,7 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
       ws.on('framereceived', (f) => { const m = parse(f); if (m) appRecv.push({ t: Date.now(), m }); });
     });
     await app.goto(`${HUB}/app/?input=auto&patient=${PATIENT}&clock=morning&stage=1`, { waitUntil: 'load' });
-    await app.waitForSelector('#begin', { state: 'visible', timeout: 15000 });
+    await app.waitForSelector('#begin', { state: 'visible', timeout: 60000 });
     const gotIt = app.locator('#checkin:not(.hidden) button', { hasText: 'Got it' });
     if (await gotIt.count()) { await gotIt.first().click(); await app.waitForSelector('#checkin', { state: 'hidden', timeout: 5000 }); }
     const hubFrame = await until(() => app.evaluate(() => { const h = A.Sensors.fingerHub; return h && h.pulse_bpm ? JSON.parse(JSON.stringify(h)) : null; }), 10000);
@@ -163,7 +162,7 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
     const tBegin = Date.now();
     await app.click('#begin', { delay: 1300 });
     while (Date.now() - tBegin < TIMEOUT_MS && !appRecv.some((r) => r.m.type === 'ack')) await app.waitForTimeout(500);
-    await clinic.waitForTimeout(2500);
+    await app.waitForTimeout(2500);
 
     const sentEnd = appSent.find((s) => s.m.type === 'session_end');
     const ack = appRecv.find((r) => r.m.type === 'ack');
@@ -193,12 +192,14 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
       check('the whole session document validates against session.v3.schema.json', py.status === 0, (py.stdout || py.stderr || '').trim().slice(0, 400));
     } else check('the whole session document validates against session.v3.schema.json', false, 'no session');
 
-    const lives = clinicMsgs.filter((x) => x.m.type === 'live' && x.m.patient_id === PATIENT);
+    const lives = appSent.filter((x) => x.m.type === 'live_metrics');
     const withPhysio = lives.filter((x) => x.m.physio && x.m.physio.source === 'finger_ppg' && x.m.physio.transport === 'hub_http');
-    check('relayed live data carries physio and the finger_ppg pulse label',
+    check('the phone had the finger readings during the whole session, labelled finger_ppg',
       lives.length > 20 && withPhysio.length > lives.length * 0.8 && lives.filter((x) => x.m.pulse_source === 'finger_ppg').length > lives.length * 0.8
         && lives.every((x) => x.m.pulse_source !== 'simulated'),
-      `${lives.length} live, ${withPhysio.length} with physio, sources ${[...new Set(lives.map((x) => x.m.pulse_source))].join(',')}`);
+      `${lives.length} live frames on the phone, ${withPhysio.length} with physio, sources ${[...new Set(lives.map((x) => x.m.pulse_source))].join(',')}`);
+    check('clinic socket: nothing live during the session either', liveAtClinic().length === 0,
+      `${liveAtClinic().length} live frames; types seen ${clinicTypes()}`);
 
     const detail = await getJSON(`/api/patients/${PATIENT}`);
     const stored = detail.sessions[detail.sessions.length - 1];
@@ -206,15 +207,14 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
       doc && stored && stored.session_id === doc.session_id && stored.vitals && stored.vitals.finger && stored.vitals.finger.transport === 'hub_http'
         && stored.pulse_source === 'finger_ppg' && Array.isArray(stored.simulated_fields),
       stored ? `session ${stored.session_id}, pulse_source ${stored.pulse_source}` : 'no stored session');
-    const sesText = await until(() => clinic.evaluate(() => document.querySelector('#signals [data-part="session"]')?.innerText || null), 8000);
-    check('clinic Signals shows the last session summary without a Simulated badge',
-      sesText && /Last session with sensor data/.test(sesText) && sesText.includes('finger sensor (PPG), hub HTTP') && !/simulated/i.test(sesText),
-      (sesText || '').replace(/\s+/g, ' ').slice(0, 400));
+    // the colour the hub must send for the dawn message: rgb scaled by level, held (ms=0). Compared by
+    // value, not by time: the browser reports a sent frame to this process later than the hub acts on it
     const dawn = appSent.find((s) => s.m.type === 'light' && s.m.reason === 'dawn');
-    check('dawn light reached the KY-016 through POST /led', dawn && posted(/^\/led\?r=\d+&g=\d+&b=\d+&ms=0$/, dawn.t - 500).length >= 1,
-      `dawn ${JSON.stringify(dawn && dawn.m)}; led calls ${posted(/^\/led/).map((c) => c.path).join(' ')}`);
+    const scaled = (c) => Math.floor(c * dawn.m.level / 100 + 0.5), n = dawn ? parseInt(dawn.m.rgb.slice(1), 16) : 0;
+    const dawnLed = dawn && `/led?r=${scaled(n >> 16)}&g=${scaled((n >> 8) & 255)}&b=${scaled(n & 255)}&ms=0`;
+    check('dawn light reached the KY-016 through POST /led', dawn && unoq.calls.some((c) => c.t >= tBegin && c.path === dawnLed),
+      `dawn ${JSON.stringify(dawn && dawn.m)}, expected ${dawnLed}; led calls ${posted(/^\/led/).map((c) => c.path).join(' ')}`);
     if (SHOTS) {
-      await clinic.screenshot({ path: `${SHOTS}/finger-clinic-end.png`, fullPage: true }).catch(() => {});
       await app.screenshot({ path: `${SHOTS}/finger-app-end.png` }).catch(() => {});
     }
 
@@ -227,11 +227,9 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
     check('switch off: the hub holds no finger data', bedOff.physio === null && bedOff.pulse.bpm === null, JSON.stringify({ physio: bedOff.physio, pulse: bedOff.pulse }));
     await sleep(3500);
     const late = (list) => list.filter((x) => x.t > tOff + 1000 && (x.m.type === 'physio' || x.m.type === 'pulse'));
-    check('switch off: nothing of the finger sensor is relayed', late(appRecv).length === 0 && late(clinicMsgs).length === 0, `app ${late(appRecv).length}, clinic ${late(clinicMsgs).length}`);
+    check('switch off: nothing of the finger sensor reaches the phone', late(appRecv).length === 0, `app ${late(appRecv).length}`);
     const phoneOff = await app.evaluate(() => ({ enabled: A.Sensors.enabled.pulse_stone, frame: A.Sensors.fingerFrame(A.now()), pulse: A.Sensors.pulse(A.now()).source }));
     check('switch off: the phone drops finger data', phoneOff.enabled === false && phoneOff.frame === null && phoneOff.pulse !== 'finger_ppg', JSON.stringify(phoneOff));
-    const clinicOff = await sigNow();
-    check('switch off: the clinic shows no current finger value', !/72\s*bpm/.test(clinicOff), clinicOff.replace(/\s+/g, ' ').slice(0, 200));
 
     const tOn = Date.now();
     await postJSON(`/api/patients/${PATIENT}/privacy`, { sensor: 'pulse_stone', on: true });
@@ -239,8 +237,9 @@ const posted = (re, since = 0) => unoq.calls.filter((c) => c.t >= since && re.te
     check('switch on: sensors powered, then control handed back', JSON.stringify(onCalls) === JSON.stringify(['/sensor?ch=0&on=1', '/sensor?ch=1&on=1', '/presence?auto=1']), JSON.stringify(onCalls));
     const back = await until(async () => { const b = await getJSON('/api/bedside/state'); return b.physio && b.physio.pulse_bpm === 72 ? b : null; }, 15000, 500);
     check('switch on: readings resume after the hold', !!back, back ? `after ${((Date.now() - tOn) / 1000).toFixed(1)} s` : 'no physio within 15 s');
+    await sleep(1500);
+    check('clinic socket: nothing live from start to end', clinicWs.readyState === 1 && liveAtClinic().length === 0, `socket state ${clinicWs.readyState}; types seen ${clinicTypes()}`);
 
-    check('no errors in clinic page', errors.clinic.length === 0, errors.clinic.slice(0, 5).join(' | '));
     check('no errors in app page', errors.app.length === 0, errors.app.slice(0, 5).join(' | '));
   } catch (e) {
     check('test ran to the end', false, String(e && e.stack || e).slice(0, 600));

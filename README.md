@@ -123,7 +123,7 @@ On-device, nothing leaves the phone. Three tabs:
   shown), distance coaching, activation score. Debug mode: face mesh, eye arrows, pulse regions,
   raw blendshapes. Sessions export as JSON → `ios/tools/analyze_session.py`.
 - **Check-in** — PHQ-9 with crisis resources (112, Mieli 09 2525 0111, Självmordslinjen 90101, 1177).
-  Screening support, not a diagnosis.
+  Support for follow-up, not a diagnosis.
 
 Tuned on recorded sessions: real ARKit names are `mouthSmile_L/_R` (the first build read 0 for every
 left/right shape); a slight smile is only +0.05–0.09; looking away read 5–65°; paced breathing at
@@ -203,14 +203,24 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 
 ### Real sensors in the app
 
-The two finger clips on the UNO Q feed the app with pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
+The two finger clips on the UNO Q feed the app with pulse, per-finger pulse, breathing rate and HRV (RMSSD), labelled `finger_ppg`. Two paths, same data:
 
-- Phone, direct: the `AfferentFinger` plugin reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading).
-- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone and the clinic view.
+- Phone, direct: the `AfferentFinger` plugin reads the UNO Q over Bluetooth ("Afferent Finger": Heart Rate Service `180D/2A37` = fused pulse; `AFF0/AFF1` = finger 1, finger 2, breaths/min, RMSSD ms, quality, presence; `0` = no reading; RMSSD byte `255` = above 254 ms, shown as no reading).
+- Hub: `./start.sh --unoq http://127.0.0.1:18081` after `wendy net forward 18081:18080 --device <uno-q>`; the hub relays `physio` to the phone only.
 
-Rules: a reading counts for 3 s, quality is never invented, real and simulated are never mixed inside a session, and anything simulated is marked in `simulated_fields`. For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`; the clinic view shows them under Signals.
+Nothing live goes to the clinic. The patient hands data over in person (signed QR code, printed report or file).
 
-Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`).
+Rules, the same on both paths:
+
+- A reading counts for 3 s, counted from the age of the value. Presence and contact expire the same way when the sensor goes quiet.
+- A fused pulse with reported quality below 0.3, or with no reported quality, is not shown, not recorded and does not drive the game. Quality is never invented; a missing value stays missing.
+- With both paths live, the one that has a usable pulse is used, Bluetooth first. A Bluetooth reading without usable quality never hides the hub pulse.
+- Real and simulated are never mixed inside a session. A frame the hub flags `simulated` has `source: simulated` on both sides, and anything simulated is marked in `simulated_fields`.
+- The app first asks for Bluetooth when the patient opens Settings or Your signals or starts a session with the pulse stone switch on, not at launch.
+
+For a new screen (or a Phaser scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from. Sessions store them in the optional `vitals` blocks of `contracts/session.v3.schema.json`.
+
+Home and visitors on the phone: `AfferentPresence` plugin with `demo/js/presence-core.js` (ported from `jetson/presence`). Off unless the patient turns it on. The bedside unit heard over Bluetooth means home; its silence means "could not look", so leaving home is only decided when the saved home Wi-Fi (two devices or more) is gone too. Learning who is usually around counts watched time only: app open and Bluetooth on.
 
 ### Layout
 
