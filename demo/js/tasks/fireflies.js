@@ -121,6 +121,7 @@
               state: 'air', graded: false, seed: R() * 9, ju: R() - 0.5, jv: R(), cAt: 0, dim: false,
             };
             f.ta = f.t0 + f.tr + f.th / 2;
+            if (!frost) this.rt?.cue(f, 'catch', f.t0 + f.tr * (f.rm ? 0.5 - Math.sin(Math.asin(1 - 2 * f.band) / 3) : 1 - Math.sqrt(1 - f.band)));
             this.flies.push(f);
             return f;
           };
@@ -150,7 +151,7 @@
           for (const f of this.flies) {
             if (f.state !== 'air' || now < f.t0) continue;
             const p = this.pos(f, now);
-            if (!f.frost && !f.graded && p.phase === 2 && p.hf < f.band) { f.graded = true; this.grade(f, 'miss'); }
+            if (!f.frost && !f.graded && p.phase === 2 && p.hf < f.band) { f.graded = true; this.rt?.lapse(f); this.grade(f, 'miss'); }
             if (!f.frost && p.hf >= f.band) { open = true; if (!f.graded && R() < dt * 9) { const b = this.box(); fx.trailMote(b.x + p.u * b.w, b.y + p.v * b.h, this.pal().fly, { life: 0.45, size: [1.8, 0.4], vy: -8 }); } }
             if (p.phase === 2 && p.hf < -0.15) { f.state = 'gone'; if (!f.frost) this.reserve++; }
           }
@@ -262,6 +263,7 @@
           s.catches++;
           this.items++;
           this.log.lat.push((t - f.t0) * 1000);
+          this.rt?.hit(f, t);
           this.log.apex.push((t - f.ta) * 1000);
           if (s.catches === 3) this.bumpTier(grade);
           const res = this.grade(f, grade);
@@ -312,6 +314,7 @@
           let i = 0;
           for (const f of this.flies) {
             if (f.state !== 'air') continue;
+            this.rt?.drop(f);
             if (f.frost || J.at < f.t0) { f.state = 'gone'; continue; }
             const p = this.pos(f, J.at), b = this.box();
             Object.assign(f, { state: 'fly', fAt: J.at, fx: b.x + p.u * b.w, fy: b.y + p.v * b.h, delay: 0.12 + i * 0.07 });

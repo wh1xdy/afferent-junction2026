@@ -327,6 +327,7 @@
           if (gameMode !== 'rest') g.max = Math.min(g.max, Math.max(8, this.playLeft(now) - (MEASURE_RIDE_S + 4 + (SEC_HILL[mode] || 4) + 3) * this.measuresPending(slot) - 8));
         }
         g.bare ??= true;
+        if (!measure) g.rt = A.RT?.log() ?? null;
         const kind = measure ? 'measurement' : 'adaptive', taskMode = measure ? 'measure' : gameMode, def = A.MINIGAMES[id];
         A.J?.beat.set(def?.bpm ? def.bpm(MODES[gameMode].tempo, k ?? 0) : MODES[gameMode].tempo, now);
         Object.assign(g, { mode: taskMode, k: k ?? 0, startAt: now, slot, kind });
@@ -345,6 +346,8 @@
         const out = { completed_by: by, completed: g.done, items: g.items, errors: g.errors, sessionT0: this.t0 };
         if (g.id === 'breath') out.breath_sync = g.sync;
         if (g.kind !== 'measurement' && g.extra && Object.keys(g.extra).length) out.extra = { ...g.extra };
+        const rt = g.kind === 'measurement' ? null : g.rt?.summary();
+        if (rt) out.extra = { ...out.extra, rt };
         const dda = g.kind === 'measurement' ? null : A.Skill?.finish(g.id);
         if (dda) out.extra = { ...out.extra, dda };
         if (g.id === 'fork') { this.forkRec = A.Record.fork(g); out.extra = { glows: g.glows, hard_sides: g.choices.map(c => c.hard_side), ...A.PRESENT?.fork?.extra?.(g) }; out.completed = g.done && this.forkRec.choices.every(c => c.completed); }

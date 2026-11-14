@@ -213,6 +213,8 @@
         },
 
         miss(bt, now) {
+          this.rt?.cue(bt, 'beat', bt.tR);
+          if (this.taps) this.rt?.lapse(bt); else this.rt?.drop(bt);
           this.resolve(bt, now);
           this.missed++;
           if (this.taps) this.trial('miss', now);
@@ -294,6 +296,8 @@
             this.offs.push(Math.round(off * 1000));
             if (near.state === 'in' && a <= w.barely) {
               this.wins.push(w.barely);
+              this.rt?.cue(near, 'beat', near.tR);
+              this.rt?.hit(near, ts);
               this.hit(near, a <= w.perfect ? 'perfect' : a <= w.good ? 'good' : 'barely', now);
               return;
             }
