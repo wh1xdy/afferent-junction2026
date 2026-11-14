@@ -37,6 +37,7 @@
   const INSTRUMENTS = { phq9: 'PHQ-9 English, phqscreeners.com manual', cssrs: 'C-SSRS Screener Self-Report Recent 2026' };
   const ANCHOR = 'Each time you play, you will see five lanterns. Tap the one that matches how you feel right now. The dimmest, coolest lantern is the lowest you feel. The brightest, warmest lantern is the best you feel. There is no wrong answer, and you can skip by waiting.';
   const FOOTER = 'Afferent is not an emergency service and is not watched around the clock.';
+  const SCREEN_RANK = ['thank_you', 'support', 'crisis'];
   const BANDS = [[20, 'severe'], [15, 'moderately_severe'], [10, 'moderate'], [5, 'mild'], [0, 'minimal']];
 
   const hubCfg = () => A.Hub?.config?.checkin || {};
@@ -113,15 +114,19 @@
     const reason = asked ? (item9 >= 1 ? 'item9_positive' : 'always_ask') : positive && !c.licensed ? 'not_licensed' : null;
 
     let tier, source, screen;
+    const fallback = item9 >= 2 ? 'crisis' : item9 === 1 ? 'support' : 'thank_you';
     if (item9 == null) { tier = 'not_answered'; source = null; screen = 'saved'; }
     else if (asked) {
       source = 'cssrs';
       tier = cDone ? cTier : cTier === 'high' ? 'high' : 'incomplete';
-      screen = tier === 'high' ? 'crisis' : tier === 'none' ? 'thank_you' : 'support';
+      // A positive item 9 always ends on the helplines; a screener left unfinished never shows less than item 9 alone would.
+      const cs = tier === 'high' ? 'crisis' : tier === 'none' ? 'thank_you' : 'support';
+      const least = tier === 'incomplete' ? fallback : item9 >= 1 ? 'support' : 'thank_you';
+      screen = SCREEN_RANK[Math.max(SCREEN_RANK.indexOf(cs), SCREEN_RANK.indexOf(least))];
     } else {
       source = 'item9_fallback';
       tier = item9 >= 2 ? 'moderate' : item9 === 1 ? 'low' : 'none';
-      screen = item9 >= 2 ? 'crisis' : item9 === 1 ? 'support' : 'thank_you';
+      screen = fallback;
     }
     if (how === 'killed') screen = null;
     const complete = total != null && (!asked || cDone);
