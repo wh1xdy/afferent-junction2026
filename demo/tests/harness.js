@@ -2,7 +2,8 @@
 // Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js),
 // storage (a Map used as localStorage; without it there is none, as in a private window),
 // games (the real task engine with the breathing task as its only task, instead of the stub tasks),
-// breathing (false leaves breathing.js out: the app without the measured breathing).
+// breathing (false leaves breathing.js out: the app without the measured breathing),
+// audio (an A.Audio to use instead of the silent stub), music (an A.Music to load the engine next to).
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -33,7 +34,7 @@ const recorder = log => {
   });
 };
 
-const load = ({ uuid = false, finger = false, vitals = false, storage = null, games = false, breathing = true } = {}) => {
+const load = ({ uuid = false, finger = false, vitals = false, storage = null, games = false, breathing = true, audio = null, music = null } = {}) => {
   const ctx = { console, Math, Date, JSON, Set, Map, Object, Array, Number, String, setTimeout: () => 0, setInterval: () => 0, URLSearchParams, crypto: { randomUUID: uuid ? () => nodeCrypto.randomUUID() : () => 'test' } };
   ctx.window = ctx;
   if (storage) ctx.localStorage = { getItem: k => storage.get(k) ?? null, setItem: (k, v) => { storage.set(k, String(v)); }, removeItem: k => { storage.delete(k); } };
@@ -55,7 +56,8 @@ const load = ({ uuid = false, finger = false, vitals = false, storage = null, ga
   vm.runInContext(`A.now = () => __clock(); A.config = { baselinePulse: 68, sensors: { bedside_light: false, pulse_stone: true, phone_camera: true }, patientId: 'test', deviceId: 'test', appVersion: 'test', sharing: 'summary', dawnLevel: 15 };`, Object.assign(ctx, { __clock: () => clock }));
   for (const f of ['sensors.js', 'finger.js', 'input.js', ...(breathing ? ['breathing.js'] : []), 'record.js']) run(f);
   const noop = () => {};
-  ctx.A.Audio = new Proxy({}, { get: () => noop });
+  ctx.A.Audio = audio || new Proxy({}, { get: () => noop });
+  if (music) ctx.A.Music = music;
   const game = id => ({ id, modes: [], make: () => ({ id, max: 12, t: 0, done: false, items: 0, errors: 0, update: noop, draw: noop, choices: [], trials: [], rewards: { rich: 0, lean: 0 }, counts: () => ({ rc: 0, ri: 0, lc: 0, li: 0 }) }) });
   ctx.A.MINIGAMES = { breath: { ...game('breath'), modes: ['calm', 'rest'], world: true }, loyly: { ...game('loyly'), modes: ['calm'] }, threads: { ...game('threads'), modes: ['flow'] }, constellation: { ...game('constellation'), modes: ['flow'] }, fireflies: { ...game('fireflies'), modes: ['wake'] }, beacon: { ...game('beacon'), modes: ['wake', 'fatigue'] }, bells: { ...game('bells'), modes: ['wake', 'fatigue'] }, shutters: { ...game('shutters'), modes: ['fatigue'] } };
   ctx.A.MEASURES = { fork: game('fork'), lanterns: game('lanterns') };
