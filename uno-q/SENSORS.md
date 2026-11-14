@@ -190,9 +190,11 @@ person; it takes ~3 s longer to decide than before.
 **Presence:** without a finger the probe saw single events above its limit (a dip in the tail of
 the power-on transient, spikes on finger 2's lead, spikes on both clips at once) and the box said
 "finger detected" about every 17 s. A finger swings on every beat, so the probe now keeps the
-LEDs on 1 s longer and wants the swing in the look window (> 800) and again in the next second
-(> 500). Either clip can now switch the sensors on, so a finger in clip 2 alone is found.
-`presence.last_probe_swings` has the (look, confirm) swing per clip.
+LEDs on 1.3 s longer and wants the swing in the look window (> 800, as before) and again in the
+1.3 s after it (> 700 within any 250 ms; the empty clip 1 in the new case swings 400–620 there).
+Either clip can now switch the sensors on, so a finger in clip 2 alone is found. Offline, every
+synthetic pulse of 48–140 BPM that the old check found is still found. `presence.last_probe_swings`
+has the (look, confirm) swing per clip.
 
 ## Two people on the two clips (Heart Duel)
 

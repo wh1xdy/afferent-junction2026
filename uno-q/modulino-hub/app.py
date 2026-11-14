@@ -715,12 +715,13 @@ def push_readings(bpm, br, rm, two):
 # nobody there. A finger swings on every beat, so the swing must be there in two windows in a
 # row (look, then confirm). A single event is in one of them only. With that, either clip can
 # switch the sensors on: a finger in clip 2 alone is found too.
-PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # flash = 3.25 s (amp settles ~1.25 s,
-                                                                 # then look 1 s and confirm 1 s)
+PROBE_OFF_S, PROBE_SETTLE_MS, PROBE_LOOK_MS = 4.0, 1250, 1000   # amp settles ~1.25 s, then look 1 s
+PROBE_CONFIRM_MS = 1300       # then confirm 1.3 s: one upstroke down to 46 BPM (flash = 3.55 s)
 WARMUP_S = 4.0               # after switching on: no readings until the pulse has re-locked
 PRESENCE_RANGE = 800          # max 250 ms range in the look window above this = finger
                               # (measured: no finger 90-445, finger ~1600-3000)
-CONFIRM_RANGE = 500           # ...and in the confirm window above this (above the 445 of no finger)
+CONFIRM_RANGE = 700           # ...and in the confirm window (any 250 ms span) above this (clip 1 empty, light into
+                              # the new case: 400-620 on 2026-11-14; a finger ~1600-3000)
 LEAVE_AFTER_S = 5.0           # pulse quality below 0.3 this long = hand gone
 presence = {"auto": True, "mode": "active", "since": time.time(), "last_probe_range": None}
 
@@ -737,10 +738,11 @@ def _last_t(ch=0):
     return ppgs[ch][-1][0] if ppgs[ch] else None
 
 
-def _probe_range(t_on, ch=0, start_ms=PROBE_SETTLE_MS):
-    """largest 250 ms swing of one clip in the window start_ms..start_ms+PROBE_LOOK_MS after t_on;
-    0 when it touched a rail, None with too few samples"""
-    w = [(t, v) for t, v in list(ppgs[ch]) if t_on + start_ms <= t < t_on + start_ms + PROBE_LOOK_MS]
+def _probe_range(t_on, ch=0, start_ms=PROBE_SETTLE_MS, length_ms=PROBE_LOOK_MS, sliding=False):
+    """largest 250 ms swing of one clip in the window start_ms..start_ms+length_ms after t_on;
+    0 when it touched a rail, None with too few samples. sliding: every 250 ms span, not only
+    back-to-back ones (an upstroke split by a boundary counts whole)"""
+    w = [(t, v) for t, v in list(ppgs[ch]) if t_on + start_ms <= t < t_on + start_ms + length_ms]
     if len(w) < 20:
         return None
     if any(v < 200 or v > 13500 for _, v in w):
@@ -749,14 +751,15 @@ def _probe_range(t_on, ch=0, start_ms=PROBE_SETTLE_MS):
     while i < len(w):                       # 250 ms windows
         seg = [v for t, v in w if w[i][0] <= t < w[i][0] + 250]
         best = max(best, max(seg) - min(seg))
-        i += max(1, len(seg))
+        i += 1 if sliding else max(1, len(seg))
     return best
 
 
 def probe_finger(t_on):
     """(finger, [(look, confirm) swing per clip]): a clip whose swing is above PRESENCE_RANGE in
     the look window AND above CONFIRM_RANGE in the confirm window right after it"""
-    swings = [(_probe_range(t_on, c) or 0, _probe_range(t_on, c, PROBE_SETTLE_MS + PROBE_LOOK_MS) or 0)
+    swings = [(_probe_range(t_on, c) or 0,
+               _probe_range(t_on, c, PROBE_SETTLE_MS + PROBE_LOOK_MS, PROBE_CONFIRM_MS, sliding=True) or 0)
               for c in range(CHANNELS)]
     return any(look > PRESENCE_RANGE and confirm > CONFIRM_RANGE for look, confirm in swings), swings
 
@@ -823,7 +826,7 @@ def presence_loop(stopped):
             presence.update(mode="probing", since=time.time(), t_on=_last_t())
         elif presence["mode"] == "probing":
             t_on = presence.get("t_on") or 0
-            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + 2 * PROBE_LOOK_MS:
+            if (_last_t() or 0) < t_on + PROBE_SETTLE_MS + PROBE_LOOK_MS + PROBE_CONFIRM_MS:
                 continue
             found, swings = probe_finger(t_on)
             presence["last_probe_range"] = max(look for look, _ in swings)

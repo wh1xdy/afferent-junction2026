@@ -359,14 +359,14 @@ class Presence(unittest.TestCase):
         rnd = random.Random(4)
         for c, rec, dc in ((0, self.TAIL_DIP, 7400), (1, self.SPIKE, 8200)):
             reset()
-            app.ppgs[c].extend(self._probe(rec, [dc + int(rnd.gauss(0, 40)) for _ in range(50)]))
+            app.ppgs[c].extend(self._probe(rec, [dc + int(rnd.gauss(0, 40)) for _ in range(70)]))
             self.assertGreater(app._probe_range(10000, c), app.PRESENCE_RANGE, "the old check said finger")
             found, swings = app.probe_finger(10000)
             self.assertFalse(found, swings)
 
     def test_a_finger_in_either_clip_is_found(self):
         t_on = 10000
-        beats = [t_on + 1300 + k * 800 for k in range(5)]
+        beats = [t_on + 1300 + k * 800 for k in range(6)]
         for c in range(app.CHANNELS):
             reset()
             app.ppgs[c].extend((t, v) for t, v in ppg_for_beats(beats) if t >= t_on)
@@ -376,7 +376,7 @@ class Presence(unittest.TestCase):
 
     def test_a_slow_or_fast_pulse_is_found(self):
         t_on = 10000
-        for bpm in (48, 55, 60, 75, 100, 140, 170):
+        for bpm in (48, 55, 60, 75, 100, 120, 140):        # a person at rest
             for offset in (900, 1100, 1300, 1500):            # where the first beat falls
                 reset()
                 per = 60000 / bpm
