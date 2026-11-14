@@ -98,29 +98,31 @@ test('combo: a miss drops to the start of the tier, a second miss one tier more,
   assert.ok(dda.fever && dda.light_share > 0 && dda.light_share <= 1);
 });
 
-test('assist: mood 1 alone switches it on, silently lowers d and freezes the credit', () => {
-  const { A } = load();
-  A.Skill.begin({ auto: false, profile: 'live' });
-  A.Skill.coreDone({ mood_start: 1, rt: { valid: true, median_ms: 400, lapses: 0 } });
-  A.Skill.start('beacon', 'flow', 0.4);
-  assert.ok(A.Skill.assisted());
-  assert.ok(Math.abs(A.Skill.base('beacon') - (A.Skill.L0 - 0.15)) < 1e-9);
-  A.Skill.trial('beacon', 'perfect');
-  assert.strictEqual(A.Skill.task('beacon').L, A.Skill.L0);
-  assert.strictEqual(JSON.stringify(A.Skill.record().assist_reasons), '["mood_1"]');
+test('assist: the start mood never switches it on, whatever the value', () => {
+  for (const mood of [1, 2, 3, 4, 5, null]) {
+    const { A } = load();
+    A.Skill.begin({ auto: false, profile: 'live' });
+    A.Skill.coreDone({ mood_start: mood, rt: { valid: true, median_ms: 400, lapses: 0 } });
+    A.Skill.start('beacon', 'flow', 0.4);
+    assert.ok(!A.Skill.assisted(), `mood ${mood}`);
+    assert.strictEqual(JSON.stringify(A.Skill.record().assist_reasons), '[]');
+  }
 });
 
-test('assist needs two signals unless mood is 1', () => {
+test('assist needs two behaviour signals, silently lowers d and freezes the credit', () => {
   const { A } = load();
   A.Skill.begin({ auto: false, profile: 'live' });
-  A.Skill.coreDone({ mood_start: 2, rt: { valid: true, median_ms: 400, lapses: 0 } });
+  A.Skill.coreDone({ mood_start: 1, rt: { valid: true, median_ms: 400, lapses: 2 } });
   A.Skill.start('bells', 'wake', 0.5);
   assert.ok(!A.Skill.assisted());
   A.Skill.finish('bells');
   A.Skill.tick(0.7, 21);
-  A.Skill.start('bells', 'wake', 0.5);
+  A.Skill.start('beacon', 'flow', 0.4);
   assert.ok(A.Skill.assisted());
-  assert.strictEqual(JSON.stringify(A.Skill.record().assist_reasons), '["mood_2","fatigue"]');
+  assert.ok(Math.abs(A.Skill.base('beacon') - (A.Skill.L0 - 0.15 + A.Skill.sess.heatMax)) < 1e-9);
+  A.Skill.trial('beacon', 'perfect');
+  assert.strictEqual(A.Skill.task('beacon').L, A.Skill.L0);
+  assert.strictEqual(JSON.stringify(A.Skill.record().assist_reasons), '["rt_lapses","fatigue"]');
 });
 
 test('ramp thirds, boss on the last item, heat across tasks', () => {

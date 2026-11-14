@@ -6,6 +6,10 @@
   const fmt = k => { const [y, m, d] = k.split('-').map(Number); const t = new Date(y, m - 1, d); return `${DAYS[t.getDay()]} ${d} ${MONTHS[m - 1]}`; };
   const sw = id => `<span class="switch"><input type="checkbox" role="switch" id="${id}"><span class="track"></span><span class="thumb"><span class="ms">check</span></span></span>`;
   const toggle = (id, text, icon) => `<label class="li state"><span class="ms" aria-hidden="true">${icon}</span><span class="txt"><span class="hl">${text}</span></span>${sw(id)}</label>`;
+  const STEPS = [['person', 'Someone to message', 'chat_bubble', 'a name'], ['place', 'A place to walk to', 'directions_walk', 'the shop'], ['task', 'A small task', 'task_alt', 'water the plants']];
+  const stepRows = pre => STEPS.map(([k, text, icon, ph]) => `<label class="li state step-row"><span class="ms" aria-hidden="true">${icon}</span><span class="txt"><span class="hl">${text}</span></span><input type="text" id="${pre}${k}" class="time-val step-in" maxlength="40" autocomplete="off" spellcheck="false" placeholder="${ph}"></label>`).join('');
+  const fillSteps = pre => { const m = A.BA?.menu?.() || {}; STEPS.forEach(([k]) => { const el = $(pre + k); if (el) el.value = m[k] || ''; }); };
+  const readSteps = pre => Object.fromEntries(STEPS.map(([k]) => [k, $(pre + k)?.value || '']));
 
   const settings = () => {
     const box = document.querySelector('#morningsGroup .group');
@@ -15,6 +19,8 @@
         ${toggle('lineSw', 'Show a line after the session', 'edit_note')}
         ${toggle('remindSw', 'Morning reminder', 'alarm')}
         <label class="li state" id="wakeRow"><span class="ms" aria-hidden="true">schedule</span><span class="txt"><span class="hl">Usual wake time</span></span><input type="time" id="wakeIn" class="time-val" step="900"></label>
+        ${toggle('smallSw', 'Suggest a small step', 'routine')}
+        <div id="stepRows">${stepRows('set_')}</div>
         <button type="button" class="li state" id="pauseRow" aria-expanded="false" aria-controls="pauseMenu"><span class="ms" aria-hidden="true">pause</span><span class="txt"><span class="hl">Pause</span></span><span class="val" id="pauseVal"></span><span class="ms trail" aria-hidden="true">expand_more</span></button>
         <div id="pauseMenu" class="pause-menu hidden" role="menu">
           <button type="button" class="state" role="menuitem" data-p="today">Today</button>
@@ -31,6 +37,9 @@
       $('remindSw').checked = !!P.get('reminder');
       $('wakeIn').value = P.get('wake') || '07:00';
       $('wakeRow').classList.toggle('hidden', !P.get('reminder'));
+      $('smallSw').checked = P.get('smallSteps') !== false;
+      $('stepRows').classList.toggle('hidden', P.get('smallSteps') === false);
+      fillSteps('set_');
       const until = S.pausedUntil();
       $('pauseVal').textContent = until ? `Until ${fmt(until)}` : 'Off';
       $('resumeBtn').classList.toggle('hidden', !until);
@@ -43,6 +52,8 @@
     $('lineSw').onchange = e => P.set({ showLine: e.target.checked });
     $('remindSw').onchange = e => { P.set({ reminder: e.target.checked }); sync(); };
     $('wakeIn').onchange = e => P.set({ wake: e.target.value || '07:00' });
+    $('smallSw').onchange = e => { P.set({ smallSteps: e.target.checked }); sync(); };
+    STEPS.forEach(([k]) => { $('set_' + k).onchange = () => A.BA?.setMenu(readSteps('set_')); });
     $('pauseRow').onclick = () => menu($('pauseMenu').classList.contains('hidden'));
     box.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
       S.setPause(b.dataset.p === 'resume' ? null : S.pauseFor(b.dataset.p));
@@ -68,6 +79,8 @@
           <label class="li state"><span class="ms" aria-hidden="true">schedule</span><span class="txt"><span class="hl">Usual wake time</span></span><input type="time" id="obWake" class="time-val" step="900"></label>
           ${toggle('obAim', 'Aim for a week of mornings', 'wb_twilight')}
         </div>
+        <p class="ob-note">Small steps you could take on a good or a hard day. Optional.</p>
+        <div class="group">${stepRows('ob_')}</div>
         <p class="ob-note">Your clinic sees your morning results and your check-in answers. Camera images never leave your phone. Most mornings is plenty.</p>
         <div class="ob-go"><button id="obGo" class="btn filled block state" type="button">Let's begin</button></div>
       </div>`;
@@ -77,7 +90,9 @@
     $('obCue').value = P.get('cue') || CUE;
     $('obWake').value = P.get('wake') || '07:00';
     $('obAim').checked = P.get('aim') !== 0;
+    fillSteps('ob_');
     $('obGo').onclick = () => {
+      A.BA?.setMenu(readSteps('ob_'));
       P.set({ cue: $('obCue').value.trim() || CUE, wake: $('obWake').value || '07:00', aim: $('obAim').checked ? 7 : 0, onboarded: A.Streak.today() });
       card.remove();
       phone.classList.remove('onboarding');

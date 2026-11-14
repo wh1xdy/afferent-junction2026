@@ -108,6 +108,7 @@
   transition: opacity var(--af-dur-drift) var(--af-ease-glide), transform var(--af-dur-drift) var(--af-ease-glide), filter var(--af-dur-drift) var(--af-ease-glide);
 }
 .cue.on { opacity: 1; transform: none; filter: none; }
+.cue.line { top: calc(var(--safe-top) + 56px); font: 400 17px/24px var(--af-font-brand); }
 .wake-btn {
   position: absolute; z-index: 3; top: calc(var(--safe-top) + 8px); right: calc(var(--af-safe-r) + 8px); width: 48px; height: 48px; border: 0; border-radius: 50%;
   display: grid; place-items: center; background: var(--af-hush); color: rgba(255, 255, 255, 0.5);

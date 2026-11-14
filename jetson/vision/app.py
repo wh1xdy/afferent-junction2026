@@ -2,10 +2,17 @@
 """YOLOv8 webcam server: GStreamer (or OpenCV fallback) → YOLO → annotated MJPEG over WebSocket.
 
 Env overrides: CAMERA_BACKEND=opencv|gstreamer, YOLO_MAX_FPS=<n>.
+
+The fused camera pulse (rPPG) is stored in afferent-data-manager every RPPG_STORE_EVERY_S
+(default 10 s) when its trust score is >= RPPG_MIN_TRUST (default 40), as
+vitals.heart_rate_bpm with source afferent-vision/rppg and quality = trust / 100.
+DATA_MANAGER_URL overrides mDNS discovery (role=data-manager); "off" disables.
 """
 from __future__ import annotations
 import asyncio
+from data_manager_client import DataManagerClient
 from hub import Hub
+from network import interface_ipv4
 from rppg import RPPG
 import collections
 import glob
@@ -869,6 +876,43 @@ rppg = RPPG()
 hub = Hub(camera.set_confidence)
 hub.start()
 
+
+def _mdns_interfaces():
+    try:
+        return [interface_ipv4()]
+    except Exception:
+        return None
+
+
+dm = DataManagerClient(source="afferent-vision", mdns_interfaces=_mdns_interfaces())
+RPPG_STORE_EVERY_S = float(os.environ.get("RPPG_STORE_EVERY_S") or 10)
+RPPG_MIN_TRUST = float(os.environ.get("RPPG_MIN_TRUST") or 40)   # 40 = "uncertain" or better
+
+
+def _store_rppg_loop():
+    """Only readings the trust score does not call unreliable reach the database."""
+    last_window = None
+    while True:
+        time.sleep(RPPG_STORE_EVERY_S)
+        try:
+            fused = rppg.status().get("fused") or {}
+            bpm, trust = fused.get("bpm"), fused.get("trust") or {}
+            score = trust.get("score") or 0
+            if not bpm or score < RPPG_MIN_TRUST:
+                continue
+            key = (bpm, score, tuple(fused.get("sources") or ()))
+            if key == last_window:          # estimator has not produced a new reading
+                continue
+            last_window = key
+            dm.sample("vitals.heart_rate_bpm", bpm, source="afferent-vision/rppg",
+                      quality=round(score / 100, 2),
+                      meta={"label": trust.get("label"), "cameras": fused.get("sources")})
+        except Exception as e:
+            logger.warning("rPPG -> data manager failed: %s", e)
+
+
+threading.Thread(target=_store_rppg_loop, daemon=True, name="rppg-store").start()
+
 # Headless: keep the camera + YOLO running without a browser open, so
 # detections reach the UNO Q even when nobody watches the stream.
 _HEADLESS = object()
@@ -889,7 +933,8 @@ async def rppg_status():
     """Camera pulse next to the finger sensor's pulse (from the UNO Q over the mesh)."""
     st = hub.status().get("state") or {}
     finger = (st.get("beat") or {}).get("bpm_live")
-    return JSONResponse(content={"camera": rppg.status(), "finger_bpm": finger})
+    return JSONResponse(content={"camera": rppg.status(), "finger_bpm": finger,
+                                 "data_manager": dm.status()})
 
 
 @app.get("/rppg/frame")

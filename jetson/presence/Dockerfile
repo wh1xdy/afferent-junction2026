@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY core.py probes.py app.py ./
+COPY core.py probes.py app.py datasync.py data_manager_client.py ./
 
 ENV PYTHONUNBUFFERED=1 DATA_DIR=/data PORT=8090
 EXPOSE 8090

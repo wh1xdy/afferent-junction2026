@@ -367,6 +367,19 @@ and appends it to the system instruction. So on a bad day the companion gently a
 that things have not been easy, reminds the person the app and their care team are there
 exactly for that, and suggests — once, without pushing — that they talk to their doctor.
 
+### Home hub on the Jetson
+
+The same hub as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the real UNO Q as bedside and the data manager all run on the mesh. The Mac is needed only as the doorway for a browser or the phone (below).
+
+- Deploy: `jetson/home_hub/deploy.sh`. It copies the tracked files of `hub/`, `demo/`, `contracts/`, `design/` (without test folders) into the git-ignored `stage/` and runs `wendy run`; an untracked file in those folders stops it. The SQLite database is on the volume `afferent-home-hub` and survives a redeploy. The image pins its packages (`jetson/home_hub/constraints.txt`) and runs the hub as a non-root user.
+- Pairing token: every `/api/*` and `/ws/*` route except `/api/health` needs the hub token. The first deploy makes it in `~/.afferent/home-hub.token` (mode 600) and passes it to the app; it is never in the repo. `jetson/home_hub/pair.sh` prints the pairing link (it holds the token; open it, do not paste it anywhere). A browser opens the link once and gets a cookie; the phone app keeps the token in its hub address (`<ip>/k/<token>`). Requests from other web origins and DNS names are refused, and `/ws/bedside` is closed while the bedside is the UNO Q.
+- Browser on the Mac: `wendy net forward 18000:18000 --device 169.254.246.159:50052` (keep it running), then open the link from `jetson/home_hub/pair.sh`: it lands on the patient view (`/app/patient.html`); the game is `/app/`. `/clinic/` shows only the simulated demo roster and scanned codes: the real patient reaches the clinic view only through the QR code she shows. The forward allows about 8 connections at once across all forwards, so keep to one browser tab.
+- Phone: Personal Hotspot over the USB cable (mobile data on), so the Mac gets an address on the "iPhone USB" port. Terminal 1: the forward above. Terminal 2: `IP=$(ipconfig getifaddr en8); echo $IP; socat TCP-LISTEN:8000,bind=$IP,fork,reuseaddr TCP:127.0.0.1:18000`. Then `jetson/home_hub/pair.sh $IP` gives the Hub address for the app's Settings. The relay listens only on the cable link. Not yet tried end to end with the phone. Run `wendy auth refresh-certs` before a demo.
+- Bedside: `AFFERENT_BEDSIDE=unoq:auto` finds the UNO Q over mDNS (`role=modulino-hub`, `.mesh.local.` host names only) and looks it up again when the link is lost. No simulator runs here.
+- Data manager: `AFFERENT_DATA_MANAGER_URL=auto` finds it the same way (`role=data-manager`); one that answers is kept, and only the device in `AFFERENT_DATA_MANAGER_DEVICE` (default: this Jetson) is used, since the bearer token goes to it. The token comes from `AFFERENT_DATA_MANAGER_TOKEN` or `~/.afferent/data-manager.token` at deploy time. Routes: `/api/sensors/<name>`, `/api/patients/<id>/sensors/room`.
+- Real and simulated: the patient `AFFERENT_BEDSIDE_PATIENT` (default `anna`, the id the app sends) starts empty with `simulated: false` and only ever holds what was recorded; before the first session the hub reports "Not enough data yet" and no state, also in the QR code. A session the app marks simulated marks that day and names the simulated fields. The other demo patients are seeded and marked Simulated. `AFFERENT_HOME_DEMO_ROSTER=0` leaves them out, and removes them if an earlier start seeded them; the real patient's data stays. `POST /api/demo/reset` and `/api/demo/profile` are refused here.
+- Other values: `AFFERENT_HOME_PATIENT_NAME`, `AFFERENT_HOME_TMS_END` (YYYY-MM-DD, default the day of the first start), `AFFERENT_HUB_ORIGINS`, `AFFERENT_HUB_HOSTS`, `AFFERENT_TZ` (default `Europe/Helsinki`), `WENDY_DEVICE`.
+
 ### Layout
 
 - `demo/` the game and patient view (Capacitor web root)

@@ -152,8 +152,8 @@
     mark.querySelector('.n').textContent = n ?? '';
     mark.querySelector('.chip').hidden = !n;
     mark.querySelector('.chip').setAttribute('aria-label', n ? `${n} mornings. Your mornings` : '');
-    mark.querySelector('.bye').hidden = !s.todayLit;
-    mark.hidden = !n && !s.todayLit;
+    mark.querySelector('.bye').hidden = true;
+    mark.hidden = !n;
   }
 
   const playTick = (from, to) => {

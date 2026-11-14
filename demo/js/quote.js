@@ -62,7 +62,7 @@
   A.bus.on('home', hide);
   A.bus.on('shine', ({ night }) => {
     hide();
-    if (A.Prefs?.get('showLine') === false) return;
+    if (A.Prefs?.get('showLine') === false || A.BA?.takesSlot?.(night)) return;
     live = true;
     timer = setTimeout(() => ready.then(() => {
       if (!live || offered || !el) return;

@@ -1,7 +1,7 @@
 (() => {
   const { clamp, lerp, ema } = A;
-  const R = Math.random;
-  const rm = () => !!A.config?.reducedMotion;
+  const R = Math.random, GULLIES = false;
+  const rm =() => !!A.config?.reducedMotion;
   const hap = n => A.J?.hap(n);
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
@@ -18,6 +18,7 @@
     return { ...(P || MODE('flow', k)), m: P ? m : 'flow', k };
   };
   const BENCH = 60;
+  const ORBS = false; // ride orbs removed: none are drawn or collected
   const RIDE_HILLS = { calm: 1, flow: 1, wake: 2, fatigue: 2, rest: 1 };
   const SEC_HILL = { calm: 9.5, flow: 4.2, wake: 2.8, fatigue: 2.9, rest: 20 };
 
@@ -36,6 +37,22 @@
     beacon: { kind: 'ground', prop: 'lighthouse', art: 'task_beacon_lighthouse', aw: 74, c: COL.ice },
     bells: { kind: 'ground', prop: 'tower', art: 'task_bells_tower', aw: 76, c: COL.glow },
     shutters: { kind: 'ground', prop: 'houses', art: 'task_shutters_facade', aw: 230, c: COL.daylight },
+    windows: { kind: 'ground', prop: 'houses', c: COL.warm },
+    vihta: { kind: 'ground', prop: 'hut', c: COL.amber },
+    birds: { kind: 'ground', prop: 'reeds', c: COL.gold },
+    swans: { kind: 'ground', prop: 'pier', c: COL.ice },
+    faces: { kind: 'ground', prop: 'houses', c: COL.violet },
+    owls: { kind: 'ground', prop: 'cairn', c: COL.aurora },
+    seals: { kind: 'ground', prop: 'pier', c: COL.ice },
+    reindeer: { kind: 'ground', prop: 'cairn', c: COL.warm },
+    ferry: { kind: 'ground', prop: 'lighthouse', c: COL.glow },
+    drips: { kind: 'ground', prop: 'hut', c: COL.ice },
+    buoys: { kind: 'ground', prop: 'pier', c: COL.amber },
+    steps: { kind: 'ground', prop: 'cairn', c: COL.silver },
+    glance: { kind: 'ground', prop: 'lighthouse', c: COL.violet },
+    signpost: { kind: 'ground', prop: 'cairn', c: COL.amber },
+    runes: { kind: 'ground', prop: 'clearing', c: COL.ice },
+    fog: { kind: 'ground', prop: 'houses', c: COL.silver },
     summit: { kind: 'summit', prop: 'summit', c: COL.glow },
   };
 
@@ -273,7 +290,7 @@
       let guard = 0, airStart = null;
       const flights = [];
       while (ghost.x < seg.x1 && guard++ < 6000) {
-        stepBody(ghost, botHold(ghost, T, P), P, T, DT, { noLaunch: P.m === 'calm' || P.m === 'rest' });
+        stepBody(ghost, botHold(ghost, T, P), P, T, DT, { noLaunch: true });
         if (ghost.ev === 'launch') airStart = { x: ghost.x, t: guard };
         if (ghost.ev === 'land' && airStart) { flights.push({ x0: airStart.x, x1: ghost.x, dur: (guard - airStart.t) * DT, apex: ghost.apex }); airStart = null; }
         if (!path.length || ghost.x - path[path.length - 1][0] >= 4) path.push([ghost.x, ghost.y, ghost.air]);
@@ -284,7 +301,9 @@
     function placeMotes(seg, gp) {
       if (!seg.P || seg.P.m === 'rest' || seg.kind !== 'hill' || seg.fell || seg.gully) return;
       seg.motes = seg.motes || [];
-      const P = seg.P, n = P.motes, path = gp.path, lantern = 20;
+      // the rider never launches, so orbs sit on the ground path only (skip the ghost's air arc and a landing margin after it)
+      let lastAir = -Infinity;
+      const P = seg.P, n = P.motes, lantern = 20, path = gp.path.filter(p => { if (p[2]) { lastAir = p[0]; return false; } return p[0] - lastAir > 60; }).map(p => [p[0], T.h(p[0]), false]);
       if (path.length < 4) return;
       const along = [0];
       for (let i = 1; i < path.length; i++) along.push(along[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
@@ -365,7 +384,7 @@
           g.high = m !== 'calm' && !approach && ((m === 'wake') || (m === 'flow' && d >= 0.25 && g.idx % 2 === 0) || (m === 'fatigue' && g.idx % 3 === 0) || (plan.kind === 'summit' && plan.hills === 0));
           ghostRun(g);
           chunk(biome(m), g.x0, g.x1);
-          if (!approach && m !== 'calm' && m !== 'rest' && !assist() && d >= (m === 'fatigue' ? 0.6 : 0.4) && (d >= 0.8 ? g.idx % 2 === 0 : !plan.gully)) {
+          if (GULLIES && !approach && m !== 'calm' && m !== 'rest' && !assist() && d >=(m === 'fatigue' ? 0.6 : 0.4) && (d >= 0.8 ? g.idx % 2 === 0 : !plan.gully)) {
             plan.gully = true;
             const w = lerp(60, 140, clamp((d - 0.4) / 0.6, 0, 1));
             const gl = T.add({ kind: 'hill', x0: T.end(), len: w, b0: 0, A: -26, b1: 0, c: 0.5, P, m, gully: true });
@@ -461,7 +480,7 @@
     };
 
     function collect(now, seg) {
-      if (!seg?.motes?.length) return;
+      if (!ORBS || !seg?.motes?.length) return;
       const [lx, ly] = lanternW(), r = AX.radius() * (st.state === 'ride' ? 1 : 1.6);
       for (const m of seg.motes) {
         if (m.got || m.missed) continue;
@@ -632,7 +651,7 @@
 
       if (m === 'fatigue' && st.hill && crestX != null) fatigueBeat(now, ed, P);
 
-      const o = { fever: st.fever > now && m !== 'calm', noLaunch: m === 'calm' || m === 'rest' || nearStation, extra: st.popBonus + (st.kickBoost || 0), vmin: seg?.fell || seg?.summit ? Math.max(P.vmin, 110) : undefined };
+      const o = { fever: st.fever > now && m !== 'calm', noLaunch: true, extra: st.popBonus + (st.kickBoost || 0), vmin: seg?.fell || seg?.summit ? Math.max(P.vmin, 110) : undefined };
       if (rm()) o.cap = (st.hill?.crestH ?? 0) + 120;
       if (nearStation && b.air) o.force = true;
       const steps = Math.max(1, Math.round(dt / DT)), h = dt / steps;
@@ -733,7 +752,7 @@
 
     function pose(now, dt) {
       const ground = !b.air && ['ride', 'arrive'].includes(st.state);
-      const crouchT = st.state === 'ready' ? 1 : (st.state === 'ride' && st.held) ? 1 : st.state === 'core' && st.kindleHeldNow ? 0.3 : 0;
+      const crouchT = 0; // the character no longer crouches when the screen is pressed
       st.crouch = rm() ? ema(st.crouch, crouchT, dt, 0.06) : ema(st.crouch, crouchT, dt, crouchT > st.crouch ? 0.03 : 0.05);
       const spreadT = (st.state === 'ride' || st.state === 'run') && !st.held ? (b.air ? 1 : 0.55 + 0.4 * st.speed01) : 0.1;
       st.spread = ema(st.spread, spreadT, dt, 0.08);
@@ -873,7 +892,12 @@
         } else {
           st.plan.hills = Math.max(0, (p.hills ?? 1) - free.length);
           for (const g of free) g.free = false;
-          if (st.plan.hills === 0) { const g = free[free.length - 1]; g.approach = true; g.b1 = BENCH; g.high = false; }
+          if (st.plan.hills === 0) {
+            const g = free[free.length - 1], h0 = (g.motes || []).map(m => T.h(m.x));
+            g.approach = true; g.b1 = BENCH; g.high = false;
+            // raising the hill's end lifts the ground under its orbs; move them with it so riding still collects them
+            (g.motes || []).forEach((m, i) => { m.y += T.h(m.x) - h0[i]; });
+          }
         }
         gen(b.x + 1400);
       },
@@ -1159,7 +1183,7 @@
         env.glow(ctx, env.fx + 4 * u, fy, 9 * u, COL.glow, 0.25 * st.crouch);
       }
       for (const g of T.segs) {
-        if (!g.motes?.length || X(g.x1) < -40 || X(g.x0) > env.W + 40) continue;
+        if (!ORBS || !g.motes?.length || X(g.x1) < -40 || X(g.x0) > env.W + 40) continue;
         for (const m of g.motes) {
           if (m.got) {
             const p = clamp((now - m.got) / 0.25, 0, 1);
@@ -1230,7 +1254,6 @@
       }
       if (s.auto) return;
       let fa = 0, press = 0;
-      if (s.phase === 'fadein' && now - s.phaseAt > 1 && !A.Input.holding()) { fa = 0.8; press = 1; }
       if (s.phase === 'rest' && !A.Input.holding()) { fa = 0.7; press = 1; }
       const waitFrom = s.phase !== 'walk' ? null : st.state === 'ready' ? st.readyFrom : st.state === 'exit' && !st.exitTap ? st.exitAt : null;
       if (waitFrom != null && now >= waitFrom) { fa = 0.8; press = 0.5 + 0.5 * Math.sin(PI * clamp((now - waitFrom) / 0.9, 0, 1)); }
