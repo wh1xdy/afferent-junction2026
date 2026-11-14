@@ -32,7 +32,7 @@ def _env_bool(name: str, default: bool) -> bool:
 @dataclass
 class Config:
     # Capture
-    camera: str = "0"               # index, /dev/videoN path, or video file
+    camera: str = "0"               # "auto", index, /dev/videoN path, or video file
     width: int = 1920
     height: int = 1080
     fps: int = 30                   # requested camera fps

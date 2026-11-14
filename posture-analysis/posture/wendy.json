@@ -1,0 +1,49 @@
+{
+  "appId": "afferent-posture",
+  "version": "0.1.0",
+  "platform": "linux",
+  "env": {
+    "CAMERA": "auto",
+    "WIDTH": "1280",
+    "HEIGHT": "720",
+    "FPS": "30",
+    "CONTINUOUS_FPS": "5",
+    "BURST_FPS": "15",
+    "DEVICE": "cpu",
+    "POSE_MODEL_PATH": "/opt/posture_models/rtmpose-m_halpe26_ft.onnx",
+    "SITE": "jetson",
+    "EMOTION_ENABLED": "1",
+    "RECORDING_ENABLED": "0",
+    "DATA_MANAGER_URL": "http://127.0.0.1:8100",
+    "DATA_MANAGER_TOKEN": "${DATA_MANAGER_TOKEN}"
+  },
+  "entitlements": [
+    {
+      "type": "network",
+      "mode": "host"
+    },
+    {
+      "type": "http",
+      "port": 8000
+    },
+    {
+      "type": "camera"
+    },
+    {
+      "type": "persist",
+      "name": "afferent-posture",
+      "path": "/data"
+    },
+    {
+      "type": "persist",
+      "name": "afferent-posture-models",
+      "path": "/models"
+    }
+  ],
+  "readiness": {
+    "tcpSocket": {
+      "port": 8000
+    },
+    "timeoutSeconds": 120
+  }
+}
