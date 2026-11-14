@@ -1,0 +1,45 @@
+name: No AI credit
+
+# Commits and pull requests in this repo don't credit AI tools: no AI author, no
+# "Co-Authored-By: Claude …" or "Claude-Session: …" lines, and no "Generated with …" or
+# session links in the PR description. This check fails a pull request that has any of them.
+# Fix a commit with `git commit --amend` (or an interactive rebase on your own branch) and edit
+# the PR description; never rewrite main.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Commits and PR description carry no AI credit
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          git fetch --no-tags origin "$BASE_REF" >/dev/null 2>&1
+          pattern='co-authored-by:.*(claude|anthropic)|claude-session:|generated with \[?claude|claude\.ai/code/session|noreply@anthropic\.com'
+          bad=0
+          for sha in $(git rev-list "origin/$BASE_REF..$HEAD_SHA"); do
+            if git log -1 --format='%an <%ae>%n%cn <%ce>%n%B' "$sha" | grep -qiE "$pattern"; then
+              echo "::error::commit $(git log -1 --format='%h %s' "$sha") credits an AI tool (author, committer or trailer)"
+              bad=1
+            fi
+          done
+          if printf '%s' "$BODY" | grep -qiE "$pattern"; then
+            echo "::error::the pull request description credits an AI tool; remove that line"
+            bad=1
+          fi
+          if [ "$bad" = 0 ]; then echo "No AI credit found."; fi
+          exit "$bad"
