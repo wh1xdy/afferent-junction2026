@@ -170,6 +170,58 @@ def test_websocket_relay(client):
         assert r.json()["sent_to"] == 1
         assert recv_until(app, "profile")["profile"] == "bad_day"
 
+FACE_NUMBERS = ("smile", "gaze_away", "blinks_per_min", "breathing_depth", "arkit_truedepth", "micro", '"face"')
+
+def face_session(sid):
+    doc = new_session(session_id=sid)
+    doc["vitals"]["face"] = {
+        "source": "arkit_truedepth", "seconds_tracked": 96, "smile_share": 0.125,
+        "movement": {"mean": 0.031, "min": 0.012, "max": 0.094, "first": 0.02, "last": 0.027, "samples": 96},
+        "blinks_per_min": 14.4, "gaze_away_share": 0.083,
+        "micro": {"count": 5, "per_min": 3.1, "median_duration_ms": 210,
+                  "by_region": {"brow": 2, "eye": 0, "cheek": 0, "nose": 0, "mouth": 3, "jaw": 0}},
+        "breathing_depth": {"rate_per_min": {"mean": 13.2, "min": 12, "max": 15, "first": 12, "last": 14, "samples": 41},
+                            "seconds": 41},
+    }
+    return doc
+
+def test_face_block_is_kept_with_the_session_and_never_relayed_live(client):
+    # Face numbers reach the patient's home hub only inside the session document. The numbers are test inputs.
+    sid = str(uuid.uuid4())
+    doc = face_session(sid)
+    with client.websocket_connect("/ws/clinic") as clinic, client.websocket_connect("/ws/app?patient=anna") as app:
+        assert clinic.receive_json()["type"] == "hello"
+        app.send_json({"type": "hello", "patient_id": "anna"})
+        recv_until(app, "config")
+        app.send_json({"type": "session_start", "session_id": sid, "patient_id": "anna", "profile": "live", "simulated": False,
+                       "sensors": {}, "t_iso": "2026-11-15T07:41:00+02:00"})
+        recv_until(app, "config")
+        # a live message that wrongly carried face or camera numbers is not passed on to the clinic
+        app.send_json({"type": "live_metrics", "session_id": sid, "patient_id": "anna", "t_ms": 1000,
+                       "face": {"smile_share": 0.2, "blinks_per_min": 12},
+                       "camera_pulse": {"source": "rppg", "bpm": 80, "trust_score": 82}})
+        app.send_json({"type": "session_end", "session": doc})
+        ack = recv_until(app, "ack")
+        assert ack["ok"] and ack["session_id"] == sid, ack
+        seen = []
+        for _ in range(50):
+            msg = clinic.receive_json()
+            seen.append(msg)
+            if msg.get("type") == "analytics_updated" and msg.get("patient_id") == "anna":
+                break
+        assert "session_added" in [m["type"] for m in seen]
+        for msg in seen:
+            text = json.dumps(msg)
+            assert not any(k in text for k in FACE_NUMBERS), (msg["type"], text[:300])
+            assert "rppg" not in text and "trust_score" not in text, (msg["type"], text[:300])
+    stored = client.get(f"/api/sessions/{sid}").json()
+    assert stored["vitals"]["face"] == doc["vitals"]["face"]
+    assert client.post("/api/sessions", json=face_session(sid)).json()["duplicate"] is True
+    for extra in ({"per_second": [{"smile": 0.1}]}, {"blendshapes": [0.1] * 52}, {"mesh": None}):
+        bad = face_session(str(uuid.uuid4()))
+        bad["vitals"]["face"].update(extra)
+        assert client.post("/api/sessions", json=bad).status_code == 422, f"a face block with {list(extra)} is refused"
+
 def checkin_doc(item9, tier, source, total, **over):
     items = {f"phq9_{i}": 1 for i in range(1, 9)} | {"phq9_9": item9}
     doc = {"schema": "afferent.checkin/1", "checkin_id": str(uuid.uuid4()), "patient_id": "anna",

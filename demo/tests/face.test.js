@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
+const vm = require('vm');
 const { load, run, plain, JS } = require('./harness');
 
 const keys = o => Object.keys(o).sort();
@@ -257,6 +258,47 @@ const tests = {
     assert.ok(sent.length > 700, `${sent.length} messages`);
     assert.deepStrictEqual(withFace.map(m => m.type), ['session_end']);
     assert.strictEqual(withFace[0].session.vitals.face.source, 'arkit_truedepth');
+  },
+
+  async 'f2: on the hub socket itself face and camera numbers travel only inside the session document, which holds the summary and nothing per frame'() {
+    const t = load({ face: true, camera: true }), { A, tick, facePlugin: p, cam, ctx } = t, S = A.Sensors;
+    const frames = [];
+    ctx.WebSocket = class { constructor(url) { this.url = url; this.readyState = 1; } send(x) { frames.push(JSON.parse(x)); } close() {} };
+    vm.runInContext(fs.readFileSync(path.join(JS, 'hub.js'), 'utf8'), ctx, { filename: 'hub.js' });
+    assert.strictEqual(A.Hub.connect({ patientId: 'test', url: 'ws://hub.local/ws/app' }), true);
+    A.Hub.ws.onopen();
+    await tracking(t);
+    await A.CamPulse.sync();
+    const pulse = i => ({ source: 'rppg', t_ms: Date.now(), face: true, locked: false, exposure: 'auto', with_eyes: false, reason: null, warmup_s_left: null,
+      bpm: 83, quality: 0.81, trust: { score: 81, label: 'reliable', reasons: [] }, light: { face_luma: 0.47, level: 'ok', iso: null, exposure_ms: 8.3 }, window_s: 10 + i });
+    const s = start(A);
+    A.bus.emit('ws', { type: 'session_start', session_id: s.rec.session_id, patient_id: 'test', profile: 'live', simulated: s.liveMetrics(A.now()).simulated, sensors: s.rec.sensors });
+    let lastLive = -1;
+    run(A, tick, s, 40, () => { if (A.now() - lastLive >= 0.5 - 1e-9) { lastLive = A.now(); A.bus.emit('ws', s.liveMetrics(A.now())); } },
+      i => { p.emit('face', scripted(i)); p.emit('micro', brief()); cam.emit(pulse(i)); });
+    A.bus.emit('ws', { type: 'privacy', patient_id: 'test', sensor: 'phone_camera', on: true });
+    finish(A, s);
+
+    const CAMERA = /rppg|trust_score|trust_label|camera_pulse|face_luma|exposure_ms/;
+    const types = [...new Set(frames.map(m => m.type))];
+    assert.ok(types.includes('hello') && types.includes('session_start') && types.includes('live_metrics') && types.includes('session_end'), types.join());
+    assert.ok(frames.filter(m => m.type === 'live_metrics').length >= 80, 'live messages went out the whole session');
+    const live = frames.filter(m => m.type !== 'session_end');
+    for (const m of live) {
+      const text = JSON.stringify(m);
+      assert.ok(!FACE_DATA.test(text), `face numbers in a live ${m.type}: ${text.slice(0, 300)}`);
+      assert.ok(!CAMERA.test(text), `camera pulse numbers in a live ${m.type}: ${text.slice(0, 300)}`);
+    }
+    const ends = frames.filter(m => m.type === 'session_end');
+    assert.strictEqual(ends.length, 1);
+    const v = ends[0].session.vitals, face = v.face;
+    assert.deepStrictEqual(keys(face), ['blinks_per_min', 'breathing_depth', 'gaze_away_share', 'micro', 'movement', 'seconds_tracked', 'smile_share', 'source']);
+    assert.deepStrictEqual([face.source, face.seconds_tracked, v.camera_pulse.source, v.camera_pulse.pulse_bpm.mean], ['arkit_truedepth', 35, 'rppg', 83]);
+    const arrays = [];
+    (function walk(x, at) { if (Array.isArray(x)) arrays.push(at); else if (x && typeof x === 'object') for (const [k, y] of Object.entries(x)) walk(y, `${at}.${k}`); })(face, 'face');
+    assert.deepStrictEqual(arrays, [], 'no per-second rows or streams in the face block, only the summary');
+    assert.ok(!/blend|mesh|vertic|pixel|image|landmark/i.test(JSON.stringify(ends[0])), 'no blendshapes, mesh, pixels or images anywhere in the document');
+    assert.ok(!('light' in v.camera_pulse) && !('quality' in v.camera_pulse), 'the camera light reading stays on the phone; the session keeps bpm and trust');
   },
 
   async 'g: the Face group on Your signals says where each number comes from and why one is missing'() {
