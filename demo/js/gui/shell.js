@@ -30,6 +30,9 @@
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
     ] },
+    { title: 'Together', rows: [
+      { icon: 'favorite', label: 'Heart Duel', sup: 'Two people, one clip each. A game outside your sessions, nothing is saved', attrs: 'data-duel', chevron: true },
+    ] },
     { title: 'Export to your clinic', hint: 'Only when you show the code. Nobody watches live.', rows: [
       { html: `<div class="seg-row"><div class="seg" id="sharingSeg" role="radiogroup" aria-label="Export to your clinic">
         <button type="button" role="radio" data-v="summary">Summary</button></div></div>` },
