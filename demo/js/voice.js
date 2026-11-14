@@ -1,9 +1,9 @@
 // Voice companion: speech-to-speech conversation with Gemini Live on Vertex AI, with a live transcript.
 // The phone talks to our relay (voice-relay/, on Cloud Run), which holds the Google Cloud identity,
 // the model and the system prompt. Audio goes to Google while a conversation is open; the transcript
-// is kept on this device only.
+// is kept on this device and sent to the home hub over the app link (never to the clinic).
 (() => {
-  const IN_RATE = 16000, OUT_RATE = 24000, KEEP = 20, KEY = 'afferent.voice.relay';
+  const IN_RATE = 16000, OUT_RATE = 24000, KEEP = 20, KEY = 'afferent.voice.relay', OUTBOX = 'afferent.voice.outbox';
 
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -42,6 +42,13 @@
       close() { delete open.user; delete open.agent; },
     };
   };
+
+  // Finished conversations wait here until the hub acks them (checkin.js pattern): pushed on save,
+  // resent on every hub connect, dropped on the matching ack — the transcript itself stays a JSONL
+  // line in the hub's rotating files, it is not a metric.
+  const outbox = () => { try { return JSON.parse(store.get(OUTBOX)) || []; } catch { return []; } };
+  const setOutbox = v => store.set(OUTBOX, JSON.stringify(v.slice(-50)));
+  const flushOutbox = () => outbox().forEach(d => A.bus?.emit('ws', { type: 'transcript', ...d }));
 
   const fail = (code, msg) => Object.assign(new Error(msg || code), { code });
   // Relay address and access code: typed in the app, else baked in at build time (js/voice-config.js, `npm run voiceconfig`).
@@ -154,7 +161,11 @@
     save() {
       const turns = (this.log?.turns || []).map(t => ({ role: t.role, text: t.text.trim() })).filter(t => t.text);
       if (!turns.length) return;
-      store.set(this.histKey(), JSON.stringify([...this.history(), { t_iso: new Date().toISOString(), turns }].slice(-KEEP)));
+      const doc = { transcript_id: A.uuid(), patient_id: A.config?.patientId || 'anna',
+                    t_iso: new Date().toISOString(), turns };
+      store.set(this.histKey(), JSON.stringify([...this.history(), { t_iso: doc.t_iso, turns }].slice(-KEEP)));
+      setOutbox([...outbox().filter(d => d.transcript_id !== doc.transcript_id), doc]);
+      flushOutbox();
     },
     setRelay(url, code) { store.set(KEY, url && code ? JSON.stringify({ url: url.trim(), code: code.trim() }) : null); },
   };
@@ -216,5 +227,7 @@
   };
   el.querySelector('[data-close="voice"]').addEventListener('click', () => V.stop());
   A.bus.on('ws', m => { if (m?.type === 'crisis') V.stop(); });
+  A.Hub?.on?.('connected', on => { if (on) flushOutbox(); });
+  A.Hub?.on?.('ack', d => { if (d?.transcript_id) setOutbox(outbox().filter(x => x.transcript_id !== d.transcript_id)); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) V.stop(); });
 })();

@@ -22,6 +22,9 @@ class Settings:
     team_guard: bool = False
     data_manager_url: str = ""
     data_manager_token: str | None = None
+    transcripts_dir: str = str(HUB / "data" / "transcripts")
+    transcript_file_mb: float = 10.0
+    transcript_total_mb: float = 500.0
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -42,4 +45,7 @@ class Settings:
             team_guard=e.get("AFFERENT_TEAM_GUARD", "0") == "1",
             data_manager_url=e.get("AFFERENT_DATA_MANAGER_URL") or cls.data_manager_url,
             data_manager_token=e.get("AFFERENT_DATA_MANAGER_TOKEN") or None,
+            transcripts_dir=e.get("AFFERENT_TRANSCRIPTS_DIR") or cls.transcripts_dir,
+            transcript_file_mb=float(e.get("AFFERENT_TRANSCRIPT_FILE_MB") or cls.transcript_file_mb),
+            transcript_total_mb=float(e.get("AFFERENT_TRANSCRIPT_TOTAL_MB") or cls.transcript_total_mb),
         )
