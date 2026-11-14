@@ -14,7 +14,7 @@ public class AfferentEyesPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func start(_ call: CAPPluginCall) {
         guard FaceSession.supported else {
-            call.reject("TrueDepth camera not available")
+            call.reject("needs ARKit face tracking")
             return
         }
         DispatchQueue.main.async {
@@ -68,6 +68,5 @@ class AfferentViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AfferentPresencePlugin())
         bridge?.registerPluginInstance(AfferentEyesPlugin())
         bridge?.registerPluginInstance(AfferentPulsePlugin())
-        bridge?.registerPluginInstance(AfferentFacePlugin())
     }
 }

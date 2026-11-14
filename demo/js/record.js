@@ -197,8 +197,8 @@
     const eyesSrc = s.eyesSource;
     const simFields = [];
     const ph = s.physio ? s.physio.summary() : { finger: null, breathing: null, hrv: null, camera_pulse: null, series: null };
-    const measured = ph.finger?.source === 'finger_ppg' || !!ph.camera_pulse;
     const face = s.face?.summary() ?? null;
+    const measured = ph.finger?.source === 'finger_ppg' || !!ph.camera_pulse || !!face;
     if (sig.pulseSources.simulated > 0) {
       simFields.push('signal.pulse_source', 'core.rest.pulse_bpm', 'tasks.pulse', 'pre_post.pulse');
       simFields.push(...(measured ? ['vitals.pulse_mean_bpm', 'vitals.pulse_min_bpm', 'vitals.pulse_max_bpm', 'vitals.pulse_source'] : ['vitals']));

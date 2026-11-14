@@ -1,7 +1,7 @@
 // Shared loader for the node tests: runs the plain browser scripts of demo/js in a vm context with a manual clock.
 // Options: uuid (real random session ids instead of 'test'), finger (a fake Capacitor.Plugins.AfferentFinger), vitals (also load vitals.js),
 // camera (a fake Capacitor.Plugins.AfferentPulse and a document with a `hidden` flag),
-// face (a fake Capacitor.Plugins.AfferentFace, or 'core' for a Capacitor.registerPlugin proxy of a plugin the native side does not have,
+// face (the face half of a fake Capacitor.Plugins.AfferentPulse, or 'core' for a Capacitor.registerPlugin proxy of a plugin the native side does not have,
 // plus a document with `hidden` and visibilitychange so the visibility rule can be tested).
 const fs = require('fs');
 const path = require('path');
@@ -43,12 +43,13 @@ const fakeCamera = () => {
   };
 };
 
-// Same surface as the AfferentFace plugin (ios/App/App/AfferentFace.swift): start() -> { state }, stop(), status() -> { state },
-// events state, face, micro, and the five gaze calibration methods with the native results and reasons.
+// Same surface as the face half of the AfferentPulse plugin (ios/App/App/FaceMeasures.swift): faceStart() -> { state }, faceStop(),
+// faceStatus() -> { state }, events faceState, face, micro, and the five gaze calibration methods with the native results and reasons.
+// The JS method faceStart reaches start() here, faceStop stop() and faceStatus status() (see fakePulse).
 // The native plugin holds calibrationPoint open for hold_ms; this one answers at once. `cal.point` and `cal.fit` script the answers:
 // cal.point = ({ x, y, hold_ms }) => ({ ok, samples, spread_deg, reason }), cal.fit = { ok, gain_x, ..., reason }.
 const fakeFace = () => {
-  const ls = { state: [], face: [], micro: [] };
+  const ls = { faceState: [], face: [], micro: [] };
   const none = { gain_x: null, gain_y: null, offset_x_deg: null, offset_y_deg: null, residual_deg: null };
   return {
     running: false, starts: 0, stops: 0, first: 'starting',
@@ -89,9 +90,23 @@ const fakeFace = () => {
 
 // What @capacitor/core's registerPlugin gives for a name the native side has not registered: every call rejects.
 const unimplemented = () => {
-  const fail = async () => { throw Object.assign(new Error('"AfferentFace" plugin is not implemented on ios'), { code: 'UNIMPLEMENTED' }); };
-  return { calls: 0, addListener() { this.calls++; return fail(); }, start: fail, stop: fail, status: fail,
+  const fail = async () => { throw Object.assign(new Error('"AfferentPulse" plugin is not implemented on ios'), { code: 'UNIMPLEMENTED' }); };
+  return { calls: 0, addListener() { this.calls++; return fail(); }, start: fail, stop: fail, status: fail, faceStart: fail, faceStop: fail, faceStatus: fail,
     calibrationStart: fail, calibrationPoint: fail, calibrationFinish: fail, calibrationStatus: fail, calibrationClear: fail };
+};
+
+// The one AfferentPulse plugin as the native side registers it (ios/App/App/AfferentPulse.swift): the camera pulse half
+// (start, stop, status, event pulse) is a fakeCamera, the face half (faceStart, faceStop, faceStatus, events faceState, face,
+// micro, the calibration methods) a fakeFace. Each half keeps its own counters, as pulse and face start and stop on their own.
+const CALIBRATION = ['calibrationStart', 'calibrationPoint', 'calibrationFinish', 'calibrationStatus', 'calibrationClear'];
+const fakePulse = (cam, face) => {
+  const p = { addListener: async (ev, fn) => { const half = ev === 'pulse' ? cam : face; if (!half) throw new Error(`no listener for ${ev}`); return half.addListener(ev, fn); } };
+  if (cam) Object.assign(p, { start: () => cam.start(), stop: () => cam.stop(), status: () => cam.status() });
+  if (face) {
+    Object.assign(p, { faceStart: () => face.start(), faceStop: () => face.stop(), faceStatus: () => face.status() });
+    for (const m of CALIBRATION) p[m] = o => face[m](o);
+  }
+  return p;
 };
 
 const load = ({ uuid = false, finger = false, camera = false, vitals = false, face = false } = {}) => {
@@ -101,10 +116,10 @@ const load = ({ uuid = false, finger = false, camera = false, vitals = false, fa
   ctx.location = { search: '', protocol: 'file:', pathname: '/' };
   ctx.addEventListener = () => {};
   const plugin = finger ? fakeFinger() : null, cam = camera ? fakeCamera() : null;
-  if (plugin || cam) ctx.Capacitor = { Plugins: { ...(plugin ? { AfferentFinger: plugin } : {}), ...(cam ? { AfferentPulse: cam } : {}) } };
   const facePlugin = face === 'core' ? unimplemented() : face ? fakeFace() : null, docListeners = {};
+  const pulse = cam || (facePlugin && face !== 'core') ? fakePulse(cam, face === 'core' ? null : facePlugin) : null;
+  if (plugin || pulse) ctx.Capacitor = { Plugins: { ...(plugin ? { AfferentFinger: plugin } : {}), ...(pulse ? { AfferentPulse: pulse } : {}) } };
   if (face === 'core') ctx.Capacitor = { ...ctx.Capacitor, registerPlugin: () => facePlugin };
-  else if (facePlugin) ctx.Capacitor = { ...ctx.Capacitor, Plugins: { ...ctx.Capacitor?.Plugins, AfferentFace: facePlugin } };
   if (face) ctx.document = { hidden: false, getElementById: () => null, addEventListener: (t, f) => (docListeners[t] = docListeners[t] || []).push(f) };
   vm.createContext(ctx);
   const run = f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f });

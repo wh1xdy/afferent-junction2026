@@ -1,4 +1,5 @@
 import ARKit
+import AVFoundation
 
 enum FaceUser: Hashable { case eyes, pulse, face }
 
@@ -12,7 +13,10 @@ enum FaceUser: Hashable { case eyes, pulse, face }
 /// held).
 final class FaceSession: NSObject, ARSessionDelegate {
     static let shared = FaceSession()
+    /// ARKit face tracking, which A12 and later have with or without a TrueDepth camera.
     static var supported: Bool { ARFaceTrackingConfiguration.isSupported }
+    /// The front camera is a TrueDepth camera. The face measures need it; eyes and pulse do not.
+    static var trueDepth: Bool { AVCaptureDevice.default(.builtInTrueDepthCamera, for: .video, position: .front) != nil }
 
     typealias FrameSink = (ARFrame, ARFaceAnchor?) -> Void
     typealias AnchorSink = (ARSession, [ARAnchor]) -> Void

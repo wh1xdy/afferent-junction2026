@@ -619,7 +619,7 @@ const tests = {
       const ls = {};
       return {
         starts: 0, stops: 0, fail: false,
-        async start() { if (this.fail) throw new Error('TrueDepth camera not available'); this.starts++; },
+        async start() { if (this.fail) throw new Error('needs ARKit face tracking'); this.starts++; },
         async stop() { this.stops++; },
         async addListener(ev, fn) { (ls[ev] = ls[ev] || []).push(fn); return { remove() { ls[ev] = ls[ev].filter(f => f !== fn); } }; },
         emit(ev, d) { (ls[ev] || []).forEach(f => f(d)); },
@@ -639,7 +639,7 @@ const tests = {
     assert.strictEqual(eyes.stops, 1);
 
     eyes.fail = true;
-    await assert.rejects(() => S.startCamera(), /TrueDepth/);
+    await assert.rejects(() => S.startCamera(), /ARKit face tracking/);
     assert.deepStrictEqual([eyes.starts, pulse.starts, S.camera(), S.source], [1, 0, false, 'simulated'], 'no fallback capture: main.js switches the game to touch');
     S.enabled.simulator = false;
     assert.deepStrictEqual([S.pulse(A.now()).bpm, S.realProducer(A.now())], [null, false], 'never the pulse the game uses');
@@ -653,7 +653,18 @@ const tests = {
     assert.deepStrictEqual(where(/ARSession\(\)/), ['FaceSession.swift'], 'one ARKit session for eyes, pulse and face');
     assert.deepStrictEqual(where(/AVCaptureSession\(|AVCaptureVideoDataOutput|VNDetectFaceLandmarksRequest/), [], 'no second camera capture next to it');
     const reg = swift.find(([f]) => f === 'AfferentEyes.swift')[1].match(/registerPluginInstance\((\w+)\(\)\)/g).map(x => x.slice(23, -3));
-    assert.deepStrictEqual(reg, ['AfferentFingerPlugin', 'AfferentPresencePlugin', 'AfferentEyesPlugin', 'AfferentPulsePlugin', 'AfferentFacePlugin']);
+    assert.deepStrictEqual(reg, ['AfferentFingerPlugin', 'AfferentPresencePlugin', 'AfferentEyesPlugin', 'AfferentPulsePlugin'], 'main\'s four plugins, no second camera plugin');
+    assert.deepStrictEqual(where(/CAPBridgedPlugin/).sort(), ['AfferentEyes.swift', 'AfferentFinger.swift', 'AfferentPresence.swift', 'AfferentPulse.swift']);
+    const pulseSwift = swift.find(([f]) => f === 'AfferentPulse.swift')[1];
+    const methods = [...pulseSwift.matchAll(/CAPPluginMethod\(name: "(\w+)"/g)].map(m => m[1]);
+    assert.deepStrictEqual(methods, ['start', 'stop', 'status', 'faceStart', 'faceStop', 'faceStatus',
+      'calibrationStart', 'calibrationPoint', 'calibrationFinish', 'calibrationStatus', 'calibrationClear'], 'pulse, face measures and calibration on the one plugin');
+    for (const m of methods) assert.ok(new RegExp(`@objc func ${m}\\(_ call: CAPPluginCall\\)`).test(pulseSwift), `${m} has no @objc func`);
+    const faceSwift = swift.find(([f]) => f === 'FaceMeasures.swift')[1];
+    assert.deepStrictEqual([...faceSwift.matchAll(/notifyListeners\("(\w+)"/g)].map(m => m[1]).sort(), ['face', 'faceState', 'micro']);
+    assert.ok(/FaceSession\.supported, FaceSession\.trueDepth/.test(faceSwift), 'face measures only with a TrueDepth camera');
+    const fake = load({ camera: true, face: true }).ctx.Capacitor.Plugins.AfferentPulse;
+    assert.deepStrictEqual(Object.keys(fake).filter(k => k !== 'addListener').sort(), [...methods].sort(), 'the test fake has the native surface');
     const pbx = fs.readFileSync(path.join(IOS, '..', 'App.xcodeproj', 'project.pbxproj'), 'utf8');
     for (const f of swift.map(([f]) => f)) assert.ok(pbx.includes(`/* ${f} in Sources */`), `${f} is not in the App target`);
     for (const gone of ['AfferentVision.swift', 'VisionEyes.swift', 'PulseCamera.swift', 'ScreenLight.swift']) assert.ok(!pbx.includes(gone), `${gone} is still in the project`);
@@ -662,8 +673,8 @@ const tests = {
     const calls = web.filter(([, t]) => /feedNativePulse\(/.test(t)).map(([f]) => f).sort();
     assert.deepStrictEqual(calls, ['campulse.js', 'sensors.js'], 'feedNativePulse is defined in sensors.js and called from campulse.js only');
     assert.strictEqual((web.find(([f]) => f === 'sensors.js')[1].match(/feedNativePulse\(/g) || []).length, 1, 'sensors.js only defines it');
-    assert.deepStrictEqual(web.filter(([, t]) => /['"]AfferentPulse['"]/.test(t)).map(([f]) => f), ['campulse.js'], 'one place looks the plugin up');
-    assert.deepStrictEqual(web.filter(([, t]) => /AfferentVision/.test(t)).map(([f]) => f), []);
+    assert.deepStrictEqual(web.filter(([, t]) => /['"]AfferentPulse['"]/.test(t)).map(([f]) => f).sort(), ['campulse.js', 'face.js'], 'the pulse and the face measures look up the same plugin');
+    assert.deepStrictEqual(web.filter(([, t]) => /AfferentVision|AfferentFace\b/.test(t)).map(([f]) => f), []);
   },
 
   async 't: feedNativePulse takes the plugin\'s payload (source, bpm, quality, trust, light) and makes nothing up'() {

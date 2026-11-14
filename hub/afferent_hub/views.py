@@ -86,7 +86,14 @@ def _get(d, *path, default=None):
         d = d.get(k)
     return default if d is None else d
 
+def without_face(s: dict | None) -> dict | None:
+    v = (s or {}).get("vitals")
+    if not isinstance(v, dict) or "face" not in v:
+        return s
+    return {**s, "vitals": {k: x for k, x in v.items() if k != "face"}}
+
 def compact_session(s: dict) -> dict:
+    s = without_face(s)
     return {
         "session_id": s["session_id"], "day_index": s.get("day_index"), "started_iso": s.get("started_iso"),
         "status": s.get("status"), "profile": s.get("profile"), "simulated": s.get("simulated"),

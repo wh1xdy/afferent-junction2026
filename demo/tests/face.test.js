@@ -1,6 +1,6 @@
 // Run: node demo/tests/face.test.js
 // The face measures from the phone camera (demo/js/face.js, the face part of sensors.js, record.js and vitals.js) against a fake
-// AfferentFace plugin with the contract's surface. All numbers are test inputs, not measurements.
+// AfferentPulse plugin (its face half) with the contract's surface. All numbers are test inputs, not measurements.
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
@@ -13,7 +13,7 @@ const brief = (o = {}) => ({ t_ms: Date.now(), duration_ms: 180, region: 'mouth'
 const start = A => A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });
 const finish = (A, s) => { let doc = null; A.bus.on('sessionEnd', d => { doc = d; }); s.finish('partial'); return plain(doc); };
 const lines = g => plain(g).rows.map(r => [r.label, r.value, ...r.lines]);
-const tracking = async t => { await t.A.Face.sync(); t.facePlugin.emit('state', { state: 'tracking' }); };
+const tracking = async t => { await t.A.Face.sync(); t.facePlugin.emit('faceState', { state: 'tracking' }); };
 const warnings = async fn => {
   const real = console.warn, seen = [];
   console.warn = (...a) => seen.push(a.join(' '));
@@ -70,17 +70,17 @@ const tests = {
     assert.deepStrictEqual([p.starts, p.count('face'), S.faceState], [0, 0, 'off']);
     A.config.sensors.phone_camera = true; S.enabled.phone_camera = true;
     await F.sync();
-    assert.deepStrictEqual([p.running, p.count('state'), p.count('face'), p.count('micro'), S.faceState], [true, 1, 1, 1, 'starting']);
+    assert.deepStrictEqual([p.running, p.count('faceState'), p.count('face'), p.count('micro'), S.faceState], [true, 1, 1, 1, 'starting']);
     await F.sync();
     assert.strictEqual(p.starts, 1, 'sync is idempotent');
-    p.emit('state', { state: 'tracking' });
+    p.emit('faceState', { state: 'tracking' });
     assert.strictEqual(S.faceState, 'tracking');
     p.emit('face', sec());
     assert.strictEqual(S.faceLog.length, 1);
 
     ctx.document.hidden = true;
     await t.fire('visibilitychange');
-    assert.deepStrictEqual([p.running, p.stops, p.count('state'), p.count('face'), p.count('micro'), S.faceState], [false, 1, 0, 0, 0, 'off']);
+    assert.deepStrictEqual([p.running, p.stops, p.count('faceState'), p.count('face'), p.count('micro'), S.faceState], [false, 1, 0, 0, 0, 'off']);
     assert.strictEqual(S.faceLog.length, 0, 'the live window is emptied when the camera stops');
     await F.sync();
     assert.strictEqual(p.starts, 1, 'a hidden app does not start the camera');
@@ -88,10 +88,10 @@ const tests = {
     await t.fire('visibilitychange');
     assert.deepStrictEqual([p.running, p.starts, S.faceState], [true, 2, 'starting']);
 
-    for (const state of ['no_face', 'tracking', 'denied']) { p.emit('state', { state }); assert.strictEqual(S.faceState, state); }
-    p.emit('state', { state: 'cheerful' });
+    for (const state of ['no_face', 'tracking', 'denied']) { p.emit('faceState', { state }); assert.strictEqual(S.faceState, state); }
+    p.emit('faceState', { state: 'cheerful' });
     assert.strictEqual(S.faceState, 'unavailable', 'a state outside the contract is not shown as anything');
-    p.emit('state', { state: 'tracking' });
+    p.emit('faceState', { state: 'tracking' });
 
     A.config.sensors.phone_camera = false; S.enabled.phone_camera = false;
     await F.sync();
@@ -100,7 +100,7 @@ const tests = {
 
   async 'b2: a state told while starting is not overwritten by the start result; no TrueDepth camera is final'() {
     let t = load({ face: true }), p = t.facePlugin, S = t.A.Sensors, F = t.A.Face;
-    p.start = async function () { this.running = true; this.starts++; this.emit('state', { state: 'tracking' }); return { state: 'starting' }; };
+    p.start = async function () { this.running = true; this.starts++; this.emit('faceState', { state: 'tracking' }); return { state: 'starting' }; };
     await F.sync();
     assert.strictEqual(S.faceState, 'tracking');
 
@@ -205,6 +205,23 @@ const tests = {
     p.emit('face', sec());
     assert.strictEqual(s.face.rows.length, 40, 'an event after the session is not added to it');
     assert.deepStrictEqual([v.breathing, v.finger], [null, null], 'camera breathing is its own block, not the finger-derived one');
+  },
+
+  async 'e3: a measured face block is never covered by a simulated pulse, with no finger clip and no camera pulse'() {
+    const t = load({ face: true }), { A, tick, facePlugin: p } = t;
+    assert.strictEqual(A.Sensors.enabled.simulator, true);
+    await tracking(t);
+    const s = start(A);
+    run(A, tick, s, 40, null, i => p.emit('face', scripted(i)));
+    const doc = finish(A, s), v = doc.vitals;
+    assert.deepStrictEqual([v.pulse_source, v.finger, v.camera_pulse, v.face.seconds_tracked], ['simulated', null, null, 35]);
+    const vf = doc.simulated_fields.filter(f => f === 'vitals' || f.startsWith('vitals.'));
+    assert.deepStrictEqual(vf, ['vitals.pulse_mean_bpm', 'vitals.pulse_min_bpm', 'vitals.pulse_max_bpm', 'vitals.pulse_source'], 'only the simulated pulse keys are listed');
+    assert.strictEqual(doc.simulated, true, 'the session still says it holds simulated numbers');
+
+    const bare = load({ face: true }), b = start(bare.A);
+    run(bare.A, bare.tick, b, 10, null, () => {});
+    assert.ok(finish(bare.A, b).simulated_fields.includes('vitals'), 'without a face block a simulated pulse still covers vitals as before');
   },
 
   async 'e2: below 30 tracked seconds shares and rates are null; without a tracked second so are the counts'() {
@@ -314,14 +331,14 @@ const tests = {
     A.config.sensors.phone_camera = true; S.enabled.phone_camera = true;
     await A.Face.sync();
     assert.deepStrictEqual(lines(group()), all('Starting the camera'));
-    p.emit('state', { state: 'denied' });
+    p.emit('faceState', { state: 'denied' });
     assert.deepStrictEqual(lines(group()), [[CAM, null, 'Camera access is off for Afferent in Settings']]);
-    p.emit('state', { state: 'no_face' });
+    p.emit('faceState', { state: 'no_face' });
     assert.deepStrictEqual(lines(group()), all('No reading right now'));
     p.emit('face', sec({ tracked: false }));
     assert.deepStrictEqual(lines(group()), all('The camera does not see your face right now'));
 
-    p.emit('state', { state: 'tracking' });
+    p.emit('faceState', { state: 'tracking' });
     for (let i = 0; i < 10; i++) { p.emit('face', scripted(i)); tick(1); }
     p.emit('face', scripted(10));
     const waiting = all('Takes about half a minute with your face in view');
@@ -368,7 +385,7 @@ const tests = {
     await A.Face.sync(); grab();
     A.config.sensors.phone_camera = true; S.enabled.phone_camera = true;
     await A.Face.sync(); grab();
-    for (const state of ['denied', 'no_face', 'tracking']) { p.emit('state', { state }); grab(); }
+    for (const state of ['denied', 'no_face', 'tracking']) { p.emit('faceState', { state }); grab(); }
     for (let i = 0; i < 40; i++) { p.emit('face', scripted(i)); for (const region of S.FACE.REGIONS) p.emit('micro', brief({ region })); grab(); tick(1); }
     p.emit('face', sec({ tracked: false })); grab();
     tick(4); grab();
@@ -378,32 +395,32 @@ const tests = {
     assert.strictEqual(text.match(/\b(hrv|high|low|normal|abnormal|elevated|healthy|unhealthy|good|bad|poor|calm|anxious|tense|relaxed|worried|risk|alert|warning|stress\w*|screen\w*)\b/gi), null);
   },
 
-  async 'i: the fake plugin answers the gaze calibration calls like the native one'() {
-    const { facePlugin: p } = load({ face: true });
+  async 'i: the fake plugin answers the gaze calibration calls like the native one, on AfferentPulse'() {
+    const t = load({ face: true }), p = t.ctx.Capacitor.Plugins.AfferentPulse, half = t.facePlugin;
     const none = { gain_x: null, gain_y: null, offset_x_deg: null, offset_y_deg: null, residual_deg: null };
     assert.deepStrictEqual(await p.calibrationStatus(), { calibrated: false, at_ms: null, residual_deg: null });
     assert.deepStrictEqual(await p.calibrationPoint({ x: 0.5, y: 0.5, hold_ms: 1000 }), { ok: false, samples: 0, spread_deg: null, reason: 'not_started' });
     assert.deepStrictEqual(await p.calibrationFinish(), { ok: false, ...none, samples: 0, points: 0, reason: 'not_started' });
     assert.deepStrictEqual(keys(await p.calibrationStart()), ['density', 'screen_h_cm', 'screen_w_cm']);
-    assert.strictEqual((await p.calibrationPoint({ x: 0.5, y: 0.5 })).reason, 'not_running', 'no frames before start()');
-    await p.start();
+    assert.strictEqual((await p.calibrationPoint({ x: 0.5, y: 0.5 })).reason, 'not_running', 'no frames before faceStart()');
+    await p.faceStart();
     await assert.rejects(p.calibrationPoint({ x: 1.2, y: 0.5 }), e => e.code === 'bad_point');
     const dots = [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]];
     for (const [x, y] of dots.slice(0, 4)) assert.deepStrictEqual(await p.calibrationPoint({ x, y, hold_ms: 1000 }), { ok: true, samples: 60, spread_deg: 0.4, reason: null });
-    p.cal.point = () => ({ ok: false, samples: 55, spread_deg: 4.2, reason: 'unsteady' });
+    half.cal.point = () => ({ ok: false, samples: 55, spread_deg: 4.2, reason: 'unsteady' });
     assert.strictEqual((await p.calibrationPoint({ x: 0.1, y: 0.9 })).reason, 'unsteady');
     assert.deepStrictEqual(await p.calibrationFinish(), { ok: false, ...none, samples: 0, points: 4, reason: 'too_few_points' });
     assert.strictEqual((await p.calibrationStatus()).calibrated, false, 'a run that ended without a fit stores nothing');
 
-    p.cal.point = null;
+    half.cal.point = null;
     await p.calibrationStart();
     for (const [x, y] of dots) await p.calibrationPoint({ x, y, hold_ms: 800 });
-    p.cal.fit = { ok: false, gain_x: 0.5, gain_y: 3.1, offset_x_deg: 2, offset_y_deg: -4, residual_deg: 6.5, reason: 'poor_fit' };
+    half.cal.fit = { ok: false, gain_x: 0.5, gain_y: 3.1, offset_x_deg: 2, offset_y_deg: -4, residual_deg: 6.5, reason: 'poor_fit' };
     const rejected = await p.calibrationFinish();
     assert.deepStrictEqual([rejected.ok, rejected.reason, rejected.residual_deg, rejected.points, rejected.samples], [false, 'poor_fit', 6.5, 5, 240]);
     assert.strictEqual((await p.calibrationStatus()).calibrated, false, 'a fit that is not ok is not stored');
 
-    p.cal.fit = null;
+    half.cal.fit = null;
     await p.calibrationStart();
     for (const [x, y] of dots) await p.calibrationPoint({ x, y });
     const fit = await p.calibrationFinish();

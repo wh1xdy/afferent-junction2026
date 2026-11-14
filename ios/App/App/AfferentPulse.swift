@@ -36,6 +36,11 @@ import Capacitor
 ///
 /// Per frame, on the session's frame queue: 20 times a second the skin patches are read from the
 /// frame's pixel buffer inside the call. No frame, buffer or mesh is kept or passed on.
+///
+/// The same plugin carries the face measures and the gaze calibration, so the app has one camera
+/// plugin: faceStart, faceStop, faceStatus, the events "faceState", "face" and "micro", and
+/// calibrationStart, calibrationPoint, calibrationFinish, calibrationStatus, calibrationClear.
+/// They are documented in FaceMeasures.swift. Pulse and face measures start and stop on their own.
 @objc(AfferentPulsePlugin)
 public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AfferentPulsePlugin"
@@ -44,7 +49,17 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "faceStart", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "faceStop", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "faceStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "calibrationStart", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "calibrationPoint", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "calibrationFinish", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "calibrationStatus", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "calibrationClear", returnType: CAPPluginReturnPromise),
     ]
+
+    private lazy var face = FaceMeasures(plugin: self)
 
     private static let settleS = 2.8
     private static let badLightS = 5
@@ -78,7 +93,7 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func start(_ call: CAPPluginCall) {
         guard #available(iOS 16.0, *), FaceSession.supported else {
-            call.reject("needs iOS 16 and a TrueDepth camera", "unsupported")
+            call.reject("needs iOS 16 and ARKit face tracking", "unsupported")
             return
         }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -137,6 +152,15 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
             ])
         }
     }
+
+    @objc func faceStart(_ call: CAPPluginCall) { face.start(call) }
+    @objc func faceStop(_ call: CAPPluginCall) { face.stop(call) }
+    @objc func faceStatus(_ call: CAPPluginCall) { face.status(call) }
+    @objc func calibrationStart(_ call: CAPPluginCall) { face.calibrationStart(call) }
+    @objc func calibrationPoint(_ call: CAPPluginCall) { face.calibrationPoint(call) }
+    @objc func calibrationFinish(_ call: CAPPluginCall) { face.calibrationFinish(call) }
+    @objc func calibrationStatus(_ call: CAPPluginCall) { face.calibrationStatus(call) }
+    @objc func calibrationClear(_ call: CAPPluginCall) { face.calibrationClear(call) }
 
     private static func exposureWord(locked: Bool, auto: Bool) -> String {
         locked ? "locked" : auto ? "auto" : "settling"

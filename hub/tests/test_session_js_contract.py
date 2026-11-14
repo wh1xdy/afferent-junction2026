@@ -5,7 +5,7 @@ The phone track ships demo/tests/emit_session.js, which prints one JSON object
 {signal, vitals, simulated, simulated_fields} produced by demo/js/record.js fed with finger_ppg frames.
 Until that file exists (or when node is missing) this test skips.
 
-With the argument `face` the emitter also feeds a fake AfferentFace plugin, so the optional vitals.face block
+With the argument `face` the emitter also feeds the face half of a fake AfferentPulse plugin, so the optional vitals.face block
 (face measures from the phone's TrueDepth camera) is checked the same way.
 """
 import json

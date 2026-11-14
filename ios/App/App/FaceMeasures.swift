@@ -6,7 +6,7 @@ import UIKit
 import FaceCore
 #endif
 
-// Gaze calibration, the five methods the web layer calls (Capacitor.Plugins.AfferentFace):
+// Gaze calibration, five methods of the AfferentPulse plugin (Capacitor.Plugins.AfferentPulse):
 //
 //   calibrationStart() -> { screen_w_cm, screen_h_cm, density: 'model' | 'scale' }
 //     Begins a run and forgets the dots of an earlier one. Reads the screen from the device
@@ -20,7 +20,7 @@ import FaceCore
 //     the dot has been on screen long enough for the eyes to arrive; no lead-in is skipped.
 //     samples: tracked frames in the hold. spread_deg: how far the eye angles scattered, RMS
 //     degrees, null without samples. A dot that is not ok adds nothing and can be shown again.
-//     reason: null | 'not_started' | 'not_running' (start() has not been called, no frames) |
+//     reason: null | 'not_started' | 'not_running' (faceStart() has not been called, no frames) |
 //             'busy' (the previous dot is still held) | 'no_face' | 'too_few_samples' (under 20)
 //             | 'unsteady' (spread over 3 degrees).
 //     Rejects with code 'bad_point' when x or y is not a number in 0..1.
@@ -42,16 +42,17 @@ import FaceCore
 //   calibrationClear() -> {}
 //     Removes the stored fit; the gain is 1 again.
 //
-// The measures need start(); calibration only collects while they run.
+// The measures need faceStart(); calibration only collects while they run.
 
-/// Face measures from the TrueDepth camera, for the web layer.
+/// Face measures from the TrueDepth camera. Not a plugin of its own: the AfferentPulse plugin
+/// owns one of these and hands its calls on, so the app has one camera plugin.
 ///
-/// JS: Capacitor.Plugins.AfferentFace
-///   start()  -> {state}     begins a session: baselines start over
-///   stop()   -> {}
-///   status() -> {state}
+/// JS: Capacitor.Plugins.AfferentPulse
+///   faceStart()  -> {state}     begins the measures: baselines start over
+///   faceStop()   -> {}
+///   faceStatus() -> {state}
 ///   state: 'off' | 'starting' | 'tracking' | 'no_face' | 'unavailable' (no TrueDepth camera) | 'denied'
-///   event "state": {state}                                              on every change
+///   event "faceState": {state}                                          on every change
 ///   event "face", once per second while started:
 ///     {t_ms, tracked, smile: 0..1|null, movement: >=0|null, blinks: Int, gaze_away: 0..1|null,
 ///      distance_cm: Number|null, breathing_per_min: Number|null, breathing_snr: Number|null}
@@ -59,29 +60,21 @@ import FaceCore
 ///     {t_ms, duration_ms, region: 'brow'|'eye'|'cheek'|'nose'|'mouth'|'jaw', peak: 0..1}
 ///   t_ms = wall clock, ms since 1970: the end of the second ("face"), the start of the movement ("micro").
 ///
-/// Rules this plugin keeps (the measures themselves: ios/App/FaceCore, ported from ios/Afferent):
+/// Rules this class keeps (the measures themselves: ios/App/FaceCore, ported from ios/Afferent):
 ///  - It owns no camera. The app has one ARKit face-tracking session (FaceSession); its
-///    delegate hands every frame to `ingest(frame:anchor:)` while this plugin is started.
+///    delegate hands every frame to `ingest(frame:anchor:)` while the measures are started.
+///  - It needs a TrueDepth camera. ARKit tracks faces without one on A12 and later, but the
+///    session document says `arkit_truedepth`, so without one the state is 'unavailable'.
 ///  - Of a frame it reads 52 blendshape coefficients and four transforms, inside `ingest`, and
 ///    keeps neither the frame nor the face mesh nor a pixel. Only the numbers above leave it,
 ///    and only to the web layer on this phone.
 ///  - A measure says what the face did (smiling, facial movement, blinks, looking away, a brief
 ///    movement and where on the face). It names no feeling and draws no conclusion.
-///  - No value is null, never 0: a second without a tracked face has `tracked: false` and nulls.
-@objc(AfferentFacePlugin)
-public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
-    public let identifier = "AfferentFacePlugin"
-    public let jsName = "AfferentFace"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "calibrationStart", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "calibrationPoint", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "calibrationFinish", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "calibrationStatus", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "calibrationClear", returnType: CAPPluginReturnPromise),
-    ]
+///  - A missing value is null, never 0: a second without a tracked face has `tracked: false` and nulls.
+final class FaceMeasures {
+    private weak var plugin: CAPPlugin?
+
+    init(plugin: CAPPlugin) { self.plugin = plugin }
 
     /// Where the per-person gaze fit is kept (FaceGazeCalibration as JSON), the reference
     /// app's key. Without it the gaze gain is 1, and "at the screen" is still the person's own
@@ -110,10 +103,10 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
     private var holdFrom: TimeInterval = 0
     private var holdUntil: TimeInterval = 0
 
-    // MARK: - Plugin methods
+    // MARK: - Plugin methods (AfferentPulse hands these on)
 
-    @objc func start(_ call: CAPPluginCall) {
-        guard FaceSession.supported else {
+    func start(_ call: CAPPluginCall) {
+        guard FaceSession.supported, FaceSession.trueDepth else {
             set(state: "unavailable")
             call.resolve(["state": "unavailable"])
             return
@@ -130,7 +123,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func stop(_ call: CAPPluginCall) {
+    func stop(_ call: CAPPluginCall) {
         lock.lock()
         let wasRunning = running
         running = false
@@ -148,7 +141,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func status(_ call: CAPPluginCall) {
+    func status(_ call: CAPPluginCall) {
         call.resolve(["state": currentState()])
     }
 
@@ -182,8 +175,8 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
 
     // MARK: - Gaze calibration
 
-    @objc func calibrationStart(_ call: CAPPluginCall) {
-        guard FaceSession.supported else {
+    func calibrationStart(_ call: CAPPluginCall) {
+        guard FaceSession.supported, FaceSession.trueDepth else {
             call.reject("needs a TrueDepth camera", "unavailable")
             return
         }
@@ -207,7 +200,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func calibrationPoint(_ call: CAPPluginCall) {
+    func calibrationPoint(_ call: CAPPluginCall) {
         guard let x = call.getDouble("x"), let y = call.getDouble("y"), (0...1).contains(x), (0...1).contains(y) else {
             call.reject("x and y are 0 to 1 of the page", "bad_point")
             return
@@ -233,7 +226,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func calibrationFinish(_ call: CAPPluginCall) {
+    func calibrationFinish(_ call: CAPPluginCall) {
         queue.async {
             guard self.holdCall == nil else {
                 call.resolve(FaceCalibrationResult(ok: false, calibration: nil, points: self.calibrator?.points ?? 0, reason: .busy).dictionary)
@@ -254,7 +247,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @objc func calibrationStatus(_ call: CAPPluginCall) {
+    func calibrationStatus(_ call: CAPPluginCall) {
         let fit = Self.storedCalibration()
         call.resolve([
             "calibrated": fit != nil,
@@ -263,7 +256,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         ])
     }
 
-    @objc func calibrationClear(_ call: CAPPluginCall) {
+    func calibrationClear(_ call: CAPPluginCall) {
         UserDefaults.standard.removeObject(forKey: Self.calibrationKey)
         queue.async {
             self.aggregator.gazeCalibration = .identity
@@ -295,7 +288,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
     ///    in the fitted offset, not in the gain;
     ///  - orientation and the page's viewport: from the window scene and the web view's frame.
     private func screen() -> (geometry: FaceScreenGeometry, orientation: FaceScreenOrientation, viewport: CGRect, density: FaceScreenDensity.Source)? {
-        guard let web = webView, let window = web.window, window.bounds.width > 0, window.bounds.height > 0 else { return nil }
+        guard let web = plugin?.webView, let window = web.window, window.bounds.width > 0, window.bounds.height > 0 else { return nil }
         let ui = window.windowScene?.screen ?? UIScreen.main
         let density = FaceScreenDensity.pixelsPerInch(model: Self.model(), nativeScale: Double(ui.nativeScale),
                                                       pad: UIDevice.current.userInterfaceIdiom == .pad)
@@ -333,8 +326,8 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
 
     /// Called by the app's one ARKit session (FaceSession) for every frame, face or no face, on
     /// its frame queue. It copies 52 numbers and four transforms out of the frame and returns;
-    /// the work happens on this plugin's own queue. The frame and the anchor are not kept.
-    public func ingest(frame: ARFrame, anchor: ARFaceAnchor?) {
+    /// the work happens on this class's own queue. The frame and the anchor are not kept.
+    func ingest(frame: ARFrame, anchor: ARFaceAnchor?) {
         lock.lock()
         let on = running
         lock.unlock()
@@ -369,10 +362,10 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         }
         let out = aggregator.ingest(f)
         if out.isEmpty { return }
-        for m in out.micro { notifyListeners("micro", data: m.dictionary) }
+        for m in out.micro { plugin?.notifyListeners("micro", data: m.dictionary) }
         if let face = out.face {
             set(state: face.tracked ? "tracking" : "no_face")
-            notifyListeners("face", data: face.dictionary)
+            plugin?.notifyListeners("face", data: face.dictionary)
         }
     }
 
@@ -405,7 +398,7 @@ public class AfferentFacePlugin: CAPPlugin, CAPBridgedPlugin {
         let changed = state != newState
         state = newState
         lock.unlock()
-        if changed { notifyListeners("state", data: ["state": newState]) }
+        if changed { plugin?.notifyListeners("faceState", data: ["state": newState]) }
     }
 
     private static func storedCalibration() -> FaceGazeCalibration? {

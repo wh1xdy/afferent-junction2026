@@ -214,13 +214,35 @@ def test_face_block_is_kept_with_the_session_and_never_relayed_live(client):
             text = json.dumps(msg)
             assert not any(k in text for k in FACE_NUMBERS), (msg["type"], text[:300])
             assert "rppg" not in text and "trust_score" not in text, (msg["type"], text[:300])
-    stored = client.get(f"/api/sessions/{sid}").json()
+    stored = client.app.state.hub.store.session(sid)
     assert stored["vitals"]["face"] == doc["vitals"]["face"]
     assert client.post("/api/sessions", json=face_session(sid)).json()["duplicate"] is True
     for extra in ({"per_second": [{"smile": 0.1}]}, {"blendshapes": [0.1] * 52}, {"mesh": None}):
         bad = face_session(str(uuid.uuid4()))
         bad["vitals"]["face"].update(extra)
         assert client.post("/api/sessions", json=bad).status_code == 422, f"a face block with {list(extra)} is refused"
+
+def test_face_numbers_stay_on_the_hub_and_leave_it_only_in_the_qr_body(client):
+    # The hub is the patient's. The clinic page, the session route and the clinic export do not carry the face block;
+    # it is kept in the store, where the QR body is built from. The numbers are test inputs.
+    import io, zipfile
+    sid = str(uuid.uuid4())
+    doc = face_session(sid)
+    assert client.post("/api/sessions", json=doc).status_code == 200
+    assert client.app.state.hub.store.session(sid)["vitals"]["face"] == doc["vitals"]["face"]
+    d = client.get("/api/patients/anna").json()
+    row = next(s for s in d["sessions"] if s["session_id"] == sid)
+    assert "face" not in row["vitals"] and row["vitals"]["pulse_mean_bpm"] == doc["vitals"]["pulse_mean_bpm"]
+    assert d["latest_session"]["session_id"] == sid and "face" not in d["latest_session"]["vitals"]
+    one = client.get(f"/api/sessions/{sid}").json()
+    assert "face" not in one["vitals"] and one["vitals"]["pulse_source"] == doc["vitals"]["pulse_source"]
+    z = zipfile.ZipFile(io.BytesIO(client.get("/api/patients/anna/export").content))
+    rows = [json.loads(line) for line in z.read("sessions.ndjson").decode().splitlines()]
+    mine = next(r for r in rows if r["session_id"] == sid)
+    assert "face" not in mine["vitals"] and not any("face" in (r.get("vitals") or {}) for r in rows)
+    for text in (json.dumps(d), json.dumps(one), z.read("sessions.ndjson").decode()):
+        assert not any(k in text for k in FACE_NUMBERS)
+    assert client.app.state.hub.store.session(sid)["vitals"]["face"] == doc["vitals"]["face"], "the stored document is not changed"
 
 def checkin_doc(item9, tier, source, total, **over):
     items = {f"phq9_{i}": 1 for i in range(1, 9)} | {"phq9_9": item9}

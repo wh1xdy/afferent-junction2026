@@ -2,7 +2,7 @@
 // Prints {signal, vitals, simulated, simulated_fields} of a session document made by the real recorder (record.js through engine.js),
 // so the contract tests can validate what the phone really writes. Nothing else goes to stdout.
 // The numbers fed here (pulse 72, fingers 71 and 73, breathing 6, RMSSD 46, quality 0.6) are test inputs, not measurements.
-// With the argument `face` a fake AfferentFace plugin also sends one reading per second and a few brief facial movements
+// With the argument `face` the face half of a fake AfferentPulse plugin also sends one reading per second and a few brief facial movements
 // (smile 0.08 or 0.01, movement 0.03, a blink every fifth second, camera breathing 12): test inputs as well.
 const { load, run } = require('./harness');
 
@@ -22,7 +22,7 @@ const feed = i => {
 };
 
 (async () => {
-  if (face) { await A.Face.sync(); facePlugin.emit('state', { state: 'tracking' }); }
+  if (face) { await A.Face.sync(); facePlugin.emit('faceState', { state: 'tracking' }); }
   S.setFingerLink('connected', 'Afferent Finger');
   feed(); tick(1); feed();
   const s = A.startSession({ clock: 'morning', input: 'touch', stage: true, profile: 'live' });

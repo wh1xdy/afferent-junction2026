@@ -25,7 +25,7 @@
 		AE0000000000000000000205 /* AfferentPulseGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000105 /* AfferentPulseGate.swift */; };
 		AE0000000000000000000209 /* FacePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000109 /* FacePulse.swift */; };
 		AE000000000000000000020A /* FaceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010A /* FaceSession.swift */; };
-		AE000000000000000000020B /* AfferentFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010B /* AfferentFace.swift */; };
+		AE000000000000000000020B /* FaceMeasures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010B /* FaceMeasures.swift */; };
 		AE0000000000000000000400 /* FaceCore in Frameworks */ = {isa = PBXBuildFile; productRef = AE0000000000000000000401 /* FaceCore */; };
 /* End PBXBuildFile section */
 
@@ -50,7 +50,7 @@
 		AE0000000000000000000105 /* AfferentPulseGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPulseGate.swift; sourceTree = "<group>"; };
 		AE0000000000000000000109 /* FacePulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FacePulse.swift; path = ../Afferent/FacePulse.swift; sourceTree = SOURCE_ROOT; };
 		AE000000000000000000010A /* FaceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceSession.swift; sourceTree = "<group>"; };
-		AE000000000000000000010B /* AfferentFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentFace.swift; sourceTree = "<group>"; };
+		AE000000000000000000010B /* FaceMeasures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceMeasures.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,7 +91,7 @@
 				AE0000000000000000000100 /* AfferentPulse.swift */,
 				AE0000000000000000000105 /* AfferentPulseGate.swift */,
 				AE000000000000000000010A /* FaceSession.swift */,
-				AE000000000000000000010B /* AfferentFace.swift */,
+				AE000000000000000000010B /* FaceMeasures.swift */,
 				AE0000000000000000000300 /* Shared */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -211,7 +211,7 @@
 				AE0000000000000000000205 /* AfferentPulseGate.swift in Sources */,
 				AE0000000000000000000209 /* FacePulse.swift in Sources */,
 				AE000000000000000000020A /* FaceSession.swift in Sources */,
-				AE000000000000000000020B /* AfferentFace.swift in Sources */,
+				AE000000000000000000020B /* FaceMeasures.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
