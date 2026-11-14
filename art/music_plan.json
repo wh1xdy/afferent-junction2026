@@ -18,17 +18,17 @@
       "id": "G1",
       "track": "Kaamos",
       "mode": "kaamos",
-      "style": "dark ambient drone, polar night, instrumental, 60 BPM, D, open fifth D and A, low bowed strings and soft organ pad, sustained tones only, no melody, slow breathing swells, cold still air, wide stereo, very quiet, soft dynamics, intimate, no build-ups",
+      "style": "dark ambient drone, polar night, instrumental, 70 BPM, D, open fifth D and A, low bowed strings and soft organ pad, sustained tones only, no melody, slow breathing swells, cold still air, wide stereo, very quiet, soft dynamics, intimate, no build-ups",
       "exclude": "vocals, drums, piano, bells",
       "length": "2:00",
-      "key": "D (open fifth, no third)",
-      "tempo": 60,
+      "key": "D minor",
+      "tempo": 70,
       "meter": "4/4",
-      "beatless": true,
+      "beatless": false,
       "instrumental": true,
       "pick": "40 s in the middle with no audible note onset and no third",
       "files": [
-        { "file": "mu_kaamos_pad.m4a", "channels": 2, "loop_bars": 8, "loop_s": 32.0 }
+        { "file": "mu_kaamos_pad.m4a", "channels": 2, "loop_bars": 51, "loop_s": 174.86 }
       ]
     },
     {
@@ -53,18 +53,18 @@
       "id": "G3",
       "track": "Flow, birch forest",
       "mode": "flow",
-      "style": "gentle Nordic folk ambient, birch forest at night, instrumental, 66 BPM, D major pentatonic, plucked kantele arpeggios, felt piano, soft string pad, warm and hopeful, light and playful, steady tempo, indie game soundtrack, close-miked, soft dynamics, intimate, no build-ups",
+      "style": "gentle Nordic folk ambient, birch forest at night, instrumental, 100 BPM, D major pentatonic, plucked kantele arpeggios, felt piano, soft string pad, warm and hopeful, light and playful, steady tempo, indie game soundtrack, close-miked, soft dynamics, intimate, no build-ups",
       "exclude": "vocals, drums, electric guitar, cymbals",
       "length": "2:30",
-      "key": "D major pentatonic",
-      "tempo": 66,
+      "key": "D minor",
+      "tempo": 100,
       "meter": "4/4",
       "instrumental": true,
       "stems": "auto_split",
       "pick": "a steady 16-bar stretch with no fill, drop or key change, arpeggio clearly apart from the pad",
       "files": [
-        { "file": "mu_flow_pad.m4a", "channels": 2, "loop_bars": 16, "loop_s": 58.18, "stems": "strings, synth, bass, FX" },
-        { "file": "mu_flow_motion.m4a", "channels": 1, "loop_bars": 16, "loop_s": 58.18, "stems": "guitar, percussion, keyboard arpeggio" }
+        { "file": "mu_flow_pad.m4a", "channels": 2, "loop_bars": 64, "loop_s": 153.6, "stems": "strings, synth, bass, FX" },
+        { "file": "mu_flow_motion.m4a", "channels": 1, "loop_bars": 64, "loop_s": 153.6, "stems": "guitar, percussion, keyboard arpeggio" }
       ]
     },
     {
@@ -175,17 +175,17 @@
       "id": "G10",
       "track": "Dawn",
       "mode": "dawn",
-      "style": "cinematic ambient sunrise, instrumental, 66 BPM, D major, begins with a quiet shimmering sustained D chord that slowly rises, warm string pads swell, then blooms into a full warm D major chord with kantele and felt piano sparkle, long glowing fade, hopeful Nordic spring morning, soft dynamics",
+      "style": "cinematic ambient sunrise, instrumental, 90 BPM, D major, begins with a quiet shimmering sustained D chord that slowly rises, warm string pads swell, then blooms into a full warm D major chord with kantele and felt piano sparkle, long glowing fade, hopeful Nordic spring morning, soft dynamics",
       "exclude": "vocals, drums, choir",
       "length": "1:30",
       "key": "D major",
-      "tempo": 66,
+      "tempo": 90,
       "meter": "4/4",
       "instrumental": false,
       "lyrics": "[Intro]\n[Soft shimmer, sustained D chord]\n[Slow swell]\n[Build]\n[Bloom: full warm major chord]\n[Outro: long glowing fade]\n[End]",
       "pick": "an even swell of at least 12 s and one clear bloom with a long tail",
       "files": [
-        { "file": "mu_dawn_rise.m4a", "channels": 2, "loop_bars": null, "loop_s": 12.0, "cut": "from the swell" },
+        { "file": "mu_dawn_rise.m4a", "channels": 2, "loop_bars": 4, "loop_s": 10.67, "cut": "from the swell" },
         { "file": "mu_dawn_bloom.m4a", "channels": 2, "one_shot_s": 32.0, "hit_s": 0.5, "target_lufs": -18, "cut": "from 0.5 s before the bloom chord" }
       ]
     },

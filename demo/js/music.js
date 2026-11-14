@@ -2,7 +2,7 @@
   const Au = A.Audio;
   const DB = d => Math.pow(10, d / 20);
   const R = Math.random;
-  const TEMPO = { kaamos: [60, 4], calm: [54, 3], flow: [66, 4], wake: [76, 4], fatigue: [84, 4], rest: [50, 4], dawn: [66, 4] };
+  const TEMPO = { kaamos: [70, 4], calm: [54, 3], flow: [100, 4], wake: [76, 4], fatigue: [84, 4], rest: [50, 4], dawn: [90, 4] };
   const BEAT_MODES = new Set(['flow', 'wake', 'fatigue']);
   const CORE = new Set(['fadein', 'rest', 'checkin', 'rt']);
   const LIGHT = [5500, 7500, 9500, 11000], DAWN_LIGHT = 16000;

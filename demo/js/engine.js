@@ -435,7 +435,8 @@
         V.fogDrift = m === 'calm' || m === 'rest' ? 0.5 : 1 + k;
         V.sparkle = ema(V.sparkle, m === 'wake' ? 0.3 + 0.5 * k : 0, dt, 1);
         V.border = ema(V.border, m === 'fatigue' && !this.night ? 0.25 : 0.1, dt, 1.5);
-        if (this.phase !== 'dawn' && this.phase !== 'end') Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
+        const fileBed = A.Music?.bed && !A.Music.bed.procedural;
+        if (this.phase !== 'dawn' && this.phase !== 'end' && !fileBed) Au.tick(cfg.tempo + (m === 'wake' ? 20 * k : 0), cfg.density, m !== 'calm' && m !== 'rest');
       },
 
       sample(now, dt, p, f) {
