@@ -1,0 +1,337 @@
+{
+ "now_day": 56,
+ "date": "2026-11-15",
+ "simulated": true,
+ "patients": [
+  {
+   "id": "anna",
+   "display_name": "Anna",
+   "kind": "relapse",
+   "simulated": true,
+   "day_index": 56,
+   "weeks_since_tms": 8.0,
+   "state": "booster",
+   "state_label": "Consider discussing a booster session",
+   "state_since_day": 45,
+   "composite": 2.453,
+   "composite_trend_7d": 0.237,
+   "cusum": 28.34,
+   "top_contributors": [
+    {
+     "key": "rt_median",
+     "label": "Reaction time",
+     "contribution": 0.529
+    },
+    {
+     "key": "sleep_regularity",
+     "label": "Sleep regularity",
+     "contribution": 0.353
+    },
+    {
+     "key": "missed_sessions",
+     "label": "Missed sessions (7 d)",
+     "contribution": 0.292
+    }
+   ],
+   "last_session_day": 56,
+   "last_session_iso": "2026-11-15T07:46:00+02:00",
+   "live_now": false,
+   "missed_7d": 1,
+   "completeness": 1.0,
+   "confidence": "high",
+   "sparkline": [
+    1.74,
+    1.84,
+    1.93,
+    2.08,
+    2.22,
+    2.2,
+    2.22,
+    2.27,
+    2.28,
+    2.39,
+    2.44,
+    2.5,
+    2.54,
+    2.45
+   ],
+   "flags": [],
+   "need_rank": 1
+  },
+  {
+   "id": "juha",
+   "display_name": "Juha",
+   "kind": "relapse",
+   "simulated": true,
+   "day_index": 56,
+   "weeks_since_tms": 8.0,
+   "state": "check_in",
+   "state_label": "Consider a check-in call",
+   "state_since_day": 55,
+   "composite": 2.027,
+   "composite_trend_7d": 1.107,
+   "cusum": 5.26,
+   "top_contributors": [
+    {
+     "key": "rt_median",
+     "label": "Reaction time",
+     "contribution": 0.461
+    },
+    {
+     "key": "sleep_regularity",
+     "label": "Sleep regularity",
+     "contribution": 0.282
+    },
+    {
+     "key": "mood",
+     "label": "Mood check-in",
+     "contribution": 0.262
+    }
+   ],
+   "last_session_day": 56,
+   "last_session_iso": "2026-11-15T07:46:00+02:00",
+   "live_now": false,
+   "missed_7d": 2,
+   "completeness": 1.0,
+   "confidence": "high",
+   "sparkline": [
+    0.7,
+    0.41,
+    0.34,
+    0.51,
+    0.58,
+    0.76,
+    0.92,
+    0.67,
+    0.9,
+    0.95,
+    1.04,
+    1.02,
+    1.38,
+    2.03
+   ],
+   "flags": [],
+   "need_rank": 2
+  },
+  {
+   "id": "mikko",
+   "display_name": "Mikko",
+   "kind": "stable",
+   "simulated": true,
+   "day_index": 56,
+   "weeks_since_tms": 8.0,
+   "state": "stable",
+   "state_label": "Stable",
+   "state_since_day": 0,
+   "composite": 0.076,
+   "composite_trend_7d": 0.098,
+   "cusum": 0.0,
+   "top_contributors": [
+    {
+     "key": "mood",
+     "label": "Mood check-in",
+     "contribution": 0.273
+    },
+    {
+     "key": "sleep_regularity",
+     "label": "Sleep regularity",
+     "contribution": 0.065
+    },
+    {
+     "key": "upright_frac",
+     "label": "Upright time in play",
+     "contribution": 0.039
+    }
+   ],
+   "last_session_day": 56,
+   "last_session_iso": "2026-11-15T07:46:00+02:00",
+   "live_now": false,
+   "missed_7d": 0,
+   "completeness": 1.0,
+   "confidence": "high",
+   "sparkline": [
+    0.07,
+    0.09,
+    0.08,
+    -0.15,
+    -0.17,
+    0.01,
+    -0.02,
+    0.08,
+    0.0,
+    -0.03,
+    0.1,
+    0.04,
+    0.04,
+    0.08
+   ],
+   "flags": [],
+   "need_rank": 3
+  },
+  {
+   "id": "leena",
+   "display_name": "Leena",
+   "kind": "stable",
+   "simulated": true,
+   "day_index": 56,
+   "weeks_since_tms": 8.0,
+   "state": "stable",
+   "state_label": "Stable",
+   "state_since_day": 0,
+   "composite": -0.065,
+   "composite_trend_7d": -0.433,
+   "cusum": 0.0,
+   "top_contributors": [
+    {
+     "key": "home_only_days",
+     "label": "Home-only days (7 d)",
+     "contribution": 0.239
+    },
+    {
+     "key": "morning_pulse",
+     "label": "Morning resting pulse",
+     "contribution": 0.085
+    },
+    {
+     "key": "sleep_regularity",
+     "label": "Sleep regularity",
+     "contribution": 0.018
+    }
+   ],
+   "last_session_day": 56,
+   "last_session_iso": "2026-11-15T07:46:00+02:00",
+   "live_now": false,
+   "missed_7d": 0,
+   "completeness": 1.0,
+   "confidence": "high",
+   "sparkline": [
+    0.14,
+    0.23,
+    0.11,
+    0.15,
+    0.14,
+    0.32,
+    0.37,
+    0.48,
+    0.39,
+    0.38,
+    0.32,
+    0.04,
+    0.16,
+    -0.07
+   ],
+   "flags": [],
+   "need_rank": 4
+  },
+  {
+   "id": "eero",
+   "display_name": "Eero",
+   "kind": "stable",
+   "simulated": true,
+   "day_index": 56,
+   "weeks_since_tms": 8.0,
+   "state": "stable",
+   "state_label": "Stable",
+   "state_since_day": 0,
+   "composite": -0.189,
+   "composite_trend_7d": 0.17,
+   "cusum": 0.0,
+   "top_contributors": [
+    {
+     "key": "sleep_regularity",
+     "label": "Sleep regularity",
+     "contribution": 0.055
+    },
+    {
+     "key": "home_only_days",
+     "label": "Home-only days (7 d)",
+     "contribution": 0.051
+    },
+    {
+     "key": "mood",
+     "label": "Mood check-in",
+     "contribution": 0.045
+    }
+   ],
+   "last_session_day": 56,
+   "last_session_iso": "2026-11-15T07:46:00+02:00",
+   "live_now": false,
+   "missed_7d": 1,
+   "completeness": 1.0,
+   "confidence": "high",
+   "sparkline": [
+    -0.05,
+    -0.09,
+    -0.17,
+    -0.22,
+    -0.18,
+    -0.28,
+    -0.36,
+    -0.54,
+    -0.47,
+    -0.51,
+    -0.46,
+    -0.28,
+    -0.14,
+    -0.19
+   ],
+   "flags": [],
+   "need_rank": 5
+  },
+  {
+   "id": "sofia",
+   "display_name": "Sofia",
+   "kind": "stable",
+   "simulated": true,
+   "day_index": 56,
+   "weeks_since_tms": 8.0,
+   "state": "stable",
+   "state_label": "Stable",
+   "state_since_day": 0,
+   "composite": -0.275,
+   "composite_trend_7d": -0.022,
+   "cusum": 0.0,
+   "top_contributors": [
+    {
+     "key": "missed_sessions",
+     "label": "Missed sessions (7 d)",
+     "contribution": 0.081
+    },
+    {
+     "key": "morning_pulse",
+     "label": "Morning resting pulse",
+     "contribution": 0.04
+    },
+    {
+     "key": "sleep_regularity",
+     "label": "Sleep regularity",
+     "contribution": 0.036
+    }
+   ],
+   "last_session_day": 56,
+   "last_session_iso": "2026-11-15T07:46:00+02:00",
+   "live_now": false,
+   "missed_7d": 1,
+   "completeness": 1.0,
+   "confidence": "high",
+   "sparkline": [
+    -0.41,
+    -0.32,
+    -0.23,
+    -0.26,
+    -0.26,
+    -0.17,
+    -0.25,
+    0.05,
+    0.13,
+    0.21,
+    0.13,
+    -0.0,
+    -0.01,
+    -0.28
+   ],
+   "flags": [],
+   "need_rank": 6
+  }
+ ]
+}

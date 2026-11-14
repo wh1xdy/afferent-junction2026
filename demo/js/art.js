@@ -1,11 +1,20 @@
 (() => {
   const store = {};
 
-  function prepare(img) {
+  const feather = (x, w, h) => {
+    x.globalCompositeOperation = 'destination-in';
+    const g = x.createLinearGradient(0, 0, w, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.18, 'rgba(0,0,0,1)'); g.addColorStop(0.82, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    x.globalCompositeOperation = 'source-over';
+  };
+
+  function prepare(img, name) {
     const c = document.createElement('canvas');
     c.width = img.naturalWidth; c.height = img.naturalHeight;
     const x = c.getContext('2d', { willReadFrequently: true });
     x.drawImage(img, 0, 0);
+    if (name.startsWith('fog')) feather(x, c.width, c.height);
     const d = x.getImageData(0, 0, c.width, c.height).data;
     let x0 = c.width, y0 = c.height, x1 = 0, y1 = 0;
     for (let y = 0; y < c.height; y += 2) for (let i = 0; i < c.width; i += 2) {
@@ -35,7 +44,7 @@
       try { names = await (await fetch(base + 'manifest.json')).json(); } catch { return; }
       await Promise.all(names.map(n => new Promise(res => {
         const img = new Image();
-        img.onload = () => { try { const a = prepare(img); if (a) store[n] = a; } catch {} res(); };
+        img.onload = () => { try { const a = prepare(img, n); if (a) store[n] = a; } catch {} res(); };
         img.onerror = res;
         img.src = base + n + '.png';
       })));

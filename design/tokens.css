@@ -1,0 +1,247 @@
+@font-face {
+  font-family: "Fraunces";
+  src: url("fonts/Fraunces-latin.woff2") format("woff2");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("fonts/Fraunces-latin-ext.woff2") format("woff2");
+  font-weight: 300 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/Inter-latin.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/Inter-latin-ext.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/JetBrainsMono-latin.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("fonts/JetBrainsMono-latin-ext.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  --af-night-950: #05070F;
+  --af-night-900: #070A14;
+  --af-night-850: #0A0E1C;
+  --af-night-800: #0D1326;
+  --af-night-700: #131B36;
+  --af-night-600: #1C2548;
+  --af-night-500: #28335E;
+  --af-violet-800: #1E1838;
+  --af-violet-700: #2A2350;
+  --af-violet-600: #3C3170;
+  --af-violet-500: #5B4B8A;
+  --af-violet-300: #9C8AD6;
+  --af-violet-200: #B79CFF;
+  --af-silver-050: #F3F6FA;
+  --af-silver-100: #E8EEF5;
+  --af-silver-200: #CBD6E2;
+  --af-silver-300: #B9CAD6;
+  --af-silver-400: #93A3B8;
+  --af-silver-500: #7D8DA0;
+  --af-silver-600: #5D6B80;
+  --af-silver-700: #46546A;
+  --af-aurora-green: #5FE3A1;
+  --af-aurora-green-deep: #2FA37A;
+  --af-aurora-teal: #4FC3D9;
+  --af-aurora-teal-deep: #2A8FA6;
+  --af-aurora-ice: #7FC8E8;
+  --af-lantern-amber: #F2B544;
+  --af-lantern-amber-deep: #D98E2B;
+  --af-lantern-glow: #FFD9A0;
+  --af-lantern-warm: #FFC98A;
+  --af-lantern-flame: #F2E6C9;
+  --af-dawn-coral: #FF8A70;
+  --af-dawn-coral-soft: #F49D6E;
+  --af-dawn-gold: #FFD27A;
+  --af-dawn-sun: #FFE8B8;
+  --af-dawn-sky: #9FC3E0;
+  --af-dawn-peach: #F7C59F;
+  --af-dawn-daylight: #FFF3DC;
+  --af-mode-calm: #F2B544;
+  --af-mode-flow: #B9CAD6;
+  --af-mode-wake: #7FC8E8;
+  --af-mode-fatigue: #FFF3DC;
+  --af-mode-rest: #5E6873;
+  --af-mode-measure: #B79CFF;
+  --af-state-stable: #4FC3D9;
+  --af-state-watch: #FFD27A;
+  --af-state-check-in: #F2B544;
+  --af-state-booster: #FF8A70;
+  --af-mood-1: #34476E;
+  --af-mood-1-glow: 0.35;
+  --af-mood-2: #5A7CA6;
+  --af-mood-2-glow: 0.5;
+  --af-mood-3: #A9A79A;
+  --af-mood-3-glow: 0.65;
+  --af-mood-4: #E8B867;
+  --af-mood-4-glow: 0.82;
+  --af-mood-5: #FFCB5C;
+  --af-mood-5-glow: 1.0;
+  --af-clinic-bg: #070A14;
+  --af-clinic-bg-raised: #0B1020;
+  --af-clinic-surface: #0F1529;
+  --af-clinic-surface-2: #151D38;
+  --af-clinic-surface-hover: #1A2344;
+  --af-clinic-border: rgba(185, 202, 214, 0.10);
+  --af-clinic-border-strong: rgba(185, 202, 214, 0.22);
+  --af-clinic-text: #E8EEF5;
+  --af-clinic-text-muted: #93A3B8;
+  --af-clinic-text-faint: #5D6B80;
+  --af-clinic-baseline-band: rgba(185, 202, 214, 0.10);
+  --af-clinic-baseline-line: rgba(185, 202, 214, 0.35);
+  --af-clinic-line-primary: #FFD9A0;
+  --af-clinic-line-primary-glow: rgba(255, 217, 160, 0.45);
+  --af-clinic-line-secondary: #4FC3D9;
+  --af-clinic-grid: rgba(185, 202, 214, 0.06);
+  --af-clinic-simulated-badge-bg: rgba(183, 156, 255, 0.14);
+  --af-clinic-simulated-badge-text: #B79CFF;
+  --af-clinic-focus: #FFD9A0;
+  --af-patient-bg: #0A0E1C;
+  --af-patient-surface: rgba(13, 19, 38, 0.62);
+  --af-patient-text: #F2E6C9;
+  --af-patient-text-muted: #B9CAD6;
+  --af-patient-accent: #FFD9A0;
+  --af-world-night-grey-sky-top: #14161B;
+  --af-world-night-grey-sky-bottom: #2A2E36;
+  --af-world-night-grey-land: #3A3E46;
+  --af-world-night-grey-accent: #F2E6C9;
+  --af-world-warm-yellow-sky-top: #14161B;
+  --af-world-warm-yellow-sky-bottom: #2C2C30;
+  --af-world-warm-yellow-land: #E8E1D2;
+  --af-world-warm-yellow-accent: #F2B544;
+  --af-world-blue-sky-top: #10304D;
+  --af-world-blue-sky-bottom: #2A5C80;
+  --af-world-blue-land: #7FC8E8;
+  --af-world-blue-accent: #3A7CA5;
+  --af-world-green-sky-top: #0F2233;
+  --af-world-green-sky-bottom: #1E3A44;
+  --af-world-green-land: #2F4A48;
+  --af-world-green-accent: #5FE3A1;
+  --af-world-dawn-sky-top: #9FC3E0;
+  --af-world-dawn-sky-bottom: #F7C59F;
+  --af-world-dawn-land: #6E7F5A;
+  --af-world-dawn-accent: #FFE8B8;
+  --af-font-display: "Fraunces", "Iowan Old Style", "Palatino", Georgia, serif;
+  --af-font-ui: "Inter", -apple-system, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  --af-font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --af-text-2xs: 0.6875rem;
+  --af-text-xs: 0.75rem;
+  --af-text-sm: 0.8125rem;
+  --af-text-base: 0.9375rem;
+  --af-text-md: 1.0625rem;
+  --af-text-lg: 1.25rem;
+  --af-text-xl: 1.5rem;
+  --af-text-2xl: 2rem;
+  --af-text-3xl: 2.75rem;
+  --af-text-4xl: 3.75rem;
+  --af-leading-tight: 1.15;
+  --af-leading-base: 1.5;
+  --af-tracking-caps: 0.08em;
+  --af-weight-light: 300;
+  --af-weight-regular: 400;
+  --af-weight-medium: 500;
+  --af-weight-semibold: 600;
+  --af-space-0: 0;
+  --af-space-1: 4px;
+  --af-space-2: 8px;
+  --af-space-3: 12px;
+  --af-space-4: 16px;
+  --af-space-5: 24px;
+  --af-space-6: 32px;
+  --af-space-7: 48px;
+  --af-space-8: 64px;
+  --af-space-9: 96px;
+  --af-radius-sm: 6px;
+  --af-radius-md: 12px;
+  --af-radius-lg: 18px;
+  --af-radius-xl: 22px;
+  --af-radius-pill: 999px;
+  --af-shadow-panel: 0 1px 0 rgba(232, 238, 245, 0.04) inset, 0 18px 40px rgba(2, 4, 10, 0.45);
+  --af-shadow-glow-amber: 0 0 24px rgba(255, 217, 160, 0.35);
+  --af-shadow-glow-teal: 0 0 24px rgba(79, 195, 217, 0.30);
+  --af-ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --af-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --af-ease-breath: cubic-bezier(0.45, 0, 0.55, 1);
+  --af-dur-fast: 180ms;
+  --af-dur-base: 320ms;
+  --af-dur-slow: 800ms;
+  --af-dur-fade: 2000ms;
+  --af-dur-colour-return: 4000ms;
+  --af-dur-dawn: 4000ms;
+  --af-dur-mode-style: 2000ms;
+  --af-breath-in: 4000ms;
+  --af-breath-out: 6000ms;
+  --af-lantern-pulse: 1000ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --af-dur-fast: 0ms;
+    --af-dur-base: 0ms;
+    --af-dur-slow: 200ms;
+    --af-reduced-motion: 1;
+  }
+}
+
+.af-num {
+  font-family: var(--af-font-ui);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "cv11" 1;
+}
+
+.af-caps {
+  font-size: var(--af-text-2xs);
+  letter-spacing: var(--af-tracking-caps);
+  text-transform: uppercase;
+  font-weight: var(--af-weight-semibold);
+}
+
+.af-simulated {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--af-radius-pill);
+  background: var(--af-clinic-simulated-badge-bg);
+  color: var(--af-clinic-simulated-badge-text);
+  font-family: var(--af-font-ui);
+  font-size: var(--af-text-2xs);
+  font-weight: var(--af-weight-semibold);
+  letter-spacing: var(--af-tracking-caps);
+  text-transform: uppercase;
+  line-height: 1.6;
+}

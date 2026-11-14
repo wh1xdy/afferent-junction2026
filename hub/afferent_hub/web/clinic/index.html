@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afferent Clinic</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23070A14'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23F2B544'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/design/tokens.css">
+<link rel="stylesheet" href="clinic.css">
+</head>
+<body>
+<div class="sky" aria-hidden="true"></div>
+<header class="topbar">
+  <a class="brand" href="#/">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">Afferent</span>
+    <span class="brand-sub">Clinic</span>
+  </a>
+  <nav class="tabs" aria-label="Sections">
+    <a href="#/" data-tab="patients">Patients</a>
+    <a href="#/validation" data-tab="validation">Validation</a>
+  </nav>
+  <div class="topbar-right">
+    <span class="today af-num" id="today"></span>
+    <span class="conn" id="conn" data-state="connecting"><i></i><span>Connecting</span></span>
+    <span class="af-simulated" id="global-sim" hidden>Simulated data</span>
+    <div class="demo-menu">
+      <button class="ghost-btn" id="demo-btn" aria-haspopup="true" aria-expanded="false">Demo</button>
+      <div class="demo-pop" id="demo-pop" hidden>
+        <div class="af-caps">Send profile to Anna's phone</div>
+        <button data-profile="good_day">Good day</button>
+        <button data-profile="bad_day">Bad day</button>
+        <button data-profile="live">Live sensors</button>
+        <hr>
+        <button data-action="reset">Reset demo data</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main id="view" class="view" tabindex="-1"></main>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script src="charts.js"></script>
+<script src="views.js"></script>
+<script src="clinic.js"></script>
+</body>
+</html>

@@ -1,13 +1,11 @@
 (() => {
-  const { clamp } = A;
-
   const Pointer = A.Pointer = { down: false, x: 0, y: 0, key: false };
 
   const Eyes = A.Eyes = {
-    closed: false, closedAt: 0, raw: 0, baseline: 0.1, threshold: 0.5, samples: [], closures: [], tracked: true,
+    closed: false, closedAt: 0, raw: 0, baseline: 0.1, threshold: 0.5, samples: [], closures: [], blinks: [], log: [], tracked: true,
 
-    reset() { Object.assign(this, { closed: false, raw: 0, samples: [], closures: [] }); },
-    setBaseline(open) { this.baseline = open; this.threshold = Math.min(0.75, open + 0.35); },
+    reset() { Object.assign(this, { closed: false, raw: 0, baseline: 0.1, threshold: 0.5, samples: [], closures: [], blinks: [], log: [] }); },
+    setBaseline(closedness) { this.baseline = closedness; this.threshold = Math.min(0.75, closedness + 0.35); },
 
     feed(now, value, tracked = true) {
       this.raw = value; this.tracked = tracked;
@@ -15,11 +13,14 @@
       if (closed && !this.closed) { this.closed = true; this.closedAt = now; }
       if (!closed && this.closed) {
         this.closed = false;
-        if (now - this.closedAt > 0.5) this.closures.push({ t: now, dur: now - this.closedAt });
+        const dur = now - this.closedAt;
+        if (dur > 0.5) { this.closures.push({ t: now, dur }); this.log.push({ t: now, dur }); }
+        else if (dur >= 0.05) this.blinks.push(now);
       }
       this.samples.push([now, closed ? 1 : 0]);
       while (this.samples.length && this.samples[0][0] < now - 20) this.samples.shift();
       while (this.closures.length && this.closures[0].t < now - 20) this.closures.shift();
+      while (this.blinks.length && this.blinks[0] < now - 60) this.blinks.shift();
     },
 
     perclos() { return this.samples.length ? this.samples.reduce((a, s) => a + s[1], 0) / this.samples.length : 0; },
@@ -57,54 +58,9 @@
     holding() { return Pointer.down || Pointer.key; },
 
     update(now, dt) {
-      if (this.mode === 'camera' && A.Camera.ready) {
-        const v = A.Camera.poll();
-        if (v !== null) Eyes.feed(now, v.blink, v.tracked);
-      } else {
-        A.Sim.eyes(now, dt);
-      }
-    },
-  };
-
-  A.Camera = {
-    ready: false, video: null, landmarker: null, lastT: -1, last: null, native: null, nativeAt: 0, backend: null,
-
-    async start() {
-      const cap = window.Capacitor;
-      if (cap?.isNativePlatform?.()) {
-        this.plugin = cap.registerPlugin('AfferentEyes');
-        await this.plugin.start();
-        this.plugin.addListener('eyes', d => { this.native = d; this.nativeAt = A.now(); });
-        this.backend = 'arkit'; this.ready = true;
-        return;
-      }
-      const v = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
-      const fileset = await v.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
-      this.landmarker = await v.FaceLandmarker.createFromOptions(fileset, {
-        baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate: 'GPU' },
-        runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true,
-      });
-      this.video = document.createElement('video');
-      this.video.playsInline = true; this.video.muted = true;
-      this.video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
-      await this.video.play();
-      this.backend = 'mediapipe'; this.ready = true;
-    },
-
-    stop() { this.plugin?.stop(); this.video?.srcObject?.getTracks().forEach(t => t.stop()); this.ready = false; },
-
-    poll() {
-      if (this.backend === 'arkit') {
-        const d = this.native;
-        if (!d || A.now() - this.nativeAt > 0.5) return { blink: 0, tracked: false };
-        return { blink: clamp((d.blink_l + d.blink_r) / 2, 0, 1), tracked: d.tracked };
-      }
-      if (this.video.currentTime === this.lastT) return this.last;
-      this.lastT = this.video.currentTime;
-      const bs = this.landmarker.detectForVideo(this.video, performance.now()).faceBlendshapes?.[0]?.categories;
-      if (!bs) return (this.last = { blink: 0, tracked: false });
-      const get = n => bs.find(c => c.categoryName === n)?.score ?? 0;
-      return (this.last = { blink: clamp((get('eyeBlinkLeft') + get('eyeBlinkRight')) / 2, 0, 1), tracked: true });
+      const f = A.Sensors.read(now, dt);
+      if (f && f.tracked && f.eye_openness !== null) Eyes.feed(now, 1 - f.eye_openness, true);
+      else Eyes.feed(now, 0, false);
     },
   };
 })();

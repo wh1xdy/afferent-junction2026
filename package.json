@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.2.0",
   "scripts": {
-    "sync": "cap sync ios",
-    "open": "cap open ios"
+    "sync": "npm run design && cap sync ios",
+    "open": "cap open ios",
+    "design": "rm -rf demo/design && cp -R design demo/design"
   },
   "dependencies": {
     "@capacitor/cli": "^8.6.2",

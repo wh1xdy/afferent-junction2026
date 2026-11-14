@@ -1,125 +1,125 @@
-# Session schema (for Vlad's outer loop)
+# Session schema v3
 
-Version `afferent.session/2` (adaptive game). One JSON document per session attempt, including declined and partial sessions. The phone builds it and sends it as `session_end`. No images, no audio, no identifiers of other people. The demo in `demo/` emits this format.
+Version `afferent.session/3`. One JSON document per session attempt (completed, partial, declined, fell asleep). The phone builds it and sends it as `session_end` on `/ws/app` (or `POST /api/sessions`). Machine-readable schema: `contracts/session.v3.schema.json` (JSON Schema 2020-12). Full example: `contracts/fixtures/session_example.json`. The daily passive record (Dimension 1) is `contracts/daily.v1.schema.json`; transport, hub API and analytics are in `contracts/api.md`.
+
+v3 extends v2 (`afferent.session/2`, still in git history): v2's `core.rt_trials`, `adaptive.minigames` and `mood_vas` are replaced by `core.rt`, `tasks[]` and `core.mood_start` / `mood_end`. `adaptive.mode_seconds`, `adaptive.transitions`, `vitals`, `context` stay.
 
 ## 1. Rules
 
-- Times are milliseconds from session start unless named `*_iso`.
+- Derived numbers only. No images, no audio, no raw camera frames, no identifiers of other people.
+- Times are milliseconds from session start unless named `*_iso`, `*_s` or `*_h`. Local time with offset in `*_iso`.
 - `null` means not measured. Never substitute a default.
-- **Alert domains (only these three can raise "Suggest review"):**
-  - psychomotor: `core.rt_median_ms`, only sessions with `core.valid`;
-  - mood: `mood_vas` from the end-screen check-in;
-  - engagement: missed nights (a night with no app opened at all). `declined`, `sharing: nothing_tonight` and `sharing: paused` count as answered or withheld, never as missed.
-- **Context features (shown to the clinician, never alerting):** start pulse, mode seconds, transitions, per-task pulse response, PERCLOS, task errors, home/away, visitors, room climate.
-- **Baseline:** first 7 valid sessions, median and MAD, MAD floors 20 ms (RT) and 0.5 (mood). Robust z-scores against the person's own baseline. Log local time.
-- **Suggest-review rule (pilot starting point, not validated):** the 7-day rolling median reaches robust z 1.5 or more in the worse direction in at least 2 of the 3 alert domains. The clinician decides; the system never schedules TMS.
-- **Per-person learning ("which tasks help this person"):** for each task id, the median `pulse_delta_bpm` in calm and rest mode across sessions. The director may prefer the calm task that lowers this person's pulse most. Shown to the clinician as context.
-- **Personal baseline pulse for the director:** median `core.start_pulse_bpm` over the first 7 valid sessions, then a 14-day rolling median. Sent to the phone at session start.
+- Every measured value has a quality value (0 unusable to 1 clean) next to it or in `signal`.
+- `simulated: true` if any value is simulated; `simulated_fields` lists which. Screens label such data SIMULATED.
+- `profile`: `live` in real use; `good_day` and `bad_day` are demo presets (simulated starting vitals and world state).
+- `day_index` is `null` from the phone; the hub fills it (days since TMS end).
+- A declined session contains only `schema`, `session_id`, `patient_id`, `device_id`, `started_iso`, `local_hour`, `status: "declined"`, `profile`, `simulated`, `sharing`. Declined and withheld days never count as missed.
 
-## 2. Fields
+## 2. Session structure (under 2:00)
+
+| Segment | Time | Measured |
+|---|---|---|
+| Fade in | 0 to 2 s | |
+| Core: rest | 6 s | resting pulse, spontaneous blink rate, eye openness, head pitch, ambient light |
+| Core: mood check-in | up to 6 s | `core.mood_start` (5 lanterns, cool dim blue 1 to warm bright amber 5) |
+| Core: reaction | 5 trials | foreperiod 1.0 to 2.5 s, window 1500 ms; median, IQR, lapses, anticipations |
+| Slot 1: Fork | about 15 s | effort-based choice, 2 choices |
+| Slot 2: adaptive task | director | per-task response |
+| Slot 3: Two lanterns | about 18 s | probabilistic reward task adaptation, 12 trials |
+| Slot 4+: adaptive tasks | until about 75 s of play | per-task response |
+| Dawn | 4 s | bedside light rises |
+| End check-in | up to 10 s | `mood_end` |
+
+Fork and Two lanterns are skipped (never replaced) when the director is in rest mode (night rule). At night, 30 s of closed eyes ends the session as `fell_asleep`.
+
+## 3. Fields
+
+### Top level
 
 | Field | Type | Description |
 |---|---|---|
-| `schema` | string | `"afferent.session/2"` |
+| `schema` | const | `"afferent.session/3"` |
 | `session_id` | string | UUID v4 |
-| `device_id` | string | Random install ID |
-| `app_version` | string | Semver |
-| `started_iso` | string | ISO 8601 with local offset |
-| `local_hour` | number | 0 to 23.99 |
-| `clock` | enum | `morning` / `night` (night is 21:00 to 06:00) |
-| `status` | enum | `completed` / `partial` / `declined` / `fell_asleep` |
-| `input_backend` | enum | `arkit` / `mediapipe` / `none` (no camera) |
-| `duration_ms` | int | Total session time |
-| `sensors` | object | Switch state at start: `phone_camera`, `pulse_stone`, `bedside_camera`, `bedside_light`, `presence` |
-| `sharing` | enum | `summary` / `nothing_tonight` / `paused` |
-| `core.start_pulse_bpm` | float/null | Median pulse over the first 7 s |
-| `core.baseline_pulse_bpm` | float/null | The personal baseline the director used |
-| `core.pulse_source` | enum/null | `ky039` / `rppg` / `simulated` |
-| `core.eye_open_baseline` | float/null | Median blink value with eyes open (sets the closed threshold) |
-| `core.rt_trials` | array | `{foreperiod_ms, rt_ms, outcome: hit/miss/anticipation, modality: touch}`; window 150 to 1000 ms |
-| `core.rt_median_ms` | int/null | Hits only |
-| `core.valid` | bool | 5 trials and at least 3 hits |
-| `adaptive.mode_seconds` | object | Seconds in `calm`, `flow`, `wake`, `fatigue`, `rest` |
-| `adaptive.transitions` | array | `{t_ms, from, to, arousal, fatigue}`; the first entry has `from: null` |
-| `adaptive.minigames` | array | `{id, mode, intensity, t_start_ms, duration_ms, completed_by: touch/auto, items, errors, pulse_delta_bpm, breath_sync?}` |
-| `adaptive.calm_pulse_delta_bpm` | float/null | Sum of `pulse_delta_bpm` over calm and rest tasks |
-| `adaptive.wake_pulse_delta_bpm` | float/null | Sum over wake tasks |
-| `adaptive.perclos_mean` | float/null | Mean PERCLOS during play |
-| `adaptive.touch_errors` | int | Sum of task errors |
-| `mood_vas` | int/null | End-screen lantern check-in 1 to 5, null if skipped |
-| `vitals` | object | `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source` |
-| `context` | object | `room_temp_c`, `room_humidity_pct`, `home`, `visitors_present` |
-| `quality` | object | `pulse_implausible`, `dark_room`, `face_tracked_ratio` |
+| `patient_id` | string | Hub patient id (`anna` on the demo phone) |
+| `device_id`, `app_version` | string | Random install id, semver |
+| `started_iso`, `local_hour`, `clock` | | Start time; `clock` is `night` from 21:00 to 06:00 |
+| `day_index` | int/null | Filled by the hub |
+| `status` | enum | `completed`, `partial`, `declined`, `fell_asleep` |
+| `profile` | enum | `live`, `good_day`, `bad_day` |
+| `simulated`, `simulated_fields` | bool, string[] | See rules |
+| `input_backend` | enum | `arkit`, `mediapipe`, `simulated`, `none` |
+| `duration_ms` | int | |
+| `sharing` | enum | `summary`, `nothing_tonight`, `paused` |
+| `sensors` | object | Switch state at start: `phone_camera`, `pulse_stone`, `bedside_camera`, `bedside_light`, `presence`, `phone_motion` |
+| `signal` | object | `pulse_source` (`ky039`, `rppg`, `simulated`, null), `pulse_quality_mean`, `eyes_source`, `face_tracked_ratio`, `ambient_light` (0 to 1, camera exposure proxy), `dark_room` (ambient < 0.15), `pulse_implausible` (any sample outside 40 to 150 bpm) |
 
-A declined session contains only `schema`, `session_id`, `device_id`, `started_iso`, `local_hour`, `status: "declined"`, `sharing`.
+### core
 
-## 3. Transport: phone to bedside
+| Field | Description |
+|---|---|
+| `source` | `measured`, or `stored` in stage mode (core skipped) |
+| `baseline_pulse_bpm` | Personal baseline the director used (from `config`) |
+| `rest.pulse_bpm`, `rest.pulse_quality` | Median pulse over the 6 s rest |
+| `rest.blink_rate_per_min`, `rest.blink_count`, `rest.blink_quality` | Spontaneous blinks (closures 50 to 500 ms) during rest only, because blinks are not used as input but taps during tasks change blinking |
+| `rest.eye_openness`, `rest.eye_quality`, `rest.eyes_tracked_ratio` | Median `1 - mean(blink_l, blink_r)` |
+| `rest.head_pitch_deg`, `rest.head_pitch_quality` | Median head pitch in camera space, positive is chin up (posture proxy) |
+| `rest.ambient_light` | 0 dark to 1 bright |
+| `mood_start`, `mood_start_ms` | Start lantern 1 to 5 (null if skipped), decision time |
+| `rt.trials[]` | `{trial, foreperiod_ms, rt_ms, outcome, modality: touch}`; outcome `anticipation` (rt < 150 ms, including taps before the flash), `hit` (150 to 1000), `lapse` (1000 to 1500), `miss` (no tap within 1500, counted as a lapse) |
+| `rt.median_ms`, `rt.iqr_ms` | Over taps with rt >= 150 (hits and lapses); IQR by linear interpolation; rounded to integers |
+| `rt.lapses`, `rt.anticipations`, `rt.hits` | Counts (lapses include misses) |
+| `rt.valid` | 5 trials and at least 3 taps with rt >= 150 |
 
-- Our own travel router with fixed IPs (Jetson `192.168.8.10`), Jetson access point as fallback. Venue Wi-Fi is never used.
-- WebSocket server on the Jetson at `ws://192.168.8.10:8765`. The Capacitor app needs `NSLocalNetworkUsageDescription` and an ATS exception for `ws://`.
-- UNO Q to Jetson by USB serial: `L r g b level fade_ms` (light), `K turn <0-100>` and `K press` (knob), `P bpm quality contact` (pulse, 1 Hz).
-- The game never waits on the socket; the summary is buffered and sent on reconnect.
+### tasks[] (every task, adaptive and measurement)
 
-| Direction | `type` | Payload |
-|---|---|---|
-| phone to Jetson | `hello` | `device_id`, `app_version` |
-| phone to Jetson | `session_start` | `session_id`, `clock`, `sensors` |
-| phone to Jetson | `mode` | `session_id`, `mode`, `arousal`, `fatigue`, `t_ms` (clinic live panel) |
-| phone to Jetson | `game` | `session_id`, `id`, `mode`, `intensity`, `t_ms` |
-| phone to Jetson | `core_trial` | `session_id`, `trial` (1 to 5), `rt_ms`, `outcome` |
-| phone to Jetson | `light` | `rgb`, `level` (0 to 100), `fade_ms` |
-| phone to Jetson | `session_end` | full session JSON |
-| phone to Jetson | `privacy` | `sensor`, `on` |
-| Jetson to phone | `config` | `baseline_pulse_bpm`, preferred calm task ids |
-| Jetson to phone | `pulse` | `bpm`, `quality` (0 to 1), `contact`, 1 Hz |
-| Jetson to phone | `knob` | `level` or `press: true` |
+| Field | Description |
+|---|---|
+| `id` | `breath`, `loyly`, `threads`, `stars`, `fireflies`, `beacon`, `bells`, `shutters`, `fork`, `lanterns` |
+| `slot`, `kind` | 1-based order in the adaptive part; `adaptive` or `measurement` (fork is always slot 1, lanterns slot 3) |
+| `mode`, `director_mode` | Task mode (fixed while the task runs; `measure` for measurement tasks) and the director mode at its start |
+| `intensity`, `weight_used` | Difficulty 0 to 1; the bandit weight used to pick it |
+| `t_start_ms`, `duration_ms`, `completed_by`, `completed`, `skip_reason` | `completed_by` is `touch`, `auto` (timeout) or `skipped` |
+| `items`, `errors` | Task-specific counts |
+| `intended_direction` | calm, rest: `fall`; wake, fatigue: `rise`; flow, measure: `none` |
+| `pulse` | `start_bpm` (median of the first 3 s), `min_bpm`, `max_bpm`, `end_bpm` (median of the last 3 s), `delta_bpm` (end - start), `time_to_target_s` (first time the 3 s median moved 2 bpm in the intended direction), `recovery_slope_bpm_per_min` (least-squares slope, calm and rest only), `quality` |
+| `helped` | true if `delta_bpm` moved >= 2 bpm in the intended direction, false if not, null when direction is `none` or pulse quality < 0.5. The bandit outcome |
+| `head_pitch_start_deg`, `head_pitch_delta_deg`, `upright_s` | Posture response; upright = pitch >= rest pitch - 5 degrees |
+| `eye_openness_mean`, `perclos`, `long_closures` | Eye response; PERCLOS = share of tracked frames closed; long closure > 0.5 s |
+| `breath_sync`, `eyes_closed_s` | Breath only: pacer compliance and eyes-closed seconds (both estimates) |
+| `extra` | Free-form task numbers |
 
-## 4. Example
+### fork (effort-based choice)
 
-```json
-{
-  "schema": "afferent.session/2",
-  "session_id": "b7d0a0e6-3f0c-4f43-9a4e-2c1f8f0b9d21",
-  "device_id": "inst-4b7e19",
-  "app_version": "0.2.0",
-  "started_iso": "2026-11-15T07:41:07+02:00",
-  "local_hour": 7.68,
-  "clock": "morning",
-  "status": "completed",
-  "input_backend": "arkit",
-  "duration_ms": 112600,
-  "sensors": {"phone_camera": true, "pulse_stone": true, "bedside_camera": true, "bedside_light": true, "presence": true},
-  "sharing": "summary",
-  "core": {
-    "start_pulse_bpm": 85.4, "baseline_pulse_bpm": 68, "pulse_source": "ky039", "eye_open_baseline": 0.08,
-    "rt_trials": [
-      {"foreperiod_ms": 1642, "rt_ms": 418, "outcome": "hit", "modality": "touch"},
-      {"foreperiod_ms": 1214, "rt_ms": 334, "outcome": "hit", "modality": "touch"},
-      {"foreperiod_ms": 1636, "rt_ms": 400, "outcome": "hit", "modality": "touch"},
-      {"foreperiod_ms": 1868, "rt_ms": 350, "outcome": "hit", "modality": "touch"},
-      {"foreperiod_ms": 1633, "rt_ms": 333, "outcome": "hit", "modality": "touch"}
-    ],
-    "rt_median_ms": 350, "valid": true
-  },
-  "adaptive": {
-    "mode_seconds": {"calm": 19.7, "flow": 14.1, "wake": 22.1, "fatigue": 31.7, "rest": 0},
-    "transitions": [
-      {"t_ms": 18960, "from": null, "to": "calm", "arousal": 1.737, "fatigue": 0},
-      {"t_ms": 38693, "from": "calm", "to": "flow", "arousal": 0.45, "fatigue": 0.079},
-      {"t_ms": 51459, "from": "flow", "to": "fatigue", "arousal": 0.199, "fatigue": 0.585},
-      {"t_ms": 83141, "from": "fatigue", "to": "wake", "arousal": -0.645, "fatigue": 0.167}
-    ],
-    "minigames": [
-      {"id": "breath", "mode": "calm", "intensity": 0.693, "t_start_ms": 26293, "duration_ms": 20700, "completed_by": "touch", "items": 2, "errors": 0, "pulse_delta_bpm": -13.5, "breath_sync": 0.903},
-      {"id": "stars", "mode": "flow", "intensity": 0.5, "t_start_ms": 50741, "duration_ms": 4035, "completed_by": "touch", "items": 5, "errors": 0, "pulse_delta_bpm": -2.8},
-      {"id": "shutters", "mode": "fatigue", "intensity": 1, "t_start_ms": 63808, "duration_ms": 3934, "completed_by": "touch", "items": 4, "errors": 0, "pulse_delta_bpm": 1.2},
-      {"id": "fireflies", "mode": "wake", "intensity": 0.795, "t_start_ms": 85374, "duration_ms": 6550, "completed_by": "touch", "items": 7, "errors": 0, "pulse_delta_bpm": 6.1}
-    ],
-    "calm_pulse_delta_bpm": -13.5, "wake_pulse_delta_bpm": 6.1, "perclos_mean": 0.148, "touch_errors": 0
-  },
-  "mood_vas": 3,
-  "vitals": {"pulse_mean_bpm": 71.9, "pulse_min_bpm": 58.7, "pulse_max_bpm": 90.3, "pulse_source": "ky039"},
-  "context": {"room_temp_c": 20.5, "room_humidity_pct": 34, "home": true, "visitors_present": 0},
-  "quality": {"pulse_implausible": false, "dark_room": false, "face_tracked_ratio": 0.97}
-}
-```
+Two choices per session; the hard path offers reward 2 on one and 3 on the other (random order); the easy path always gives 1 glow. Easy task: tap 3 slow lights. Hard task: tap 8 faster lights. 6 s to choose; no choice takes the easy path and logs `path: "none"`.
+
+`choices[]`: `{choice, path: easy/hard/none, reward, decision_ms, completed, task_ms}`. `hard_prop` = hard / (easy + hard), `hard_by_reward` = `{"2": 0/1/null, "3": 0/1/null}`, `reward_slope` = hard(3) - hard(2). The hub pools over sessions.
+
+### two_lanterns (probabilistic reward task adaptation, exploratory)
+
+12 trials, two lanterns side by side, amber (rich) and silver (lean), one 8% larger; the player taps the larger one. 6 rich-larger and 6 lean-larger trials in random order. Correct rich responses are rewarded 3 times, correct lean responses once per session (a scheduled reward on an incorrect trial moves to the next correct trial of that type). Rewards are a warm glow, never words or points.
+
+Counts: `rich_correct` (rich larger, tapped rich), `rich_incorrect` (rich larger, tapped lean), `lean_correct`, `lean_incorrect`. Unanswered trials are excluded.
+
+- `log_b = 0.5 * log10(((rc + 0.5) * (li + 0.5)) / ((ri + 0.5) * (lc + 0.5)))`, positive = bias towards the rich lantern.
+- `log_d = 0.5 * log10(((rc + 0.5) * (lc + 0.5)) / ((ri + 0.5) * (li + 0.5)))`, discriminability.
+- `valid`: at least 10 of 12 trials answered. The hub also pools the cells over the last 7 sessions.
+
+### adaptive (v2 director summary)
+
+`mode_seconds`, `transitions[]` (`{t_ms, from, to, arousal, fatigue}`), `perclos_mean`, `touch_errors`, `config_received`.
+
+### pre_post (headline result)
+
+`{pulse, head_pitch, eye_openness, mood}`, each `{start, end, delta}`. Start = core rest values (mood: `mood_start`); end = median over the last 6 s of play before dawn (mood: `mood_end`).
+
+### engagement
+
+`completed`, `duration_ms`, `pauses` (app backgrounded), `skipped_tasks`, `tasks_completed`, `tasks_total`, `reminder_iso`, `time_to_start_s` (reminder to Begin, null without reminder).
+
+### vitals, context
+
+`vitals`: `pulse_mean_bpm`, `pulse_min_bpm`, `pulse_max_bpm`, `pulse_source`. `context`: `room_temp_c`, `home`, `visitors_present`, `bedside_light_level`.
+
+## 4. How the hub uses it
+
+The analytics engine (`contracts/api.md` section 5.1) turns sessions and daily records into per-day features, robust z-scores against the person's own 14-day baseline, EWMA trends, the composite early-warning index with visible contributions, a CUSUM state (stable, watch, consider a check-in call, consider discussing a booster session) and the per-person bandit ("What helps"). The clinician decides; the system only suggests.

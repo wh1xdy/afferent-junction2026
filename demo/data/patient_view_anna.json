@@ -1,0 +1,214 @@
+{
+ "patient": {
+  "id": "anna",
+  "display_name": "Anna"
+ },
+ "simulated": true,
+ "date": "2026-11-15",
+ "today": {
+  "played": true,
+  "session_id": "b7d0a0e6-3f0c-4f43-9a4e-2c1f8f0b9d21",
+  "session_time_h": 7.7,
+  "dawn_reached": true,
+  "mood_start": 2,
+  "mood_end": 3,
+  "colour_start": "#5A7CA6",
+  "colour_end": "#A9A79A",
+  "settled": true,
+  "lifted": true,
+  "arc": [
+   0.2,
+   0.3,
+   0.45,
+   0.6,
+   0.72,
+   0.85,
+   1.0
+  ]
+ },
+ "week": [
+  {
+   "day": 50,
+   "date": "2026-11-09",
+   "weekday": "Mon",
+   "played": true,
+   "missed": false,
+   "today": false,
+   "mood": 2,
+   "colour": "#5A7CA6",
+   "dawn_reached": true
+  },
+  {
+   "day": 51,
+   "date": "2026-11-10",
+   "weekday": "Tue",
+   "played": false,
+   "missed": true,
+   "today": false,
+   "mood": null,
+   "colour": null,
+   "dawn_reached": false
+  },
+  {
+   "day": 52,
+   "date": "2026-11-11",
+   "weekday": "Wed",
+   "played": true,
+   "missed": false,
+   "today": false,
+   "mood": 1,
+   "colour": "#34476E",
+   "dawn_reached": true
+  },
+  {
+   "day": 53,
+   "date": "2026-11-12",
+   "weekday": "Thu",
+   "played": true,
+   "missed": false,
+   "today": false,
+   "mood": 2,
+   "colour": "#5A7CA6",
+   "dawn_reached": true
+  },
+  {
+   "day": 54,
+   "date": "2026-11-13",
+   "weekday": "Fri",
+   "played": true,
+   "missed": false,
+   "today": false,
+   "mood": 2,
+   "colour": "#5A7CA6",
+   "dawn_reached": true
+  },
+  {
+   "day": 55,
+   "date": "2026-11-14",
+   "weekday": "Sat",
+   "played": true,
+   "missed": false,
+   "today": false,
+   "mood": 2,
+   "colour": "#5A7CA6",
+   "dawn_reached": true
+  },
+  {
+   "day": 56,
+   "date": "2026-11-15",
+   "weekday": "Sun",
+   "played": true,
+   "missed": false,
+   "today": true,
+   "mood": 2,
+   "colour": "#5A7CA6",
+   "dawn_reached": true
+  }
+ ],
+ "what_helped": [
+  {
+   "task_id": "breath",
+   "label": "Breath",
+   "glyph": "breath",
+   "mode": "calm",
+   "text": "Slow breathing often settles you.",
+   "p_best": 0.953,
+   "n": 20,
+   "confidence": "medium"
+  },
+  {
+   "task_id": "fireflies",
+   "label": "Fireflies",
+   "glyph": "fireflies",
+   "mode": "wake",
+   "text": "Fireflies often lift a low morning.",
+   "p_best": 0.681,
+   "n": 10,
+   "confidence": "low"
+  },
+  {
+   "task_id": "dawn_light",
+   "label": "Dawn light",
+   "glyph": "sun",
+   "mode": null,
+   "text": "Mornings with the bedside dawn light tend to follow better days.",
+   "p_best": null,
+   "n": 29,
+   "confidence": "low"
+  }
+ ],
+ "privacy": {
+  "sharing": "summary",
+  "sensors": [
+   {
+    "id": "phone_camera",
+    "label": "Phone camera",
+    "on": true,
+    "shares": "Eye openness, blinks and head angle as numbers. Never images."
+   },
+   {
+    "id": "pulse_stone",
+    "label": "Pulse stone",
+    "on": true,
+    "shares": "Pulse in beats per minute."
+   },
+   {
+    "id": "bedside_camera",
+    "label": "Bedside camera",
+    "on": false,
+    "shares": "A stick figure while you play. Never images."
+   },
+   {
+    "id": "bedside_light",
+    "label": "Bedside light",
+    "on": true,
+    "shares": "Nothing. It only receives light colours."
+   },
+   {
+    "id": "presence",
+    "label": "Bed presence",
+    "on": true,
+    "shares": "Time in bed and restless moments."
+   },
+   {
+    "id": "phone_presence",
+    "label": "Home or away",
+    "on": true,
+    "shares": "Hours at home and a count of nearby unknown devices. Nobody is identified."
+   },
+   {
+    "id": "phone_motion",
+    "label": "Steps",
+    "on": true,
+    "shares": "A daily step count (simulated in this demo)."
+   }
+  ]
+ },
+ "clinic_sees": [
+  "Numbers from your sessions compared with your own baseline",
+  "Sleep and rest pattern from the bed sensor",
+  "A weekly summary written from those numbers",
+  "Never camera images, sound or messages"
+ ],
+ "crisis": {
+  "title": "If today is heavy, you do not have to carry it alone.",
+  "text": "Afferent is not an emergency service and is not watched around the clock. Your clinic sees a note on the next working day.",
+  "contacts": [
+   {
+    "label": "Emergency",
+    "number": "112",
+    "tel": "112"
+   },
+   {
+    "label": "MIELI Crisis Helpline (24 h)",
+    "number": "09 2525 0111",
+    "tel": "+358925250111"
+   },
+   {
+    "label": "Your clinic (demo placeholder)",
+    "number": "09 000 0000",
+    "tel": "+35890000000"
+   }
+  ]
+ }
+}

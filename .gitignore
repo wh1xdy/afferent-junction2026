@@ -6,3 +6,13 @@ art/raw/
 art/spend.json
 __pycache__/
 art/batch.log
+hub/.venv/
+hub/data/
+demo/design/
+.pytest_cache/
+*.log
+.env.*
+*.sqlite
+*.db
+*.db-wal
+*.db-shm

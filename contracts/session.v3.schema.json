@@ -1,0 +1,1096 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://afferent.local/contracts/session.v3.schema.json",
+  "title": "Afferent session summary v3",
+  "description": "One JSON document per session attempt (completed, partial, declined, fell_asleep). Built by the phone, sent as session_end on /ws/app or POST /api/sessions. Derived numbers only, never images, audio or identifiers of other people. null always means not measured. Times are ms from session start unless named *_iso, *_s or *_h.",
+  "type": "object",
+  "required": [
+    "schema",
+    "session_id",
+    "patient_id",
+    "device_id",
+    "started_iso",
+    "local_hour",
+    "status",
+    "profile",
+    "simulated",
+    "sharing"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "schema": {
+      "const": "afferent.session/3"
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 8
+    },
+    "patient_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Hub patient id. The demo phone uses 'anna'."
+    },
+    "device_id": {
+      "type": "string"
+    },
+    "app_version": {
+      "type": "string"
+    },
+    "started_iso": {
+      "type": "string",
+      "description": "ISO 8601 with local offset"
+    },
+    "local_hour": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 24
+    },
+    "clock": {
+      "enum": [
+        "morning",
+        "night"
+      ],
+      "description": "night is 21:00 to 06:00 local"
+    },
+    "day_index": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "description": "Days since TMS end. The phone sends null; the hub fills it (live sessions get the hub's current day, now_day)."
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "partial",
+        "declined",
+        "fell_asleep"
+      ]
+    },
+    "profile": {
+      "enum": [
+        "live",
+        "good_day",
+        "bad_day"
+      ],
+      "description": "good_day and bad_day are demo presets with simulated starting vitals"
+    },
+    "simulated": {
+      "type": "boolean",
+      "description": "true if any vital or sensor value in this document is simulated. The UI must label it SIMULATED."
+    },
+    "input_backend": {
+      "enum": [
+        "arkit",
+        "mediapipe",
+        "simulated",
+        "none"
+      ]
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sharing": {
+      "enum": [
+        "summary",
+        "nothing_tonight",
+        "paused"
+      ]
+    },
+    "sensors": {
+      "$ref": "#/$defs/sensors"
+    },
+    "signal": {
+      "$ref": "#/$defs/signal"
+    },
+    "core": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/core"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "fork": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/fork"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "two_lanterns": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/two_lanterns"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "adaptive": {
+      "$ref": "#/$defs/adaptive"
+    },
+    "mood_end": {
+      "$ref": "#/$defs/mood_or_null"
+    },
+    "pre_post": {
+      "$ref": "#/$defs/pre_post"
+    },
+    "engagement": {
+      "$ref": "#/$defs/engagement"
+    },
+    "vitals": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/vitals"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "context": {
+      "$ref": "#/$defs/context"
+    },
+    "simulated_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Dotted names of simulated values, e.g. [\"signal.pulse_source\", \"core.rest.head_pitch_deg\"]. Empty when everything is measured."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "declined"
+          }
+        }
+      },
+      "then": {},
+      "else": {
+        "required": [
+          "clock",
+          "input_backend",
+          "duration_ms",
+          "sensors",
+          "signal",
+          "core",
+          "tasks",
+          "pre_post",
+          "engagement"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "num_or_null": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "int_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "quality": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Signal quality 0 (unusable) to 1 (clean)"
+    },
+    "mood_or_null": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Lantern 1 (cool dim blue) to 5 (warm bright amber). null if skipped."
+    },
+    "mode": {
+      "enum": [
+        "calm",
+        "flow",
+        "wake",
+        "fatigue",
+        "rest"
+      ]
+    },
+    "sensors": {
+      "type": "object",
+      "description": "Patient switch state at session start",
+      "required": [
+        "phone_camera",
+        "pulse_stone",
+        "bedside_camera",
+        "bedside_light",
+        "presence"
+      ],
+      "properties": {
+        "phone_camera": {
+          "type": "boolean"
+        },
+        "pulse_stone": {
+          "type": "boolean"
+        },
+        "bedside_camera": {
+          "type": "boolean"
+        },
+        "bedside_light": {
+          "type": "boolean"
+        },
+        "presence": {
+          "type": "boolean"
+        },
+        "phone_motion": {
+          "type": "boolean"
+        }
+      }
+    },
+    "signal": {
+      "type": "object",
+      "required": [
+        "pulse_source",
+        "eyes_source"
+      ],
+      "properties": {
+        "pulse_source": {
+          "enum": [
+            "ky039",
+            "rppg",
+            "simulated",
+            null
+          ]
+        },
+        "pulse_quality_mean": {
+          "$ref": "#/$defs/quality"
+        },
+        "eyes_source": {
+          "enum": [
+            "arkit",
+            "mediapipe",
+            "simulated",
+            null
+          ]
+        },
+        "face_tracked_ratio": {
+          "$ref": "#/$defs/quality"
+        },
+        "ambient_light": {
+          "$ref": "#/$defs/quality",
+          "description": "0 dark to 1 bright, camera exposure proxy (ARKit ambientIntensity / 2000, or mean frame luma / 255 computed in memory)"
+        },
+        "dark_room": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "ambient_light < 0.15"
+        },
+        "pulse_implausible": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "any pulse sample outside 40 to 150 bpm"
+        }
+      }
+    },
+    "rt_trial": {
+      "type": "object",
+      "required": [
+        "trial",
+        "foreperiod_ms",
+        "rt_ms",
+        "outcome"
+      ],
+      "properties": {
+        "trial": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "foreperiod_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 2500
+        },
+        "rt_ms": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "ms from flash onset to tap. Negative for a tap before onset. null when no tap within 1500 ms."
+        },
+        "outcome": {
+          "enum": [
+            "hit",
+            "lapse",
+            "miss",
+            "anticipation"
+          ],
+          "description": "anticipation: rt < 150 (incl. before onset); hit: 150 to 1000; lapse: 1000 to 1500; miss: no tap within 1500 (also counted as a lapse)"
+        },
+        "modality": {
+          "enum": [
+            "touch"
+          ]
+        }
+      }
+    },
+    "core": {
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "enum": [
+            "measured",
+            "stored"
+          ],
+          "description": "stored = stage mode skipped the core and used a stored calibration"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "baseline_pulse_bpm": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Personal baseline the director used (from config)"
+        },
+        "rest": {
+          "type": "object",
+          "description": "6 s rest at the start, identical every session",
+          "required": [
+            "pulse_bpm",
+            "pulse_quality",
+            "blink_rate_per_min",
+            "eye_openness",
+            "head_pitch_deg"
+          ],
+          "properties": {
+            "duration_ms": {
+              "type": "integer"
+            },
+            "pulse_bpm": {
+              "$ref": "#/$defs/num_or_null",
+              "description": "Median pulse over the rest window"
+            },
+            "pulse_quality": {
+              "$ref": "#/$defs/quality"
+            },
+            "blink_rate_per_min": {
+              "$ref": "#/$defs/num_or_null",
+              "description": "Spontaneous blinks (closures 50 to 500 ms) per minute, core rest only. Noisy over 6 s, use with its quality."
+            },
+            "blink_quality": {
+              "$ref": "#/$defs/quality"
+            },
+            "eye_openness": {
+              "$ref": "#/$defs/num_or_null",
+              "description": "Median 1 - mean(blink_l, blink_r), 0 closed to 1 open"
+            },
+            "eye_quality": {
+              "$ref": "#/$defs/quality"
+            },
+            "head_pitch_deg": {
+              "$ref": "#/$defs/num_or_null",
+              "description": "Median head pitch in camera space, degrees, positive = chin up. Posture proxy (upright)."
+            },
+            "head_pitch_quality": {
+              "$ref": "#/$defs/quality"
+            },
+            "ambient_light": {
+              "$ref": "#/$defs/quality"
+            },
+            "blink_count": {
+              "$ref": "#/$defs/int_or_null"
+            },
+            "eyes_tracked_ratio": {
+              "$ref": "#/$defs/quality"
+            }
+          }
+        },
+        "mood_start": {
+          "$ref": "#/$defs/mood_or_null"
+        },
+        "mood_start_ms": {
+          "$ref": "#/$defs/int_or_null",
+          "description": "Decision time for the start check-in"
+        },
+        "rt": {
+          "type": "object",
+          "required": [
+            "trials",
+            "median_ms",
+            "iqr_ms",
+            "lapses",
+            "anticipations",
+            "valid"
+          ],
+          "properties": {
+            "trials": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/rt_trial"
+              },
+              "maxItems": 5
+            },
+            "median_ms": {
+              "$ref": "#/$defs/int_or_null",
+              "description": "Median over taps with rt >= 150 (hit and lapse outcomes)"
+            },
+            "iqr_ms": {
+              "$ref": "#/$defs/int_or_null"
+            },
+            "lapses": {
+              "type": "integer",
+              "description": "lapse + miss outcomes"
+            },
+            "anticipations": {
+              "type": "integer"
+            },
+            "hits": {
+              "type": "integer"
+            },
+            "valid": {
+              "type": "boolean",
+              "description": "5 trials and at least 3 taps with rt >= 150"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "measured"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "rest",
+              "mood_start",
+              "rt"
+            ]
+          }
+        }
+      ]
+    },
+    "pulse_response": {
+      "type": "object",
+      "properties": {
+        "start_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "min_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "max_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "end_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "delta_bpm": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "end - start"
+        },
+        "time_to_target_s": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Seconds until pulse first moved 2 bpm in the intended direction; null if never or direction none"
+        },
+        "recovery_slope_bpm_per_min": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Least-squares slope over the task, calm and rest tasks only (negative is settling)"
+        },
+        "quality": {
+          "$ref": "#/$defs/quality"
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "required": [
+        "id",
+        "slot",
+        "kind",
+        "mode",
+        "t_start_ms",
+        "duration_ms",
+        "completed_by",
+        "intended_direction",
+        "pulse",
+        "helped"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "breath",
+            "loyly",
+            "threads",
+            "stars",
+            "fireflies",
+            "beacon",
+            "bells",
+            "shutters",
+            "fork",
+            "lanterns"
+          ]
+        },
+        "slot": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-based order in the adaptive part. Slot 1 is always fork, slot 3 always lanterns."
+        },
+        "kind": {
+          "enum": [
+            "adaptive",
+            "measurement"
+          ]
+        },
+        "mode": {
+          "enum": [
+            "calm",
+            "flow",
+            "wake",
+            "fatigue",
+            "rest",
+            "measure"
+          ],
+          "description": "Task mode (fixed while the task runs). measure for fork and lanterns."
+        },
+        "director_mode": {
+          "$ref": "#/$defs/mode",
+          "description": "Director mode when the task started"
+        },
+        "intensity": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "weight_used": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Bandit weight of this task id in its mode when it was picked; null for measurement tasks or no config"
+        },
+        "t_start_ms": {
+          "type": "integer"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "completed_by": {
+          "enum": [
+            "touch",
+            "auto",
+            "skipped"
+          ]
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "integer"
+        },
+        "errors": {
+          "type": "integer"
+        },
+        "intended_direction": {
+          "enum": [
+            "fall",
+            "rise",
+            "none"
+          ],
+          "description": "calm, rest: fall; wake, fatigue: rise; flow, measure: none"
+        },
+        "pulse": {
+          "$ref": "#/$defs/pulse_response"
+        },
+        "helped": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "true if delta_bpm moved >= 2 bpm in the intended direction; null when direction none or pulse quality < 0.5"
+        },
+        "head_pitch_start_deg": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "head_pitch_delta_deg": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "upright_s": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Seconds with head pitch >= rest pitch - 5 deg"
+        },
+        "eye_openness_mean": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "perclos": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Share of tracked frames with eyes closed during the task"
+        },
+        "long_closures": {
+          "$ref": "#/$defs/int_or_null",
+          "description": "Closures longer than 0.5 s"
+        },
+        "breath_sync": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "breath only: share of time the hold matched the pacer (compliance estimate)"
+        },
+        "eyes_closed_s": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "breath only: seconds with eyes closed (compliance estimate)"
+        },
+        "extra": {
+          "type": "object",
+          "description": "Task-specific numbers, free form"
+        },
+        "skip_reason": {
+          "enum": [
+            "rest_mode",
+            "patient",
+            "timeout",
+            null
+          ],
+          "description": "Why a task was skipped. Fork and two lanterns are skipped (not replaced) when the director is in rest mode."
+        },
+        "pulse_samples": {
+          "$ref": "#/$defs/int_or_null",
+          "description": "Pulse samples (1 Hz) inside the task"
+        }
+      }
+    },
+    "fork_choice": {
+      "type": "object",
+      "required": [
+        "choice",
+        "path",
+        "reward",
+        "completed"
+      ],
+      "properties": {
+        "choice": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "path": {
+          "enum": [
+            "easy",
+            "hard",
+            "none"
+          ],
+          "description": "none = no choice within 6 s; the easy path is then taken automatically"
+        },
+        "reward": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Glow offered on the hard path for this choice (2 or 3). The easy path always gives 1."
+        },
+        "decision_ms": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "task_ms": {
+          "$ref": "#/$defs/int_or_null"
+        }
+      }
+    },
+    "fork": {
+      "type": "object",
+      "description": "Effort-based choice, two choices per session, rewards 2 and 3 in random order",
+      "required": [
+        "choices",
+        "hard_prop"
+      ],
+      "properties": {
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fork_choice"
+          },
+          "maxItems": 2
+        },
+        "hard_prop": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "hard / (easy + hard), choices with path none excluded"
+        },
+        "hard_by_reward": {
+          "type": "object",
+          "description": "1 if the hard path was chosen at that reward, 0 if easy, null if no choice or not offered",
+          "properties": {
+            "2": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "enum": [
+                0,
+                1,
+                null
+              ]
+            },
+            "3": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "enum": [
+                0,
+                1,
+                null
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "reward_slope": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "hard(3) - hard(2) in this session (-1, 0, 1); pooled slope is computed by the hub"
+        },
+        "easy_task": {
+          "type": "object",
+          "description": "Fixed every session: tap 3 slow lights",
+          "properties": {
+            "lights": {
+              "const": 3
+            }
+          }
+        },
+        "hard_task": {
+          "type": "object",
+          "description": "Fixed every session: tap 8 faster lights",
+          "properties": {
+            "lights": {
+              "const": 8
+            }
+          }
+        }
+      }
+    },
+    "lantern_trial": {
+      "type": "object",
+      "required": [
+        "trial",
+        "larger",
+        "response",
+        "correct",
+        "rewarded"
+      ],
+      "properties": {
+        "trial": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "larger": {
+          "enum": [
+            "rich",
+            "lean"
+          ],
+          "description": "Which lantern was the larger one on this trial"
+        },
+        "rich_side": {
+          "enum": [
+            "left",
+            "right"
+          ]
+        },
+        "response": {
+          "enum": [
+            "rich",
+            "lean",
+            null
+          ]
+        },
+        "correct": {
+          "type": "boolean"
+        },
+        "rewarded": {
+          "type": "boolean",
+          "description": "Warm glow shown (only after a correct response, per the 3:1 schedule)"
+        },
+        "rt_ms": {
+          "$ref": "#/$defs/int_or_null"
+        }
+      }
+    },
+    "two_lanterns": {
+      "type": "object",
+      "description": "Probabilistic reward task adaptation (exploratory). 12 trials, 6 rich-larger and 6 lean-larger in random order; the rich lantern is the amber one, the lean one the silver one; size difference 8%. Correct rich responses rewarded 3:1 vs correct lean ones (3 rich and 1 lean reward per session; a scheduled reward on an incorrect trial moves to the next correct trial of that type).",
+      "required": [
+        "trials",
+        "rich_correct",
+        "rich_incorrect",
+        "lean_correct",
+        "lean_incorrect",
+        "log_b",
+        "log_d"
+      ],
+      "properties": {
+        "rich_lantern": {
+          "const": "amber"
+        },
+        "size_diff": {
+          "type": "number"
+        },
+        "trials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/lantern_trial"
+          },
+          "maxItems": 12
+        },
+        "rich_correct": {
+          "type": "integer"
+        },
+        "rich_incorrect": {
+          "type": "integer"
+        },
+        "lean_correct": {
+          "type": "integer"
+        },
+        "lean_incorrect": {
+          "type": "integer"
+        },
+        "log_b": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "0.5 * log10(((rc+0.5)*(li+0.5)) / ((ri+0.5)*(lc+0.5))); positive = bias towards the rich lantern"
+        },
+        "log_d": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "0.5 * log10(((rc+0.5)*(lc+0.5)) / ((ri+0.5)*(li+0.5)))"
+        },
+        "rewards_rich": {
+          "type": "integer"
+        },
+        "rewards_lean": {
+          "type": "integer"
+        },
+        "valid": {
+          "type": "boolean",
+          "description": "at least 10 of 12 trials answered"
+        }
+      }
+    },
+    "adaptive": {
+      "type": "object",
+      "description": "v2 director summary, kept",
+      "properties": {
+        "mode_seconds": {
+          "type": "object",
+          "properties": {
+            "calm": {
+              "type": "number"
+            },
+            "flow": {
+              "type": "number"
+            },
+            "wake": {
+              "type": "number"
+            },
+            "fatigue": {
+              "type": "number"
+            },
+            "rest": {
+              "type": "number"
+            }
+          }
+        },
+        "transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "t_ms": {
+                "type": "integer"
+              },
+              "from": {
+                "enum": [
+                  "calm",
+                  "flow",
+                  "wake",
+                  "fatigue",
+                  "rest",
+                  null
+                ]
+              },
+              "to": {
+                "$ref": "#/$defs/mode"
+              },
+              "arousal": {
+                "type": "number"
+              },
+              "fatigue": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "perclos_mean": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "touch_errors": {
+          "type": "integer"
+        },
+        "config_received": {
+          "type": "boolean",
+          "description": "true if hub config (baseline, task weights) arrived before the session"
+        }
+      }
+    },
+    "pp_pair": {
+      "type": "object",
+      "required": [
+        "start",
+        "end",
+        "delta"
+      ],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "end": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "delta": {
+          "$ref": "#/$defs/num_or_null"
+        }
+      }
+    },
+    "pre_post": {
+      "type": "object",
+      "description": "Headline: how did the game affect you today. start = core rest (mood: mood_start); end = median over the last 6 s of play before dawn (mood: mood_end).",
+      "required": [
+        "pulse",
+        "head_pitch",
+        "eye_openness",
+        "mood"
+      ],
+      "properties": {
+        "pulse": {
+          "$ref": "#/$defs/pp_pair"
+        },
+        "head_pitch": {
+          "$ref": "#/$defs/pp_pair"
+        },
+        "eye_openness": {
+          "$ref": "#/$defs/pp_pair"
+        },
+        "mood": {
+          "$ref": "#/$defs/pp_pair"
+        }
+      }
+    },
+    "engagement": {
+      "type": "object",
+      "required": [
+        "completed",
+        "duration_ms",
+        "pauses",
+        "skipped_tasks",
+        "time_to_start_s"
+      ],
+      "properties": {
+        "completed": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "pauses": {
+          "type": "integer",
+          "description": "Times the app went to the background during the session"
+        },
+        "skipped_tasks": {
+          "type": "integer"
+        },
+        "tasks_completed": {
+          "type": "integer"
+        },
+        "tasks_total": {
+          "type": "integer"
+        },
+        "reminder_iso": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time_to_start_s": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Seconds from the daily reminder to Begin; null without a reminder"
+        }
+      }
+    },
+    "vitals": {
+      "type": "object",
+      "properties": {
+        "pulse_mean_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "pulse_min_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "pulse_max_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "pulse_source": {
+          "enum": [
+            "ky039",
+            "rppg",
+            "simulated",
+            null
+          ]
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "room_temp_c": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "home": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "visitors_present": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "bedside_light_level": {
+          "$ref": "#/$defs/num_or_null"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://afferent.local/contracts/daily.v1.schema.json",
+  "title": "Afferent daily record v1 (Dimension 1, everyday, passive)",
+  "description": "One record per patient per day. The record for date D covers the night ending on the morning of D plus the daytime of D. Built by the hub from bedside events and phone presence (or by the synthetic generator). null means not measured.",
+  "type": "object",
+  "required": ["schema", "patient_id", "day_index", "date", "simulated", "day_complete", "sleep", "played", "missed", "declined"],
+  "additionalProperties": true,
+  "properties": {
+    "schema": { "const": "afferent.daily/1" },
+    "patient_id": { "type": "string" },
+    "day_index": { "type": "integer", "minimum": 0, "description": "Days since TMS end (day 0 = tms_end_date)" },
+    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "weekday": { "type": "integer", "minimum": 0, "maximum": 6, "description": "0 = Monday" },
+    "simulated": { "type": "boolean", "description": "true if any field is simulated. The UI must label it SIMULATED." },
+    "simulated_fields": { "type": "array", "items": { "type": "string" }, "description": "Dotted field names that are simulated even when real hardware is connected, e.g. [\"steps\"]" },
+    "day_complete": { "type": "boolean", "description": "false for today (still in progress); missed is only decided for complete days" },
+    "sleep": {
+      "type": "object",
+      "description": "From the infrared presence sensor at the bed",
+      "required": ["time_in_bed_h", "sleep_onset_h", "wake_time_h", "restlessness_events"],
+      "properties": {
+        "time_in_bed_h": { "type": ["number", "null"] },
+        "sleep_onset_h": { "type": ["number", "null"], "description": "Hours relative to midnight starting date D: -0.5 = 23:30 the evening before, 0.75 = 00:45" },
+        "wake_time_h": { "type": ["number", "null"], "description": "Hours after midnight on date D, e.g. 7.25 = 07:15" },
+        "sleep_midpoint_h": { "type": ["number", "null"] },
+        "restlessness_events": { "type": ["integer", "null"], "description": "Presence-sensor motion bursts between sleep onset and wake" },
+        "presence_hourly": {
+          "type": ["array", "null"],
+          "items": { "type": "number", "minimum": 0, "maximum": 1 },
+          "minItems": 24, "maxItems": 24,
+          "description": "Fraction of each local hour 0..23 of date D spent in bed. Input for inter-daily stability (IS) over 7 days."
+        },
+        "quality": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "morning_pulse_bpm": { "type": ["number", "null"], "description": "Optional 30 s KY-039 reading after waking (finger on the stone before 11:00)" },
+    "morning_pulse_quality": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "room": {
+      "type": "object",
+      "properties": {
+        "temp_c_mean": { "type": ["number", "null"], "description": "Modulino thermo" },
+        "temp_c_night": { "type": ["number", "null"] },
+        "humidity_pct": { "type": ["number", "null"] }
+      }
+    },
+    "bedside_light": {
+      "type": "object",
+      "properties": {
+        "on_minutes": { "type": ["number", "null"] },
+        "dawn_level_pct": { "type": ["number", "null"], "description": "Knob-set dawn level" },
+        "morning_light_min": { "type": ["number", "null"], "description": "Minutes of morning dawn light" }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "description": "Phone presence via Wi-Fi/BLE at the bedside unit. Visitors are a count of unfamiliar nearby devices, nobody is identified.",
+      "properties": {
+        "home_hours": { "type": ["number", "null"] },
+        "away_hours": { "type": ["number", "null"] },
+        "home_only": { "type": ["boolean", "null"], "description": "away_hours < 0.5" },
+        "visitors_count": { "type": ["integer", "null"] }
+      }
+    },
+    "steps": { "type": ["integer", "null"], "description": "Phone accelerometer step-like activity. Simulated unless the app streams it (then remove from simulated_fields)." },
+    "knob_uses": { "type": ["integer", "null"] },
+    "played": { "type": "boolean", "description": "At least one session with status completed, partial or fell_asleep" },
+    "declined": { "type": "boolean", "description": "'Not tonight' pressed, or sharing nothing_tonight/paused. Never counts as missed." },
+    "missed": { "type": "boolean", "description": "day_complete and not played and not declined" },
+    "session_time_h": { "type": ["number", "null"], "description": "Local hour of the first session that day" },
+    "session_ids": { "type": "array", "items": { "type": "string" } },
+    "reminder_h": { "type": ["number", "null"], "description": "Local hour of the daily reminder" }
+  }
+}

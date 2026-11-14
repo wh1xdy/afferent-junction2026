@@ -322,8 +322,18 @@
     },
   };
 
-  A.pickGame = (mode, last) => {
-    const pool = Object.keys(GAMES).filter(id => GAMES[id].modes.includes(mode) && id !== last);
-    return pool[Math.floor(R() * pool.length)] || 'breath';
+  A.pickGame = (mode, last, weights) => {
+    const all = Object.keys(GAMES).filter(id => GAMES[id].modes.includes(mode));
+    const w = id => weights ? Math.max(0, weights[id] ?? 0) : 1;
+    let pool = all.filter(id => id !== last && w(id) > 0);
+    if (!pool.length) pool = all.filter(id => w(id) > 0);
+    if (!pool.length) pool = all;
+    const total = pool.reduce((a, id) => a + (w(id) || 1), 0);
+    let x = R() * total;
+    for (const id of pool) { x -= w(id) || 1; if (x <= 0) return { id, weight: weights ? weights[id] ?? null : null }; }
+    const id = pool[pool.length - 1] || 'breath';
+    return { id, weight: weights ? weights[id] ?? null : null };
   };
+
+  A.MINI = { glow, dist, base, finish };
 })();

@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 300" width="880" height="300" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif" role="img" aria-label="Days from relapse onset to the first check-in suggestion">
+<title>Days from relapse onset to the first check-in suggestion</title>
+<rect width="880" height="300" rx="14" fill="#070A14"/>
+<text x="28.0" y="38.0" font-size="17" fill="#E8EEF5" text-anchor="start" font-weight="600" >Days from onset to the first check-in suggestion</text>
+<text x="28.0" y="60.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >Each dot is one simulated relapse patient</text>
+<rect x="752" y="22" width="100" height="22" rx="11" fill="rgba(183,156,255,0.14)"/>
+<text x="802.0" y="37.0" font-size="11" fill="#B79CFF" text-anchor="middle" font-weight="600" letter-spacing="1">SIMULATED</text>
+<line x1="150.0" y1="96.0" x2="150.0" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="150.0" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >0</text>
+<line x1="248.6" y1="96.0" x2="248.6" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="248.6" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >4</text>
+<line x1="347.1" y1="96.0" x2="347.1" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="347.1" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >8</text>
+<line x1="445.7" y1="96.0" x2="445.7" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="445.7" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >12</text>
+<line x1="544.3" y1="96.0" x2="544.3" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="544.3" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >16</text>
+<line x1="642.9" y1="96.0" x2="642.9" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="642.9" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >20</text>
+<line x1="741.4" y1="96.0" x2="741.4" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="741.4" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >24</text>
+<line x1="840.0" y1="96.0" x2="840.0" y2="246.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="840.0" y="264.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >28</text>
+<text x="840.0" y="280.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >days after onset</text>
+<text x="136.0" y="137.5" font-size="12" fill="#E8EEF5" text-anchor="end" font-weight="400" >Composite + CUSUM</text>
+<circle cx="199.3" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 2 days</title></circle>
+<circle cx="322.5" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 7 days</title></circle>
+<circle cx="347.1" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 8 days</title></circle>
+<circle cx="371.8" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 9 days</title></circle>
+<circle cx="371.8" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 9 days</title></circle>
+<circle cx="371.8" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 9 days</title></circle>
+<circle cx="371.8" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 9 days</title></circle>
+<circle cx="371.8" cy="118.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 9 days</title></circle>
+<circle cx="371.8" cy="148.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 9 days</title></circle>
+<circle cx="421.1" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 11 days</title></circle>
+<circle cx="421.1" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 11 days</title></circle>
+<circle cx="421.1" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 11 days</title></circle>
+<circle cx="421.1" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 11 days</title></circle>
+<circle cx="445.7" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="118.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="148.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="113.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="445.7" cy="153.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 12 days</title></circle>
+<circle cx="470.4" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="470.4" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="470.4" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="470.4" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="470.4" cy="118.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="470.4" cy="148.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="470.4" cy="113.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 13 days</title></circle>
+<circle cx="495.0" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="118.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="148.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="113.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="153.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="108.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="495.0" cy="158.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 14 days</title></circle>
+<circle cx="519.6" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 15 days</title></circle>
+<circle cx="519.6" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 15 days</title></circle>
+<circle cx="519.6" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 15 days</title></circle>
+<circle cx="519.6" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 15 days</title></circle>
+<circle cx="544.3" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 16 days</title></circle>
+<circle cx="544.3" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 16 days</title></circle>
+<circle cx="544.3" cy="123.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 16 days</title></circle>
+<circle cx="544.3" cy="143.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 16 days</title></circle>
+<circle cx="544.3" cy="118.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 16 days</title></circle>
+<circle cx="568.9" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 17 days</title></circle>
+<circle cx="568.9" cy="138.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 17 days</title></circle>
+<circle cx="642.9" cy="133.5" r="4" fill="#C27E22" stroke="#070A14" stroke-width="2"><title>Composite + CUSUM: 20 days</title></circle>
+<text x="136.0" y="212.5" font-size="12" fill="#E8EEF5" text-anchor="end" font-weight="400" >Mood check-in only</text>
+<circle cx="150.0" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 0 days</title></circle>
+<circle cx="150.0" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 0 days</title></circle>
+<circle cx="199.3" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 2 days</title></circle>
+<circle cx="223.9" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 3 days</title></circle>
+<circle cx="223.9" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 3 days</title></circle>
+<circle cx="248.6" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 4 days</title></circle>
+<circle cx="273.2" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 5 days</title></circle>
+<circle cx="297.9" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 6 days</title></circle>
+<circle cx="347.1" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 8 days</title></circle>
+<circle cx="371.8" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 9 days</title></circle>
+<circle cx="371.8" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 9 days</title></circle>
+<circle cx="371.8" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 9 days</title></circle>
+<circle cx="396.4" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 10 days</title></circle>
+<circle cx="396.4" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 10 days</title></circle>
+<circle cx="396.4" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 10 days</title></circle>
+<circle cx="396.4" cy="218.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 10 days</title></circle>
+<circle cx="396.4" cy="193.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 10 days</title></circle>
+<circle cx="445.7" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 12 days</title></circle>
+<circle cx="445.7" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 12 days</title></circle>
+<circle cx="445.7" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 12 days</title></circle>
+<circle cx="470.4" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 13 days</title></circle>
+<circle cx="470.4" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 13 days</title></circle>
+<circle cx="470.4" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 13 days</title></circle>
+<circle cx="470.4" cy="218.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 13 days</title></circle>
+<circle cx="495.0" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 14 days</title></circle>
+<circle cx="495.0" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 14 days</title></circle>
+<circle cx="519.6" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 15 days</title></circle>
+<circle cx="519.6" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 15 days</title></circle>
+<circle cx="519.6" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 15 days</title></circle>
+<circle cx="519.6" cy="218.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 15 days</title></circle>
+<circle cx="544.3" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 16 days</title></circle>
+<circle cx="544.3" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 16 days</title></circle>
+<circle cx="544.3" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 16 days</title></circle>
+<circle cx="568.9" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 17 days</title></circle>
+<circle cx="568.9" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 17 days</title></circle>
+<circle cx="568.9" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 17 days</title></circle>
+<circle cx="593.6" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 18 days</title></circle>
+<circle cx="593.6" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 18 days</title></circle>
+<circle cx="593.6" cy="198.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 18 days</title></circle>
+<circle cx="618.2" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 19 days</title></circle>
+<circle cx="642.9" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 20 days</title></circle>
+<circle cx="692.1" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 22 days</title></circle>
+<circle cx="692.1" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 22 days</title></circle>
+<circle cx="716.8" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 23 days</title></circle>
+<circle cx="741.4" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 24 days</title></circle>
+<circle cx="741.4" cy="213.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 24 days</title></circle>
+<circle cx="766.1" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 25 days</title></circle>
+<circle cx="790.7" cy="208.5" r="4" fill="#B9CAD6" stroke="#070A14" stroke-width="2"><title>Mood check-in only: 26 days</title></circle>
+<text x="840.0" y="186.5" font-size="11" fill="#93A3B8" text-anchor="end" font-weight="400" >2 not flagged by day 55</text>
+</svg>

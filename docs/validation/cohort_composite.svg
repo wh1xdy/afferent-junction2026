@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 380" width="880" height="380" font-family="Inter, system-ui, -apple-system, Segoe UI, sans-serif" role="img" aria-label="Composite index across 50 simulated relapse and 50 stable patients">
+<title>Composite index across 50 simulated relapse and 50 stable patients</title>
+<rect width="880" height="380" rx="14" fill="#070A14"/>
+<text x="28.0" y="38.0" font-size="17" fill="#E8EEF5" text-anchor="start" font-weight="600" >Composite index, 50 relapse vs 50 stable simulated patients</text>
+<text x="28.0" y="60.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >Median line, interquartile band</text>
+<rect x="752" y="22" width="100" height="22" rx="11" fill="rgba(183,156,255,0.14)"/>
+<text x="802.0" y="37.0" font-size="11" fill="#B79CFF" text-anchor="middle" font-weight="600" letter-spacing="1">SIMULATED</text>
+<line x1="70.0" y1="326.0" x2="790.0" y2="326.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="330.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >-1</text>
+<line x1="70.0" y1="268.5" x2="790.0" y2="268.5" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="272.5" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >0</text>
+<line x1="70.0" y1="211.0" x2="790.0" y2="211.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="215.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >1</text>
+<line x1="70.0" y1="153.5" x2="790.0" y2="153.5" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="157.5" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >2</text>
+<line x1="70.0" y1="96.0" x2="790.0" y2="96.0" stroke="rgba(185,202,214,0.08)" stroke-width="1"/>
+<text x="62.0" y="100.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >3</text>
+<text x="70.0" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >0</text>
+<text x="161.6" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >7</text>
+<text x="253.3" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >14</text>
+<text x="344.9" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >21</text>
+<text x="436.5" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >28</text>
+<text x="528.2" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >35</text>
+<text x="619.8" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >42</text>
+<text x="711.5" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >49</text>
+<text x="790.0" y="344.0" font-size="11" fill="#5D6B80" text-anchor="middle" font-weight="400" >55</text>
+<text x="790.0" y="360.0" font-size="11" fill="#5D6B80" text-anchor="end" font-weight="400" >day since TMS end</text>
+<path d="M70.0,241.5 L83.1,243.2 L96.2,251.2 L109.3,257.0 L122.4,257.0 L135.5,257.6 L148.5,259.3 L161.6,261.6 L174.7,262.8 L187.8,264.5 L200.9,263.3 L214.0,263.9 L227.1,263.9 L240.2,262.2 L253.3,262.8 L266.4,262.8 L279.5,261.0 L292.5,261.0 L305.6,259.9 L318.7,257.6 L331.8,259.9 L344.9,258.7 L358.0,257.6 L371.1,255.9 L384.2,254.7 L397.3,252.4 L410.4,254.1 L423.5,256.4 L436.5,259.9 L449.6,258.7 L462.7,258.7 L475.8,259.3 L488.9,259.3 L502.0,255.9 L515.1,257.0 L528.2,255.3 L541.3,256.4 L554.4,254.7 L567.5,257.6 L580.5,255.9 L593.6,255.9 L606.7,251.2 L619.8,255.9 L632.9,256.4 L646.0,255.9 L659.1,253.0 L672.2,252.4 L685.3,255.3 L698.4,255.9 L711.5,259.9 L724.5,259.3 L737.6,257.6 L750.7,257.6 L763.8,262.2 L776.9,260.4 L790.0,259.9 L790.0,280.6 L776.9,276.6 L763.8,273.1 L750.7,271.4 L737.6,273.1 L724.5,273.7 L711.5,273.1 L698.4,272.5 L685.3,277.7 L672.2,278.3 L659.1,274.2 L646.0,276.0 L632.9,273.7 L619.8,275.4 L606.7,274.2 L593.6,274.2 L580.5,275.4 L567.5,277.7 L554.4,276.0 L541.3,277.7 L528.2,273.7 L515.1,274.8 L502.0,276.6 L488.9,275.4 L475.8,277.7 L462.7,277.1 L449.6,275.4 L436.5,275.4 L423.5,276.6 L410.4,278.3 L397.3,276.0 L384.2,281.1 L371.1,278.9 L358.0,275.4 L344.9,273.7 L331.8,275.4 L318.7,274.8 L305.6,275.4 L292.5,275.4 L279.5,274.8 L266.4,276.0 L253.3,273.7 L240.2,272.5 L227.1,271.4 L214.0,273.7 L200.9,270.8 L187.8,271.9 L174.7,271.4 L161.6,273.7 L148.5,273.1 L135.5,274.8 L122.4,275.4 L109.3,277.1 L96.2,270.2 L83.1,274.8 L70.0,275.4 Z" fill="#2FA3BE" fill-opacity="0.22"/>
+<path d="M70.0,258.7 L83.1,257.0 L96.2,263.9 L109.3,266.2 L122.4,265.1 L135.5,265.6 L148.5,266.8 L161.6,269.1 L174.7,267.4 L187.8,268.5 L200.9,267.4 L214.0,267.9 L227.1,267.4 L240.2,269.1 L253.3,268.5 L266.4,267.9 L279.5,267.4 L292.5,268.5 L305.6,268.5 L318.7,269.6 L331.8,268.5 L344.9,268.5 L358.0,267.9 L371.1,266.2 L384.2,266.8 L397.3,266.2 L410.4,263.9 L423.5,265.6 L436.5,267.9 L449.6,267.9 L462.7,267.9 L475.8,267.9 L488.9,265.6 L502.0,268.5 L515.1,267.4 L528.2,265.1 L541.3,262.8 L554.4,263.3 L567.5,263.9 L580.5,262.8 L593.6,263.3 L606.7,265.1 L619.8,265.1 L632.9,265.6 L646.0,267.4 L659.1,267.9 L672.2,265.6 L685.3,265.6 L698.4,265.6 L711.5,266.2 L724.5,263.9 L737.6,265.6 L750.7,263.9 L763.8,267.4 L776.9,267.4 L790.0,265.1" fill="none" stroke="#2FA3BE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="70.0" cy="258.7" r="7" fill="transparent"><title>stable day 0: median 0.17</title></circle>
+<circle cx="83.1" cy="257.0" r="7" fill="transparent"><title>stable day 1: median 0.20</title></circle>
+<circle cx="96.2" cy="263.9" r="7" fill="transparent"><title>stable day 2: median 0.08</title></circle>
+<circle cx="109.3" cy="266.2" r="7" fill="transparent"><title>stable day 3: median 0.04</title></circle>
+<circle cx="122.4" cy="265.1" r="7" fill="transparent"><title>stable day 4: median 0.06</title></circle>
+<circle cx="135.5" cy="265.6" r="7" fill="transparent"><title>stable day 5: median 0.05</title></circle>
+<circle cx="148.5" cy="266.8" r="7" fill="transparent"><title>stable day 6: median 0.03</title></circle>
+<circle cx="161.6" cy="269.1" r="7" fill="transparent"><title>stable day 7: median -0.01</title></circle>
+<circle cx="174.7" cy="267.4" r="7" fill="transparent"><title>stable day 8: median 0.02</title></circle>
+<circle cx="187.8" cy="268.5" r="7" fill="transparent"><title>stable day 9: median 0.00</title></circle>
+<circle cx="200.9" cy="267.4" r="7" fill="transparent"><title>stable day 10: median 0.02</title></circle>
+<circle cx="214.0" cy="267.9" r="7" fill="transparent"><title>stable day 11: median 0.01</title></circle>
+<circle cx="227.1" cy="267.4" r="7" fill="transparent"><title>stable day 12: median 0.02</title></circle>
+<circle cx="240.2" cy="269.1" r="7" fill="transparent"><title>stable day 13: median -0.01</title></circle>
+<circle cx="253.3" cy="268.5" r="7" fill="transparent"><title>stable day 14: median 0.00</title></circle>
+<circle cx="266.4" cy="267.9" r="7" fill="transparent"><title>stable day 15: median 0.01</title></circle>
+<circle cx="279.5" cy="267.4" r="7" fill="transparent"><title>stable day 16: median 0.02</title></circle>
+<circle cx="292.5" cy="268.5" r="7" fill="transparent"><title>stable day 17: median 0.00</title></circle>
+<circle cx="305.6" cy="268.5" r="7" fill="transparent"><title>stable day 18: median 0.00</title></circle>
+<circle cx="318.7" cy="269.6" r="7" fill="transparent"><title>stable day 19: median -0.02</title></circle>
+<circle cx="331.8" cy="268.5" r="7" fill="transparent"><title>stable day 20: median 0.00</title></circle>
+<circle cx="344.9" cy="268.5" r="7" fill="transparent"><title>stable day 21: median 0.00</title></circle>
+<circle cx="358.0" cy="267.9" r="7" fill="transparent"><title>stable day 22: median 0.01</title></circle>
+<circle cx="371.1" cy="266.2" r="7" fill="transparent"><title>stable day 23: median 0.04</title></circle>
+<circle cx="384.2" cy="266.8" r="7" fill="transparent"><title>stable day 24: median 0.03</title></circle>
+<circle cx="397.3" cy="266.2" r="7" fill="transparent"><title>stable day 25: median 0.04</title></circle>
+<circle cx="410.4" cy="263.9" r="7" fill="transparent"><title>stable day 26: median 0.08</title></circle>
+<circle cx="423.5" cy="265.6" r="7" fill="transparent"><title>stable day 27: median 0.05</title></circle>
+<circle cx="436.5" cy="267.9" r="7" fill="transparent"><title>stable day 28: median 0.01</title></circle>
+<circle cx="449.6" cy="267.9" r="7" fill="transparent"><title>stable day 29: median 0.01</title></circle>
+<circle cx="462.7" cy="267.9" r="7" fill="transparent"><title>stable day 30: median 0.01</title></circle>
+<circle cx="475.8" cy="267.9" r="7" fill="transparent"><title>stable day 31: median 0.01</title></circle>
+<circle cx="488.9" cy="265.6" r="7" fill="transparent"><title>stable day 32: median 0.05</title></circle>
+<circle cx="502.0" cy="268.5" r="7" fill="transparent"><title>stable day 33: median 0.00</title></circle>
+<circle cx="515.1" cy="267.4" r="7" fill="transparent"><title>stable day 34: median 0.02</title></circle>
+<circle cx="528.2" cy="265.1" r="7" fill="transparent"><title>stable day 35: median 0.06</title></circle>
+<circle cx="541.3" cy="262.8" r="7" fill="transparent"><title>stable day 36: median 0.10</title></circle>
+<circle cx="554.4" cy="263.3" r="7" fill="transparent"><title>stable day 37: median 0.09</title></circle>
+<circle cx="567.5" cy="263.9" r="7" fill="transparent"><title>stable day 38: median 0.08</title></circle>
+<circle cx="580.5" cy="262.8" r="7" fill="transparent"><title>stable day 39: median 0.10</title></circle>
+<circle cx="593.6" cy="263.3" r="7" fill="transparent"><title>stable day 40: median 0.09</title></circle>
+<circle cx="606.7" cy="265.1" r="7" fill="transparent"><title>stable day 41: median 0.06</title></circle>
+<circle cx="619.8" cy="265.1" r="7" fill="transparent"><title>stable day 42: median 0.06</title></circle>
+<circle cx="632.9" cy="265.6" r="7" fill="transparent"><title>stable day 43: median 0.05</title></circle>
+<circle cx="646.0" cy="267.4" r="7" fill="transparent"><title>stable day 44: median 0.02</title></circle>
+<circle cx="659.1" cy="267.9" r="7" fill="transparent"><title>stable day 45: median 0.01</title></circle>
+<circle cx="672.2" cy="265.6" r="7" fill="transparent"><title>stable day 46: median 0.05</title></circle>
+<circle cx="685.3" cy="265.6" r="7" fill="transparent"><title>stable day 47: median 0.05</title></circle>
+<circle cx="698.4" cy="265.6" r="7" fill="transparent"><title>stable day 48: median 0.05</title></circle>
+<circle cx="711.5" cy="266.2" r="7" fill="transparent"><title>stable day 49: median 0.04</title></circle>
+<circle cx="724.5" cy="263.9" r="7" fill="transparent"><title>stable day 50: median 0.08</title></circle>
+<circle cx="737.6" cy="265.6" r="7" fill="transparent"><title>stable day 51: median 0.05</title></circle>
+<circle cx="750.7" cy="263.9" r="7" fill="transparent"><title>stable day 52: median 0.08</title></circle>
+<circle cx="763.8" cy="267.4" r="7" fill="transparent"><title>stable day 53: median 0.02</title></circle>
+<circle cx="776.9" cy="267.4" r="7" fill="transparent"><title>stable day 54: median 0.02</title></circle>
+<circle cx="790.0" cy="265.1" r="7" fill="transparent"><title>stable day 55: median 0.06</title></circle>
+<path d="M70.0,237.4 L83.1,239.8 L96.2,250.1 L109.3,258.1 L122.4,256.4 L135.5,256.4 L148.5,257.0 L161.6,257.6 L174.7,259.9 L187.8,262.2 L200.9,262.8 L214.0,262.8 L227.1,263.9 L240.2,264.5 L253.3,263.3 L266.4,259.9 L279.5,259.9 L292.5,257.6 L305.6,258.7 L318.7,255.9 L331.8,255.3 L344.9,257.0 L358.0,256.4 L371.1,255.3 L384.2,258.7 L397.3,257.0 L410.4,257.6 L423.5,260.4 L436.5,259.9 L449.6,259.9 L462.7,256.4 L475.8,252.4 L488.9,250.7 L502.0,243.8 L515.1,235.1 L528.2,228.8 L541.3,224.2 L554.4,217.9 L567.5,209.3 L580.5,201.2 L593.6,196.1 L606.7,190.3 L619.8,182.8 L632.9,177.7 L646.0,169.6 L659.1,162.7 L672.2,158.1 L685.3,154.1 L698.4,150.0 L711.5,143.7 L724.5,138.6 L737.6,136.8 L750.7,133.4 L763.8,132.8 L776.9,132.2 L790.0,129.9 L790.0,143.7 L776.9,148.3 L763.8,150.0 L750.7,154.7 L737.6,157.0 L724.5,159.8 L711.5,166.7 L698.4,173.0 L685.3,175.9 L672.2,180.5 L659.1,188.0 L646.0,193.2 L632.9,200.7 L619.8,203.5 L606.7,212.7 L593.6,219.1 L580.5,225.9 L567.5,232.8 L554.4,239.2 L541.3,244.4 L528.2,250.1 L515.1,256.4 L502.0,262.2 L488.9,267.4 L475.8,272.5 L462.7,273.7 L449.6,275.4 L436.5,277.7 L423.5,278.3 L410.4,277.7 L397.3,279.4 L384.2,277.1 L371.1,274.2 L358.0,274.2 L344.9,276.6 L331.8,277.7 L318.7,278.9 L305.6,278.9 L292.5,278.3 L279.5,278.3 L266.4,277.7 L253.3,277.1 L240.2,274.2 L227.1,272.5 L214.0,270.8 L200.9,269.6 L187.8,268.5 L174.7,272.5 L161.6,273.1 L148.5,273.7 L135.5,274.8 L122.4,271.4 L109.3,270.2 L96.2,266.8 L83.1,271.9 L70.0,280.0 Z" fill="#C27E22" fill-opacity="0.22"/>
+<path d="M70.0,255.9 L83.1,257.0 L96.2,261.0 L109.3,262.2 L122.4,264.5 L135.5,267.9 L148.5,267.9 L161.6,267.9 L174.7,265.6 L187.8,265.6 L200.9,265.6 L214.0,266.8 L227.1,268.5 L240.2,268.5 L253.3,269.1 L266.4,267.4 L279.5,266.8 L292.5,265.6 L305.6,265.1 L318.7,265.1 L331.8,267.4 L344.9,266.8 L358.0,266.2 L371.1,266.2 L384.2,265.6 L397.3,265.6 L410.4,264.5 L423.5,266.8 L436.5,267.9 L449.6,266.8 L462.7,266.2 L475.8,263.9 L488.9,258.7 L502.0,255.9 L515.1,248.9 L528.2,243.2 L541.3,238.6 L554.4,227.7 L567.5,219.1 L580.5,211.6 L593.6,208.1 L606.7,201.2 L619.8,193.2 L632.9,185.7 L646.0,180.5 L659.1,175.3 L672.2,171.9 L685.3,163.8 L698.4,158.1 L711.5,155.2 L724.5,147.8 L737.6,144.9 L750.7,142.0 L763.8,138.6 L776.9,136.8 L790.0,136.8" fill="none" stroke="#C27E22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="70.0" cy="255.9" r="7" fill="transparent"><title>relapse day 0: median 0.22</title></circle>
+<circle cx="83.1" cy="257.0" r="7" fill="transparent"><title>relapse day 1: median 0.20</title></circle>
+<circle cx="96.2" cy="261.0" r="7" fill="transparent"><title>relapse day 2: median 0.13</title></circle>
+<circle cx="109.3" cy="262.2" r="7" fill="transparent"><title>relapse day 3: median 0.11</title></circle>
+<circle cx="122.4" cy="264.5" r="7" fill="transparent"><title>relapse day 4: median 0.07</title></circle>
+<circle cx="135.5" cy="267.9" r="7" fill="transparent"><title>relapse day 5: median 0.01</title></circle>
+<circle cx="148.5" cy="267.9" r="7" fill="transparent"><title>relapse day 6: median 0.01</title></circle>
+<circle cx="161.6" cy="267.9" r="7" fill="transparent"><title>relapse day 7: median 0.01</title></circle>
+<circle cx="174.7" cy="265.6" r="7" fill="transparent"><title>relapse day 8: median 0.05</title></circle>
+<circle cx="187.8" cy="265.6" r="7" fill="transparent"><title>relapse day 9: median 0.05</title></circle>
+<circle cx="200.9" cy="265.6" r="7" fill="transparent"><title>relapse day 10: median 0.05</title></circle>
+<circle cx="214.0" cy="266.8" r="7" fill="transparent"><title>relapse day 11: median 0.03</title></circle>
+<circle cx="227.1" cy="268.5" r="7" fill="transparent"><title>relapse day 12: median 0.00</title></circle>
+<circle cx="240.2" cy="268.5" r="7" fill="transparent"><title>relapse day 13: median 0.00</title></circle>
+<circle cx="253.3" cy="269.1" r="7" fill="transparent"><title>relapse day 14: median -0.01</title></circle>
+<circle cx="266.4" cy="267.4" r="7" fill="transparent"><title>relapse day 15: median 0.02</title></circle>
+<circle cx="279.5" cy="266.8" r="7" fill="transparent"><title>relapse day 16: median 0.03</title></circle>
+<circle cx="292.5" cy="265.6" r="7" fill="transparent"><title>relapse day 17: median 0.05</title></circle>
+<circle cx="305.6" cy="265.1" r="7" fill="transparent"><title>relapse day 18: median 0.06</title></circle>
+<circle cx="318.7" cy="265.1" r="7" fill="transparent"><title>relapse day 19: median 0.06</title></circle>
+<circle cx="331.8" cy="267.4" r="7" fill="transparent"><title>relapse day 20: median 0.02</title></circle>
+<circle cx="344.9" cy="266.8" r="7" fill="transparent"><title>relapse day 21: median 0.03</title></circle>
+<circle cx="358.0" cy="266.2" r="7" fill="transparent"><title>relapse day 22: median 0.04</title></circle>
+<circle cx="371.1" cy="266.2" r="7" fill="transparent"><title>relapse day 23: median 0.04</title></circle>
+<circle cx="384.2" cy="265.6" r="7" fill="transparent"><title>relapse day 24: median 0.05</title></circle>
+<circle cx="397.3" cy="265.6" r="7" fill="transparent"><title>relapse day 25: median 0.05</title></circle>
+<circle cx="410.4" cy="264.5" r="7" fill="transparent"><title>relapse day 26: median 0.07</title></circle>
+<circle cx="423.5" cy="266.8" r="7" fill="transparent"><title>relapse day 27: median 0.03</title></circle>
+<circle cx="436.5" cy="267.9" r="7" fill="transparent"><title>relapse day 28: median 0.01</title></circle>
+<circle cx="449.6" cy="266.8" r="7" fill="transparent"><title>relapse day 29: median 0.03</title></circle>
+<circle cx="462.7" cy="266.2" r="7" fill="transparent"><title>relapse day 30: median 0.04</title></circle>
+<circle cx="475.8" cy="263.9" r="7" fill="transparent"><title>relapse day 31: median 0.08</title></circle>
+<circle cx="488.9" cy="258.7" r="7" fill="transparent"><title>relapse day 32: median 0.17</title></circle>
+<circle cx="502.0" cy="255.9" r="7" fill="transparent"><title>relapse day 33: median 0.22</title></circle>
+<circle cx="515.1" cy="248.9" r="7" fill="transparent"><title>relapse day 34: median 0.34</title></circle>
+<circle cx="528.2" cy="243.2" r="7" fill="transparent"><title>relapse day 35: median 0.44</title></circle>
+<circle cx="541.3" cy="238.6" r="7" fill="transparent"><title>relapse day 36: median 0.52</title></circle>
+<circle cx="554.4" cy="227.7" r="7" fill="transparent"><title>relapse day 37: median 0.71</title></circle>
+<circle cx="567.5" cy="219.1" r="7" fill="transparent"><title>relapse day 38: median 0.86</title></circle>
+<circle cx="580.5" cy="211.6" r="7" fill="transparent"><title>relapse day 39: median 0.99</title></circle>
+<circle cx="593.6" cy="208.1" r="7" fill="transparent"><title>relapse day 40: median 1.05</title></circle>
+<circle cx="606.7" cy="201.2" r="7" fill="transparent"><title>relapse day 41: median 1.17</title></circle>
+<circle cx="619.8" cy="193.2" r="7" fill="transparent"><title>relapse day 42: median 1.31</title></circle>
+<circle cx="632.9" cy="185.7" r="7" fill="transparent"><title>relapse day 43: median 1.44</title></circle>
+<circle cx="646.0" cy="180.5" r="7" fill="transparent"><title>relapse day 44: median 1.53</title></circle>
+<circle cx="659.1" cy="175.3" r="7" fill="transparent"><title>relapse day 45: median 1.62</title></circle>
+<circle cx="672.2" cy="171.9" r="7" fill="transparent"><title>relapse day 46: median 1.68</title></circle>
+<circle cx="685.3" cy="163.8" r="7" fill="transparent"><title>relapse day 47: median 1.82</title></circle>
+<circle cx="698.4" cy="158.1" r="7" fill="transparent"><title>relapse day 48: median 1.92</title></circle>
+<circle cx="711.5" cy="155.2" r="7" fill="transparent"><title>relapse day 49: median 1.97</title></circle>
+<circle cx="724.5" cy="147.8" r="7" fill="transparent"><title>relapse day 50: median 2.10</title></circle>
+<circle cx="737.6" cy="144.9" r="7" fill="transparent"><title>relapse day 51: median 2.15</title></circle>
+<circle cx="750.7" cy="142.0" r="7" fill="transparent"><title>relapse day 52: median 2.20</title></circle>
+<circle cx="763.8" cy="138.6" r="7" fill="transparent"><title>relapse day 53: median 2.26</title></circle>
+<circle cx="776.9" cy="136.8" r="7" fill="transparent"><title>relapse day 54: median 2.29</title></circle>
+<circle cx="790.0" cy="136.8" r="7" fill="transparent"><title>relapse day 55: median 2.29</title></circle>
+<line x1="436.5" y1="96.0" x2="436.5" y2="326.0" stroke="#93A3B8" stroke-width="1" stroke-dasharray="3 4"/>
+<text x="442.5" y="108.0" font-size="11" fill="#93A3B8" text-anchor="start" font-weight="400" >relapse onset</text>
+<text x="794.0" y="140.8" font-size="12" fill="#E8EEF5" text-anchor="start" font-weight="400" >relapse</text>
+<text x="794.0" y="269.1" font-size="12" fill="#E8EEF5" text-anchor="start" font-weight="400" >stable</text>
+<rect x="70" y="355" width="14" height="4" rx="2" fill="#C27E22"/>
+<text x="90.0" y="361.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >relapse (onset day 28)</text>
+<rect x="252" y="355" width="14" height="4" rx="2" fill="#2FA3BE"/>
+<text x="272.0" y="361.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >stable control</text>
+</svg>
