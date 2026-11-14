@@ -27,11 +27,11 @@
     return `<section class="page"><div class="page-inner">
       <h1 class="page-title">Settings</h1>
       <div class="settings">
-        <div><div class="group-h">Appearance</div><div class="group">
+        <div><div class="group">
           <div class="li">${icon('contrast')}<span><b>Theme</b></span><span class="segmented" role="radiogroup" aria-label="Theme">${opt('light', 'Light', 'light_mode')}${opt('dark', 'Dark', 'dark_mode')}${opt('system', 'System', 'devices')}</span></div>
         </div></div>
-        <div><div class="group-h">Demo</div><div class="group">
-          <div class="li">${icon('history')}<span><b>Reset demo data</b></span><button class="btn text small" data-action="reset">Reset</button></div>
+        <div><div class="group">
+          <div class="li">${icon('history')}<span><b>Demo data</b></span><button class="btn text small" data-action="reset">Reset</button></div>
         </div></div>
       </div>
     </div></section>`;
@@ -45,15 +45,15 @@
     if (!v) return '<section class="page"><div class="loading">Loading</div></section>';
     if (v.status === 'computing') return '<section class="page"><div class="loading">Computing</div></section>';
     const r = v.relapse, st = v.stable, b = v.bandit;
-    const iqr = (o) => (o?.iqr ? `IQR ${dnum(o.iqr[0])} to ${dnum(o.iqr[1])}` : '');
+    const iqr = (o) => (o?.iqr ? `IQR ${dnum(o.iqr[0])}–${dnum(o.iqr[1])}` : '');
     const best = esc(TASK[b.true_best.task_id] || b.true_best.task_id);
     const mm = r.mood_only_at_matched_false_alarms;
     const tiles = [
-      [dplural(r.days_onset_to_check_in.median, 'day'), 'from relapse onset to a check-in suggestion', iqr(r.days_onset_to_check_in)],
-      [`${Math.round(r.detected_share * 100)}<small>%</small>`, 'of simulated relapses reached a check-in suggestion', `${v.n_seeds} relapse seeds`],
-      [num(st.false_alarms_per_patient_month), 'false check-in suggestions per patient-month', `${st.false_check_in_episodes} episodes in ${st.patient_days} patient-days`],
-      mm?.days_onset_to_flag?.median ? [dplural(mm.days_onset_to_flag.median, 'day'), 'for the mood lantern alone, at equal false alarms', `flagged ${Math.round((mm.detected_share ?? 0) * 100)}% of relapses`] : [dplural(r.lead_time_vs_mood_only_days?.median, 'day'), 'earlier than a mood-only rule', iqr(r.lead_time_vs_mood_only_days)],
-      [dplural(b.sessions_to_p_best_0_8.median, 'session'), `until ${best} is reliably found as most helpful`, iqr(b.sessions_to_p_best_0_8)],
+      [dplural(r.days_onset_to_check_in.median, 'day'), 'Onset to check-in', iqr(r.days_onset_to_check_in)],
+      [`${Math.round(r.detected_share * 100)}<small>%</small>`, 'Relapses caught', `${v.n_seeds} seeds`],
+      [num(st.false_alarms_per_patient_month), 'False alarms / patient-month', `${st.false_check_in_episodes} in ${st.patient_days} patient-days`],
+      mm?.days_onset_to_flag?.median ? [dplural(mm.days_onset_to_flag.median, 'day'), 'Mood alone', `${Math.round((mm.detected_share ?? 0) * 100)}% caught`] : [dplural(r.lead_time_vs_mood_only_days?.median, 'day'), 'Ahead of mood alone', iqr(r.lead_time_vs_mood_only_days)],
+      [dplural(b.sessions_to_p_best_0_8.median, 'session'), `To find ${best}`, iqr(b.sessions_to_p_best_0_8)],
     ].map(([n, l, s]) => `<div class="vkpi"><b class="num">${n}</b><span>${l}</span><span class="muted num">${s}</span></div>`).join('');
     const timing = [
       ['Watch', r.days_onset_to_watch, C.stateColor('watch')],
@@ -63,19 +63,17 @@
     ].filter(([, o]) => o?.iqr);
     const tmax = Math.max(28, ...timing.map(([, o]) => o.iqr[1] + 2));
     const ticks = [0, 7, 14, 21, 28, 35, 42].filter((t) => t <= tmax);
-    const timingHtml = `<div class="trange">${timing.map(([l, o, c]) => `<div class="tr-row" data-tip="${esc(`${l}: median ${dnum(o.median)} days after onset, IQR ${dnum(o.iqr[0])} to ${dnum(o.iqr[1])}`)}"><span>${l}</span><span class="tr-track"><i style="left:${(o.iqr[0] / tmax) * 100}%;width:${(Math.max(0.3, o.iqr[1] - o.iqr[0]) / tmax) * 100}%;--c:${c}"></i><b style="left:${(o.median / tmax) * 100}%;--c:${c}"></b></span><span class="tr-v num">${dnum(o.median)} d</span></div>`).join('')}
+    const timingHtml = `<div class="trange">${timing.map(([l, o, c]) => `<div class="tr-row" data-tip="${esc(`${l}: median ${dnum(o.median)} d, IQR ${dnum(o.iqr[0])}–${dnum(o.iqr[1])}`)}"><span>${l}</span><span class="tr-track"><i style="left:${(o.iqr[0] / tmax) * 100}%;width:${(Math.max(0.3, o.iqr[1] - o.iqr[0]) / tmax) * 100}%;--c:${c}"></i><b style="left:${(o.median / tmax) * 100}%;--c:${c}"></b></span><span class="tr-v num">${dnum(o.median)} d</span></div>`).join('')}
       <div class="tr-row tr-axis"><span></span><span class="tr-track">${ticks.map((t) => `<em style="left:${(t / tmax) * 100}%">${t}</em>`).join('')}</span><span></span></div></div>`;
     const panel = (cls, h, body, foot) => `<div class="panel ${cls}"><h2>${h}</h2>${body}${foot ? `<div class="foot">${foot}</div>` : ''}</div>`;
-    const leg = (c, l) => `<span class="legend"><i style="--c:${c}"></i>${l}</span>`;
-    const line = C.css('--c-line'), teal = C.css('--c-stable');
     return `<section class="page"><div class="page-inner">
       <h1 class="page-title">Validation</h1>
       <div class="badges"><span class="sim-badge">Simulated</span>${v.untuned ? '<span class="sim-badge">Untuned</span>' : ''}<span class="sim-badge">Not clinically validated</span></div>
       <div class="vkpis">${tiles}</div>
       <div class="grid2">
-        ${panel('wide', 'Early-warning index, one example', '<div id="v-ex"></div>', leg(line, 'Relapse') + leg(teal, 'Stable control'))}
-        ${panel('', `Days from onset to each suggestion ${info('Median and IQR across seeds. Mood alone: the same rule on the mood lantern only, at equal false alarms.')}`, timingHtml, '')}
-        ${panel('', `Probability that ${best} helps most`, '<div id="v-bandit"></div>', '')}
+        ${panel('wide', 'Index example', '<div id="v-ex"></div>', '')}
+        ${panel('', `Days to suggestion ${info('Median, IQR. Mood alone: same rule, equal false alarms.')}`, timingHtml, '')}
+        ${panel('', `P(${best} best)`, '<div id="v-bandit"></div>', '')}
       </div>
     </div></section>`;
   };
@@ -91,8 +89,8 @@
     if (el1) C.lineChart(el1, {
       x: days, h: 240, aria: 'Example early-warning index',
       series: [{ values: m.composite, color: teal, width: 1.75, label: 'Stable' }, { values: a.composite, color: line, label: 'Relapse' }],
-      marks: [{ x: a.onset_day, label: 'Onset', color: C.css('--c-outline') }].concat(a.first_check_in_day != null ? [{ x: a.first_check_in_day, label: 'Check-in suggested', color: C.stateColor('check_in') }] : []),
-      xticks: xt, xtick: (d) => (d === 0 ? 'TMS end' : 'day ' + d), ytick: (t) => num(t, 1),
+      marks: [{ x: a.onset_day, label: 'Onset', color: C.css('--c-outline') }].concat(a.first_check_in_day != null ? [{ x: a.first_check_in_day, label: 'Check-in', color: C.stateColor('check_in') }] : []),
+      xticks: xt, xtick: (d) => (d === 0 ? 'TMS end' : 'd' + d), ytick: (t) => num(t, 1),
       tip: (i) => `<div class="tip-h">Day ${days[i]}</div><div class="tip-r"><span>Relapse</span><b>${signed(a.composite[i])}</b></div><div class="tip-r"><span>Stable</span><b>${signed(m.composite[i])}</b></div>`,
     });
     const bp = ex.bandit_p_best;

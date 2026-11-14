@@ -104,7 +104,7 @@
       g.push(`<rect x="${ML}" y="${yb.toFixed(1)}" width="${W - ML - MR}" height="${hb.toFixed(1)}" rx="8" fill="${css('--c-band')}"/>`);
       if (o.mid != null) g.push(`<line x1="${ML}" x2="${W - MR}" y1="${y(o.mid).toFixed(1)}" y2="${y(o.mid).toFixed(1)}" stroke="${css('--c-band-line')}" stroke-width="1"/>`);
       const ly = yb - 7 < top - 6 ? y(b0) + 16 : yb - 7;
-      g.push(`<text x="${ML + 4}" y="${ly.toFixed(1)}" class="lbl-band">${esc(o.bandLabel || 'personal baseline')}</text>`);
+      if (o.bandLabel) g.push(`<text x="${ML + 4}" y="${ly.toFixed(1)}" class="lbl-band">${esc(o.bandLabel)}</text>`);
     }
     if (o.threshold != null) {
       const yt = y(o.threshold).toFixed(1);

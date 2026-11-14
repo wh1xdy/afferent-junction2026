@@ -194,7 +194,7 @@
   const btn = (cls, text, fn, ic) => { const b = el('button', `btn ${cls} state`); b.type = 'button'; if (ic) b.append(icon(ic)); b.append(document.createTextNode(text)); b.onclick = fn; return b; };
   const TAG = { ok: 'OK', act: 'Your turn', wait: 'Checking' };
 
-  let st = null, timer = 0, drawn = '', told = '';
+  let st = null, timer = 0, drawn = '', told = '', opener = null;
 
   const buzz = () => { A.Haptics?.play('success'); };
 
@@ -289,6 +289,8 @@
     drawn = ''; told = '';
     quiet(A.Finger?.arm?.());
     scheme(layer);
+    A.Swipe?.stay?.(layer);
+    if (layer.classList.contains('hidden')) { opener = document.activeElement; A.Swipe?.hold?.(320); }
     layer.classList.remove('hidden');
     $('phone')?.classList.add('card-open');
     clearInterval(timer);
@@ -304,9 +306,17 @@
     st = null;
     clearInterval(timer); timer = 0;
     remember(s.via != null, s.via);
-    $('clipcheck')?.classList.add('hidden');
-    const phone = $('phone');
-    if (phone && !phone.querySelector('.screen.settings:not(.hidden), .layer:not(.hidden), .talk:not(.hidden), .onboard')) phone.classList.remove('card-open');
+    const layer = $('clipcheck');
+    const hide = () => {
+      layer?.classList.add('hidden');
+      const phone = $('phone');
+      if (phone && !phone.querySelector('.screen.settings:not(.hidden), .layer:not(.hidden), .talk:not(.hidden), .onboard')) phone.classList.remove('card-open');
+      // focus goes back to what opened it (the Settings row, the kindle)
+      const f = opener; opener = null;
+      if (f?.isConnected && !layer?.contains?.(f)) f.focus?.({ preventScroll: true });
+    };
+    // slides out like a swipe when it is closed with a button, the scrim or Escape (gui/swipe.js)
+    if (!A.Swipe?.out?.(layer, hide)) hide();
     refreshLine();
     if (s.mode !== 'session') return;
     if (how === 'begin') s.go?.();

@@ -51,9 +51,9 @@ assert.strictEqual(none.body.state.cusum, null);
 assert.deepStrictEqual(JSON.parse(JSON.stringify(none.body.cusum.history)), []);
 for (const html of [none.page, none.list]) {
   assert.ok(html.includes('Not enough data yet'), 'says there is not enough data');
-  assert.ok(!html.includes('>Stable<') && !html.includes('Steady across all signals'), 'claims no state');
+  assert.ok(!html.includes('>Stable<') && !html.includes('All steady'), 'claims no state');
 }
-assert.ok(none.page.includes('No session was recorded in these weeks'));
+assert.ok(none.page.includes('No sessions'));
 
 const full = scan(fixture());                           // a code with a state renders as before
 assert.strictEqual(full.body.state.shown, fixture().state.shown);
@@ -61,6 +61,6 @@ assert.ok(full.page.includes('Booster review') && !full.page.includes('Not enoug
 const stable = fixture();
 Object.assign(stable.state, { shown: 'stable', cusum: 'stable', phq_state: null });
 stable.contrib = [];
-assert.ok(scan(stable).page.includes('Steady across all signals'));
+assert.ok(scan(stable).page.includes('All steady'));
 
 console.log('clinic imported state: ok');

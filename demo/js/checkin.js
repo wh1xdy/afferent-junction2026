@@ -370,20 +370,24 @@
   let lastFocus = null, forcedScheme = null;
   const siblings = () => [...root.parentElement.children].filter(n => n !== root && n.tagName !== 'SCRIPT');
   const openRoot = () => {
-    if (!root.classList.contains('hidden')) return;
+    if (!root.classList.contains('hidden')) { A.Swipe?.stay?.(root); return; }
     lastFocus = document.activeElement;
     root.classList.remove('hidden', 'leaving');
     siblings().forEach(n => { n.inert = true; });
   };
   const close = () => {
     clearTimeout(timer);
-    root.classList.add('hidden');
-    root.style.translate = '';
-    current = null;
-    forcedScheme = null;
-    siblings().forEach(n => { n.inert = false; });
-    lastFocus?.focus?.({ preventScroll: true });
-    refresh();
+    const done = () => {
+      root.classList.add('hidden');
+      root.style.translate = '';
+      current = null;
+      forcedScheme = null;
+      siblings().forEach(n => { n.inert = false; });
+      lastFocus?.focus?.({ preventScroll: true });
+      refresh();
+    };
+    // the card slides down over the home screen like a swipe (gui/swipe.js); opened again meanwhile, it stays
+    if (!A.Swipe?.out?.(root, done)) done();
   };
   const show = kind => { openRoot(); render(kind); };
 

@@ -16,7 +16,7 @@ COPY stage/ ./
 COPY start.sh /usr/local/bin/afferent-home-hub
 RUN chmod 0755 /usr/local/bin/afferent-home-hub && mkdir -p /data && chown afferent:afferent /data
 
-ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 AFFERENT_DB=/data/afferent.db
+ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 AFFERENT_DB=/data/afferent.db AFFERENT_TRANSCRIPTS_DIR=/data/transcripts
 WORKDIR /srv/afferent/hub
 EXPOSE 8000
 CMD ["/usr/local/bin/afferent-home-hub"]

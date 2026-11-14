@@ -160,7 +160,7 @@ h1, h2, h3, p { margin: 0; }
 .detail-pane { min-height: 0; overflow-y: auto; overflow-x: hidden; margin: 4px 0 24px; border-radius: 28px; background: var(--c-surface-low); box-shadow: var(--c-elev-1); scrollbar-width: thin; }
 .dp { padding: 28px 28px 32px; display: flex; flex-direction: column; gap: 24px; }
 .dp-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: start; }
-.btn.dp-back { display: none; margin: -8px 0 4px -12px; }
+.dp-back { display: none; margin: -8px 0 4px -12px; }
 .dp-name { font: 400 32px/40px var(--f-brand); display: flex; align-items: center; gap: 12px; }
 .dp-sub { grid-column: 1 / -1; font-size: 16px; line-height: 24px; color: var(--c-on-surface-variant); }
 .dp-head .st { margin-top: 4px; justify-self: end; }
@@ -191,6 +191,7 @@ h1, h2, h3, p { margin: 0; }
 .kv .v { font-size: 22px; line-height: 28px; font-weight: 500; }
 .trend { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; color: var(--c-on-surface-variant); }
 .trend .ms { font-size: 18px; }
+.trend small { margin-left: 4px; font-size: inherit; }
 
 .chart-wrap { position: relative; }
 .chart { display: block; width: 100%; overflow: visible; }
@@ -399,7 +400,7 @@ h1, h2, h3, p { margin: 0; }
   body[data-route="list"] .prow[aria-current="true"]::before { display: none; }
   .detail-pane { margin: 8px 0 16px; }
   .dp { padding: 20px 16px 24px; }
-  .btn.dp-back { display: inline-flex; }
+  .dp-back { display: inline-grid; }
   .prow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "n c" "r r"; gap: 6px 12px; padding: 14px 20px; }
   .prow .pname { grid-area: n; }
   .prow .st { grid-area: c; }
@@ -417,3 +418,4 @@ h1, h2, h3, p { margin: 0; }
   .xrow .xmeta { display: none; }
   .erow { grid-template-columns: 104px minmax(0, 1fr) 80px; }
 }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

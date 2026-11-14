@@ -1,8 +1,8 @@
 /* Clip check (js/clipcheck.js): a bottom sheet like Your signals, one live card for the clips and, when they give
    nothing, one for the phone camera. OK is the tertiary container in both schemes. */
 #clipcheck { z-index: 8; }
-#clipcheck .sheet { z-index: 7; animation: sheetIn var(--af-dur-enter) var(--af-ease-in); }
-#clipcheck .scrim { animation: fadeIn var(--af-dur-enter) var(--af-ease-in); }
+#clipcheck .sheet { z-index: 7; animation: sheetIn var(--af-dur-sheet) var(--af-ease-std); }
+#clipcheck .scrim { animation: fadeIn var(--af-dur-sheet) var(--af-ease-std); }
 .clip-sheet:focus { outline: none; }
 .clip-lede { margin: -4px 24px 16px; color: var(--md-sys-color-on-surface-variant); }
 .clip-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

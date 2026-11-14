@@ -107,6 +107,7 @@
     m = D.create(); cache.clear();
     const settings = $('settings');
     if (settings?.dataset.scheme) el.dataset.scheme = settings.dataset.scheme; else delete el.dataset.scheme;
+    A.Swipe?.stay?.(el);
     el.classList.remove('hidden');
     A.Finger?.arm?.();
     last = document.activeElement;
@@ -120,7 +121,8 @@
     if (!m && el.classList.contains('hidden')) return;
     cancelAnimationFrame(raf);
     m = null; cache.clear();
-    el.classList.add('hidden');
+    // slides out to the right like the swipe back (gui/swipe.js)
+    if (!A.Swipe?.out?.(el, () => el.classList.add('hidden'))) el.classList.add('hidden');
     if (last?.isConnected) last.focus?.({ preventScroll: true });
   };
 
