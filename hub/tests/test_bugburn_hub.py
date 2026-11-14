@@ -153,13 +153,9 @@ def test_talk_request_is_acked_and_counted_once(tmp_path, monkeypatch):
 
 @pytest.fixture
 def plus2(monkeypatch):
-    """The hub's clock at UTC+2 (as in Finland in winter), whatever the machine running the tests uses."""
-    import time
-    monkeypatch.setenv("TZ", "Etc/GMT-2")
-    time.tzset()
-    yield
-    monkeypatch.undo()
-    time.tzset()
+    """The hub's clock at UTC+2 (as in Finland in winter), whatever the machine running the tests uses
+    (no time.tzset: Windows has none)."""
+    monkeypatch.setattr(views, "LOCAL_TZ", dt.timezone(dt.timedelta(hours=2)))
 
 
 # BH-3 follow-up: a `Z` stamp and an offset stamp sort by the time they stand for, not as text
@@ -183,7 +179,7 @@ def test_checkin_day_and_minute_are_both_local(tmp_path, plus2):
     with ws_hub(tmp_path) as c:
         hub = c.app.state.hub
         pid = hub.settings.bound_patient
-        today = dt.date.today()                                              # on the hub's clock (UTC+2)
+        today = dt.date.today()                                              # the hub's day (now_day)
         stamp = (dt.datetime.combine(today, dt.time(1, 30)) - dt.timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         assert stamp.startswith((today - dt.timedelta(days=1)).isoformat())
         doc = checkin(pid, 3, "minimal")
