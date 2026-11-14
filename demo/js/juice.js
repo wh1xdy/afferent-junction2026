@@ -84,7 +84,7 @@
 
   const finger = (ctx, x, y, s, a) => {
     if (a <= 0.01) return;
-    const k = s / 30;
+    const k = s / 48;
     ctx.save();
     ctx.translate(x, y); ctx.rotate(-0.4); ctx.scale(k, k);
     ctx.globalAlpha *= a;

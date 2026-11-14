@@ -94,7 +94,7 @@
     btn.innerHTML = `<span class="kindle-halo" aria-hidden="true"></span>${G.ring(46)}<span class="kindle-core" aria-hidden="true">${G.flame()}</span>`;
     const fill = btn.querySelector('.fill'), tip = btn.querySelector('.tip'), C = 2 * Math.PI * 46;
     let p = 0, t0 = 0, raf = 0, holding = false, lit = false, buzzAt = 0, swell = false;
-    const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
+    const set = v => { p = v; fill.style.strokeDashoffset = (C * (1 - v)).toFixed(2); tip.style.opacity = v > 0 && v < 1 ? 1 : 0; tip.setAttribute('transform', `rotate(${(v * 360).toFixed(1)} 50 50)`); btn.style.setProperty('--p', v.toFixed(3)); };
     const buzz = n => (A.J ? A.J.hap(n) : navigator.vibrate?.(n === 'success' ? [12, 60, 22] : n === 'light' ? 6 : 3));
     const fire = () => { lit = true; btn.classList.add('lit'); const H = smoothHap(); if (H) H.success().catch(() => buzz('success')); else buzz('success'); btn.dispatchEvent(new CustomEvent('kindle')); };
     const tick = () => {
