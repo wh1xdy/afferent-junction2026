@@ -235,6 +235,8 @@
 
   const sheet = document.querySelector('.end-sheet');
   if (sheet) sheet.prepend(frag(G.wave()));
-  buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped();
+  const noLoupe = () => ['begin', 'game'].forEach(id => $(id)?.addEventListener('touchstart', e => e.preventDefault(), { passive: false }));
+
+  buildSettings(); kindle(); moodRow(); glyphs(); layers(); talk(); scoped(); noLoupe();
   A.Shell = { toast, week, phase, row, group };
 })();
