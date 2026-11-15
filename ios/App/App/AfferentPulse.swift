@@ -1,6 +1,7 @@
 import ARKit
 import AVFoundation
 import Capacitor
+import UIKit
 
 /// Camera pulse from the app's one ARKit face session (FaceSession), for the web layer.
 ///
@@ -15,6 +16,7 @@ import Capacitor
 ///      light: {face_luma, level, iso, exposure_ms} | null,
 ///      t_ms, face, locked, exposure, with_eyes, reason, warmup_s_left,
 ///      window_s, regions_bpm, snr_db, motion}
+///      screen_light: the screen's brightness 0...1 while the screen light is on (screenLight below), else null
 ///   bpm, quality, trust and the last four come only with a reading. quality is the trust score / 100.
 ///   light is read from the same skin pixels as the pulse, only while measuring and only from the
 ///   last second: face_luma is their mean luma 0...1, level 'dark' | 'ok' | 'bright' (luma under
@@ -33,6 +35,16 @@ import Capacitor
 ///     'off' | 'unsupported' | 'unauthorized'   only in status()
 ///   warmup_s_left: seconds until a first estimate is possible, with 'exposure_not_locked' and
 ///     'warming_up'; null otherwise.
+///
+///   screenLight({on: Bool, max: Number?}) -> {on: Bool, level: Number | null, held: Bool}
+///     The screen as a light for the camera pulse while on (FaceLight.swift, ported from the reference app's
+///     ScreenLight.swift): it keeps the person's brightness, starts at 40 %, takes a starting point from the room's
+///     light after 2 s and then follows the skin's brightness, between the person's own level and `max` (0.85 when
+///     left out). It lights only while the camera pulse runs and the app is active. The person's brightness comes back
+///     with on: false, stop(), and when the app resigns active; it comes on again when the app is active again, unless
+///     the brightness was moved meanwhile. held: the person moved the brightness while it was on, so it stays theirs
+///     until the next on: false. Turning it on or off while the pulse measures starts the pulse window over.
+///   faceDebug({on: Bool}) -> {}   the developer gaze stream of the face measures, FaceMeasures.swift
 ///
 /// Per frame, on the session's frame queue: 20 times a second the skin patches are read from the
 /// frame's pixel buffer inside the call. No frame, buffer or mesh is kept or passed on.
@@ -57,6 +69,8 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "calibrationFinish", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "calibrationStatus", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "calibrationClear", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "screenLight", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "faceDebug", returnType: CAPPluginReturnPromise),
     ]
 
     private lazy var face = FaceMeasures(plugin: self)
@@ -90,6 +104,18 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
     private var lastRelock = 0.0
     private var badLight = 0
     private var last: (why: PulseGate.Why, face: Bool?, tMs: Int?) = (PulseGate.Why(reason: .off), nil, nil)
+
+    // main queue: the screen light (FaceLight.swift) and what the web layer asked for
+    private lazy var faceLight = FaceLight(read: { [weak self] in Double(self?.screen.brightness ?? 0.5) },
+                                       write: { [weak self] v in self?.screen.brightness = CGFloat(v) })
+    private var lightWanted = false
+    private var lightMax: Double?
+    /// the person moved the brightness during this request: no more light until the next on: false
+    private var lightHeld = false
+    /// the brightness right after a restore because the app resigned active
+    private var lightPaused: Double?
+    private var observing = false
+    private var screen: UIScreen { bridge?.webView?.window?.windowScene?.screen ?? UIScreen.main }
 
     @objc func start(_ call: CAPPluginCall) {
         guard #available(iOS 16.0, *), FaceSession.supported else {
@@ -161,6 +187,64 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func calibrationFinish(_ call: CAPPluginCall) { face.calibrationFinish(call) }
     @objc func calibrationStatus(_ call: CAPPluginCall) { face.calibrationStatus(call) }
     @objc func calibrationClear(_ call: CAPPluginCall) { face.calibrationClear(call) }
+    @objc func faceDebug(_ call: CAPPluginCall) { face.debug(call) }
+
+    @objc func screenLight(_ call: CAPPluginCall) {
+        let on = call.getBool("on") ?? false
+        let max = call.getDouble("max").flatMap { $0.isFinite ? $0 : nil }
+        DispatchQueue.main.async {
+            self.observeLifecycle()
+            self.lightWanted = on
+            self.lightMax = max
+            if !on { self.lightHeld = false; self.lightPaused = nil }
+            self.applyLight()
+            call.resolve([
+                "on": self.faceLight.on,
+                "level": self.faceLight.level.map { $0 as Any } ?? NSNull(),
+                "held": self.lightHeld,
+            ])
+        }
+    }
+
+    // MARK: - Screen light (main queue)
+
+    /// The light is on exactly while it is wanted, not held by the person, the pulse runs and the app is active.
+    private func applyLight() {
+        if faceLight.takenOver { lightHeld = true }
+        let active = UIApplication.shared.applicationState == .active
+        guard lightWanted, !lightHeld, flags().running, active else {
+            if faceLight.end(), flags().running { relock() }
+            return
+        }
+        if faceLight.begin(now: CACurrentMediaTime(), max: lightMax) { relock() }
+        if faceLight.takenOver { lightHeld = true }
+    }
+
+    private func observeLifecycle() {
+        guard !observing else { return }
+        observing = true
+        let nc = NotificationCenter.default
+        nc.addObserver(self, selector: #selector(lightResign), name: UIApplication.willResignActiveNotification, object: nil)
+        nc.addObserver(self, selector: #selector(lightActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
+    @objc private func lightResign() {
+        DispatchQueue.main.async {
+            guard self.faceLight.on else { return }
+            if self.faceLight.end() { self.lightPaused = Double(self.screen.brightness) }
+            if self.faceLight.takenOver { self.lightHeld = true }
+        }
+    }
+
+    @objc private func lightActive() {
+        DispatchQueue.main.async {
+            if let p = self.lightPaused {
+                self.lightPaused = nil
+                if abs(Double(self.screen.brightness) - p) > FaceLight.takenOverDelta { self.lightHeld = true }
+            }
+            self.applyLight()
+        }
+    }
 
     private static func exposureWord(locked: Bool, auto: Bool) -> String {
         locked ? "locked" : auto ? "auto" : "settling"
@@ -198,6 +282,7 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
         FaceSession.shared.hold(.pulse, frames: { [weak self] frame, face in self?.feed(frame, face) })
         FaceSession.shared.onRun = { [weak self] in self?.relock() }
         relock()
+        applyLight()
     }
 
     private func end() {
@@ -209,6 +294,8 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
         FaceSession.shared.release(.pulse)
         clear()
         exposure(locked: false)
+        faceLight.end()
+        lightPaused = nil
     }
 
     /// Exposure back to automatic, then after 2.8 s either a lock, or, when the camera offers no
@@ -291,13 +378,14 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
         guard t - lastEmit >= 1 else { return }
         lastEmit = t
         let tracked = face != nil, exposureMs = exposure.duration * 1000
+        let ambient = frame.lightEstimate.map { Double($0.ambientIntensity) }
         work.async {
-            self.second(t, tracked: tracked, locked: now.locked, auto: now.auto, exposureMs: exposureMs, epoch: now.epoch)
+            self.second(t, tracked: tracked, locked: now.locked, auto: now.auto, exposureMs: exposureMs, ambient: ambient, epoch: now.epoch)
         }
     }
 
     /// Work queue, once a second: the estimate, off the frame queue.
-    private func second(_ t: Double, tracked: Bool, locked: Bool, auto: Bool, exposureMs: Double, epoch mine: Int) {
+    private func second(_ t: Double, tracked: Bool, locked: Bool, auto: Bool, exposureMs: Double, ambient: Double?, epoch mine: Int) {
         let held = !locked || exposureHeld()
         let ready = (locked && held) || auto
         let measuring = tracked && ready
@@ -322,10 +410,20 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
             let why = PulseGate.why(tracked: tracked, locked: ready,
                                     settleLeftS: Self.settleS - (CACurrentMediaTime() - self.lastRelock), light: light,
                                     fresh: fresh, bufferedS: buffered, reading: reading.map { ($0.trust.score, $0.motion) })
+            self.screenLightStep(skin: light, ambient: ambient)
             self.emit(reading, tracked: tracked, locked: locked && held, auto: auto, light: light,
                       exposureMs: exposureMs, why: why)
             if !held { self.relock() }
         }
+    }
+
+    /// Main queue, once a second: the screen light's starting point from the room, then its slow loop on the skin.
+    private func screenLightStep(skin: (luma: Double, clipped: Double)?, ambient: Double?) {
+        guard faceLight.on else { return }
+        let now = CACurrentMediaTime()
+        if faceLight.wantsAmbient, let lumens = ambient { faceLight.ambient(lumens: lumens, now: now) }
+        if let skin { faceLight.track(faceLuma: skin.luma, now: now) }
+        if faceLight.takenOver { lightHeld = true }
     }
 
     private func emit(_ reading: PulseReading?, tracked: Bool, locked: Bool, auto: Bool, light: (luma: Double, clipped: Double)?,
@@ -343,6 +441,7 @@ public class AfferentPulsePlugin: CAPPlugin, CAPBridgedPlugin {
             "light": NSNull(),
             "reason": why.reason.map { $0.rawValue as Any } ?? NSNull(),
             "warmup_s_left": why.warmupLeftS.map { $0 as Any } ?? NSNull(),
+            "screen_light": faceLight.level.map { (($0 * 1000).rounded() / 1000) as Any } ?? NSNull(),
         ]
         if let r = reading {
             data["trust"] = ["score": r.trust.score, "label": r.trust.label.rawValue, "reasons": r.trust.reasons]

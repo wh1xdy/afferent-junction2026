@@ -28,6 +28,19 @@
   font: 500 12px/16px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
 }
 
+/* Distance coaching during play (js/coach.js): a small glass line at the top right, under the status bar and clear of
+   the close button and the SIMULATED badge, never over the play area. It takes no tap. */
+.cam-coach {
+  position: absolute; z-index: 3; top: calc(var(--safe-top) + 14px); right: calc(var(--af-safe-r) + 12px); max-width: calc(50% - 60px);
+  margin: 0; padding: 4px 10px; border-radius: 12px; pointer-events: none; text-align: right; text-wrap: balance;
+  background: var(--af-glass-strong); color: var(--af-birch);
+  box-shadow: var(--af-glass-edge), var(--af-lift-1);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  font: 500 12px/16px var(--af-font-ui); letter-spacing: 0.02em;
+  opacity: 0; transition: opacity 600ms linear;
+}
+.cam-coach.on { opacity: 0.94; transition: opacity 400ms var(--af-ease-in); }
+
 .breath-line {
   position: absolute; z-index: 3; left: 24px; right: 24px; top: 60%; margin: 0; pointer-events: none; text-align: center;
   color: var(--af-birch); font: 500 15px/22px var(--af-font-ui); font-variant-numeric: tabular-nums; letter-spacing: 0.1px;

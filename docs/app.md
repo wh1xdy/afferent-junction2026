@@ -36,7 +36,9 @@ Settings).
 
 In the native app the same switches are in Settings › Help and about › Developer, which is hidden from
 patients: tap the version line at the bottom 7 times (or hold it) to show or hide it. It has Simulated
-sensors, Signals during play, Input, Clock, Session and Day profile. Simulated sensors are off by default
+sensors, Signals during play, Input, Clock, Session, Day profile and Face debug view (`demo/js/facedebug.js`:
+what the face measures see live, with an arrow out of each eye towards where it looks; it describes what the
+face does and names no feeling). Simulated sensors are off by default
 on a phone and on in the browser; turn them on there for a demo without the finger clips.
 
 ## Real sensors in the app
@@ -105,6 +107,12 @@ absent, never 0.
   document at the end of a session. Frames stay on the phone and are not stored.
 - The app needs iOS 17 (A12 or later). Where face tracking is not supported, "Your signals" says "Not
   available on this phone" and the game falls back to touch.
+- Screen light for the camera (Settings › Sensors, on by default): during a session and in the clip check's
+  camera step the screen lights the face as much as it needs, from 40 %, a starting point from the room's light
+  after 2 s, then at most 1 % a second towards a skin luma of 125, never below the person's own brightness
+  (35 % at most at night with Dim light). The person's brightness comes back when the session ends, the camera
+  stops or the app leaves the foreground; moved by hand, it stays theirs. `AfferentPulse.screenLight`,
+  `ios/App/App/FaceLight.swift` (ported from the reference's `ScreenLight.swift`), `demo/js/screenlight.js`.
 - Tests: `cd ios/App/TeamTests && swift test`.
 
 ### Face measures from the phone camera
@@ -119,7 +127,8 @@ camera setting is on and the app is visible. They need a TrueDepth camera; witho
   and null below 30 of them. They show under Face on "Your signals" and are stored per session in the
   optional `vitals.face` block.
 - Camera frames, images, face meshes and the raw blendshape stream stay in the native layer; the web layer
-  only gets the per-second numbers. The face numbers reach the patient's own home hub in the session
+  only gets the per-second numbers (and, only while the Developer face debug view is open, gaze and head
+  angles 15 times a second, `faceDebug`). The face numbers reach the patient's own home hub in the session
   document, and a doctor only through the QR handover: the hub's clinic routes (`/api/patients/{id}`,
   `/api/sessions/{id}`, the clinic export) leave the face block out, any mode change that rested on what the face did
   (`basis: "face"`), and the face numbers behind the other mode changes (`adaptive.transitions[].signals`): the
@@ -134,6 +143,13 @@ camera setting is on and the app is visible. They need a TrueDepth camera; witho
 - On the hub the smile share and the facial movement make one index driver, Expressiveness: both against the
   patient's own first weeks, weight 0.5, lower is worse, and no value without face numbers
   ([handover.md](handover.md#expressiveness-in-the-index)). Its weekly number is what the dashboard shows.
+- Distance coaching (`demo/js/coach.js`): outside 20 to 45 cm (the reference's range) for 2 s the clip check's
+  camera step adds "Move a little closer" or "A little further back", gone once the face is 2 cm back inside;
+  during play a small line at the top right says the same, at most 8 s and then not for a minute.
+- Breathing: when the finger clips and the camera both give a rate, "Your signals", the breathing task's line and
+  the calm glow show the clearer one, labelled (finger: its quality; camera: breathing SNR / 10 dB, both at least
+  0.3; a source stays until the other is clearer by more than 0.1; `A.Breathing.clearest` in `breathing.js`).
+  The recorded task result stays the clips'.
 - Gaze calibration: `calibrationStart`, `calibrationPoint({ x, y, hold_ms })` once per dot,
   `calibrationFinish`, `calibrationStatus`, `calibrationClear`, documented at the top of
   `ios/App/App/FaceMeasures.swift`. A fit that is not good enough is reported and not stored.
@@ -160,6 +176,7 @@ steady pulse after 25 s, or at once when Bluetooth or the clips are off).
   (finger_ppg, not simulated, finger detected, quality reported and at least 0.3, at most 3 s old) with a
   pulse, or a trusted camera pulse from `A.Sensors.cameraPulse`. A simulated frame never passes and no
   reading is not OK. The two pulses are shown side by side, never merged.
+- The camera step coaches the distance from the face measures and turns the screen light on (both above).
 - It opens when the lantern is kindled and the clips give no pulse yet (the patient can begin anyway or
   step back; Settings › Sessions › Ask before each session turns the question off), once on first run as an
   offer on the start screen, and from Settings › Sessions › Check the finger clips. It runs before

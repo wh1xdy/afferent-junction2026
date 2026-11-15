@@ -155,10 +155,10 @@ const tests = {
     step(null, 4);
     assert.strictEqual(t.view(), null, 'no data: nothing to say');
     step(f(0, 70), 3);
-    assert.deepStrictEqual(plain(t.view()), { state: 'measuring', rate: null, guide: 6, near: null }, 'data arrived mid-task, no rate yet');
+    assert.deepStrictEqual(plain(t.view()), { state: 'measuring', rate: null, guide: 6, near: null, source: 'finger_ppg' }, 'data arrived mid-task, no rate yet');
     assert.strictEqual(t.result(), null);
     step(f(10, 70), 2); step(f(8, 68), 2);
-    assert.deepStrictEqual(plain(t.view()), { state: 'reading', rate: 8, guide: 6, near: 1 - 1 / 6 });
+    assert.deepStrictEqual(plain(t.view()), { state: 'reading', rate: 8, guide: 6, near: 1 - 1 / 6, source: 'finger_ppg' });
     assert.strictEqual(t.result(), null, '4 s of a rate out of 11 is not a meaningful part yet');
     step(f(6, 66), 2);
     t.frame(now, null);

@@ -28,6 +28,9 @@
 
 .clip-head { margin: 14px 0 0; font: 400 22px/28px var(--af-font-brand); letter-spacing: -0.1px; text-wrap: balance; }
 .clip-sub { margin: 6px 0 0; font: 400 15px/22px var(--af-font-ui); letter-spacing: 0.15px; opacity: 0.86; text-wrap: pretty; }
+/* how far the face is from the phone (js/coach.js): one calm line, the card's own colour, no warning tone */
+.clip-coach { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font: 500 15px/22px var(--af-font-ui); letter-spacing: 0.15px; }
+.clip-coach::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 3px; background: currentColor; opacity: 0.7; }
 
 .clip-num { display: flex; align-items: baseline; gap: 10px; margin-top: 12px; }
 .clip-num .num { font: 300 52px/56px var(--af-font-brand); font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }

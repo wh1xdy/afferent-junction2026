@@ -78,7 +78,8 @@ own values:
 - **Heartbeat:** the fire beats in a lub-dub at the real pulse, with stronger first beats and a ring of
   light when a pulse appears. With no reading it only breathes; it never beats on a guess.
 - **Calm biofeedback:** in calm moments the aurora and the glow grow as breathing nears 6 a minute and as
-  HRV rises above the session's own start value. Visual only; nothing is recorded.
+  HRV rises above the session's own start value. Visual only; nothing is recorded. Breathing comes from the
+  finger clips or the phone camera, whichever is clearer right now, and says which.
 - **Games by state:** stressed (pulse up, HRV down or faster breathing) → calm breathing games; energised
   (pulse up, HRV steady, calm breathing) → puzzles; tired eyes by day → gentle wake-up games; tired at
   night → wind-down. A new state must hold for 3 s before the games change.
@@ -100,7 +101,9 @@ Calm and night play softer. Settings has a Vibration switch and a Heartbeat touc
 Strong).
 
 **Clip check.** Before a session: "Put a finger in each clip", a live check with a clear OK, and the camera
-pulse as fallback when the clips give nothing. Only a real, fresh, quality-gated reading counts as OK.
+pulse as fallback when the clips give nothing. Only a real, fresh, quality-gated reading counts as OK. The
+camera step coaches the distance ("Move a little closer", 20 to 45 cm) and the screen lights the face only as
+much as it needs, then gives the brightness back (Settings › Sensors › Screen light for the camera).
 
 **Heart Duel** (Settings › Sessions › Together). Two people, one clip each, both hearts beat live, and
 whoever calms down first wins. Outside sessions only; nothing is saved or sent. A standalone Mac version
@@ -117,7 +120,8 @@ microphone off (the phone's mic stops and nothing more is sent); tap it again to
 **Settings** opens on seven categories, each with its own page: Sound and feel, Sensors, Sessions,
 Mornings and check-in (morning reminder, the PHQ-9 check-in every 14 days), Share with your clinic, Home
 hub (address with a Paste button and a "Key missing" warning) and Help and about. A Developer section for
-the team is hidden (tap the version line 7 times). More in [docs/app.md](docs/app.md).
+the team is hidden (tap the version line 7 times); its Face debug view shows what the face measures see, with
+arrows out of the eyes. More in [docs/app.md](docs/app.md).
 
 ## Privacy and safety rules
 
@@ -127,9 +131,10 @@ These are in the code and its tests; please keep them.
   the encrypted link, a printed code or a file. On the home hub the real patient is left out of the clinic
   view entirely.
 - **Face images never leave the phone.** Camera frames, images, face meshes and raw blendshapes stay in the
-  native layer and are not stored; only per-second numbers reach the web layer. The session's face numbers
-  stay on the home hub; a doctor sees only the weekly Expressiveness driver made from them (smiling and facial
-  movement against the patient's own first weeks, [docs/handover.md](docs/handover.md#expressiveness-in-the-index)).
+  native layer and are not stored; only per-second numbers reach the web layer (plus gaze angles while the
+  Developer face debug view is open). The session's face numbers stay on the home hub; a doctor sees only the
+  weekly Expressiveness driver made from them (smiling and facial movement against the patient's own first weeks,
+  [docs/handover.md](docs/handover.md#expressiveness-in-the-index)).
 - **Quality and freshness gates.** A finger reading counts for 3 s. Quality below 0.3, or no quality, is not
   a measurement. Missing stays missing, never 0. The box holds a settling or doubled pulse until it is
   steady for 6 s and leaves out a noisy clip next to a clean one. The camera pulse is its own number, needs
@@ -310,7 +315,7 @@ hub/.venv/bin/pip install -r hub/requirements-dev.txt
 # Voice relay (a fake Vertex, no Google account needed)
 (cd voice-relay && pip install -r requirements-dev.txt && pytest test_main.py)   # pinned versions
 # Native
-(cd ios/App/TeamTests && swift test)     # camera pulse estimator and gate
+(cd ios/App/TeamTests && swift test)     # camera pulse estimator and gate, screen light
 (cd ios/App/FaceCore && swift test)      # face measures
 (cd ios/App/FingerTests && swift test)   # Bluetooth packet parser
 (cd android && ./gradlew testDebugUnitTest)

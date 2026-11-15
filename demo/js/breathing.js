@@ -43,22 +43,78 @@
   // The same for the game's HRV (engine.js): the clips first, a watch or strap when the clips give no pulse.
   const physio = now => A.Sensors.pulseMode === 'simulated' ? null : A.Sensors.physioFrame(now);
 
+  // ── The clearer of two breathing rates: the finger clips (heart rhythm) and the phone camera (head motion) ──
+  // Each source gets a clarity from 0 to 1 and has to reach 0.3, the bar the finger clips already use:
+  //  - finger: a rate through the gate above (reading), clarity = the frame's signal quality;
+  //  - camera: the face measures' last second (A.Sensors.faceLog), at most 3 s old, a tracked face, a rate the native
+  //    side sent (it sends one only above 3 dB, steady for 8 s; FaceTuning.swift), clarity = its breathing_snr in dB / 10,
+  //    capped at 1. So 3 dB is 0.3, the camera's own bar meets the finger's, and 10 dB or more is 1.
+  // The higher clarity is shown; a tie goes to the finger (the reference app always took the finger first,
+  // ios/Afferent/Breathing.swift clearestBreathing). Once a source is shown it stays until the other is clearer by more
+  // than 0.1 or has no reading, so two close sources do not swap every second. Nothing simulated is ever a candidate:
+  // the finger gate refuses simulated frames, and the camera rate only ever comes from the phone.
+  // Display only (the breathing task's line and ring, the calm glow, Your signals): the recorded task result stays the
+  // finger's (contracts/session.v3.schema.json allows only finger_ppg in tasks[].extra.breathing).
+  const CAMERA = 'arkit_truedepth', CAM_DB = 10, SWITCH_MARGIN = 0.1;
+  const fingerCandidate = f => {
+    const r = reading(f);
+    return r?.rate != null ? { rate: r.rate, clarity: clamp(f.quality, 0, 1), source: f.source } : null;
+  };
+  const cameraCandidate = now => {
+    const S = A.Sensors;
+    if (!S?.faceOn?.()) return null;
+    const last = S.faceLog?.[S.faceLog.length - 1];
+    if (!last || !last.tracked || !(now - last.at < FRESH_S)) return null;
+    const rate = pos(last.breathing_per_min), snr = last.breathing_snr;
+    if (rate == null || !Number.isFinite(snr)) return null;
+    const clarity = clamp(snr / CAM_DB, 0, 1);
+    return clarity >= MIN_QUALITY ? { rate, clarity, source: CAMERA } : null;
+  };
+  // A picker that remembers which source it showed last. pick(finger, camera) -> { rate, source, clarity, other } | null,
+  // other: the source that also had a reading and lost, or null.
+  const chooser = () => {
+    let shown = null;
+    return (finger, camera) => {
+      let win = finger || camera;
+      if (finger && camera) {
+        const lead = finger.clarity - camera.clarity;
+        if (shown === CAMERA) win = lead > SWITCH_MARGIN ? finger : camera;
+        else if (shown != null) win = -lead > SWITCH_MARGIN ? camera : finger;
+        else win = lead >= 0 ? finger : camera;
+      }
+      shown = win ? (win === camera ? CAMERA : 'finger') : null;
+      if (!win) return null;
+      const lost = win === finger ? camera : finger;
+      return { rate: win.rate, source: win.source, clarity: win.clarity, other: lost ? lost.source : null };
+    };
+  };
+  const shared = chooser();
+  // The clearer rate right now, for display. f: the finger frame to judge (default the one the live screens read).
+  const clearest = (now, f = A.Sensors.fingerFrame(now)) => shared(fingerCandidate(f), cameraCandidate(now));
+  // Inside a session: a session locked to the simulator takes neither source.
+  const clearestInSession = (now, f) => A.Sensors.pulseMode === 'simulated' ? shared(null, null) : shared(fingerCandidate(f), cameraCandidate(now));
+
   // One per breathing task. tick() runs every game frame while the task is live: the live state follows the frame
   // at once, the samples for the average are taken once a second, the ring settles slowly.
+  // The live state shows the clearer of the clips and the camera (clearestInSession); the samples for the average are the
+  // clips' only. frame(now, f) without a camera argument judges the clips alone.
   const track = guide => ({
-    guide, next: null, seconds: 0, rates: [], pulses: [], live: null, ring: { a: 0, near: null, solid: false },
-    tick(now, dt) { this.frame(now, current(now), dt); },
-    frame(now, f, dt = 0) {
+    guide, next: null, seconds: 0, rates: [], pulses: [], live: null, shownRate: null, ring: { a: 0, near: null, solid: false },
+    tick(now, dt) { this.frame(now, current(now), dt, true); },
+    frame(now, f, dt = 0, camera = false) {
       const r = this.live = reading(f);
+      this.shownRate = camera ? clearestInSession(now, f) : fingerCandidate(f);
       this.settle(dt);
       if (this.next != null && now < this.next) return;
       this.next = this.next == null || now - this.next >= 1 ? now + 1 : this.next + 1;
       this.seconds++; this.rates.push(r?.rate ?? null); this.pulses.push(r?.pulse ?? null);
     },
     // null: no real reading. measuring: the clips read a pulse but have no breathing rate yet. reading: a current rate.
+    // source: whose rate it is ('finger_ppg' or 'arkit_truedepth'); while measuring, the clips.
     view() {
-      const r = this.live;
-      return r ? { state: r.rate == null ? 'measuring' : 'reading', rate: r.rate, guide: this.guide, near: closeness(r.rate, this.guide) } : null;
+      const r = this.live, c = this.shownRate;
+      if (c) return { state: 'reading', rate: c.rate, guide: this.guide, near: closeness(c.rate, this.guide), source: c.source };
+      return r ? { state: 'measuring', rate: null, guide: this.guide, near: null, source: 'finger_ppg' } : null;
     },
     // What the task may draw and say. A current rate shows unless the setting "Breathing pace" is off; the wait for
     // a first rate only shows where body numbers are asked for during play (Developer, "Signals during play").
@@ -83,5 +139,8 @@
     },
   });
 
-  A.Breathing = { WINDOW_S, real, reading, current, physio, closeness, enough, ends, track };
+  A.Breathing = {
+    WINDOW_S, real, reading, current, physio, closeness, enough, ends, track,
+    CAMERA, CAM_DB, SWITCH_MARGIN, fingerCandidate, cameraCandidate, chooser, clearest, clearestInSession,
+  };
 })();

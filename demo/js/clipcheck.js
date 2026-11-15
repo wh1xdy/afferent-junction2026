@@ -12,6 +12,8 @@
 //    not simulated, finger detected, quality reported and at least 0.3, fresh within 3 s) with a pulse, or a trusted
 //    camera pulse from A.Sensors.cameraPulse (fresh within 3 s). A simulated frame never passes; no reading is not OK.
 //  - The only numbers shown are those readings.
+//  - While the camera step is up and its pulse is not OK yet, the face's distance from the phone may add one calm line
+//    ("Move a little closer", "A little further back"), after 2 s out of 20 to 45 cm (coach.js).
 //  - Nothing is sent: no hub message, no network. This phone keeps only the outcome (OK or not, clips or camera,
 //    when) for the line in Settings. Camera frames stay in the native plugin; this file sees numbers only.
 //
@@ -121,7 +123,16 @@
   const clipsOk = now => S.enabled.pulse_stone && reading(S.fingerFrame(now))?.pulse != null;
 
   // One open of the sheet. The waits for the camera count from the moment it opens.
-  const fresh = (mode, go, now) => ({ mode, go, openedAt: now, link: { state: S.fingerLink.state, at: now }, nothingSince: now, notOkSince: now, fallback: false, via: null, ok: false });
+  const fresh = (mode, go, now) => ({ mode, go, openedAt: now, link: { state: S.fingerLink.state, at: now }, nothingSince: now, notOkSince: now, fallback: false, via: null, ok: false,
+    coach: A.Coach ? A.Coach.coach() : null });
+
+  // The distance line under the camera card: only while the camera is the thing to do and not OK yet, and never without a
+  // face (no face is its own message). null otherwise.
+  const coachLine = (now, st, cam) => {
+    const on = !!cam && cam.tone !== 'rest' && cam.code !== 'c_face';
+    const say = st.coach ? st.coach.step(now, on ? A.Coach.distanceNow(now) : null) : null;
+    return say && cam.tone !== 'ok' ? A.Coach.WORDS[say] : null;
+  };
 
   // Everything the sheet shows, from what the sensors give now. Moves the run on: the fallback, the first OK.
   const model = (now, st) => {
@@ -152,7 +163,7 @@
       title: session ? 'Before we begin' : 'Check the finger clips',
       lede: 'A quick check that your pulse comes through.',
       clips: { ...shown, head: say(cl.code, 'head', cl.args), sub: say(cl.code, 'sub', cl.args) },
-      camera: cam && { ...cam, head: say(cam.code, 'head', cam.args), sub: say(cam.code, 'sub', cam.args) },
+      camera: cam && { ...cam, head: say(cam.code, 'head', cam.args), sub: say(cam.code, 'sub', cam.args), coach: coachLine(now, st, cam) },
       note: none ? (session ? 'You can still begin. Everything works without it, too.' : 'Everything works without it, too.') : null,
       actions: session
         ? [['text', 'Not now', 'cancel'], [via ? 'filled' : 'tonal', via ? 'Begin' : 'Begin anyway', 'begin']]
@@ -228,6 +239,7 @@
     if (c.bpm != null) box.append(number(c.bpm));
     box.append(el('p', 'clip-head', c.head));
     if (c.sub) box.append(el('p', 'clip-sub', c.sub));
+    if (c.coach) box.append(el('p', 'clip-coach', c.coach));
     if (c.chips) {
       const row = el('div', 'clip-row');
       c.chips.forEach((on, i) => {
@@ -271,7 +283,8 @@
     if (v.note) nodes.push(el('p', 'clip-note', v.note));
     $('clipBody').replaceChildren(...nodes);
     $('clipActions').replaceChildren(...v.actions.map(([cls, text, what]) => btn(cls, text, () => act(what), cls === 'filled' && what !== 'close' ? 'check' : null)));
-    const main = v.via === 'camera' ? v.camera : v.clips, tell = v.ok ? `OK. ${main.head}` : `${main.head} ${main.sub}`;
+    const main = v.via === 'camera' ? v.camera : v.clips;
+    const tell = v.ok ? `OK. ${main.head}` : [main.head, main.sub, v.camera?.coach].filter(Boolean).join(' ');
     if (tell !== told) { told = tell; $('clipTell').textContent = tell; }
   };
 

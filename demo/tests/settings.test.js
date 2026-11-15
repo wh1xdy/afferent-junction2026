@@ -79,7 +79,8 @@ const CONTROLS = ['id="soundSw"', 'id="hapticSw"', 'id="beatSeg"', 'id="quietSw"
   'id="vitalsSw"', 'id="clipCheckRow"', 'id="clipState"', 'id="clipAskSw"', 'data-duel', 'id="morningsGroup"', 'id="checkinSw"',
   'id="qrBtn"', 'id="exportBtn"', 'id="sharingState"', 'id="hubForm"', 'id="hubAddr"', 'id="hubState"',
   'data-open="info"', 'data-open="signals"', 'data-anchor', 'id="weekBtn"', 'id="devGroup"', 'id="simSw"', 'id="sigSw"',
-  'data-dev="input"', 'data-dev="clock"', 'data-dev="stage"', 'data-dev="profile"', 'id="appVersion"', 'id="sensorsGroup"'];
+  'data-dev="input"', 'data-dev="clock"', 'data-dev="stage"', 'data-dev="profile"', 'id="appVersion"', 'id="sensorsGroup"',
+  'id="lightSw"', 'id="faceDebugRow"'];
 const count = (html, attr) => html.split(attr).length - 1;
 
 // main.js's hub state, cut out of main.js as it is, on a page with only the address field.

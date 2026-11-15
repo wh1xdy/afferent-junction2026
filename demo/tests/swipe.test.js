@@ -433,7 +433,8 @@ const tests = {
   'no other sheet has a handle: a new one needs its swipe here too'() {
     const files = ['index.html', 'patient.html', ...fs.readdirSync(JS, { recursive: true }).filter(f => f.endsWith('.js') && f !== path.join('gui', 'swipe.js')).map(f => 'js/' + f)];
     const withHandle = files.filter(f => /class="(qs-)?handle"|'handle'\)|'qs-handle'/.test(read(f))).sort();
-    assert.deepStrictEqual(withHandle, ['index.html', 'js/clipcheck.js', 'js/onboard.js', 'js/qrshow.js']);
+    // facedebug.js: the Developer face debug sheet, a .layer with a scrim like the clip check, so app() swipes it closed
+    assert.deepStrictEqual(withHandle, ['index.html', 'js/clipcheck.js', 'js/facedebug.js', 'js/onboard.js', 'js/qrshow.js']);
   },
 };
 
