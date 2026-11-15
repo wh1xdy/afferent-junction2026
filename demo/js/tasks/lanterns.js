@@ -223,8 +223,12 @@
     const x = kx[i] + (i ? 0.5 : -0.5) * pw * 0.2, x0 = x - pw / 2;
     const pg = ctx.createLinearGradient(x0, 0, x0 + pw, 0);
     pg.addColorStop(0, rgb(i ? POST_D : POST_L)); pg.addColorStop(0.5, rgb(POST)); pg.addColorStop(1, rgb(i ? POST_L : POST_D));
+    // Solid down to just above the water, then fading into it in thin slices, so no post ends in a hard edge.
+    const fade = 20 * U, sb = pb - fade, ga = ctx.globalAlpha, N = 10;
     ctx.fillStyle = pg;
-    ctx.beginPath(); ctx.roundRect(x0, top, pw, pb - top, [pw * 0.35, pw * 0.35, pw * 0.1, pw * 0.1]); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(x0, top, pw, sb - top, [pw * 0.35, pw * 0.35, 0, 0]); ctx.fill();
+    for (let k = 0; k < N; k++) { ctx.globalAlpha = ga * (1 - (k + 0.5) / N) ** 1.5; ctx.fillRect(x0, sb + k * fade / N, pw, fade / N); }
+    ctx.globalAlpha = ga;
     sprite(ctx, 'soft', C.amber, x - (i ? 1 : -1) * pw * 0.45, ky + 0.12 * b.h, 0.16 * b.h, 0.1, true, 0.25, 1);
     ctx.strokeStyle = rgb(C.woodD, 0.55); ctx.lineWidth = Math.max(1, 0.8 * U);
     for (const f of [0.3, 0.62]) { ctx.beginPath(); ctx.moveTo(x0 + pw * f, top + 0.18 * b.h); ctx.lineTo(x0 + pw * f, pb - 0.12 * b.h); ctx.stroke(); }
@@ -247,8 +251,8 @@
     // The still water the posts stand in: a soft dark pool under them, no edge anywhere, that also takes in the
     // posts' feet. (It was a band with a ruled top edge across the whole screen.)
     sprite(ctx, 'soft', C.night900, G.cx, wy + 8 * U, 0.66 * b.w, 0.62, false, 1, 0.16);
-    sprite(ctx, 'soft', C.night900, kx[0], pb - 4 * U, 3.2 * pw, 0.5, false, 1, 0.35);
-    sprite(ctx, 'soft', C.night900, kx[1], pb - 4 * U, 3.2 * pw, 0.5, false, 1, 0.35);
+    sprite(ctx, 'soft', C.night900, kx[0], pb - 6 * U, 3.2 * pw, 0.4, false, 1, 0.35);
+    sprite(ctx, 'soft', C.night900, kx[1], pb - 6 * U, 3.2 * pw, 0.4, false, 1, 0.35);
     ctx.lineWidth = U;
     for (let k = 0; k < 4; k++) {
       const y = wy + (6 + 9 * k) * U, sh = rm() ? 0 : Math.sin(at * 0.6 + k * 1.7) * 14 * U;
