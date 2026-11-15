@@ -55,9 +55,30 @@
 .voice[data-state="speaking"] .voice-halo { animation: voiceBreath 2400ms var(--af-ease-breath) infinite; }
 @keyframes voiceBreath { 0%, 100% { transform: scale(0.95); } 45% { transform: scale(1.22); } }
 
+/* The lantern is also the microphone switch (voice.js setMuted): a tap puts it out to an ember with a small
+   mic-off mark, a tap lights it again. Gemini's own voice still breathes in the halo while the mic is off. */
+button.voice-lantern {
+  border: 0; padding: 0; background: none; border-radius: 50%; font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+button.voice-lantern:disabled { cursor: default; }
+.voice-lantern:focus-visible { outline: 2px solid var(--md-sys-color-primary); outline-offset: 4px; }
+.voice-core { transition: opacity var(--af-dur-fast) ease, filter var(--af-dur-fast) ease; }
+.voice.muted .voice-core { opacity: 0.4; filter: saturate(0.25); }
+.voice.muted[data-state="listening"] .voice-halo { opacity: 0.15; }
+.voice-mic {
+  position: absolute; right: 8px; bottom: 8px; width: 26px; height: 26px; padding: 4px; box-sizing: border-box; border-radius: 50%;
+  background: var(--md-sys-color-surface-container-highest, var(--md-sys-color-surface-container-high));
+  fill: none; stroke: var(--md-sys-color-on-surface); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+  opacity: 0; transform: scale(0.6); transition: opacity var(--af-dur-fast) ease, transform var(--af-dur-fast) ease-out;
+}
+.voice.muted .voice-mic { opacity: 1; transform: none; }
+
 :root[data-motion="reduced"] .voice { animation: fadeIn 150ms linear; }
 :root[data-motion="reduced"] .voice-halo { animation: none !important; transform: none; transition: none; }
+:root[data-motion="reduced"] .voice-mic { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .voice { animation: fadeIn 150ms linear; }
   .voice-halo { animation: none !important; transform: none; transition: none; }
+  .voice-mic { transform: none; }
 }

@@ -253,7 +253,7 @@
           <button class="btn tonal small state" type="submit">Save and start</button>
         </form>
         <div class="voice-dock">
-          <span id="voiceOrb" class="voice-lantern" aria-hidden="true"><span class="voice-halo"></span><span class="voice-core"></span></span>
+          <button id="voiceOrb" class="voice-lantern" type="button" aria-label="Mute microphone" aria-pressed="false" disabled><span class="voice-halo" aria-hidden="true"></span><span class="voice-core" aria-hidden="true"></span><svg class="voice-mic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/><path d="M4.5 4.5l15 15"/></svg></button>
           <p id="voiceStatus" class="voice-status t-label" role="status"></p>
           <button id="voiceSetupBtn" class="btn text small voice-setup state hidden" type="button" aria-expanded="false" aria-controls="voiceKeyForm">Set up</button>
           <button id="voiceStart" class="btn filled block state" type="button">Start talking</button>
