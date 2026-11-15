@@ -59,6 +59,14 @@ import FaceCore
 ///   event "micro", once per brief facial movement (40 to 500 ms):
 ///     {t_ms, duration_ms, region: 'brow'|'eye'|'cheek'|'nose'|'mouth'|'jaw', peak: 0..1}
 ///   t_ms = wall clock, ms since 1970: the end of the second ("face"), the start of the movement ("micro").
+///   faceDebug({on: Bool}) -> {}   Developer only (the face debug view, demo/js/facedebug.js): while on and the measures
+///     run, event "faceDebug" 15 times a second:
+///     {t_ms, tracked, calibrated, blink: 0..1|null, gaze_yaw_deg, gaze_pitch_deg, left_yaw_deg, left_pitch_deg,
+///      right_yaw_deg, right_pitch_deg, head_yaw_deg, head_pitch_deg}   angles in degrees, null without a tracked face.
+///     gaze_*: both eyes, left_* / right_*: each eye (the person's own left and right), all with the stored gaze fit and
+///     relative to the direction to the lens (0, 0 = looking into the lens; yaw + towards the face's own left, pitch + up).
+///     head_*: where the face points, relative to the direction to the lens. Off again with on: false; it stays as it
+///     was across faceStop and faceStart.
 ///
 /// Rules this class keeps (the measures themselves: ios/App/FaceCore, ported from ios/Afferent):
 ///  - It owns no camera. The app has one ARKit face-tracking session (FaceSession); its
@@ -67,7 +75,7 @@ import FaceCore
 ///    session document says `arkit_truedepth`, so without one the state is 'unavailable'.
 ///  - Of a frame it reads 52 blendshape coefficients and four transforms, inside `ingest`, and
 ///    keeps neither the frame nor the face mesh nor a pixel. Only the numbers above leave it,
-///    and only to the web layer on this phone.
+///    and only to the web layer on this phone; the gaze stream only while the developer view asks for it.
 ///  - A measure says what the face did (smiling, facial movement, blinks, looking away, a brief
 ///    movement and where on the face). It names no feeling and draws no conclusion.
 ///  - A missing value is null, never 0: a second without a tracked face has `tracked: false` and nulls.
@@ -102,6 +110,11 @@ final class FaceMeasures {
     private var holdCall: CAPPluginCall?
     private var holdFrom: TimeInterval = 0
     private var holdUntil: TimeInterval = 0
+    // the developer gaze stream: `debugOn` behind `lock`, `lastDebug` on `queue`
+    private var debugOn = false
+    private var lastDebug: TimeInterval = 0
+    private static let debugEveryS = 1.0 / 15
+    private static let blinkLanes = (FaceBlendShapes.names.firstIndex(of: "eyeBlink_L"), FaceBlendShapes.names.firstIndex(of: "eyeBlink_R"))
 
     // MARK: - Plugin methods (AfferentPulse hands these on)
 
@@ -143,6 +156,14 @@ final class FaceMeasures {
 
     func status(_ call: CAPPluginCall) {
         call.resolve(["state": currentState()])
+    }
+
+    func debug(_ call: CAPPluginCall) {
+        let on = call.getBool("on") ?? false
+        lock.lock()
+        debugOn = on
+        lock.unlock()
+        call.resolve()
     }
 
     private func begin(_ call: CAPPluginCall) {
@@ -360,6 +381,7 @@ final class FaceMeasures {
             if f.time >= holdFrom, f.time <= holdUntil { calibrator?.add(f) }
             if f.time >= holdUntil { endHold() }
         }
+        debugFrame(f)
         let out = aggregator.ingest(f)
         if out.isEmpty { return }
         for m in out.micro { plugin?.notifyListeners("micro", data: m.dictionary) }
@@ -367,6 +389,41 @@ final class FaceMeasures {
             set(state: face.tracked ? "tracking" : "no_face")
             plugin?.notifyListeners("face", data: face.dictionary)
         }
+    }
+
+    /// On `queue`, 15 times a second while the developer view asks for it: the gaze, per eye and both, and the head,
+    /// relative to the direction to the lens, with the same gaze fit as the measures. Numbers only.
+    private func debugFrame(_ f: FaceFrame) {
+        lock.lock()
+        let on = debugOn
+        lock.unlock()
+        guard on, f.time - lastDebug >= Self.debugEveryS else { return }
+        lastDebug = f.time
+        let cal = aggregator.gazeCalibration
+        var data: [String: Any] = ["t_ms": (Date().timeIntervalSince1970 * 1000).rounded(), "tracked": f.tracked,
+                                   "calibrated": cal != .identity]
+        for k in ["blink", "gaze_yaw_deg", "gaze_pitch_deg", "left_yaw_deg", "left_pitch_deg", "right_yaw_deg", "right_pitch_deg",
+                  "head_yaw_deg", "head_pitch_deg"] { data[k] = NSNull() }
+        if f.tracked {
+            let lens = FaceGazeMath.cameraAngles(face: f.faceTransform, camera: f.cameraTransform)
+            func rel(_ eye: FaceAngles) -> FaceAngles { FaceAngles(yaw: eye.yaw - lens.yaw, pitch: eye.pitch - lens.pitch) }
+            func put(_ name: String, _ a: FaceAngles) {
+                guard a.yaw.isFinite, a.pitch.isFinite else { return }
+                data["\(name)_yaw_deg"] = (a.yaw * 10).rounded() / 10
+                data["\(name)_pitch_deg"] = (a.pitch * 10).rounded() / 10
+            }
+            let left = FaceGazeMath.angles(simd_make_float3(f.leftEyeTransform.columns.2))
+            let right = FaceGazeMath.angles(simd_make_float3(f.rightEyeTransform.columns.2))
+            put("gaze", rel(cal.apply(FaceGazeMath.eyeAngles(left: f.leftEyeTransform, right: f.rightEyeTransform))))
+            put("left", rel(cal.apply(left)))
+            put("right", rel(cal.apply(right)))
+            put("head", FaceAngles(yaw: -lens.yaw, pitch: -lens.pitch))
+            if let l = Self.blinkLanes.0, let r = Self.blinkLanes.1 {
+                let b = Double(f.shapes[l] + f.shapes[r]) / 2
+                if b.isFinite { data["blink"] = (min(max(b, 0), 1) * 100).rounded() / 100 }
+            }
+        }
+        plugin?.notifyListeners("faceDebug", data: data)
     }
 
     /// If the session delegate stops calling (no session, session interrupted), the seconds

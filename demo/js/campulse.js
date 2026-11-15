@@ -49,6 +49,7 @@
       if (!d || !this.listener) return;
       if (typeof d.t_ms === 'number' && Date.now() - d.t_ms > MAX_AGE_MS) return;
       S.feedNativePulse(d);
+      if ('screen_light' in d) A.ScreenLight?.seen(d.screen_light);
     },
   };
 })();

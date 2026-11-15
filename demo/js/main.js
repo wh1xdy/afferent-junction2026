@@ -33,6 +33,8 @@
     // Room sound level (sound.js): opt-in everywhere; on, it opens the microphone for a few seconds now and then.
     roomSound: saved.roomSound === true,
     breathFeedback: saved.breathFeedback ?? true,
+    // Screen light for the camera (screenlight.js): the screen lights the face while the camera measures. On by default.
+    screenLight: saved.screenLight ?? true,
     // Heartbeat touch: off, soft, medium or strong (heartbeat.js). An older "off" switch is kept as off.
     heartLevel: ['off', 'soft', 'medium', 'strong'].includes(saved.heartLevel) ? saved.heartLevel : saved.heartTouch === false ? 'off' : 'soft',
     forceTask: q.get('task') || null,
@@ -239,7 +241,7 @@
   A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
   A.bus.on('talk', () => crisis('talk_button'));
 
-  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartLevel: A.config.heartLevel, roomSound: A.config.roomSound, sound: ui.sound });
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, screenLight: A.config.screenLight, heartLevel: A.config.heartLevel, roomSound: A.config.roomSound, sound: ui.sound });
   const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Your clinic sees nothing unless you show them.' };
   const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
   const toggles = () => {
@@ -254,6 +256,7 @@
     $('sigSw').checked = A.config.signalsOverlay;
     $('vitalsSw').checked = A.config.liveVitals;
     $('breathSw').checked = A.config.breathFeedback;
+    $('lightSw').checked = A.config.screenLight;
     $('roomSoundSw').checked = A.config.roomSound;
     beatSeg();
     camGlyph();
@@ -265,7 +268,7 @@
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
     if (sensor === 'pulse_stone') { if (el.checked) A.Finger.arm(); else { A.Finger.sync(); S.feedPulse({ bpm: null, source: 'finger_ppg' }); } }
-    if (sensor === 'phone_camera') { syncCamPulse(); A.Face.sync(); }
+    if (sensor === 'phone_camera') { syncCamPulse(); A.Face.sync(); A.ScreenLight?.sync(); }
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   $('simSw').onchange = e => { A.config.simulator = e.target.checked; A.config.simulatorChosen = true; syncSensors(); saveSettings(); camGlyph(); };
@@ -278,6 +281,7 @@
   $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
   $('vitalsSw').onchange = e => { A.config.liveVitals = e.target.checked; saveSettings(); };
   $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
+  $('lightSw').onchange = e => { A.config.screenLight = e.target.checked; saveSettings(); A.ScreenLight?.sync(); };
   $('roomSoundSw').onchange = e => { A.config.roomSound = e.target.checked; saveSettings(); A.RoomSound?.sync(); };
   // Heartbeat touch: a tap keeps the level, saves it, plays one beat at it and redraws the line under Sound and feel.
   const beatSeg = () => { document.querySelectorAll('#beatSeg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.heartLevel))); };

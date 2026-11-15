@@ -30,10 +30,12 @@ const fakeFinger = () => {
   };
 };
 
+// screenLight({ on, max }) -> { on, level }: the screen light of ios/App/App/FaceLight.swift; `light` records every call.
 const fakeCamera = () => {
   let ls = [];
   return {
-    running: false, starts: 0, stops: 0, reject: null,
+    running: false, starts: 0, stops: 0, reject: null, light: [],
+    async screenLight(o = {}) { this.light.push({ ...o }); return { on: !!o.on && this.running, level: o.on && this.running ? 0.4 : null }; },
     async addListener(ev, fn) { ls.push(fn); return { remove: () => { ls = ls.filter(f => f !== fn); } }; },
     async start() {
       if (this.reject) throw Object.assign(new Error(this.reject), { code: this.reject });
@@ -56,11 +58,13 @@ const fakeCamera = () => {
 // The native plugin holds calibrationPoint open for hold_ms; this one answers at once. `cal.point` and `cal.fit` script the answers:
 // cal.point = ({ x, y, hold_ms }) => ({ ok, samples, spread_deg, reason }), cal.fit = { ok, gain_x, ..., reason }.
 const fakeFace = () => {
-  const ls = { faceState: [], face: [], micro: [] };
+  const ls = { faceState: [], face: [], micro: [], faceDebug: [] };
   const none = { gain_x: null, gain_y: null, offset_x_deg: null, offset_y_deg: null, residual_deg: null };
   return {
-    running: false, starts: 0, stops: 0, first: 'starting',
+    running: false, starts: 0, stops: 0, first: 'starting', debug: [],
     cal: { started: false, dots: [], stored: null, point: null, fit: null },
+    // faceDebug({ on }) -> {}: the developer gaze stream (event faceDebug) on or off; `debug` records every call
+    async faceDebug(o = {}) { this.debug.push(!!o.on); return {}; },
     async addListener(ev, fn) { ls[ev].push(fn); return { remove: () => { ls[ev] = ls[ev].filter(f => f !== fn); } }; },
     async start() { this.running = true; this.starts++; return { state: this.first }; },
     async stop() { this.running = false; this.stops++; return {}; },
@@ -121,7 +125,7 @@ const fakeHealth = () => ({
 // What @capacitor/core's registerPlugin gives for a name the native side has not registered: every call rejects.
 const unimplemented = () => {
   const fail = async () => { throw Object.assign(new Error('"AfferentPulse" plugin is not implemented on ios'), { code: 'UNIMPLEMENTED' }); };
-  return { calls: 0, addListener() { this.calls++; return fail(); }, start: fail, stop: fail, status: fail, faceStart: fail, faceStop: fail, faceStatus: fail,
+  return { calls: 0, addListener() { this.calls++; return fail(); }, start: fail, stop: fail, status: fail, faceStart: fail, faceStop: fail, faceStatus: fail, screenLight: fail, faceDebug: fail,
     calibrationStart: fail, calibrationPoint: fail, calibrationFinish: fail, calibrationStatus: fail, calibrationClear: fail };
 };
 
@@ -131,9 +135,9 @@ const unimplemented = () => {
 const CALIBRATION = ['calibrationStart', 'calibrationPoint', 'calibrationFinish', 'calibrationStatus', 'calibrationClear'];
 const fakePulse = (cam, face) => {
   const p = { addListener: async (ev, fn) => { const half = ev === 'pulse' ? cam : face; if (!half) throw new Error(`no listener for ${ev}`); return half.addListener(ev, fn); } };
-  if (cam) Object.assign(p, { start: () => cam.start(), stop: () => cam.stop(), status: () => cam.status() });
+  if (cam) Object.assign(p, { start: () => cam.start(), stop: () => cam.stop(), status: () => cam.status(), screenLight: o => cam.screenLight(o) });
   if (face) {
-    Object.assign(p, { faceStart: () => face.start(), faceStop: () => face.stop(), faceStatus: () => face.status() });
+    Object.assign(p, { faceStart: () => face.start(), faceStop: () => face.stop(), faceStatus: () => face.status(), faceDebug: o => face.faceDebug(o) });
     for (const m of CALIBRATION) p[m] = o => face[m](o);
   }
   return p;

@@ -23,8 +23,14 @@
   const NO_QUALITY = 'This sensor version does not report signal quality, so its pulse is not shown or used.';
   const CHIP = { finger_ppg: 'finger sensor', watch_ble: 'watch' };
   const BREATH_WAIT = 'Takes about half a minute of steady signal', BREATH_LAG = 'From your heart rhythm, about half a minute behind';
+  // The camera's breathing rate comes from small movements of the head over its last 40 s (FaceTuning.swift).
+  const CAM_BREATH_LAG = 'From small movements of your head, about half a minute behind';
   const BREATH_SPAN = `Covers the task and the ${A.Breathing.WINDOW_S} seconds before it`;
   const CAM = 'Phone camera', LAST_MIN = 'in the last minute', OF_TIME = 'of the time, last minute';
+  // Breathing from either source (A.Breathing.clearest): named by where it comes from, and by which one lost when both read.
+  const BREATH_FROM = { finger_ppg: 'Finger sensor', arkit_truedepth: CAM };
+  const BREATH_LAGS = { finger_ppg: BREATH_LAG, arkit_truedepth: CAM_BREATH_LAG };
+  const CLEARER = { finger_ppg: 'Clearer than the finger sensor right now', arkit_truedepth: 'Clearer than the camera right now' };
   const FACE_OFF = { off: 'Switched off', denied: 'Camera access is off for Afferent in Settings' };
   const FACE_START = 'Starting the camera', NO_FACE = 'The camera does not see your face right now';
   const FACE_WAIT = 'Takes about half a minute with your face in view', FACE_BREATH_WAIT = 'Takes about half a minute of sitting still';
@@ -50,15 +56,18 @@
     return row('ecg_heart', 'Pulse', null, [unsteady ? 'Finger sensor. Waiting for a steady signal' : NONE]);
   };
 
-  const fingerRows = ph => {
+  // The clearer of the finger and the camera rate, with its source (A.Breathing.clearest); null when neither reads.
+  const breathRow = (br, label = 'Breathing') => br && row('air', label, int(br.rate), ['breaths per minute', BREATH_FROM[br.source], br.other && CLEARER[br.other]]);
+
+  const fingerRows = (ph, br) => {
     if (!ph?.source) return [];
     const sim = ph.simulated ? SIM : null, measuring = ph.presence === 'active' || !!ph.contact;
     const [a, b] = ph.finger_bpm, wait = text => measuring ? text : NONE;
     return [
       a == null && b == null ? row('back_hand', 'Finger 1 and finger 2', null, [NONE])
         : row('back_hand', 'Finger 1 and finger 2', `${int(a) ?? DASH} · ${int(b) ?? DASH}`, [BPM, sim]),
-      ph.breathing_per_min == null ? row('air', 'Breathing', null, [wait(BREATH_WAIT)])
-        : row('air', 'Breathing', int(ph.breathing_per_min), ['breaths per minute', sim]),
+      breathRow(br) || (ph.breathing_per_min == null ? row('air', 'Breathing', null, [wait(BREATH_WAIT)])
+        : row('air', 'Breathing', int(ph.breathing_per_min), ['breaths per minute', sim])),
       ph.rmssd_ms == null ? row('vital_signs', 'Beat-to-beat variation', null, [wait('Takes about a minute')])
         : row('vital_signs', 'Beat-to-beat variation', int(ph.rmssd_ms), ['ms (RMSSD)', sim]),
     ];
@@ -75,7 +84,8 @@
     return [row('videocam', CAMERA, null, [st.link === 'on' && waiting ? waiting : CAM_LINK[st.link] || NONE])];
   };
 
-  const faceRows = f => {
+  // br: the clearer breathing rate; breathing: false when the main group already has the one Breathing row.
+  const faceRows = (f, br = null, breathing = true) => {
     if (!f) return [];
     if (FACE_OFF[f.state]) return [row('videocam', CAM, null, [FACE_OFF[f.state]])];
     const hold = f.state === 'starting' ? FACE_START : !f.fresh ? NONE : !f.tracked ? NO_FACE : null;
@@ -89,7 +99,8 @@
       line('visibility_off', 'Blinks per minute', int(f.blinks_per_min), LAST_MIN),
       line('arrow_forward', 'Looking away', pct(f.gaze_away_share), OF_TIME),
       brief,
-      line('air', 'Breathing from the camera', int(f.breathing_per_min), 'breaths per minute', FACE_BREATH_WAIT),
+      ...(!breathing ? [] : br && !hold ? [breathRow(br, 'Breathing from the camera')]
+        : [line('air', 'Breathing from the camera', null, 'breaths per minute', FACE_BREATH_WAIT)]),
     ];
   };
 
@@ -145,10 +156,10 @@
   };
 
   const model = now => {
-    const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now);
-    const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
+    const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now), br = A.Breathing?.clearest?.(now) ?? null;
+    const rows = [pulseRow(ph, p, now), ...fingerRows(ph, br), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
-    const face = faceRows(S.faceLive(now)), room = [...(A.Room ? A.Room.rows(now) : []), ...(A.RoomSound ? A.RoomSound.rows(now) : [])].map(r => row(r.icon, r.label, r.value, r.lines));
+    const face = faceRows(S.faceLive(now), br, !ph?.source), room = [...(A.Room ? A.Room.rows(now) : []), ...(A.RoomSound ? A.RoomSound.rows(now) : [])].map(r => row(r.icon, r.label, r.value, r.lines));
     const watch = watchRows(now);
     return {
       rows, note, watch: watch.length ? { title: WATCH, rows: watch } : null, health: healthRows(),
@@ -208,7 +219,8 @@
     if (!s || s.done || s.gameMode === 'measure' || A.config?.breathFeedback === false) return null;
     const v = s.phase === 'game' && s.game?.id === 'breath' && !s.game.done ? s.game.fb?.shown() : null, r = s.breathResult;
     if (v) {
-      return v.state === 'reading' ? [`You: ${breaths(v.rate)} · Guide: ${int(v.guide)}`, `${SOURCE.finger_ppg}. ${BREATH_LAG}`]
+      const from = BREATH_FROM[v.source] ? v.source : 'finger_ppg';
+      return v.state === 'reading' ? [`You: ${breaths(v.rate)} · Guide: ${int(v.guide)}`, `${BREATH_FROM[from]}. ${BREATH_LAGS[from]}`]
         : [`You: measuring… · Guide: ${breaths(v.guide)}`, `${SOURCE.finger_ppg}. ${BREATH_WAIT}`];
     }
     if (!r || now >= r.until || !['walk', 'dawn'].includes(s.phase)) return null;

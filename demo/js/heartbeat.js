@@ -126,7 +126,9 @@
 
       // The calm response, from real readings only.
       // The setting "Breathing pace" off: the measured breathing does not move the scene either.
-      const rate = A.config?.breathFeedback !== false ? fr?.rate ?? null : null, rmssd = fr?.rmssd ?? null;
+      // The breathing rate is the clearer of the finger clips and the phone camera (breathing.js, A.Breathing.clearest).
+      const clear = A.Breathing?.clearest ? A.Breathing.clearest(now)?.rate ?? null : fr?.rate ?? null;
+      const rate = A.config?.breathFeedback !== false ? clear : null, rmssd = fr?.rmssd ?? null;
       st.rate = follow(st.rate, rate, dt, RATE_TAU);
       st.rmssd = follow(st.rmssd, rmssd, dt, RMSSD_TAU);
       st.pulse = follow(st.pulse, real, dt, PULSE_TAU);

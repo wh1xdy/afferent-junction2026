@@ -842,10 +842,11 @@ const tests = {
     const pulseSwift = swift.find(([f]) => f === 'AfferentPulse.swift')[1];
     const methods = [...pulseSwift.matchAll(/CAPPluginMethod\(name: "(\w+)"/g)].map(m => m[1]);
     assert.deepStrictEqual(methods, ['start', 'stop', 'status', 'faceStart', 'faceStop', 'faceStatus',
-      'calibrationStart', 'calibrationPoint', 'calibrationFinish', 'calibrationStatus', 'calibrationClear'], 'pulse, face measures and calibration on the one plugin');
+      'calibrationStart', 'calibrationPoint', 'calibrationFinish', 'calibrationStatus', 'calibrationClear', 'screenLight', 'faceDebug'],
+      'pulse, face measures, calibration, the screen light and the developer gaze stream on the one plugin');
     for (const m of methods) assert.ok(new RegExp(`@objc func ${m}\\(_ call: CAPPluginCall\\)`).test(pulseSwift), `${m} has no @objc func`);
     const faceSwift = swift.find(([f]) => f === 'FaceMeasures.swift')[1];
-    assert.deepStrictEqual([...faceSwift.matchAll(/notifyListeners\("(\w+)"/g)].map(m => m[1]).sort(), ['face', 'faceState', 'micro']);
+    assert.deepStrictEqual([...faceSwift.matchAll(/notifyListeners\("(\w+)"/g)].map(m => m[1]).sort(), ['face', 'faceDebug', 'faceState', 'micro']);
     assert.ok(/FaceSession\.supported, FaceSession\.trueDepth/.test(faceSwift), 'face measures only with a TrueDepth camera');
     const fake = load({ camera: true, face: true }).ctx.Capacitor.Plugins.AfferentPulse;
     assert.deepStrictEqual(Object.keys(fake).filter(k => k !== 'addListener').sort(), [...methods].sort(), 'the test fake has the native surface');

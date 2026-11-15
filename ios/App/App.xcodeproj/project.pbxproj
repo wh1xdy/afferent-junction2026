@@ -30,6 +30,7 @@
 		AE0000000000000000000209 /* FacePulse.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE0000000000000000000109 /* FacePulse.swift */; };
 		AE000000000000000000020A /* FaceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010A /* FaceSession.swift */; };
 		AE000000000000000000020B /* FaceMeasures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010B /* FaceMeasures.swift */; };
+		AE000000000000000000020C /* FaceLight.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010C /* FaceLight.swift */; };
 		AE0000000000000000000400 /* FaceCore in Frameworks */ = {isa = PBXBuildFile; productRef = AE0000000000000000000401 /* FaceCore */; };
 		B7A700000000000000000010 /* HeartRateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A700000000000000000020 /* HeartRateParser.swift */; };
 		B7A700000000000000000030 /* AfferentWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A700000000000000000040 /* AfferentWatch.swift */; };
@@ -63,6 +64,7 @@
 		AE0000000000000000000109 /* FacePulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FacePulse.swift; path = ../Afferent/FacePulse.swift; sourceTree = SOURCE_ROOT; };
 		AE000000000000000000010A /* FaceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceSession.swift; sourceTree = "<group>"; };
 		AE000000000000000000010B /* FaceMeasures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceMeasures.swift; sourceTree = "<group>"; };
+		AE000000000000000000010C /* FaceLight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceLight.swift; sourceTree = "<group>"; };
 		B7A700000000000000000020 /* HeartRateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartRateParser.swift; sourceTree = "<group>"; };
 		B7A700000000000000000040 /* AfferentWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentWatch.swift; sourceTree = "<group>"; };
 		B7A700000000000000000060 /* HealthMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthMath.swift; sourceTree = "<group>"; };
@@ -109,6 +111,7 @@
 				AE0000000000000000000105 /* AfferentPulseGate.swift */,
 				AE000000000000000000010A /* FaceSession.swift */,
 				AE000000000000000000010B /* FaceMeasures.swift */,
+				AE000000000000000000010C /* FaceLight.swift */,
 				AE0000000000000000000300 /* Shared */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -247,6 +250,7 @@
 				AE0000000000000000000209 /* FacePulse.swift in Sources */,
 				AE000000000000000000020A /* FaceSession.swift in Sources */,
 				AE000000000000000000020B /* FaceMeasures.swift in Sources */,
+				AE000000000000000000020C /* FaceLight.swift in Sources */,
 				B7A700000000000000000070 /* AfferentHealth.swift in Sources */,
 				B7A700000000000000000050 /* HealthMath.swift in Sources */,
 				B7A700000000000000000030 /* AfferentWatch.swift in Sources */,

@@ -107,7 +107,7 @@ const tests = {
   'd: Settings has no bed presence row and says what the light and the pulse stone are'() {
     const { groups, row } = settings(), sensors = groups.find(g => g.title === 'Sensors');
     const id = r => /data-sensor="(\w+)"/.exec(r.sw)?.[1];
-    assert.deepStrictEqual(sensors.rows.map(r => id(r) ?? r.sw), ['phone_camera', 'pulse_stone', 'id="breathSw"', 'bedside_light', 'bedside_camera', 'phone_motion', 'id="roomSoundSw"']);
+    assert.deepStrictEqual(sensors.rows.map(r => id(r) ?? r.sw), ['phone_camera', 'id="lightSw"', 'pulse_stone', 'id="breathSw"', 'bedside_light', 'bedside_camera', 'phone_motion', 'id="roomSoundSw"']);
     const by = Object.fromEntries(sensors.rows.map(r => [id(r), r]));
     assert.strictEqual(by.pulse_stone.label, 'Pulse stone');
     assert.strictEqual(by.bedside_light.label, 'Bedside light');

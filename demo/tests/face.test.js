@@ -359,11 +359,14 @@ const tests = {
     S.feedFingerBle({ kind: 'hrm', bpm: 72, t_ms: Date.now() });
     S.feedFingerBle({ kind: 'aff1', finger_bpm: [71, 73], breathing_per_min: 6, rmssd_ms: 46, quality: 0.6, presence: 'active', payload_len: 6, t_ms: Date.now() });
     const m = V.model(A.now());
-    assert.deepStrictEqual(lines(m).find(r => r[0] === 'Breathing'), ['Breathing', '6', 'breaths per minute']);
-    assert.deepStrictEqual(lines(m.face).pop(), ['Breathing from the camera', '12', 'breaths per minute', CAM], 'two rows, two sources, never one merged number');
+    // both read: one Breathing row, the clearer source (finger quality 0.6 against the camera's 3.2 dB = 0.32), labelled;
+    // never an average of the two (camera-extras.test.js has the rule)
+    assert.deepStrictEqual(lines(m).find(r => r[0] === 'Breathing'), ['Breathing', '6', 'breaths per minute', 'Finger sensor', 'Clearer than the camera right now']);
+    assert.ok(!lines(m.face).some(r => /^Breathing/.test(r[0])), 'the Face group leaves it to the one Breathing row');
 
     tick(1); p.emit('face', sec({ tracked: false }));
-    assert.deepStrictEqual(lines(group()), all('The camera does not see your face right now'), 'no number is shown while no face is in view');
+    assert.deepStrictEqual(lines(group()), all('The camera does not see your face right now').slice(0, 5),
+      'no number is shown while no face is in view (while the clips read, Breathing is the main group\'s row)');
     tick(3.1);
     assert.deepStrictEqual(lines(group()), all('No reading right now'));
 

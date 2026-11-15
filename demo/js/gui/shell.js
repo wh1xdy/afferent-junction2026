@@ -42,6 +42,7 @@
     ] },
     { page: 'sensors', id: 'sensorsGroup', title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
+      { icon: 'light_mode', label: 'Screen light for the camera', sup: 'A brighter screen lights your face, only as much as it needs', sw: 'id="lightSw"' },
       { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
       { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
       { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
@@ -99,6 +100,7 @@
     { icon: 'schedule', label: 'Clock', val: '', attrs: 'data-dev="clock"' },
     { icon: 'routine', label: 'Session', val: '', attrs: 'data-dev="stage"' },
     { icon: 'insights', label: 'Day profile', val: '', attrs: 'data-dev="profile"' },
+    { icon: 'bug_report', label: 'Face debug view', sup: 'What the face measures see, live', attrs: 'id="faceDebugRow"', chevron: true },
   ] };
 
   const showDev = on => {
