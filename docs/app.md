@@ -121,8 +121,9 @@ camera setting is on and the app is visible. They need a TrueDepth camera; witho
 - Camera frames, images, face meshes and the raw blendshape stream stay in the native layer; the web layer
   only gets the per-second numbers. The face numbers reach the patient's own home hub in the session
   document, and a doctor only through the QR handover: the hub's clinic routes (`/api/patients/{id}`,
-  `/api/sessions/{id}`, the clinic export) leave the face block out, and the face numbers of a mode change
-  (`adaptive.transitions[].signals`). No face number is in a live message.
+  `/api/sessions/{id}`, the clinic export) leave the face block out, any mode change that rested on what the face did
+  (`basis: "face"`), and the face numbers behind the other mode changes (`adaptive.transitions[].signals`): the
+  doctor learns about the face only through the patient's handover. No face number is in a live message.
 - Smiling and facial movement steer the games where the body has not decided (pulse near rest, low or
   missing; eyes not tired), against the session's own face (20 tracked seconds near rest): over the last
   20 s (12 tracked seconds needed), smiling in 25% or more and 15 points over the own share is `bright`
