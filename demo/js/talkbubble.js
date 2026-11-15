@@ -17,7 +17,7 @@
   const T = {
     first: 1400,  // ms on the plain start screen before it first fades in (after the loading screen is gone)
     again: 350,   // ms after whatever covered it has gone
-    tail: 10,     // px from the body to the tail's tip
+    tail: 12,     // px from the body to the tail's tip
     r: 20,        // px corner radius of the body
     gap: 6,       // px between the tail's tip and the top of the head
     clear: 10,    // px kept free around it: the kindle, the dock above it, the top bar
@@ -40,8 +40,8 @@
   // Body w x h with rounded corners; the tail leaves its bottom edge and ends at (p, h + tail), under the body's left part.
   const path = (w, h, p) => {
     const r = Math.min(T.r, h / 2), t = T.tail, f = n => Math.round(n * 10) / 10;
-    return `M${r} 0H${f(w - r)}A${r} ${r} 0 0 1 ${f(w)} ${r}V${f(h - r)}A${r} ${r} 0 0 1 ${f(w - r)} ${f(h)}H${f(p + 17)}`
-      + `C${f(p + 10)} ${f(h)} ${f(p + 3)} ${f(h + t * 0.5)} ${f(p)} ${f(h + t)}C${f(p + 5)} ${f(h + t * 0.8)} ${f(p + 8)} ${f(h + t * 0.4)} ${f(p + 7)} ${f(h)}`
+    return `M${r} 0H${f(w - r)}A${r} ${r} 0 0 1 ${f(w)} ${r}V${f(h - r)}A${r} ${r} 0 0 1 ${f(w - r)} ${f(h)}H${f(p + 20)}`
+      + `C${f(p + 12)} ${f(h)} ${f(p + 4)} ${f(h + t * 0.45)} ${f(p)} ${f(h + t)}C${f(p + 5)} ${f(h + t * 0.75)} ${f(p + 8)} ${f(h + t * 0.35)} ${f(p + 6)} ${f(h)}`
       + `H${r}A${r} ${r} 0 0 1 0 ${f(h - r)}V${r}A${r} ${r} 0 0 1 ${r} 0Z`;
   };
   let drawn = '';
@@ -58,7 +58,7 @@
     art.innerHTML = `<defs><mask id="tbOut" maskUnits="userSpaceOnUse" x="-40" y="-40" width="${w + 80}" height="${H + 90}">`
       + `<rect x="-40" y="-40" width="${w + 80}" height="${H + 90}" fill="#fff"/><path d="${d}" fill="#000"/></mask>`
       + `<filter id="tbSoft" x="-40%" y="-60%" width="180%" height="240%"><feGaussianBlur stdDeviation="7"/></filter></defs>`
-      + `<path class="tb-shade" d="${d}" transform="translate(0 5)" filter="url(#tbSoft)" mask="url(#tbOut)"/>`
+      + `<g mask="url(#tbOut)"><path class="tb-shade" d="${d}" transform="translate(0 4)" filter="url(#tbSoft)"/></g>`
       + `<path class="tb-edge" d="${d}"/>`;
   };
 
@@ -79,7 +79,7 @@
     if (!w || !h) return false;
     const cs = getComputedStyle(start), side = parseFloat(cs.getPropertyValue('--af-gutter')) || 16;
     const left = Math.round(Math.max(side, Math.min(sr.width - side - w, hx - 30)));
-    const p = Math.round(Math.max(T.r - 5, Math.min(w - T.r - 19, hx - left)));
+    const p = Math.round(Math.max(T.r - 5, Math.min(w - T.r - 21, hx - left)));
     // above the head, and wholly above the kindle (its glow may run under it)
     const kb = box(begin), ky = kb ? kb.top - sr.top - T.clear : Infinity;
     const top = Math.round(Math.min(hy - T.gap - T.tail, ky) - h);
@@ -105,8 +105,9 @@
       if (!b.classList.contains('away')) b.classList.add('away');
       return;
     }
-    if (!b.classList.contains('away') || timer) return;
+    // the room hint, the check-in chip or the clip offer may have come or gone: keep the dock clear of it
     place();
+    if (!b.classList.contains('away') || timer) return;
     timer = setTimeout(() => {
       timer = 0;
       if (covered()) return;
@@ -115,6 +116,8 @@
       seen = true;
     }, seen ? T.again : T.first);
   };
+  // The figure settles onto the bench and the world can shift under it: follow it, slowly, while the bubble is out.
+  setInterval(() => { if (!b.classList.contains('away') && !covered()) place(); }, 1000);
   if (!b.classList.contains('away')) b.classList.add('away');
   let queued = false;
   const soon = () => { if (queued) return; queued = true; Promise.resolve().then(() => { queued = false; sync(); }); };
