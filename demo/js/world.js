@@ -973,22 +973,75 @@
     return art(n, x, (f >= 1 ? gy - terrAt(x + w / 2) : my) + h * sink - h, w, h, g, 1, lt);
   }
   function backProps(c) {
-    const m = (c.x0 + c.x1) / 2, cw = c.x1 - c.x0;
+    const cw = c.x1 - c.x0;
     if (c.type === 'harbour' && every(c, 3)) prop('boathouse', c.x1 - 600, 0.94, 92 * u, 'yellow', 0.85, 0.1);
     if (c.type === 'shore' && every(c, 4) && prop('lighthouse', c.x0 + cw * 0.76, 0.9, H * 0.3, 'yellow', 0.9, 0.06)) {
       const lh = H * 0.3, lx = at(c.x0 + cw * 0.76, 0.9), ly = my + lh * 0.06 - lh * 0.87, on = clamp(0.35 + n0(S.beam, 0) + 0.3 * st.ds.dawn, 0, 1);
       glow(ctxRef, lx, ly, lh * 0.12, P.flame, 0.6 * on); glow(ctxRef, lx, ly, lh * 0.035, P.daylight, 0.8 * on);
     }
-    if (c.type === 'sauna' && every(c, 2)) prop('birch_cluster', c.x0 + cw * 0.28, 0.95, H * 0.27, 'yellow', 0.85, 0.05);
-    if (c.type === 'forest' && every(c, 3) && ART.has('mid_birch_grove')) prop('mid_birch_grove', m, 0.9, 300 * u, 'yellow', 0.82, 0.05);
+  }
+
+  // Painted birches and spruces (art/plan.json) along the forest and sauna stretches: small ones back by the mid hills,
+  // drawn before the ground so its edge hides their feet, and one or two by the path behind the figure. Each chunk lays
+  // out its own trees from its seed, and each tree is planted on the ground line where it is drawn, so it never floats
+  // over a dip or sinks into a rise. Heights are fractions of H; the procedural birches stay until the art is in.
+  // The six trees are one image, the atlas 'trees' (art/finalize_trees.py); its manifest entry says where each one is.
+  const TREE = {
+    tree_birch_a: { h: [0.31, 0.37], g: 'yellow', sway: 1 }, tree_birch_b: { h: [0.29, 0.34], g: 'yellow', sway: 1 },
+    tree_birch_c: { h: [0.26, 0.31], g: 'yellow', sway: 1 }, tree_spruce_a: { h: [0.3, 0.35], g: 'green', sway: 0.3 },
+    tree_spruce_b: { h: [0.23, 0.28], g: 'green', sway: 0.3 }, tree_spruce_c: { h: [0.13, 0.17], g: 'green', sway: 0.2 },
+  };
+  // The small snow-laden spruce stays in the back row: by the path it is the figure's height and white, and competes with it.
+  const BIRCHES = ['tree_birch_a', 'tree_birch_b', 'tree_birch_c'], SPRUCES = ['tree_spruce_a', 'tree_spruce_b', 'tree_spruce_b', 'tree_spruce_c'], NEAR_SPRUCES = SPRUCES.slice(0, 3);
+  const TREE_ROW = { back: { f: 0.82, k: 0.55, lt: 0.78, sink: 5 }, front: { f: 0.97, k: 1, lt: 0.95, sink: 2 } };
+  // No tree reaches above this on the screen: 20 % of the height, and always 12 px under the line where a task's text
+  // starts below the top controls (Layers.controls), at any zoom of a ride.
+  const TREE_TOP = 0.2;
+  const treeCeil = () => unzoom(0, Math.max(H * TREE_TOP, A.Layers.controls(W, insetTop()).line + 12 * u))[1];
+  const TREE_ART = 'trees';
+  const treeFrames = () => (ART.has(TREE_ART) ? A.Art.meta?.(TREE_ART)?.frames || null : null);
+  const treeArt = () => !!treeFrames();
+  function treeLayout(c) {
+    if (c._trees) return c._trees;
+    const rr = rng((c.seed | 0) + 211), out = [];
+    const row = (n, back, q0, q1) => {
+      const k0 = rr() < 0.5 ? 0 : 1;
+      for (let i = 0; i < n; i++) {
+        const list = (i + k0) % 2 ? BIRCHES : back ? SPRUCES : NEAR_SPRUCES;
+        out.push({ q: lerp(q0, q1, (i + 0.25 + 0.5 * rr()) / n), back, name: list[(rr() * list.length) | 0], s: rr(), p: rr() * 6.28 });
+      }
+    };
+    if (c.type === 'forest') {
+      // Leaving a lake or the harbour the ground is still ice or water for the first part of the chunk. The near row
+      // keeps off the chunk ends, so two near trees of neighbouring chunks never crowd together.
+      const q0 = c.from === 'lake' || c.from === 'harbour' ? 0.45 : 0.04;
+      row(3 + (rr() < 0.5 ? 1 : 0), true, q0, 0.98);
+      row(1 + (rr() < 0.55 ? 1 : 0), false, Math.max(q0, 0.12), 0.88);
+    } else if (c.type === 'sauna' && every(c, 2)) row(2, true, 0.08, 0.42);
+    return (c._trees = out);
+  }
+  function trees(c, back) {
+    const R = back ? TREE_ROW.back : TREE_ROW.front, t = n0(S.t, 0) * (rm ? 0.3 : 1), ceil = treeCeil();
+    const frames = treeFrames(), sz = A.Art.size(TREE_ART);
+    for (const tr of treeLayout(c)) {
+      const F = frames[tr.name];
+      if (tr.back !== back || !F) continue;
+      // b: the tree's own box in the atlas, s: the slice drawn for it (to the middle of the gaps), both as fractions
+      const [u0, u1, v0, v1] = F.b, T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f), base = gyAt(S.worldX + xc - fx) + R.sink * u;
+      const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - ceil), w = h * (u1 - u0) * sz.w / ((v1 - v0) * sz.h);
+      if (h <= 0 || xc + w / 2 < -20 || xc - w / 2 > W + 20) continue;
+      const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway * (rm ? 0.3 : 1), aw = w / (u1 - u0), ah = h / (v1 - v0);
+      ctxRef.save(); ctxRef.transform(1, 0, lean, 1, -lean * base, 0);
+      ART.slice(ctxRef, TREE_ART, F.s[0], F.s[1], xc - w / 2 - u0 * aw, base + h * 0.03 - h - v0 * ah, aw, ah, satOf(T.g), Math.min(1, lightOf(T.g) * R.lt), 1);
+      ctxRef.restore();
+    }
   }
 
   function props(ctx, back) {
+    const painted = treeArt();
     for (const c of visible(W)) {
-      if (c.type === 'forest') {
-        if (!ART.has('mid_birch_grove')) birches(ctx, c, back);
-        else if (!back && every(c, 2, 1)) prop('birch_cluster', c.x0 + 70, 1, H * 0.31, 'yellow', 0.95, 0.05);
-      }
+      if (painted && (c.type === 'forest' || c.type === 'sauna')) trees(c, back);
+      else if (c.type === 'forest') birches(ctx, c, back);
       if (back) { if (c.type === 'lake') lakeShore(ctx, c); backProps(c); continue; }
       if (c.type === 'harbour' && every(c, 3)) pier(ctx, c);
       if (c.type === 'sauna' && every(c, 4)) hut(ctx, c);

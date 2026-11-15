@@ -1,0 +1,168 @@
+{
+ "name": "painted trees for the walk (forest and sauna stretches)",
+ "layout": "sections",
+ "model": "gpt-image-2.6-sunburst",
+ "n": 1,
+ "style": "RENDERING: Premium flat 2D game illustration, the look of the approved key art, never a 3D render or a toy: strict orthographic side view with no perspective. Large simple shapes with clean, smooth, soft-edged silhouettes and no outlines. Every surface is flat matte colour with exactly one soft, wide gradient that models its form: lighter where a soft neutral light from the upper left reaches, deepening smoothly into a cool kaamos-blue #1E3150 shadow side. Wherever a landform, roof, shelf or object has a cut edge, that edge is laminated like bent birch plywood: two to four thin, even, parallel layers that follow the curve exactly. A very fine, even felt-like micro-texture is allowed on cloth, wool and snow only, barely visible. Feels like matte felt, painted plaster and bent birch plywood, designed with the restraint of Nordic functionalist design.\n\nLIGHT AND COLOUR: Local colours at middle value under soft neutral overcast light. No cast shadow, no glow, no rim light, no light source of any kind, no lit windows, no fire, no night, sunset or warm tint: the game adds darkness, glow and colour grading in code. Use only these colours: birch white #F2EEE6, birch ply #E2C79C, ply edge #B48E5C, kaamos blue #1E3150, fjord #0E1A2E, frost #9DB9CC, lilac haze #B4A6CE, ice #8FC6E0, spring green #9DBE8C, spruce #2F4A48, granite #8A8F9C, ceiling green #C8D6BE.\n\nAVOID: 3D render, clay, plush toy, vinyl figure, glossy or plastic highlights, specular shine, metallic reflections, hard cel shading, outlines or black strokes, brush strokes, watercolour blooms, paper grain on the background, photorealism, any face or eyes, any person other than the Keeper, red, orange-red, orange, pink, coral, magenta, text, letters, numbers, logo, watermark, signature, frame, border, checkerboard pattern, background scenery, drop shadow.",
+ "notes": [
+  "Earlier plans (plan_v5.json and the task plans) live on branch art-v5; this file holds the assets made since.",
+  "STYLE is the v5 RENDERING, LIGHT AND COLOUR and AVOID text unchanged; CONSTRAINTS is generate.py's isolated-element template.",
+  "art/refs/birches_ride.png is the v5 reference crop of this project's own ride concept plate (art/v5refs/ on branch art-v5).",
+  "Draft (style lock, 2 x 2 medium): uv run art/generate.py --draft --n 2 --only tree_birch_a tree_spruce_b --sheet; the first draft put a laminated slab under the spruce, so the snow drift line now rules it out.",
+  "Final: uv run art/generate.py --only <names> --sheet (xhigh, 3 variants each); finalise the picks with uv run art/finalize_trees.py (alpha cleaned, trimmed, scaled to final_max_edge, WebP).",
+  "The six trees ship as one atlas, demo/assets/trees.webp (art/finalize_trees.py), with their places in the trees entry of demo/assets/manifest.json: art.js loads and prepares every manifest image before the loading screen leaves, and one image is cheaper to prepare than six. final_max_edge keeps the atlas under the pixel count of the two images it replaced (birch_cluster, mid_birch_grove); the canvas is capped at 2x (perf.js), where 532 px is close to the tallest tree's drawn height.",
+  "Fields pick, final_max_edge and why are documentation; generate.py ignores them. pick is the variant shipped in demo/assets."
+ ],
+ "assets": [
+  {
+   "name": "tree_birch_a",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "xhigh",
+   "n": 3,
+   "refs": [
+    {
+     "path": "art/refs/birches_ride.png",
+     "role": "identity reference, birches from an approved concept plate: match their slender gently tapering white trunks, the natural irregular dark bark marks and the fine many-twigged crowns. Ignore their golden autumn foliage, the sky and the landscape."
+    },
+    {
+     "path": "demo/assets/lighthouse.png",
+     "role": "an approved in-game prop: match how it renders a white surface in matte colour with one soft gradient into a cool shadow side, and its soft snow. Ignore the object itself."
+    },
+    {
+     "path": "design/concept/final/concept_final_01_start.png",
+     "role": "style reference, an approved concept plate. Take only the rendering: soft matte shapes, smooth gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its composition, sky, landscape, characters or night lighting."
+    }
+   ],
+   "pick": "v1",
+   "prompt": "Create a new image using the reference images as described.\n\nASSET: One tree sprite for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night: a tall single birch. It is cut out on a fully transparent background and placed over a painted landscape in code, standing on the ground line.\n\nSUBJECT: One tall, slender winter birch with a single straight trunk that tapers gently and leans a touch to the left near the top. Natural silver-birch bark in birch white #F2EEE6, softly shaded into frost #9DB9CC on the right: thin horizontal dark fjord #0E1A2E lenticel marks of irregular length, thickness and spacing, some grouped, some single, a few darker rough patches and a few dark diamond-shaped scars where old branches fell; the lowest part of the trunk turns darker and fissured in granite #8A8F9C and fjord like an old birch's base. The marks are organic and varied, never a regular pattern of evenly spaced dashes. Bare winter crown: a few slender branches rise from the upper trunk and divide again and again into a fine, airy, gently drooping veil of thin twigs in soft lilac-grey (lilac haze #B4A6CE deepening to kaamos blue #1E3150), every twig tapering to a hair-fine tip, like the birches in the concept reference but bare. A thin line of soft snow rests on the upper side of a few of the thicker branches. Two small birch ply #E2C79C leaves still cling to the outer twigs. The trunk base disappears into a small, low, soft rounded snow drift in birch white shaded into frost, whose flat underside lies on the bottom edge of the image; the drift has no laminated edge and there is no plank, slab or platform under it.\n\nFRAMING: The whole tree, upright, centred, nothing cropped except the base: the base and its small snow drift meet the bottom edge of the image, and there is a transparent margin above the crown and on both sides. One tree only, nothing else in the image.",
+   "final_max_edge": 532,
+   "why": "replaces the flat birch_cluster and mid_birch_grove art (even dashes, stick branches)"
+  },
+  {
+   "name": "tree_birch_b",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "xhigh",
+   "n": 3,
+   "refs": [
+    {
+     "path": "art/refs/birches_ride.png",
+     "role": "identity reference, birches from an approved concept plate: match their slender gently tapering white trunks, the natural irregular dark bark marks and the fine many-twigged crowns. Ignore their golden autumn foliage, the sky and the landscape."
+    },
+    {
+     "path": "demo/assets/lighthouse.png",
+     "role": "an approved in-game prop: match how it renders a white surface in matte colour with one soft gradient into a cool shadow side, and its soft snow. Ignore the object itself."
+    },
+    {
+     "path": "design/concept/final/concept_final_01_start.png",
+     "role": "style reference, an approved concept plate. Take only the rendering: soft matte shapes, smooth gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its composition, sky, landscape, characters or night lighting."
+    }
+   ],
+   "pick": "v2",
+   "prompt": "Create a new image using the reference images as described.\n\nASSET: One tree sprite for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night: a two-stemmed birch. It is cut out on a fully transparent background and placed over a painted landscape in code, standing on the ground line.\n\nSUBJECT: One winter birch with two trunks growing from a single base and parting in a narrow V, the right trunk taller than the left; both slender and gently tapering. Natural silver-birch bark in birch white #F2EEE6, softly shaded into frost #9DB9CC on the right: thin horizontal dark fjord #0E1A2E lenticel marks of irregular length, thickness and spacing, some grouped, some single, a few darker rough patches and a few dark diamond-shaped scars where old branches fell; the lowest part of the trunk turns darker and fissured in granite #8A8F9C and fjord like an old birch's base. The marks are organic and varied, never a regular pattern of evenly spaced dashes. Bare winter crown: a few slender branches rise from the upper trunk and divide again and again into a fine, airy, gently drooping veil of thin twigs in soft lilac-grey (lilac haze #B4A6CE deepening to kaamos blue #1E3150), every twig tapering to a hair-fine tip, like the birches in the concept reference but bare. A thin line of soft snow rests on the upper side of a few of the thicker branches. One small birch ply #E2C79C leaf still clings to a twig. The trunk base disappears into a small, low, soft rounded snow drift in birch white shaded into frost, whose flat underside lies on the bottom edge of the image; the drift has no laminated edge and there is no plank, slab or platform under it.\n\nFRAMING: The whole tree, upright, centred, nothing cropped except the base: the base and its small snow drift meet the bottom edge of the image, and there is a transparent margin above the crown and on both sides. One tree only, nothing else in the image.",
+   "final_max_edge": 532,
+   "why": "variety: a twin-stemmed birch"
+  },
+  {
+   "name": "tree_birch_c",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "xhigh",
+   "n": 3,
+   "refs": [
+    {
+     "path": "art/refs/birches_ride.png",
+     "role": "identity reference, birches from an approved concept plate: match their slender gently tapering white trunks, the natural irregular dark bark marks and the fine many-twigged crowns. Ignore their golden autumn foliage, the sky and the landscape."
+    },
+    {
+     "path": "demo/assets/lighthouse.png",
+     "role": "an approved in-game prop: match how it renders a white surface in matte colour with one soft gradient into a cool shadow side, and its soft snow. Ignore the object itself."
+    },
+    {
+     "path": "design/concept/final/concept_final_01_start.png",
+     "role": "style reference, an approved concept plate. Take only the rendering: soft matte shapes, smooth gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its composition, sky, landscape, characters or night lighting."
+    }
+   ],
+   "pick": "v2",
+   "prompt": "Create a new image using the reference images as described.\n\nASSET: One tree sprite for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night: a young leaning birch. It is cut out on a fully transparent background and placed over a painted landscape in code, standing on the ground line.\n\nSUBJECT: One young winter birch, thinner and with a softly curving trunk that leans slightly to the right, a sparse, light crown. Natural silver-birch bark in birch white #F2EEE6, softly shaded into frost #9DB9CC on the right: thin horizontal dark fjord #0E1A2E lenticel marks of irregular length, thickness and spacing, some grouped, some single, a few darker rough patches and a few dark diamond-shaped scars where old branches fell; the lowest part of the trunk turns darker and fissured in granite #8A8F9C and fjord like an old birch's base. The marks are organic and varied, never a regular pattern of evenly spaced dashes. Bare winter crown: a few slender branches rise from the upper trunk and divide again and again into a fine, airy, gently drooping veil of thin twigs in soft lilac-grey (lilac haze #B4A6CE deepening to kaamos blue #1E3150), every twig tapering to a hair-fine tip, like the birches in the concept reference but bare. A thin line of soft snow rests on the upper side of a few of the thicker branches. No leaves. The trunk base disappears into a small, low, soft rounded snow drift in birch white shaded into frost, whose flat underside lies on the bottom edge of the image; the drift has no laminated edge and there is no plank, slab or platform under it.\n\nFRAMING: The whole tree, upright, centred, nothing cropped except the base: the base and its small snow drift meet the bottom edge of the image, and there is a transparent margin above the crown and on both sides. One tree only, nothing else in the image.",
+   "final_max_edge": 532,
+   "why": "variety: a young, lighter birch"
+  },
+  {
+   "name": "tree_spruce_a",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "xhigh",
+   "n": 3,
+   "refs": [
+    {
+     "path": "demo/assets/fg_branch.png",
+     "role": "the approved in-game spruce bough: match its needle shapes, colours and the soft snow pillows lying on the needle layers exactly. Ignore its framing."
+    },
+    {
+     "path": "design/concept/final/concept_final_01_start.png",
+     "role": "style reference, an approved concept plate. Take only the rendering: soft matte shapes, smooth gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its composition, sky, landscape, characters or night lighting."
+    },
+    {
+     "path": "demo/assets/lighthouse.png",
+     "role": "an approved in-game prop: match how it renders a white surface in matte colour with one soft gradient into a cool shadow side, and its soft snow. Ignore the object itself."
+    }
+   ],
+   "pick": "v1",
+   "prompt": "Create a new image using the reference images as described.\n\nASSET: One tree sprite for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night: a tall slim spruce. It is cut out on a fully transparent background and placed over a painted landscape in code, standing on the ground line.\n\nSUBJECT: One tall, slim snowy spruce with a narrow, almost columnar outline like the spruces of Lapland, its top a narrow spire. Nordic Norway spruce in winter: tiered, gently downward-sweeping boughs of short spruce needles in spruce #2F4A48 deepening to fjord #0E1A2E on the shadow side, exactly like the in-game bough reference; heavy soft pillows of snow in birch white, shaded into frost #9DB9CC, lie on the upper side of every tier and on the tip, with dark needle edges showing beneath each pillow. The short dark trunk hides under the lowest boughs. The trunk base disappears into a small, low, soft rounded snow drift in birch white shaded into frost, whose flat underside lies on the bottom edge of the image; the drift has no laminated edge and there is no plank, slab or platform under it.\n\nFRAMING: The whole tree, upright, centred, nothing cropped except the base: the base and its small snow drift meet the bottom edge of the image, and there is a transparent margin above the crown and on both sides. One tree only, nothing else in the image.",
+   "final_max_edge": 532,
+   "why": "the walk had no spruce props, only the far hill strip"
+  },
+  {
+   "name": "tree_spruce_b",
+   "size": "1024x1536",
+   "transparent": true,
+   "quality": "xhigh",
+   "n": 3,
+   "refs": [
+    {
+     "path": "demo/assets/fg_branch.png",
+     "role": "the approved in-game spruce bough: match its needle shapes, colours and the soft snow pillows lying on the needle layers exactly. Ignore its framing."
+    },
+    {
+     "path": "design/concept/final/concept_final_01_start.png",
+     "role": "style reference, an approved concept plate. Take only the rendering: soft matte shapes, smooth gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its composition, sky, landscape, characters or night lighting."
+    },
+    {
+     "path": "demo/assets/lighthouse.png",
+     "role": "an approved in-game prop: match how it renders a white surface in matte colour with one soft gradient into a cool shadow side, and its soft snow. Ignore the object itself."
+    }
+   ],
+   "pick": "v2",
+   "prompt": "Create a new image using the reference images as described.\n\nASSET: One tree sprite for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night: a broad spruce. It is cut out on a fully transparent background and placed over a painted landscape in code, standing on the ground line.\n\nSUBJECT: One full, broad, classic snowy spruce with a symmetrical conical outline, wide skirt of low boughs near the ground. Nordic Norway spruce in winter: tiered, gently downward-sweeping boughs of short spruce needles in spruce #2F4A48 deepening to fjord #0E1A2E on the shadow side, exactly like the in-game bough reference; heavy soft pillows of snow in birch white, shaded into frost #9DB9CC, lie on the upper side of every tier and on the tip, with dark needle edges showing beneath each pillow. The short dark trunk hides under the lowest boughs. The trunk base disappears into a small, low, soft rounded snow drift in birch white shaded into frost, whose flat underside lies on the bottom edge of the image; the drift has no laminated edge and there is no plank, slab or platform under it.\n\nFRAMING: The whole tree, upright, centred, nothing cropped except the base: the base and its small snow drift meet the bottom edge of the image, and there is a transparent margin above the crown and on both sides. One tree only, nothing else in the image.",
+   "final_max_edge": 532,
+   "why": "variety: a full conical spruce"
+  },
+  {
+   "name": "tree_spruce_c",
+   "size": "1024x1024",
+   "transparent": true,
+   "quality": "xhigh",
+   "n": 3,
+   "refs": [
+    {
+     "path": "demo/assets/fg_branch.png",
+     "role": "the approved in-game spruce bough: match its needle shapes, colours and the soft snow pillows lying on the needle layers exactly. Ignore its framing."
+    },
+    {
+     "path": "design/concept/final/concept_final_01_start.png",
+     "role": "style reference, an approved concept plate. Take only the rendering: soft matte shapes, smooth gradients, fine felt texture on snow and cloth, laminated birch edges and the palette. Do not copy its composition, sky, landscape, characters or night lighting."
+    },
+    {
+     "path": "demo/assets/lighthouse.png",
+     "role": "an approved in-game prop: match how it renders a white surface in matte colour with one soft gradient into a cool shadow side, and its soft snow. Ignore the object itself."
+    }
+   ],
+   "pick": "v2",
+   "prompt": "Create a new image using the reference images as described.\n\nASSET: One tree sprite for a calm, wordless 2D side-scrolling mobile game set in kaamos, the Finnish blue polar night: a small snow-laden young spruce. It is cut out on a fully transparent background and placed over a painted landscape in code, standing on the ground line.\n\nSUBJECT: One small young spruce, about as wide as it is tall, almost cloaked in deep soft snow (crown snow load), with only the dark tips of a few bough tiers showing through. Nordic Norway spruce in winter: tiered, gently downward-sweeping boughs of short spruce needles in spruce #2F4A48 deepening to fjord #0E1A2E on the shadow side, exactly like the in-game bough reference; heavy soft pillows of snow in birch white, shaded into frost #9DB9CC, lie on the upper side of every tier and on the tip, with dark needle edges showing beneath each pillow. The trunk base disappears into a small, low, soft rounded snow drift in birch white shaded into frost, whose flat underside lies on the bottom edge of the image; the drift has no laminated edge and there is no plank, slab or platform under it.\n\nFRAMING: The whole tree, upright, centred, nothing cropped except the base: the base and its small snow drift meet the bottom edge of the image, and there is a transparent margin above the crown and on both sides. One tree only, nothing else in the image.",
+   "final_max_edge": 368,
+   "why": "variety: a low young spruce to break up the tree line"
+  }
+ ]
+}
