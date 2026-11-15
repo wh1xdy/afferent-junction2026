@@ -305,19 +305,22 @@
       },
 
       // What the signals say: a state, the mode it asks for, what it rests on (eyes, hrv, pulse, none) and why.
+      // A very loud room (65 dB or more, the phone's microphone, sound.js) leans a steady or unread state to calm games;
+      // it never overrides what the body says.
       assess() {
         const sig = this.signals(), a = this.a, n = this.night, why = [];
         const out = (state, mode, basis) => ({ state, mode, basis, reasons: why, signals: sig });
         const byPulse = () => a >= UP_A ? 'calm' : a <= LOW_A ? (n ? 'flow' : 'wake') : 'flow';
+        const lean = mode => { if (mode === 'flow' && A.RoomSound?.veryLoud?.(A.now()) === true) { why.push('room_loud'); return 'calm'; } return mode; };
         if (this.fat >= (this.mode === 'rest' || this.mode === 'fatigue' ? FAT_EXIT : FAT_ENTER)) { why.push('eyes_tired'); return out('tired', n ? 'rest' : 'fatigue', 'eyes'); }
         if (sig.pulse_bpm == null) {
           why.push('no_pulse');
           // No pulse now: nothing new to go on, so the last reading holds, as the arousal does.
           if (this.state && this.state !== 'tired' && this.state !== 'unknown') return out(this.state, this.mode, 'none');
-          return out('unknown', byPulse(), 'none');
+          return out('unknown', lean(byPulse()), 'none');
         }
         if (a <= LOW_A) { why.push('pulse_low'); return out('low', byPulse(), 'pulse'); }
-        if (a < UP_A) { why.push('pulse_steady'); return out('steady', 'flow', 'pulse'); }
+        if (a < UP_A) { why.push('pulse_steady'); return out('steady', lean('flow'), 'pulse'); }
         why.push('pulse_up');
         const r = sig.rmssd_ratio, d = sig.breathing_delta;
         if (r == null && d == null) { why.push('no_hrv'); return out('pulse_up', 'calm', 'pulse'); }
