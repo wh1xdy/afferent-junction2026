@@ -1514,6 +1514,14 @@
     // Where the carried lantern is drawn, for a touch hint that should sit on it (lanternPos is its light).
     lanternBody,
     lanternRod: () => (st?.fig ? [st.hand[0], st.hand[1], st.tip[0], st.tip[1], st.fig.pole] : null),
+    // The top of the figure's head, [x, y] in canvas px: the start screen's talk bubble points at it (talkbubble.js).
+    figureTop: () => {
+      const F = st?.fig, sp = F?.sp;
+      if (!F) return null;
+      if (!sp) return F.map(1, -54);
+      const qy = (sp.y0 - F.oy) * F.syk / F.k;
+      return [F.ox - Math.sin(F.a) * qy, F.oy + Math.cos(F.a) * qy];
+    },
     wave,
     size: () => ({ W, H, gy, fx }),
     tintStats: () => ({ ...tintStats, size: tints.size }),
