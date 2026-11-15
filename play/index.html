@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en" data-sky="kaamos">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0D182A">
+  <style>html, body { background: #0D182A; }
+    /* The loading screen (#loader, js/loader.js): the launch navy with a warm ember where the fire will be, breathing
+       4 s in and 6 s out, a few faint stars and a hint of aurora. It stays only while the art, the fonts and the first
+       painted frame of the world are on their way, with no minimum time, then crossfades into the world.
+       Only opacity and transform move, so it costs no repaint while the app loads under it. */
+    #loader { position: absolute; inset: 0; z-index: 40; overflow: hidden; contain: strict; pointer-events: auto; background: var(--af-kaamos-surface, #0D182A);
+      transition: opacity 520ms var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)); }
+    #loader.out { opacity: 0; pointer-events: none; }
+    #loader i { position: absolute; display: block; pointer-events: none; }
+    #loader .ld-sky { inset: 0 0 50% 0; animation: ldIn 1600ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) both; }
+    #loader .ld-aurora { inset: 6% -20% 0 -20%; opacity: 0.85; background:
+      radial-gradient(48% 16% at 36% 44%, rgba(95, 227, 161, 0.11), transparent 70%),
+      radial-gradient(40% 12% at 64% 38%, rgba(79, 195, 217, 0.09), transparent 70%),
+      radial-gradient(70% 26% at 50% 50%, rgba(180, 166, 206, 0.06), transparent 72%);
+      animation: ldDrift 22s var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite alternate; }
+    #loader .ld-stars { inset: 0; background:
+      radial-gradient(1.3px 1.3px at 14% 22%, rgba(232, 238, 245, 0.75), transparent),
+      radial-gradient(1px 1px at 31% 9%, rgba(232, 238, 245, 0.55), transparent),
+      radial-gradient(1.2px 1.2px at 47% 31%, rgba(232, 238, 245, 0.5), transparent),
+      radial-gradient(1px 1px at 62% 14%, rgba(232, 238, 245, 0.6), transparent),
+      radial-gradient(1.4px 1.4px at 79% 27%, rgba(255, 240, 210, 0.7), transparent),
+      radial-gradient(1px 1px at 88% 8%, rgba(232, 238, 245, 0.5), transparent),
+      radial-gradient(1px 1px at 22% 44%, rgba(232, 238, 245, 0.35), transparent),
+      radial-gradient(1.1px 1.1px at 71% 46%, rgba(232, 238, 245, 0.4), transparent);
+      animation: ldTwinkle 9s var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite alternate; }
+    /* The ember sits on the kindle's centre (165 px over the bottom inset, see .dock). On iOS the web view gets its
+       insets a moment after the first paint, so the ember glides up to its place instead of jumping. */
+    #loader .ld-fire { left: 50%; bottom: 165px; width: 0; height: 0; translate: 0 calc(0px - env(safe-area-inset-bottom, 0px));
+      animation: ldIn 700ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)) both;
+      transition: transform 520ms var(--af-ease-out-soft, cubic-bezier(0.22, 1, 0.36, 1)), translate 1200ms var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)); }
+    #loader .ld-glow, #loader .ld-core { left: -140px; top: -140px; width: 280px; height: 280px; border-radius: 50%; will-change: transform, opacity;
+      animation: ldBreath calc(var(--af-breath-in, 4000ms) + var(--af-breath-out, 6000ms)) var(--af-ease-breath, cubic-bezier(0.45, 0, 0.55, 1)) infinite; }
+    #loader .ld-glow { background: radial-gradient(circle,
+      color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 32%, transparent) 0,
+      color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 24%, transparent) 7%,
+      color-mix(in srgb, var(--af-light-ember, #FFB54A) 15%, transparent) 16%,
+      color-mix(in srgb, var(--af-light-ember, #FFB54A) 8.5%, transparent) 26%,
+      color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 4.5%, transparent) 37%,
+      color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 2%, transparent) 49%,
+      color-mix(in srgb, var(--af-lantern-amber-deep, #D98E2B) 0.6%, transparent) 60%,
+      transparent 70%); }
+    #loader .ld-core { left: -22px; top: -22px; width: 44px; height: 44px; animation-name: ldEmber; background: radial-gradient(circle,
+      var(--af-lantern-flame, #FFE3A6) 0, color-mix(in srgb, var(--af-lantern-glow, #FFD58A) 70%, transparent) 22%,
+      color-mix(in srgb, var(--af-light-ember, #FFB54A) 22%, transparent) 52%, transparent 72%); }
+    #loader.out .ld-fire { transform: scale(1.18); }
+    @keyframes ldIn { from { opacity: 0; } }
+    @keyframes ldBreath { 0%, 100% { opacity: 0.62; transform: scale(0.84); } 40% { opacity: 1; transform: scale(1); } }
+    @keyframes ldEmber { 0%, 100% { opacity: 0.78; transform: scale(0.9); } 40% { opacity: 1; transform: scale(1); } }
+    @keyframes ldTwinkle { from { opacity: 0.55; } to { opacity: 1; } }
+    @keyframes ldDrift { from { transform: translateX(-3%); opacity: 0.6; } to { transform: translateX(3%); opacity: 1; } }
+    /* Reduced motion: a still glow and plain fades. The system's setting holds from the first paint; the app's own
+       (Settings) comes from loader.js a moment later, as .af-still or .af-moving. Pausing, not removing, the
+       animations means a late .af-still freezes the glow where it is instead of making it jump. No script in the
+       head: one there, even a tiny one, delayed the first paint by ~200 ms. */
+    @media (prefers-reduced-motion: reduce) {
+      :root:not(.af-moving) #loader :is(.ld-glow, .ld-core, .ld-stars, .ld-aurora) { animation-play-state: paused; }
+      :root:not(.af-moving) #loader .ld-fire { transition: none; }
+      :root:not(.af-moving) #loader.out .ld-fire { transform: none; }
+    }
+    .af-still #loader :is(.ld-glow, .ld-core, .ld-stars, .ld-aurora) { animation-play-state: paused; }
+    .af-still #loader .ld-fire { transition: none; }
+    .af-still #loader.out .ld-fire { transform: none; }
+  </style>
+  <title>afferent</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="design/tokens.css">
+  <link rel="stylesheet" href="design/gui-tokens.css">
+  <link rel="stylesheet" href="css/gui/fonts.css">
+  <link rel="stylesheet" href="css/gui/m3.css">
+  <link rel="stylesheet" href="css/gui/craft.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/checkin.css">
+  <link rel="stylesheet" href="css/streak.css">
+  <link rel="stylesheet" href="css/gui/shell.css">
+  <link rel="stylesheet" href="css/voice.css">
+  <link rel="stylesheet" href="css/talk-bubble.css">
+  <link rel="stylesheet" href="css/tasks/reaction.css">
+  <link rel="stylesheet" href="css/tasks/fork.css">
+  <link rel="stylesheet" href="css/tasks/lanterns.css">
+  <link rel="stylesheet" href="css/tasks/fireflies.css">
+  <link rel="stylesheet" href="css/tasks/beacon.css">
+  <link rel="stylesheet" href="css/tasks/bells.css">
+  <link rel="stylesheet" href="css/tasks/shutters.css">
+  <link rel="stylesheet" href="css/tasks/threads.css">
+  <link rel="stylesheet" href="css/tasks/stars.css">
+  <link rel="stylesheet" href="css/tasks/loyly.css">
+  <link rel="stylesheet" href="css/tasks/breath.css">
+  <link rel="stylesheet" href="css/vitals.css">
+  <link rel="stylesheet" href="css/watch.css">
+  <link rel="stylesheet" href="css/livevitals.css">
+  <link rel="stylesheet" href="css/clipcheck.css">
+  <link rel="stylesheet" href="css/facedebug.css">
+  <link rel="stylesheet" href="css/ba.css">
+  <link rel="stylesheet" href="css/duel.css">
+</head>
+<body>
+  <main id="app">
+    <section id="phone">
+      <div id="loader" aria-hidden="true"><i class="ld-sky"><i class="ld-aurora"></i><i class="ld-stars"></i></i><i class="ld-fire"><i class="ld-glow"></i><i class="ld-core"></i></i></div>
+      <canvas id="game"></canvas>
+
+      <button id="closeBtn" class="icon-btn play-close state hidden" type="button" aria-label="End session"><span class="ms">close</span></button>
+      <span id="simBadge" class="sim-badge play-sim hidden">SIMULATED</span>
+      <span id="liveChip" class="live-chip hidden"></span>
+      <p id="breathLine" class="breath-line"><span id="breathMain"></span><span id="breathSub" class="sub"></span></p>
+      <span id="cue" class="cue" aria-live="polite"></span>
+      <p id="camCoach" class="cam-coach" role="status"></p>
+      <p id="lvChip" class="lv-chip" role="status"></p>
+      <aside id="liveVitals" class="live-vitals" aria-label="Live vitals">
+        <p class="lv-title">Live vitals</p>
+        <div class="lv-grid">
+          <span class="lv-m"><span class="lv-k"><span class="ms fill lv-heart" aria-hidden="true">favorite</span><span class="lv-sr">Pulse</span></span> <span class="lv-v" data-k="pulse"></span> <span class="lv-sim">Simulated</span></span>
+          <span class="lv-m"><span class="lv-k">HRV</span> <span class="lv-v" data-k="hrv"></span></span>
+          <span class="lv-m"><span class="lv-k">Breathing</span> <span class="lv-v" data-k="breathing"></span></span>
+        </div>
+        <p class="lv-state"><span class="lv-dot" aria-hidden="true"></span><span class="lv-label"></span> <span class="lv-why"></span></p>
+        <div class="lv-foot">
+          <p class="lv-source lv-extra"></p>
+          <div class="lv-calm"><span class="lv-k">Calm response</span><span class="lv-bar"><span class="lv-fill"></span></span></div>
+          <p class="lv-music lv-extra"></p>
+          <p class="lv-room lv-extra"></p>
+          <p class="lv-health lv-extra"></p>
+          <p class="lv-sound lv-extra"></p>
+        </div>
+      </aside>
+      <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
+
+      <div id="start" class="screen start fade">
+        <div class="start-scrim" aria-hidden="true"></div>
+        <header class="top-bar">
+          <button class="icon-btn state" data-open="settings" type="button" aria-label="Settings"><span class="ms">settings</span></button>
+          <button class="icon-btn state" data-open="info" type="button" aria-label="How it works"><span class="ms">info</span></button>
+          <button id="signalsBtn" class="icon-btn state" data-open="signals" type="button" aria-label="Your signals"><span class="ms">ecg_heart</span></button>
+          <button id="camBtn" class="privacy state" data-open="settings" data-settings-page="sensors" type="button" aria-label="Camera on. Open settings" hidden><span class="ms fill">videocam</span></button>
+          <span class="sp"></span>
+          <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <button id="talkBubble" class="talk-bubble away" data-open="voice" type="button"><span class="talk-bubble-text">Hey, how are you feeling?</span></button>
+        <div class="dock">
+          <p id="roomHint" class="room-hint" aria-live="polite" hidden><span class="ms" aria-hidden="true">bedtime</span><span class="rh-txt"><span class="rh-title"></span> <span class="rh-text"></span></span></p>
+          <button id="checkinBtn" class="checkin-chip state hidden" type="button"><span class="dot" aria-hidden="true"></span>Check-in</button>
+          <button id="begin" class="kindle state" type="button" aria-label="Hold to kindle" aria-describedby="beginLabel"></button>
+          <span id="beginLabel" class="kindle-label t-label" aria-hidden="true">Hold to kindle</span>
+          <button id="decline" class="btn text decline state" type="button">Not today</button>
+        </div>
+      </div>
+
+      <div id="end" class="screen end fade off" data-phase="">
+        <div class="end-scrim" aria-hidden="true"></div>
+        <header class="top-bar">
+          <span class="sp"></span>
+          <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div class="end-night" aria-live="polite">
+          <span class="ms moon" aria-hidden="true">bedtime</span>
+          <p id="endText" class="t-display end-title">Rest well.</p>
+        </div>
+        <div id="moodEnd" class="mood-row" role="radiogroup" aria-labelledby="moodAsk"><p id="moodAsk" class="mood-ask">How are you now?</p></div>
+        <div class="end-sheet" role="region" aria-label="Good morning" data-scheme="kevat">
+          <div class="end-paper">
+            <h1 class="t-display end-hello">Good morning.</h1>
+            <div id="endQuote" class="end-quote"></div>
+            <div id="offer" class="offer hidden">
+              <p class="t-title">Would you like someone to talk to?</p>
+              <div class="offer-btns"><button id="offerNo" class="btn text small state" type="button">Not now</button><button id="offerYes" class="btn tonal small state" type="button">Yes</button></div>
+            </div>
+            <div class="end-week">
+              <ol id="endWeek" class="week-lights" aria-label="This week"></ol>
+              <p id="endCount" class="end-count" hidden><span class="num"></span> <span class="unit">mornings</span></p>
+            </div>
+          </div>
+        </div>
+        <div class="end-actions">
+          <button id="again" class="btn filled block state" type="button">Done</button>
+        </div>
+      </div>
+
+      <div id="crisis" class="screen talk hidden" role="dialog" aria-modal="true" aria-labelledby="crisisLead">
+        <div class="talk-body">
+          <span class="tile lit talk-tile" aria-hidden="true"></span>
+          <h2 id="crisisLead" class="t-headline">If today is heavy, you do not have to carry it alone.</h2>
+          <div class="group contacts">
+            <a class="li contact state" href="tel:112" aria-label="Call 112"><span class="txt"><span class="hl">Emergency</span><span class="sup">112</span></span><span class="call"><span class="ms fill">call</span></span></a>
+            <a class="li contact main state" href="tel:0925250111" aria-label="Call MIELI Crisis Helpline"><span class="txt"><span class="hl">MIELI Crisis Helpline</span><span class="sup">09 2525 0111 · in Finnish, 24 h</span></span><span class="call primary"><span class="ms fill">call</span></span></a>
+            <a class="li contact state" href="tel:116117" aria-label="Call Medical Helpline"><span class="txt"><span class="hl">Medical Helpline</span><span class="sup">116117 · 24 h</span></span><span class="call"><span class="ms fill">call</span></span></a>
+            <div class="li contact static"><span class="txt"><span class="hl">Your clinic</span><span class="sup">Number added by your care team</span></span></div>
+          </div>
+          <p class="t-body-s muted talk-foot">Afferent is not an emergency service and is not watched around the clock.</p>
+        </div>
+        <div class="talk-actions"><button class="btn tonal block state" data-close="crisis" type="button">Close</button></div>
+      </div>
+
+      <div id="info" class="layer hidden" role="dialog" aria-modal="true" aria-labelledby="infoTitle">
+        <div class="scrim" data-close="info"></div>
+        <div class="sheet">
+          <div class="handle" aria-hidden="true"></div>
+          <div class="sheet-head"><h2 id="infoTitle" class="t-headline">How it works</h2><button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button></div>
+          <ul class="how">
+            <li><span class="tile lit" data-glyph="lantern"></span><span class="t-body">Pick the lantern that fits right now.</span></li>
+            <li><span class="tile"><span class="ms">touch_app</span></span><span class="t-body">Hold to kindle. Tap, hold or drag to guide the light.</span></li>
+            <li><span class="tile"><span class="ms">self_improvement</span></span><span class="t-body">Hold while the circle grows.</span></li>
+            <li><span class="tile"><span class="ms">wb_twilight</span></span><span class="t-body">About two minutes, then the sun comes up.</span></li>
+            <li><span class="tile"><span class="ms">lock</span></span><span class="t-body">Only numbers leave the phone. If you use Talk, your voice goes to Google while you speak.</span></li>
+          </ul>
+          <p class="t-body-s muted research">Research prototype. Not a CE-marked medical device. Not for clinical use.</p>
+          <div class="sheet-actions"><button id="anchorBtn" class="btn text state" type="button">The lanterns</button><button class="btn tonal state" data-close="info" type="button">Got it</button></div>
+        </div>
+      </div>
+
+      <div id="signals" class="layer hidden" role="dialog" aria-modal="true" aria-labelledby="signalsTitle">
+        <div class="scrim" data-close="signals"></div>
+        <div class="sheet">
+          <div class="handle" aria-hidden="true"></div>
+          <div class="sheet-head"><h2 id="signalsTitle" class="t-headline">Your signals</h2><button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button></div>
+          <div id="signalsBody" class="signals-body"></div>
+          <p class="t-body-s muted signals-foot">These numbers help you and your care team follow how you are doing. They are not a diagnosis.</p>
+          <div class="sheet-actions"><button class="btn tonal state" data-close="signals" type="button">Close</button></div>
+        </div>
+      </div>
+
+      <div id="settings" class="screen settings hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <header class="top-bar app-bar">
+          <button class="icon-btn state" data-close="settings" type="button" aria-label="Back"><span class="ms">arrow_back</span></button>
+          <h2 id="settingsTitle" class="title">Settings</h2>
+          <button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div id="settingsBody" class="settings-body"></div>
+      </div>
+
+      <div id="voice" class="screen voice hidden" role="dialog" aria-modal="true" aria-labelledby="voiceTitle" data-state="idle">
+        <header class="top-bar app-bar">
+          <button class="icon-btn state" data-close="voice" type="button" aria-label="Back"><span class="ms">arrow_back</span></button>
+          <h2 id="voiceTitle" class="title">Talk</h2>
+          <button class="icon-btn state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
+        </header>
+        <div class="voice-intro">
+          <span class="tile lit voice-tile" data-glyph="lantern" aria-hidden="true"></span>
+          <h3 class="t-headline">Say what is on your mind.</h3>
+          <ul class="how voice-how">
+            <li><span class="tile"><span class="ms">wifi</span></span><span class="t-body">While you talk, your voice goes to Google Gemini so it can answer.</span></li>
+            <li><span class="tile"><span class="ms">lock</span></span><span class="t-body">The written conversation stays on this phone.</span></li>
+            <li><span class="tile"><span class="ms">support</span></span><span class="t-body">Not a therapist and not an emergency service.</span></li>
+          </ul>
+        </div>
+        <ol id="voiceLog" class="voice-log" aria-live="polite" aria-label="Conversation"></ol>
+        <form id="voiceKeyForm" class="voice-key hidden" aria-label="Voice setup">
+          <div class="field"><input id="voiceUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" placeholder="https://afferent-voice-….run.app" required><label for="voiceUrl">Relay address</label></div>
+          <div class="field"><input id="voiceCode" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" required><label for="voiceCode">Access code</label></div>
+          <button class="btn tonal small state" type="submit">Save and start</button>
+        </form>
+        <div class="voice-dock">
+          <button id="voiceOrb" class="voice-lantern" type="button" aria-label="Mute microphone" aria-pressed="false" disabled><span class="voice-halo" aria-hidden="true"></span><span class="voice-core" aria-hidden="true"></span><svg class="voice-mic" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/><path d="M4.5 4.5l15 15"/></svg></button>
+          <p id="voiceStatus" class="voice-status t-label" role="status"></p>
+          <button id="voiceSetupBtn" class="btn text small voice-setup state hidden" type="button" aria-expanded="false" aria-controls="voiceKeyForm">Set up</button>
+          <button id="voiceStart" class="btn filled block state" type="button">Start talking</button>
+          <button id="voiceEnd" class="btn tonal block state hidden" type="button">End conversation</button>
+        </div>
+      </div>
+    </section>
+
+    <aside id="panel">
+      <h2>Hub <span id="hubTag" class="tag">offline</span> <span id="profileTag" class="tag">today</span></h2>
+      <h2>Bedside unit <span class="tag">light simulated</span></h2>
+      <div class="bedside">
+        <div id="led"></div>
+        <div class="readouts">
+          <div class="metric"><span id="pulseVal">--</span> bpm <span id="pulseSrc" class="tag">simulated</span></div>
+          <div class="metric small">light <span id="ledLevel">5%</span> <span id="haptic" class="tag">haptic</span></div>
+          <label class="small">dawn level <input id="knob" type="range" min="0" max="25" value="15"> <span id="knobVal">15%</span></label>
+        </div>
+      </div>
+
+      <h2>Session</h2>
+      <div id="devChips" class="btns"></div>
+
+      <h2>Simulate vitals <span class="af-simulated">SIMULATED</span></h2>
+      <label class="row">pulse <input id="pulseSlider" type="range" min="-15" max="30" step="1" value="0"> <span id="pulseSliderVal"></span></label>
+      <label class="row">drowsy <input id="drowsySlider" type="range" min="0" max="1" step="0.05" value="0"> <span id="drowsySliderVal"></span></label>
+      <div class="btns">
+        <button id="stressBtn" class="chip">high pulse</button>
+        <button id="flatBtn" class="chip">low pulse</button>
+        <button id="tiredBtn" class="chip">eyes closing</button>
+        <button id="shutBtn" class="chip">eyes closed</button>
+        <button id="normalBtn" class="chip">normal</button>
+      </div>
+
+      <h2>Director <span id="modePill" class="tag pill">idle</span></h2>
+      <div class="row small">pulse vs baseline <div class="bar2"><div id="arousalBar"></div></div></div>
+      <div class="row small">eye closure <div class="bar2"><div id="fatigueBar"></div></div></div>
+      <pre id="gameVal">-</pre>
+      <pre id="eyesVal"></pre>
+      <canvas id="timeline"></canvas>
+      <div class="legend small"><span class="sw" style="background:#C8D6BE"></span>calm <span class="sw" style="background:#9DB9CC"></span>flow <span class="sw" style="background:#8FC6E0"></span>wake <span class="sw" style="background:#FFF0D2"></span>fatigue <span class="sw" style="background:#6E6590"></span>rest <span class="sw" style="background:#B4A6CE"></span>measure</div>
+
+      <h2>Events</h2>
+      <ol id="events"></ol>
+      <h2>Session JSON <button id="download" class="link">download</button></h2>
+      <pre id="json"></pre>
+    </aside>
+  </main>
+
+  <script src="js/util.js"></script>
+  <script src="js/loader.js"></script>
+  <script src="js/haptics.js"></script>
+  <script src="js/gui/lantern.js"></script>
+  <script src="js/gui/theme.js"></script>
+  <script src="js/gui/shell.js"></script>
+  <script src="js/gui/swipe.js"></script>
+  <script src="js/gui/feel.js"></script>
+  <script src="js/keyboard.js"></script>
+  <script src="js/streak.js"></script>
+  <script src="js/quote.js"></script>
+  <script src="js/ba.js"></script>
+  <script src="js/stay.js"></script>
+  <script src="js/onboard.js"></script>
+  <script src="js/remind.js"></script>
+  <script src="js/sensors.js"></script>
+  <script src="js/hrv.js"></script>
+  <script src="js/finger.js"></script>
+  <script src="js/campulse.js"></script>
+  <script src="js/face.js"></script>
+  <script src="js/coach.js"></script>
+  <script src="js/screenlight.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/hub.js"></script>
+  <script src="js/hubfind.js"></script>
+  <script src="js/presence-core.js"></script>
+  <script src="js/presence.js"></script>
+  <script src="js/watch.js"></script>
+  <script src="js/health.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/music.js"></script>
+  <script src="js/biomusic.js"></script>
+  <script src="js/ambience.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/layers.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/traverse.js"></script>
+  <script src="js/fxgl.js"></script>
+  <script src="js/juice.js"></script>
+  <script src="js/skill.js"></script>
+  <script src="js/breathing.js"></script>
+  <script src="js/heartbeat.js"></script>
+  <script src="js/rt.js"></script>
+  <script src="js/minigames.js"></script>
+  <script src="js/tasks/kit.js"></script>
+  <script src="js/tasks/fireflies.js"></script>
+  <script src="js/tasks/beacon.js"></script>
+  <script src="js/tasks/bells.js"></script>
+  <script src="js/tasks/shutters.js"></script>
+  <script src="js/tasks/threads.js"></script>
+  <script src="js/tasks/stars.js"></script>
+  <script src="js/tasks/loyly.js"></script>
+  <script src="js/tasks/breath.js"></script>
+  <script src="js/tasks/reaction.js"></script>
+  <script src="js/tasks/fork.js"></script>
+  <script src="js/tasks/lanterns.js"></script>
+  <script src="js/tasks/windows.js"></script>
+  <script src="js/tasks/vihta.js"></script>
+  <script src="js/tasks/birds.js"></script>
+  <script src="js/tasks/swans.js"></script>
+  <script src="js/tasks/faces.js"></script>
+  <script src="js/tasks/owls.js"></script>
+  <script src="js/tasks/seals.js"></script>
+  <script src="js/tasks/reindeer.js"></script>
+  <script src="js/tasks/ferry.js"></script>
+  <script src="js/tasks/drips.js"></script>
+  <script src="js/tasks/buoys.js"></script>
+  <script src="js/tasks/steps.js"></script>
+  <script src="js/tasks/glance.js"></script>
+  <script src="js/tasks/signpost.js"></script>
+  <script src="js/tasks/runes.js"></script>
+  <script src="js/tasks/fog.js"></script>
+  <script src="js/measures.js"></script>
+  <script src="js/record.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/perf.js"></script>
+  <script src="js/checkin.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/room.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/vitals.js"></script>
+  <script src="js/livevitals.js"></script>
+  <script src="js/clipcheck.js"></script>
+  <script src="js/facedebug.js"></script>
+  <script src="js/heartduel-game.js"></script>
+  <script src="js/duel-core.js"></script>
+  <script src="js/duel.js"></script>
+  <script src="js/guide.js"></script>
+  <script src="js/live-bridge.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/talkbubble.js"></script>
+</body>
+</html>

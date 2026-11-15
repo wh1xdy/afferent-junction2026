@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afferent Clinic</title>
+<link rel="icon" href="mark.svg" type="image/svg+xml">
+<script>
+  (() => {
+    let t = 'light';
+    try { t = localStorage.getItem('afferent.clinic.theme') || 'light'; } catch {}
+    if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light';
+  })();
+</script>
+<link rel="stylesheet" href="clinic.css">
+<link rel="stylesheet" href="scan.css">
+</head>
+<body>
+<div class="app">
+  <nav class="rail" aria-label="Sections">
+    <a class="rail-mark" href="#/" aria-label="Afferent clinic, patients"><span class="mark" aria-hidden="true"></span></a>
+    <a class="dest" href="#/" data-tab="patients"><span class="pill"><span class="ms">group</span></span><span class="dl">Patients</span></a>
+    <a class="dest" href="#/validation" data-tab="validation"><span class="pill"><span class="ms">insights</span></span><span class="dl">Validation</span></a>
+    <span class="rail-sp"></span>
+    <a class="dest" href="#/settings" data-tab="settings"><span class="pill"><span class="ms">settings</span></span><span class="dl">Settings</span></a>
+  </nav>
+  <div class="main">
+    <header class="topbar">
+      <a class="wordmark" href="#/"><span class="wm">afferent</span><span class="wm-sub">Clinic</span></a>
+      <span class="topbar-sp"></span>
+      <button class="btn tonal scan-btn" type="button" data-codes="scan" aria-label="Scan patient QR"><span class="ms" aria-hidden="true">qr_code_scanner</span><span class="bl">Scan</span></button>
+      <label class="search" id="search-wrap"><span class="ms" aria-hidden="true">search</span><input id="search" type="search" placeholder="Search" aria-label="Search patients" autocomplete="off"></label>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="More"><span class="ms">more_vert</span></button>
+        <div class="menu" id="menu" role="menu" hidden>
+          <button role="menuitem" data-action="reset"><span class="ms">history</span>Reset demo</button>
+        </div>
+      </div>
+    </header>
+    <main id="view" class="view" tabindex="-1"></main>
+  </div>
+</div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script src="charts.js"></script>
+<script src="signals.js"></script>
+<script src="views.js"></script>
+<script src="../play/vendor/qr/fflate.js"></script>
+<script src="../play/vendor/qr/noble-p256.js"></script>
+<script src="../play/js/qrpayload.js"></script>
+<script src="qrdecode.js"></script>
+<script src="imported.js"></script>
+<script src="scan.js"></script>
+<script src="demo.js"></script>
+<script src="clinic.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "lines": [
+    { "id": "r1", "text": "First light on the island." },
+    { "id": "r2", "text": "The lantern is ready." },
+    { "id": "r3", "text": "Snow on the jetty this morning." },
+    { "id": "r4", "text": "The lighthouse is lit." },
+    { "id": "r5", "text": "A quiet morning on the shore." },
+    { "id": "r6", "text": "The aurora is still out." },
+    { "id": "r7", "text": "Morning on the island." },
+    { "id": "r8", "text": "The sauna stones are warm." }
+  ],
+  "backoff": { "id": "backoff", "text": "Reminders are paused. The lantern is here whenever you want it." }
+}

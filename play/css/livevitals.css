@@ -1,0 +1,79 @@
+/* Live vitals (js/livevitals.js): a slim glass pill at the bottom of the screen during play, under the figure's lane
+   (Layers.lane in js/layers.js), so it never covers the rider, the walker, the lantern they carry or a dot to tap,
+   and a reason chip at the top when the games change. Neither takes a tap. One line while there is no reading
+   (.quiet); with readings at most four lines, never taller than --lv-max-h, 8 px over the home indicator's inset
+   (livevitals.test.js holds that to the lane on every phone size). */
+.live-vitals {
+  --lv-max-h: 70px; /* four 15 px lines and the padding: a fifth line is never shown half */
+  position: absolute; z-index: 3; left: calc(var(--af-safe-l) + 16px); right: calc(var(--af-safe-r) + 16px); bottom: calc(var(--af-safe-b) + 8px);
+  box-sizing: border-box; width: fit-content; max-width: min(400px, calc(100% - 32px - var(--af-safe-l) - var(--af-safe-r))); max-height: var(--lv-max-h); overflow: hidden;
+  margin: 0 auto; padding: 5px 10px; border-radius: 14px; pointer-events: none;
+  background: var(--af-glass-strong); color: var(--af-birch);
+  box-shadow: var(--af-glass-edge), var(--af-lift-1);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  font: 400 11.5px/15px var(--af-font-ui); font-variant-numeric: tabular-nums;
+  opacity: 0; visibility: hidden; transform: translateY(6px);
+  transition: opacity 300ms linear, transform 300ms var(--af-ease-glide), visibility 0s linear 300ms;
+}
+.live-vitals.on { opacity: 0.94; visibility: visible; transform: none; transition: opacity 600ms var(--af-ease-in), transform 600ms var(--af-ease-in), visibility 0s; }
+.live-vitals p { margin: 0; }
+/* The name, and the word "Pulse" by the beating heart, are for screen readers; on the screen the readings say what they are. */
+.lv-title, .lv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Line 1: the three readings, label then value (two lines on a narrow phone while some say "no reading"). */
+.lv-grid { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 9px; }
+.lv-m { white-space: nowrap; }
+.lv-k { display: inline-flex; align-items: center; gap: 3px; color: var(--af-frost); font-size: 11px; line-height: 15px; }
+.lv-v { font-size: 12px; line-height: 15px; font-weight: 500; white-space: nowrap; }
+.lv-v.none { color: color-mix(in srgb, var(--af-frost) 80%, transparent); font-size: 11px; font-weight: 400; }
+.lv-sim {
+  display: none; margin-left: 2px; padding: 0 5px; border-radius: 7px; vertical-align: 1px;
+  background: var(--md-sys-color-simulated-container); color: var(--md-sys-color-on-simulated-container);
+  font: 600 8.5px/14px var(--af-font-ui); letter-spacing: 0.05em; text-transform: uppercase;
+}
+.lv-sim.on { display: inline-block; }
+
+.lv-heart { font-size: 13px; color: color-mix(in srgb, var(--af-frost) 70%, transparent); font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20; }
+.lv-heart.on { color: var(--af-dawn-coral); font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20; animation: lvBeat 0.8s ease-out infinite; }
+@keyframes lvBeat { 0%, 100% { transform: scale(1); } 12% { transform: scale(1.3); } 26% { transform: scale(1); } 38% { transform: scale(1.12); } 52% { transform: scale(1); } }
+@keyframes lvBeatSoft { 0%, 100% { opacity: 1; } 15% { opacity: 0.55; } 40% { opacity: 1; } }
+
+/* Lines 2 and 3 at most: the state the game reads, then why and what it does about it, as one sentence. */
+.lv-state { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 11.5px; line-height: 15px; text-wrap: pretty; }
+.lv-label { font-weight: 600; }
+.lv-dot { display: inline-block; width: 7px; height: 7px; margin-right: 6px; vertical-align: 0.5px; border-radius: 50%; background: var(--af-frost); box-shadow: 0 0 6px currentColor; }
+.lv-why { color: var(--af-frost); }
+
+/* The last line, only when something has a value: the calm response, the music that follows the heart, the room. */
+.lv-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: 9px; }
+.lv-calm { display: none; align-items: center; gap: 6px; }
+.lv-calm.on { display: inline-flex; }
+.lv-bar { width: 48px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--af-frost) 25%, transparent); overflow: hidden; }
+.lv-fill { display: block; height: 100%; border-radius: 2px; background: var(--af-frost); transform: scaleX(0); transform-origin: left center; transition: transform 600ms var(--af-ease-glide); }
+.lv-extra { display: none; color: var(--af-frost); font-size: 11px; line-height: 15px; white-space: nowrap; }
+.lv-extra.on { display: block; }
+
+/* No reading yet: one line, the state and anything the room adds. */
+.live-vitals.quiet { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: 5px 14px; border-radius: 13px; }
+.live-vitals.quiet .lv-grid, .live-vitals.quiet .lv-why { display: none; }
+
+.lv-chip {
+  position: absolute; z-index: 3; top: calc(var(--safe-top) + 56px); left: 50%; width: max-content; max-width: calc(100% - 48px);
+  margin: 0; padding: 6px 14px; border-radius: 16px; pointer-events: none; text-align: center; text-wrap: balance;
+  background: var(--af-glass-strong); color: var(--af-birch);
+  box-shadow: var(--af-glass-edge), var(--af-lift-1);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  font: 500 13px/18px var(--af-font-ui);
+  opacity: 0; transform: translate(-50%, -6px);
+  transition: opacity 900ms linear, transform 900ms var(--af-ease-glide);
+}
+.lv-chip.on { opacity: 1; transform: translate(-50%, 0); transition: opacity 300ms var(--af-ease-in), transform 300ms var(--af-ease-in); }
+
+:root[data-motion="reduced"] .lv-heart.on { animation-name: lvBeatSoft; }
+:root[data-motion="reduced"] .live-vitals, :root[data-motion="reduced"] .lv-chip { transform: none; }
+:root[data-motion="reduced"] .lv-chip, :root[data-motion="reduced"] .lv-chip.on { transform: translateX(-50%); }
+@media (prefers-reduced-motion: reduce) {
+  .lv-heart.on { animation-name: lvBeatSoft; }
+  .live-vitals, .live-vitals.on { transform: none; }
+  .lv-chip, .lv-chip.on { transform: translateX(-50%); }
+}

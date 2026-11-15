@@ -1,0 +1,238 @@
+[
+ {
+  "name": "far_mountains",
+  "ext": "webp",
+  "density": 2,
+  "base": 1,
+  "tile": true
+ },
+ {
+  "name": "far_islands",
+  "ext": "webp",
+  "density": 2,
+  "base": 1,
+  "tile": true
+ },
+ {
+  "name": "hills_rolling",
+  "ext": "webp",
+  "density": 1,
+  "base": 0.173,
+  "tile": true,
+  "fill": true
+ },
+ "sky_dawn_cloud_1",
+ "sky_dawn_cloud_2",
+ "sky_dawn_cloud_3",
+ "sky_aurora",
+ {
+  "name": "mid_hills_spruce",
+  "ext": "webp",
+  "density": 2,
+  "base": 0.33,
+  "tile": true,
+  "fill": true
+ },
+ {
+  "name": "trees",
+  "ext": "webp",
+  "frames": {
+   "tree_birch_a": {
+    "s": [
+     0.0,
+     0.13833
+    ],
+    "b": [
+     0.0,
+     0.1365,
+     0.0,
+     1.0
+    ],
+    "f": [
+     0.29018,
+     0.74554
+    ]
+   },
+   "tree_birch_b": {
+    "s": [
+     0.13833,
+     0.30835
+    ],
+    "b": [
+     0.14016,
+     0.30652,
+     0.0,
+     1.0
+    ],
+    "f": [
+     0.19048,
+     0.77656
+    ]
+   },
+   "tree_birch_c": {
+    "s": [
+     0.30835,
+     0.48629
+    ],
+    "b": [
+     0.31018,
+     0.48446,
+     0.0,
+     1.0
+    ],
+    "f": [
+     0.11538,
+     0.5979
+    ]
+   },
+   "tree_spruce_a": {
+    "s": [
+     0.48629,
+     0.59537
+    ],
+    "b": [
+     0.48812,
+     0.59354,
+     0.0,
+     1.0
+    ],
+    "f": [
+     0.02312,
+     0.9711
+    ]
+   },
+   "tree_spruce_b": {
+    "s": [
+     0.59537,
+     0.82572
+    ],
+    "b": [
+     0.5972,
+     0.82389,
+     0.0,
+     1.0
+    ],
+    "f": [
+     0.17742,
+     0.77688
+    ]
+   },
+   "tree_spruce_c": {
+    "s": [
+     0.82572,
+     1.0
+    ],
+    "b": [
+     0.82754,
+     1.0,
+     0.30827,
+     1.0
+    ],
+    "f": [
+     0.0212,
+     0.95053
+    ]
+   }
+  }
+ },
+ "sauna_hut",
+ "lighthouse",
+ "pier_boat",
+ "boathouse",
+ {
+  "name": "ground_sauna",
+  "ext": "webp",
+  "density": 1,
+  "base": 0.1,
+  "tile": true
+ },
+ {
+  "name": "ground_forest",
+  "ext": "webp",
+  "density": 1,
+  "base": 0.1,
+  "tile": true
+ },
+ {
+  "name": "ground_lake",
+  "ext": "webp",
+  "density": 1,
+  "base": 0.1,
+  "tile": true
+ },
+ {
+  "name": "ground_shore",
+  "ext": "webp",
+  "density": 1,
+  "base": 0.1,
+  "tile": true
+ },
+ {
+  "name": "ground_harbour",
+  "ext": "webp",
+  "density": 1,
+  "base": 0.1,
+  "tile": true
+ },
+ "fg_reeds",
+ "fg_rocks",
+ "fg_branch",
+ "figure_walk",
+ "figure_stand",
+ "figure_ride",
+ "figure_crouch",
+ "fog_band",
+ "fog_band_b",
+ "task_reaction_float",
+ "task_reaction_light_fish",
+ "task_reaction_splash_sheet",
+ "task_reaction_bite_glow",
+ "task_reaction_figure_rod",
+ "task_fork_fell",
+ "task_fork_shore",
+ "task_fork_cairn",
+ "task_fork_waymarker_sheet",
+ "task_fork_figure_hop",
+ "task_lanterns_pier_rope",
+ "task_lanterns_lantern",
+ "task_lanterns_flame",
+ "task_lanterns_sky_bloom",
+ "task_lanterns_warm_star",
+ "task_breath_petals_open",
+ "task_breath_petals_bud",
+ "task_breath_mote",
+ "task_breath_ring",
+ "task_breath_ring_night",
+ "task_breath_window_warm",
+ "task_breath_harbour_windows",
+ "task_loyly_ladle",
+ "task_loyly_bucket",
+ "task_loyly_kiuas",
+ "task_loyly_panel_fog",
+ "task_threads_loom_frame",
+ "task_threads_knot_glyphs",
+ "task_threads_aurora_strand",
+ "task_stars_sky",
+ "task_stars_star",
+ "task_stars_swan_line",
+ "task_stars_swan_line_b",
+ "task_fireflies_firefly_sheet",
+ "task_fireflies_jar",
+ "task_fireflies_reeds",
+ "task_fireflies_light_column",
+ "task_beacon_lighthouse",
+ "task_beacon_boat",
+ "task_beacon_ferry",
+ "task_beacon_pier_lanterns",
+ "task_beacon_sea",
+ "task_bells_trio",
+ "task_bells_tower",
+ "task_bells_lamp_glow",
+ "task_bells_comet",
+ "task_shutters_rollerblind",
+ "task_shutters_pair",
+ "task_shutters_dawn_view",
+ "task_shutters_facade",
+ "task_shutters_sunburst",
+ "task_shutters_roller_parts"
+]

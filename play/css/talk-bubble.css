@@ -1,0 +1,51 @@
+/* The talk bubble on the start screen (js/talkbubble.js): the figure on the bench speaking. talkbubble.js places it above
+   the figure's head (--tb-x, --tb-y, the tail's tip at --tb-tip) and draws body and tail as one path: .tb-glass is the
+   glass clipped to it (fill, sheen and blur run on into the tail), .tb-art its edge and soft shadow. .away while
+   anything covers the start screen; it fades in when it is plain again. */
+.talk-bubble {
+  position: absolute; z-index: 1; left: var(--tb-x, 50%); top: var(--tb-y, 50%);
+  width: max-content; max-width: calc(100% - 2 * var(--af-gutter));
+  min-height: 56px; margin: 0; padding: 11px 18px 23px; border: 0; border-radius: 0; background: none;
+  font: 500 17px/22px var(--af-font-ui); font-variation-settings: "ROND" var(--af-rond); letter-spacing: 0.2px; text-align: left;
+  color: var(--af-birch); text-shadow: 0 1px 2px rgba(3, 8, 20, 0.22);
+  -webkit-tap-highlight-color: transparent; cursor: pointer;
+  transform-origin: var(--tb-tip, 30px) 100%;
+  opacity: 1; translate: 0 0;
+  transition: opacity 900ms var(--af-ease-glide), translate 900ms var(--af-ease-glide), transform var(--af-dur-press) var(--af-ease-std);
+  animation: tbBreathe 12s var(--af-ease-breath) 4s infinite;
+}
+.talk-bubble.away {
+  opacity: 0; translate: 0 6px; pointer-events: none; animation: none;
+  transition: opacity var(--af-dur-fast) var(--af-ease-std), translate 0s linear var(--af-dur-fast);
+}
+.tb-glass, .tb-art { position: absolute; left: 0; top: 0; pointer-events: none; }
+.tb-glass {
+  right: 0; bottom: 0;
+  background-color: var(--af-glass-strong); background-image: var(--af-sheen); background-repeat: no-repeat; background-size: 100% var(--tb-body, 44px);
+  -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
+  transition: background-color var(--af-dur-press) var(--af-ease-std);
+}
+.tb-art { overflow: visible; }
+.tb-art .tb-shade { fill: rgba(3, 8, 20, 0.34); }
+.tb-art .tb-edge { fill: none; stroke: rgba(242, 238, 230, 0.16); stroke-width: 1; }
+.talk-bubble-text { position: relative; display: block; }
+.talk-bubble:active { transform: scale(0.97); }
+.talk-bubble:active .tb-glass { background-color: color-mix(in srgb, var(--af-glass-strong) 86%, var(--af-birch)); }
+.talk-bubble:focus-visible { outline: none; }
+.talk-bubble:focus-visible .tb-art .tb-edge { stroke: var(--md-sys-color-secondary); stroke-width: 3; }
+@media (hover: hover) { .talk-bubble:hover .tb-glass { background-color: color-mix(in srgb, var(--af-glass-strong) 90%, var(--af-birch)); } }
+
+/* Now and then a soft breath: still for most of the cycle, a slow swell from the tail. */
+@keyframes tbBreathe { 0%, 76%, 100% { scale: 1; } 86% { scale: 1.025; } }
+
+:root[data-motion="reduced"] .talk-bubble { animation: none; translate: none; transition: opacity 300ms linear; }
+:root[data-motion="reduced"] .talk-bubble.away { transition: opacity 150ms linear; }
+:root[data-motion="reduced"] .talk-bubble:active { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .talk-bubble { animation: none; translate: none; transition: opacity 300ms linear; }
+  .talk-bubble.away { transition: opacity 150ms linear; }
+  .talk-bubble:active { transform: none; }
+}
+
+/* The spacer before the kindle (talkbubble.js sets its height) that lifts the room hint and the check-in chip above it. */
+.tb-room { display: block; flex: none; width: 0; height: 0; pointer-events: none; }

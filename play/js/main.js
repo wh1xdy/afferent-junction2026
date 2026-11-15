@@ -1,0 +1,579 @@
+(() => {
+  const q = new URLSearchParams(location.search);
+  const $ = id => document.getElementById(id);
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  };
+  const speed = Math.max(0.1, Number(q.get('speed')) || 1);
+  const t0 = performance.now();
+  A.now = () => (performance.now() - t0) / 1000 * speed;
+  A.fromPerf = ms => (ms - t0) / 1000 * speed;
+
+  const saved = store.get('afferent.settings') || {};
+  const deviceId = store.get('afferent.device') || 'inst-' + Math.random().toString(16).slice(2, 8);
+  store.set('afferent.device', deviceId);
+  const prefersCalm = !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // Simulated sensors: on in the browser demo, off on a phone, where a made-up pulse would read as the patient's own.
+  // On a phone only a choice made in Developer settings turns them on (an older saved "on" was just the old default).
+  const native = !!window.Capacitor?.isNativePlatform?.();
+  const simDefault = native ? (saved.simulatorChosen ? !!saved.simulator : false) : (saved.simulator ?? true);
+
+  A.config = {
+    deviceId, appVersion: '0.3.0', patientId: q.get('patient') || 'anna', dawnLevel: 15, baselinePulse: 68,
+    reducedMotion: saved.reducedMotion ?? prefersCalm,
+    sensors: A.switches(saved.sensors),
+    sharing: saved.sharing || 'summary',
+    simulator: simDefault,
+    simulatorChosen: !!saved.simulatorChosen,
+    quietNight: saved.quietNight ?? true,
+    checkin: saved.checkin ?? true,
+    signalsOverlay: saved.signalsOverlay ?? false,
+    liveVitals: saved.liveVitals ?? true,
+    // Room sound level (sound.js): opt-in everywhere; on, it opens the microphone for a few seconds now and then.
+    roomSound: saved.roomSound === true,
+    breathFeedback: saved.breathFeedback ?? true,
+    // Screen light for the camera (screenlight.js): the screen lights the face while the camera measures. On by default.
+    screenLight: saved.screenLight ?? true,
+    // Heartbeat touch: off, soft, medium or strong (heartbeat.js). An older "off" switch is kept as off.
+    heartLevel: ['off', 'soft', 'medium', 'strong'].includes(saved.heartLevel) ? saved.heartLevel : saved.heartTouch === false ? 'off' : 'soft',
+    forceTask: q.get('task') || null,
+    forceK: q.has('k') ? Number(q.get('k')) : null,
+    forceRide: q.get('ride') || null,
+  };
+  const S = A.Sensors;
+  const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
+  syncSensors();
+
+  const PROFILES = ['live', 'good_day', 'bad_day'];
+  const hour = new Date().getHours();
+  const ui = {
+    input: A.Input.parse(q.get('input')),
+    clock: q.get('clock') === 'night' || (!q.get('clock') && (hour >= 21 || hour < 6)) ? 'night' : 'morning',
+    stage: q.get('stage') === '1',
+    profile: PROFILES.includes(q.get('profile')) ? q.get('profile') : 'live',
+    sound: saved.sound ?? true,
+  };
+  A.Audio.on = ui.sound;
+
+  const canvas = $('game'), ctx = canvas.getContext('2d');
+  let W = 0, H = 0, dpr = 1;
+  const resize = () => { dpr = Math.min(devicePixelRatio || 1, A.Perf ? A.Perf.cap : 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; };
+  addEventListener('resize', resize); resize();
+
+  A.Input.init(canvas);
+  let idle = A.makeVisual(ui.profile); idle.black = 0;
+  let idleTweens = [];
+  const idleTween = (obj, key, from, to, dur) => { idleTweens = idleTweens.filter(x => !(x.obj === obj && x.key === key)); idleTweens.push({ obj, key, from, to, start: A.now(), dur }); };
+
+  const log = msg => {
+    const li = document.createElement('li');
+    li.textContent = `${A.now().toFixed(1).padStart(6)}  ${msg}`;
+    $('events').prepend(li);
+    while ($('events').children.length > 16) $('events').lastChild.remove();
+  };
+
+  const LABEL = { live: 'Today', good_day: 'Good day', bad_day: 'Bad day' };
+  const DEV = {
+    input: ['Input', () => ({ auto: 'Autoplay story', touch: 'Touch', camera: 'Touch and camera' }[ui.input])],
+    clock: ['Clock', () => ui.clock === 'night' ? 'Night' : 'Morning'],
+    stage: ['Session', () => ui.stage ? 'Short' : 'Full'],
+    profile: ['Day profile', () => LABEL[ui.profile]],
+  };
+  const devChips = $('devChips');
+  Object.keys(DEV).forEach(k => { const b = document.createElement('button'); b.className = 'chip'; b.type = 'button'; b.dataset.dev = k; devChips.append(b); });
+  const chips = () => {
+    document.querySelectorAll('[data-dev]').forEach(el => {
+      const [label, val] = DEV[el.dataset.dev];
+      const v = el.querySelector('.val');
+      if (v) v.textContent = val(); else el.textContent = `${label.toLowerCase()}: ${val().toLowerCase()}`;
+      el.classList.toggle('sim', el.dataset.dev === 'profile' && ui.profile !== 'live');
+    });
+    $('profileTag').textContent = LABEL[ui.profile].toLowerCase();
+    camGlyph();
+  };
+  const camGlyph = () => {
+    const on = A.config.sensors.phone_camera && (ui.input === 'camera' || S.camera() || ['starting', 'on'].includes(S.camLink.state) || ['starting', 'tracking', 'no_face'].includes(S.faceState));
+    $('camBtn').hidden = !on;
+  };
+  const setProfile = (p, from) => {
+    if (!PROFILES.includes(p)) return;
+    ui.profile = p; chips();
+    if (A.session && !A.session.done) A.session.setProfile(p, A.now());
+    else { A.applyProfileVisual(idle, p, idleTween); A.bus.emit('profile', p); }
+    log(`profile ${p}${from ? ' from ' + from : ''}`);
+  };
+  const DEV_ACT = {
+    input: () => {
+      const order = A.config.sensors.phone_camera ? { auto: 'touch', touch: 'camera', camera: 'touch' } : { auto: 'touch', touch: 'touch', camera: 'touch' };
+      ui.input = order[ui.input]; chips();
+    },
+    clock: () => { ui.clock = ui.clock === 'night' ? 'morning' : 'night'; chips(); morningText(); },
+    stage: () => { ui.stage = !ui.stage; chips(); },
+    profile: () => setProfile(PROFILES[(PROFILES.indexOf(ui.profile) + 1) % PROFILES.length]),
+  };
+  document.querySelectorAll('[data-dev]').forEach(el => el.onclick = () => DEV_ACT[el.dataset.dev]());
+  const setSound = on => { ui.sound = on; A.Audio.on = on; $('soundSw').checked = on; saveSettings(); };
+  chips();
+
+  $('weekBtn').href = 'patient.html' + location.search;
+  $('qrBtn').href = 'patient.html' + location.search + '#settings';
+
+  const hubKey = 'afferent.hub';
+  const normHub = v => {
+    v = (v || '').trim().replace(/\/+$/, '');
+    if (!v) return '';
+    if (!/^(https?|wss?):\/\//.test(v)) v = 'http://' + v;
+    const m = v.match(/^([a-z]+:\/\/[^/]+)(\/.*)?$/);
+    if (m && !/:\d+$/.test(m[1])) v = m[1] + ':8000' + (m[2] || '');
+    return v;
+  };
+  let savedHub = '';
+  try { savedHub = localStorage.getItem(hubKey) || ''; } catch {}
+  $('hubAddr').value = savedHub;
+  // The hub's state under its address (Settings, Home hub), and the line under the category. The key is the /k/<code>
+  // part of the address the hub screen shows; without it the hub turns the phone away.
+  const hubHasKey = v => /\/k\/[^/?#\s]+/.test(v || '');
+  const hubStatus = () => {
+    const typed = $('hubAddr').value.trim(), changed = !!typed && normHub(typed) !== savedHub;
+    const addr = typed || (A.Hub.url ? A.Hub.httpBase() : '');
+    if (A.Hub.connected && !changed) return ['on', 'Connected'];
+    if (!addr) return ['none', 'Not set'];
+    if (!hubHasKey(addr)) return ['warn', 'Key missing'];
+    if (changed || !A.Hub.url) return ['none', 'Not connected yet. Tap Connect'];
+    return A.Hub.retry > 0 ? ['warn', "Can't reach the hub"] : ['none', 'Connecting…'];
+  };
+  // After Connect (the app reloads onto the Home hub page): the answer is felt once, a success when the hub answers,
+  // a soft miss when the key is missing or the hub cannot be reached.
+  let hubAsked = false;
+  try { hubAsked = sessionStorage.getItem('afferent.reopen') === 'hub'; } catch {}
+  const hubLine = () => {
+    const [state, text] = hubStatus(), el = $('hubState');
+    if (el.textContent !== text) el.textContent = text;
+    el.dataset.state = state;
+    if (hubAsked && state !== 'none') { hubAsked = false; A.Haptics.play(state === 'on' ? 'success' : 'miss', state === 'on' ? 1 : 0.6); }
+  };
+  A.Shell.settings?.hook(hubLine);
+  $('hubAddr').addEventListener('input', () => { hubAsked = false; hubLine(); });
+  // iOS shows its Paste bubble for readText(); a long address with its key is easy to get wrong by hand
+  $('hubPaste').onclick = async () => {
+    let t = '';
+    try { t = (await navigator.clipboard.readText()) || ''; } catch { A.Shell.toast('Could not paste. Hold the field and choose Paste.'); return; }
+    t = (t.match(/(https?|wss?):\/\/\S+/)?.[0] || t).replace(/\s+/g, '');
+    if (!t) { A.Shell.toast('Nothing to paste. Copy the address on the hub screen first.'); return; }
+    $('hubAddr').value = t;
+    hubLine(); A.Shell.settings?.refresh();
+  };
+  // Find on this Wi-Fi (hubfind.js): the hub's LAN door answers Bonjour; its address takes the key the phone has
+  $('hubFind').hidden = !A.HubFind?.available();
+  $('hubFind').onclick = async () => {
+    const btn = $('hubFind'), label = btn.textContent;
+    if (btn.disabled) return;
+    btn.disabled = true; btn.textContent = 'Looking…';
+    let r;
+    try { r = await A.HubFind.find($('hubAddr').value.trim() || savedHub); } catch { r = { address: null, say: A.HubFind.SAY.failed }; }
+    btn.disabled = false; btn.textContent = label;
+    if (r.address) { $('hubAddr').value = r.address; hubAsked = false; }
+    A.Shell.toast(r.say);
+    hubLine(); A.Shell.settings?.refresh();
+  };
+  $('hubForm').onsubmit = e => {
+    e.preventDefault();
+    const v = normHub($('hubAddr').value);
+    try { v ? localStorage.setItem(hubKey, v) : localStorage.removeItem(hubKey); } catch {}
+    // back on the Home hub page after the reload, to see it connect
+    try { sessionStorage.setItem('afferent.reopen', 'hub'); } catch {}
+    location.reload();
+  };
+
+  const night = () => ui.clock === 'night';
+  A.night = night;
+  // The end greeting follows the real time of day (guide.js); night mode keeps its own quiet words.
+  const greet = () => {
+    const hello = A.Guide.hello();
+    $('endText').textContent = night() ? 'Rest well.' : hello;
+    const sheet = document.querySelector('.end-sheet'), h = sheet?.querySelector('.end-hello');
+    if (h) h.textContent = hello;
+    sheet?.setAttribute('aria-label', hello.replace(/\.$/, ''));
+  };
+  const morningText = () => {
+    greet();
+    $('decline').textContent = night() ? 'Not tonight' : 'Not today';
+    $('end').classList.toggle('night', night());
+    A.Theme.sync();
+    A.Checkin.refresh();
+    A.bus.emit('home');
+  };
+
+  const FADES = new Set(['start', 'end']), CARDS = ['crisis', 'info', 'signals', 'settings', 'voice'];
+  const opener = {};
+  const show = (id, on) => {
+    const el = $(id), cls = FADES.has(id) ? 'off' : 'hidden', card = CARDS.includes(id);
+    const set = () => {
+      el.classList.toggle(cls, !on);
+      if (card) $('phone').classList.toggle('card-open', CARDS.some(c => !$(c).classList.contains('hidden')));
+      // focus goes back to what opened the card, once it is gone
+      const f = !on && opener[id];
+      if (f) { opener[id] = null; if (f.isConnected && !el.contains(f)) f.focus?.({ preventScroll: true }); }
+    };
+    if (on) {
+      A.Swipe?.stay?.(el);
+      // the world waits while a card slides up (sheetIn, rise), as it does while one is dragged or leaves
+      if (card && el.classList.contains(cls)) { opener[id] = document.activeElement; A.Swipe?.hold?.(320); }
+    }
+    // a sheet or dialog closed by its button, the scrim or Escape slides out (or fades) first, like a swipe (gui/swipe.js)
+    else if (card && !el.classList.contains(cls) && A.Swipe?.out?.(el, set)) return;
+    set();
+  };
+  const crisis = source => {
+    if (window.AfferentSupport?.open) window.AfferentSupport.open('talk');
+    else show('crisis', true);
+    A.bus.emit('ws', { type: 'crisis', patient_id: A.config.patientId, ...(A.session?.rec?.session_id ? { session_id: A.session.rec.session_id } : {}), source, t_iso: A.Record.isoLocal(new Date()) });
+    log('crisis card opened (' + source + ')');
+  };
+  document.querySelectorAll('[data-open]').forEach(b => b.onclick = () => b.dataset.open === 'crisis' ? crisis('talk_button') : show(b.dataset.open, true));
+  document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => show(b.dataset.close, false));
+  document.querySelectorAll('[data-open="settings"], [data-open="signals"]').forEach(b => b.addEventListener('click', () => A.Finger.arm()));
+  A.bus.on('crisisOffer', () => { show('offer', true); log('talk offer shown (lowest lantern twice)'); });
+  $('offerYes').onclick = () => { show('offer', false); crisis('mood'); };
+  $('offerNo').onclick = () => { show('offer', false); log('talk offer declined'); };
+
+  A.Checkin.init({ night: () => night(), busy: () => !!A.session, log: m => log(m) });
+  A.bus.on('talk', () => crisis('talk_button'));
+
+  const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, screenLight: A.config.screenLight, heartLevel: A.config.heartLevel, roomSound: A.config.roomSound, sound: ui.sound });
+  const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Your clinic sees nothing unless you show them.' };
+  const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
+  const toggles = () => {
+    document.querySelectorAll('[data-sensor]').forEach(el => { el.checked = !!A.config.sensors[el.dataset.sensor]; });
+    sharingText();
+    $('simSw').checked = A.config.simulator;
+    $('motionSw').checked = A.config.reducedMotion;
+    $('soundSw').checked = ui.sound;
+    $('hapticSw').checked = A.Haptics.on;
+    $('quietSw').checked = A.config.quietNight;
+    $('checkinSw').checked = A.config.checkin;
+    $('sigSw').checked = A.config.signalsOverlay;
+    $('vitalsSw').checked = A.config.liveVitals;
+    $('breathSw').checked = A.config.breathFeedback;
+    $('lightSw').checked = A.config.screenLight;
+    $('roomSoundSw').checked = A.config.roomSound;
+    beatSeg();
+    camGlyph();
+  };
+  const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
+  document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
+    const sensor = el.dataset.sensor;
+    A.config.sensors[sensor] = el.checked;
+    if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
+    syncSensors(); saveSettings(); camGlyph();
+    if (sensor === 'pulse_stone') { if (el.checked) A.Finger.arm(); else { A.Finger.sync(); S.feedPulse({ bpm: null, source: 'finger_ppg' }); } }
+    if (sensor === 'phone_camera') { syncCamPulse(); A.Face.sync(); A.ScreenLight?.sync(); }
+    A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
+  });
+  $('simSw').onchange = e => { A.config.simulator = e.target.checked; A.config.simulatorChosen = true; syncSensors(); saveSettings(); camGlyph(); };
+  $('motionSw').onchange = e => { A.config.reducedMotion = e.target.checked; A.Theme.motion(); saveSettings(); };
+  $('soundSw').onchange = e => setSound(e.target.checked);
+  // turned on, it ticks like every switch (gui/feel.js); turned off, it is already silent
+  $('hapticSw').onchange = e => { A.Haptics.setEnabled(e.target.checked); };
+  $('quietSw').onchange = e => { A.config.quietNight = e.target.checked; A.Theme.room(); setDawn(A.config.dawnLevel); saveSettings(); };
+  $('checkinSw').onchange = e => { A.config.checkin = e.target.checked; saveSettings(); A.Checkin.refresh(); };
+  $('sigSw').onchange = e => { A.config.signalsOverlay = e.target.checked; saveSettings(); };
+  $('vitalsSw').onchange = e => { A.config.liveVitals = e.target.checked; saveSettings(); };
+  $('breathSw').onchange = e => { A.config.breathFeedback = e.target.checked; saveSettings(); };
+  $('lightSw').onchange = e => { A.config.screenLight = e.target.checked; saveSettings(); A.ScreenLight?.sync(); };
+  $('roomSoundSw').onchange = e => { A.config.roomSound = e.target.checked; saveSettings(); A.RoomSound?.sync(); };
+  // Heartbeat touch: a tap keeps the level, saves it, plays one beat at it and redraws the line under Sound and feel.
+  const beatSeg = () => { document.querySelectorAll('#beatSeg button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.v === A.config.heartLevel))); };
+  document.querySelectorAll('#beatSeg button').forEach(b => b.onclick = () => { A.config.heartLevel = b.dataset.v; beatSeg(); saveSettings(); A.Heartbeat?.sample(); A.Shell.settings?.refresh(); });
+
+  const applyPrivacy = pv => {
+    if (!pv) return;
+    if (pv.sensors) Object.assign(A.config.sensors, A.switches(A.config.sensors, pv.sensors));
+    if (pv.sharing) A.config.sharing = pv.sharing;
+    syncSensors(); toggles(); saveSettings();
+    A.Finger.sync(); A.Face.sync();
+    if (!A.config.sensors.pulse_stone) S.feedPulse({ bpm: null, source: 'finger_ppg' });
+    syncCamPulse();
+  };
+  morningText(); toggles();
+  A.Finger.sync(); A.Face.sync();
+  syncCamPulse();
+  document.addEventListener('visibilitychange', syncCamPulse);
+
+  let timeline = [];
+
+  document.querySelectorAll('#moodEnd .mood-lantern').forEach(b => b.onclick = () => A.session?.setMood(Number(b.dataset.v)));
+
+  const begin = async () => {
+    A.Finger.arm();
+    A.Audio.on = ui.sound;
+    A.Audio.start(0.25);
+    A.Input.mode = ui.input;
+    if (ui.input === 'camera' && !S.camera()) {
+      $('begin').disabled = true;
+      log('starting camera');
+      try { log(`camera on (${await S.startCamera()}), only numbers are read: eye openness, head tilt${S.camLink.state === 'on' ? ', the pulse estimate' : ''}${['starting', 'tracking', 'no_face'].includes(S.faceState) ? ', face measures' : ''}`); }
+      catch (e) { log('camera unavailable, eyes come from the simulator'); S.stop(); A.Input.mode = ui.input = 'touch'; chips(); }
+      $('begin').disabled = false;
+    } else if (ui.input !== 'camera' && S.camera()) S.stop();
+    show('start', false); show('end', false); show('closeBtn', true); show('checkinBtn', false);
+    CARDS.forEach(c => show(c, false));
+    resetEnd();
+    $('json').textContent = '';
+    timeline = [];
+    guideMem = {};
+    A.session = A.startSession({ input: A.Input.mode, clock: ui.clock, stage: ui.stage, profile: ui.profile, visual: idle });
+    camGlyph();
+    const s = A.session;
+    A.bus.emit('ws', { type: 'session_start', session_id: s.rec.session_id, patient_id: A.config.patientId, clock: ui.clock, profile: ui.profile, simulated: s.liveMetrics(A.now()).simulated, sensors: s.rec.sensors, t_iso: s.rec.started_iso });
+    log(`session start, ${A.Input.mode}, ${ui.clock}, ${ui.profile}`);
+  };
+  // the clip check (clipcheck.js) runs first when the clips give no pulse yet; it calls begin, or puts the lantern out
+  $('begin').addEventListener('kindle', () => A.ClipCheck ? A.ClipCheck.beforeSession(begin) : begin());
+
+  $('decline').onclick = () => {
+    const r = A.declinedRecord(ui.profile);
+    $('json').textContent = JSON.stringify(r, null, 2);
+    A.bus.emit('ws', { type: 'session_end', session: r });
+    A.bus.emit('sessionEnd', r);
+    log('not tonight, logged as declined');
+    resetEnd(); $('end').classList.add('declined');
+    $('endText').textContent = night() ? 'Rest well.' : 'See you tomorrow.';
+    A.Shell.phase('declined');
+    show('start', false); show('end', true);
+  };
+
+  let curtain = null, curtainV = 0, leaving = false, endShown = false;
+  const fadeCurtain = (to, dur, then) => { curtain = { from: curtainV, to, start: A.now(), dur, then }; };
+  const resetEnd = () => {
+    endShown = false;
+    $('end').classList.remove('declined', 'dim', 'closed');
+    greet();
+    show('offer', false);
+  };
+  const goHome = () => {
+    if (leaving) return;
+    leaving = true;
+    const s = A.session;
+    if (s && !s.done) s.close();
+    show('end', false); show('wakeBtn', false); show('offer', false); CARDS.forEach(c => show(c, false));
+    fadeCurtain(1, 1.2, () => {
+      A.session = null;
+      idle = A.makeVisual(ui.profile); idle.black = 0;
+      resetEnd(); camGlyph(); A.Checkin.refresh();
+      show('start', true); A.bus.emit('home');
+      fadeCurtain(0, 1.8, () => { leaving = false; });
+    });
+  };
+  $('again').onclick = goHome;
+  $('wakeBtn').onclick = goHome;
+  $('closeBtn').onclick = () => A.bus.emit('exit');
+  const cue = (text, kind) => {
+    const el = $('cue');
+    if (text) { el.textContent = text; el.classList.toggle('line', kind === 'line'); }
+    el.classList.toggle('on', !!text);
+  };
+  // The line at the top during play comes from A.Guide.line, asked every frame: guide.js says what it shows and when.
+  let guideMem = {}, guideShown = null;
+  const guide = (s, now) => {
+    const want = A.Guide.line(s, now, guideMem), key = want ? want.text : null;
+    if (key === guideShown) return;
+    guideShown = key;
+    cue(want?.text || '', want?.kind);
+  };
+
+  $('download').onclick = () => {
+    const text = $('json').textContent;
+    if (!text) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = `afferent-session-${Date.now()}.json`;
+    a.click();
+  };
+
+  document.addEventListener('visibilitychange', () => { if (document.hidden && A.session && !A.session.done) { A.session.pauses++; A.Skill?.save(); } });
+
+  ['pdown', 'pmove', 'pup', 'key', 'exit'].forEach(type => A.bus.on(type, d => A.session?.handle(type, d)));
+  A.bus.on('segment', id => {
+    if (id !== 'walk') log('phase ' + id);
+  });
+  A.bus.on('mode', m => log('mode ' + m));
+  A.bus.on('game', g => { log(`task ${g.id} slot ${g.slot} (${g.mode}${g.kind === 'adaptive' ? ', intensity ' + g.k.toFixed(2) : ''})`); });
+  A.bus.on('haptic', () => { $('haptic').classList.remove('pulse'); void $('haptic').offsetWidth; $('haptic').classList.add('pulse'); });
+  A.bus.on('mood', m => {
+    log(`lantern check-in ${m.which} ${m.value ?? 'skipped'}`);
+  });
+  A.bus.on('endScreen', () => { endShown = true; greet(); show('end', true); show('closeBtn', false); });
+  A.bus.on('endDim', () => $('end').classList.add('dim'));
+  A.bus.on('sessionEnd', r => {
+    $('json').textContent = JSON.stringify(r, null, 2);
+    log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
+    show('closeBtn', false); show('simBadge', false); show('liveChip', false); $('breathLine').classList.remove('on'); cue('');
+    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse || r.vitals?.watch) {
+      A.lastVitals = r.vitals; A.lastVitalsAt = Date.now();
+      A.lastBreath = [...(r.tasks || [])].reverse().find(t => t.extra?.breathing)?.extra.breathing ?? null;
+    }
+    if (S.camera()) S.stop();
+    camGlyph();
+    if (leaving || r.status === 'declined') return;
+    if (r.status === 'fell_asleep') { $('phone').addEventListener('pointerdown', () => show('wakeBtn', true), { once: true }); return; }
+    if (endShown) { $('end').classList.add('closed'); return; }
+    $('end').classList.add('declined'); A.Shell.phase('declined'); show('end', true);
+  });
+
+  const led = $('led');
+  let ledTimer = null;
+  const setLed = (rgb, level, fade) => {
+    led.style.transition = `background-color ${fade}ms linear, box-shadow ${fade}ms linear, opacity ${fade}ms linear`;
+    led.style.backgroundColor = rgb === '#000000' ? '#222' : rgb;
+    led.style.opacity = 0.15 + 0.85 * level / 100;
+    led.style.boxShadow = level ? `0 0 ${10 + level * 1.2}px ${level * 0.4}px ${rgb}` : 'none';
+    $('ledLevel').textContent = `${level}%`;
+  };
+  A.bus.on('light', ({ rgb, level, fade_ms }) => {
+    clearTimeout(ledTimer);
+    setLed(rgb, level, fade_ms);
+    if (rgb === '#FFC98A' || rgb === '#FFF3DC') ledTimer = setTimeout(() => setLed(rgb, 0, 10000), fade_ms + 30000);
+  });
+  setLed('#FFD9A0', 5, 0);
+  const setDawn = v => {
+    const cap = A.config.quietNight ? 25 : 60;
+    v = Math.min(cap, v); A.config.dawnLevel = v;
+    $('knob').max = cap; $('knob').value = v; $('knobVal').textContent = v + '%';
+  };
+  $('knob').oninput = e => setDawn(Number(e.target.value));
+
+  const sliders = { pulseSlider: 'offset', drowsySlider: 'drowsy' };
+  for (const [id, key] of Object.entries(sliders)) {
+    const el = $(id);
+    el.addEventListener('pointerdown', () => el.dataset.active = '1');
+    el.addEventListener('pointerup', () => delete el.dataset.active);
+    el.oninput = () => { A.Sim[key] = Number(el.value); A.Sim.holdUntil = 0; };
+  }
+  const presets = { stressBtn: { offset: 22 }, flatBtn: { offset: -9 }, tiredBtn: { drowsy: 0.85 }, shutBtn: { eyesShut: true }, normalBtn: { offset: 0, drowsy: 0, eyesShut: false } };
+  for (const [id, p] of Object.entries(presets)) $(id).onclick = () => { Object.assign(A.Sim, p, { holdUntil: 0 }); log('simulate ' + $(id).textContent); };
+
+  const Hub = A.Hub;
+  Hub.on('connected', on => { $('hubTag').textContent = on ? 'connected' : 'offline'; $('hubTag').classList.toggle('on', on); hubLine(); A.Shell.settings?.refresh(); log(on ? 'hub connected' : 'hub disconnected'); });
+  Hub.on('config', c => {
+    if (c.baseline_pulse_bpm) A.config.baselinePulse = c.baseline_pulse_bpm;
+    if (Number.isFinite(c.dawn_level)) setDawn(c.dawn_level);
+    applyPrivacy(c.privacy);
+    log(`config: baseline ${c.baseline_pulse_bpm ?? '-'} bpm, weights for ${Object.keys(c.task_weights || {}).length} modes`);
+  });
+  Hub.on('ack', d => log(`hub stored session${d.duplicate ? ' (duplicate)' : ''}${d.error ? ' error ' + d.error : ''}`));
+  Hub.on('pulse', d => S.feedPulse(d));
+  Hub.on('physio', d => S.feedFingerHub(d));
+  Hub.on('knob', d => { if (Number.isFinite(d.level)) setDawn(d.level); if (d.press) log('knob press'); });
+  Hub.on('profile', d => setProfile(d.profile, 'hub'));
+  Hub.on('privacy', d => applyPrivacy(d.privacy));
+  Hub.on('demo_reset', () => log('hub demo reset'));
+  if (!Hub.connect({ patientId: A.config.patientId, hello: { profile: ui.profile } })) log('no hub, offline mode');
+  else log('hub ' + Hub.url.replace(/\/k\/[^/]+/, ''));
+  hubLine();
+  // Connect reloads the app; it comes back on the Home hub page
+  try {
+    if (sessionStorage.getItem('afferent.reopen') === 'hub') {
+      sessionStorage.removeItem('afferent.reopen');
+      document.querySelector('[data-open="settings"]')?.click();
+      A.Shell.settings?.open('hub', { instant: true });
+    }
+  } catch {}
+
+  const MODE_COL = { ...Object.fromEntries(Object.entries(A.MODES).map(([k, v]) => [k, v.colour])), measure: '#B4A6CE' };
+  const tl = $('timeline'), tctx = tl.getContext('2d');
+
+  function drawTimeline() {
+    const w = tl.width = tl.clientWidth * dpr, h = tl.height = tl.clientHeight * dpr;
+    tctx.clearRect(0, 0, w, h);
+    const span = 125, x = t => t / span * w, mid = h * 0.45, y = d => mid - d / 30 * h * 0.4;
+    tctx.strokeStyle = 'rgba(255,255,255,0.08)'; tctx.beginPath(); tctx.moveTo(0, mid); tctx.lineTo(w, mid); tctx.stroke();
+    for (let i = 1; i < timeline.length; i++) {
+      const a = timeline[i - 1], b = timeline[i];
+      if (b.mode) { tctx.fillStyle = MODE_COL[b.mode]; tctx.globalAlpha = 0.55; tctx.fillRect(x(a.t), h - 8 * dpr, x(b.t) - x(a.t) + 1, 8 * dpr); tctx.globalAlpha = 1; }
+    }
+    const line = (key, color, f) => {
+      tctx.strokeStyle = color; tctx.lineWidth = 1.5 * dpr; tctx.beginPath();
+      timeline.forEach((p, i) => { if (p[key] === null) return; const yy = f(p[key]); i ? tctx.lineTo(x(p.t), yy) : tctx.moveTo(x(p.t), yy); });
+      tctx.stroke();
+    };
+    line('d', '#F2B544', y);
+    tctx.setLineDash([3 * dpr, 3 * dpr]); line('f', '#9fb7ff', f => h - 10 * dpr - f * h * 0.35); tctx.setLineDash([]);
+  }
+
+  function panel(s, now) {
+    const p = S.pulse(now);
+    $('pulseVal').textContent = s && p.bpm != null ? p.bpm.toFixed(0) : '--';
+    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', watch_ble: 'watch or strap', simulated: 'SIMULATED' }[p.source] || 'none';
+    for (const [id, key] of Object.entries(sliders)) { const el = $(id); if (!el.dataset.active) el.value = A.Sim[key]; }
+    $('pulseSliderVal').textContent = (A.Sim.offset >= 0 ? '+' : '') + A.Sim.offset.toFixed(0) + ' bpm';
+    $('drowsySliderVal').textContent = A.Sim.drowsy.toFixed(2);
+    const mode = s?.mode && ['walk', 'game', 'dawn'].includes(s.phase) ? (s.gameMode === 'measure' ? 'measure' : s.mode) : null;
+    $('modePill').textContent = mode ? (mode === 'measure' ? `measure (director ${s.mode})` : mode) : (s ? s.phase : 'idle');
+    $('modePill').style.borderColor = mode ? MODE_COL[mode] : '';
+    $('modePill').style.color = mode ? MODE_COL[mode] : '';
+    $('arousalBar').style.width = `${A.clamp(50 + (s?.a ?? 0) * 25, 0, 100)}%`;
+    $('fatigueBar').style.width = `${(s?.fat ?? 0) * 100}%`;
+    $('gameVal').textContent = s?.game ? `${s.game.id} slot ${s.game.slot}  k=${s.game.k.toFixed(2)}  items ${s.game.items}  errors ${s.game.errors}` : '-';
+    const f = S.last;
+    $('eyesVal').textContent = `eyes ${S.eyesSource() || 'off'}  ${A.Eyes.closed ? 'closed' : 'open'}  open ${f?.eye_openness?.toFixed(2) ?? '-'}  perclos ${A.Eyes.perclos().toFixed(2)}  pitch ${f?.head_pitch_deg?.toFixed(0) ?? '-'}`;
+    if (s && !s.done) timeline.push({ t: now - s.t0, d: p.bpm == null ? null : p.bpm - s.rest, f: s.fat, mode });
+    drawTimeline();
+    const sim = !!s && !s.done && (p.source === 'simulated' || S.eyesSource() === 'simulated' || s.auto || s.profile !== 'live');
+    show('simBadge', sim);
+    A.LiveVitals.render(s, now);
+    const chip = A.config.signalsOverlay && !A.LiveVitals.chipOn ? A.Vitals.chip(s, p) : null;
+    if (chip) $('liveChip').textContent = chip;
+    show('liveChip', !!chip);
+    const breath = A.Vitals.breath(s, now);
+    if (breath) { $('breathMain').textContent = breath[0]; $('breathSub').textContent = breath[1]; }
+    $('breathLine').classList.toggle('on', !!breath);
+  }
+
+  let last = A.now(), frame = 0, lastLive = 0, lastDraw = 0;
+  // Outside a session the world under a card only has to breathe. None while a sheet moves (dragged, sliding up or
+  // leaving, gui/swipe.js), so the phone spends the frame on the sheet that follows the finger; 30 frames a second under
+  // an open sheet, dimmed by its scrim; 15 under a page that hides it (Settings, Talk, Heart Duel, the check-in).
+  const phoneEl = $('phone');
+  const PAGE = '.screen.settings:not(.hidden), .screen.talk:not(.hidden), .screen.voice:not(.hidden), .screen.duel:not(.hidden), .ci:not(.hidden)';
+  const pace = () => (phoneEl.querySelector(PAGE) ? 1000 / 15
+    : phoneEl.classList.contains('card-open') || phoneEl.querySelector('.layer:not(.hidden)') || document.querySelector('.qs-root') ? 1000 / 30 : 0);
+  const loop = () => {
+    const t = performance.now();
+    if (!A.session && (A.Swipe?.moving || t - lastDraw < pace() - 4)) { requestAnimationFrame(loop); return; }
+    lastDraw = t;
+    const now = A.now(), dt = Math.min(0.05 * speed, now - last); last = now;
+    A.Input.update(now, dt);
+    const s = A.session;
+    if (s) s.update(now, dt);
+    if (s && !s.done && now - lastLive >= 0.5) { lastLive = now; A.bus.emit('ws', s.liveMetrics(now)); }
+    const V = s ? s.V : idle;
+    if (!s) {
+      V.t = now; V.lanternBright = V.lanternGain; V.lanternRadius = 70 * V.lanternGain;
+      if (A.Heartbeat) { A.Heartbeat.step(now, dt, null); A.Heartbeat.paint(V, 1); A.Shell.kindleBeat(A.Heartbeat.st); }
+      for (const tw of idleTweens) tw.obj[tw.key] = A.lerp(tw.from, tw.to, A.ease((now - tw.start) / tw.dur));
+      idleTweens = idleTweens.filter(tw => now - tw.start < tw.dur);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    A.World.draw(ctx, W, H, V);
+    A.Theme.frame(canvas);
+    A.FXGL?.present(canvas, V, s);
+    s?.drawOverlay(ctx, now);
+    guide(s, now);
+    if (curtain) {
+      const k = A.clamp((now - curtain.start) / curtain.dur, 0, 1);
+      curtainV = A.lerp(curtain.from, curtain.to, A.ease(k));
+      if (k >= 1) { const then = curtain.then; curtain = null; then?.(); }
+    }
+    if (curtainV > 0.001) { ctx.fillStyle = `rgba(0,0,0,${curtainV})`; ctx.fillRect(0, 0, W, H); }
+    A.Loader?.frame(t);
+    if (++frame % 8 === 0) panel(s, now);
+    requestAnimationFrame(loop);
+  };
+  A.bus.on('artLoaded', names => log(`art layers: ${names.length ? names.join(', ') : 'none, procedural only'}`));
+  // The loading screen (loader.js) stays until the painted art and the fonts are in, and leaves on the first frame
+  // of the world drawn with them. The art is what takes the time; without it the world falls back to the procedural one.
+  A.Loader?.when(A.Art.load(), document.fonts?.ready);
+  loop();
+})();

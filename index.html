@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.trycloudflare.com; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#090B13">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="The real Afferent demo system at Junction 2026 in Espoo, live: finger clips, sensor box, bedside light and home hub.">
+  <title>Afferent, live</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/Jost-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="live.css">
+  <script src="live.js" defer></script>
+  <script src="whatif.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the live readings</a>
+  <header class="top">
+    <div class="wrap">
+      <p class="brand"><span class="brand-mark" aria-hidden="true"></span>afferent</p>
+      <p class="status" id="status" data-state="connecting"><span class="dot" aria-hidden="true"></span><span id="statusText">Connecting…</span></p>
+    </div>
+    <div class="wrap">
+      <section class="card play play-top" aria-labelledby="h-play">
+        <h2 id="h-play">Play the morning game</h2>
+        <p class="play-actions"><a class="btn gold" href="play/">Play</a><a class="btn" href="clinic/">Doctor's view</a></p>
+      </section>
+    </div>
+    <div class="wrap hero">
+      <h1>Afferent, live</h1>
+      <p class="lede">Our demo table in Espoo, right now.</p>
+      <p class="offline" id="offline" hidden>The demo table is offline right now.</p>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <div class="grid">
+      <section class="card pulse" aria-labelledby="h-pulse" id="cardPulse">
+        <div class="card-head">
+          <h2 id="h-pulse">Finger clips</h2>
+          <p class="tag" id="pulseTag">waiting</p>
+        </div>
+        <div class="pulse-body">
+          <div class="heart-wrap" aria-hidden="true">
+            <svg class="heart" id="heart" viewBox="0 0 64 58" focusable="false">
+              <path d="M32 56.5C28.7 53.5 3 36.6 3 18.9 3 9.4 10.3 2 19.2 2c5.5 0 10.2 2.9 12.8 7.3C34.6 4.9 39.3 2 44.8 2 53.7 2 61 9.4 61 18.9 61 36.6 35.3 53.5 32 56.5Z"/>
+            </svg>
+            <span class="ring" id="ring"></span>
+          </div>
+          <div class="pulse-read">
+            <p class="bpm"><span class="num" id="bpm">–</span><span class="unit">bpm</span></p>
+            <p class="pulse-note" id="pulseNote"></p>
+          </div>
+        </div>
+        <ul class="clips" id="clips">
+          <li class="clip" data-on="false"><span class="clip-name">Clip 1</span><span class="clip-val">no finger</span></li>
+          <li class="clip" data-on="false"><span class="clip-name">Clip 2</span><span class="clip-val">no finger</span></li>
+        </ul>
+        <dl class="mini" id="physio" hidden>
+          <div><dt>HRV (RMSSD)</dt><dd id="hrv">–</dd></div>
+          <div><dt>Breathing</dt><dd id="breath">–</dd></div>
+        </dl>
+        <p class="sr-only" id="pulseSay" aria-live="polite" aria-atomic="true"></p>
+      </section>
+
+      <section class="card room" aria-labelledby="h-room">
+        <div class="card-head"><h2 id="h-room">Bedroom</h2><p class="tag" id="roomTag">–</p></div>
+        <div class="pair">
+          <p class="big"><span class="num" id="temp">–</span><span class="unit">°C</span></p>
+          <p class="big"><span class="num" id="hum">–</span><span class="unit">% humidity</span></p>
+        </div>
+      </section>
+
+      <section class="card light" aria-labelledby="h-light">
+        <div class="card-head"><h2 id="h-light">Bedside light</h2><p class="tag" id="lightTag">–</p></div>
+        <div class="light-body">
+          <span class="swatch" id="swatch" aria-hidden="true"><span class="swatch-core"></span></span>
+          <div>
+            <p class="light-what" id="lightWhat">–</p>
+            <p class="fine" id="lightWhy"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card hub" aria-labelledby="h-hub">
+        <div class="card-head"><h2 id="h-hub">Home hub</h2><p class="tag" id="hubTag">–</p></div>
+        <p class="hub-kind">Jetson Orin Nano</p>
+        <dl class="facts">
+          <div><dt>Session</dt><dd id="session">–</dd></div>
+          <div><dt>Mornings recorded</dt><dd id="mornings">–</dd></div>
+          <div><dt>Last morning</dt><dd id="lastMorning">–</dd></div>
+          <div><dt>In bed</dt><dd id="inBed">–</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    <section class="chain-wrap" aria-labelledby="h-chain">
+      <h2 id="h-chain" class="section-title">The chain, right now</h2>
+      <ol class="chain" id="chain">
+        <li data-k="clips"><span class="dot" aria-hidden="true"></span><span class="node">Finger clips</span><span class="state">–</span></li>
+        <li data-k="box"><span class="dot" aria-hidden="true"></span><span class="node">UNO Q sensor box</span><span class="state">–</span></li>
+        <li data-k="phone"><span class="dot" aria-hidden="true"></span><span class="node">Phone</span><span class="state">–</span></li>
+        <li data-k="hub"><span class="dot" aria-hidden="true"></span><span class="node">Home hub</span><span class="state">–</span></li>
+        <li data-k="clinic"><span class="dot" aria-hidden="true"></span><span class="node">Clinic</span><span class="state">by QR handover only</span></li>
+      </ol>
+    </section>
+
+    <section class="card whatif" aria-labelledby="h-whatif" id="whatif">
+      <div class="card-head">
+        <h2 id="h-whatif">What would it do?</h2>
+        <p class="tag" id="wiTag">the app's own code</p>
+      </div>
+      <form class="wi-form" id="wiForm" autocomplete="off">
+        <div class="wi-row">
+          <label for="wiPulse">Pulse vs rest</label>
+          <input type="range" id="wiPulse" min="-20" max="40" step="1" value="0" aria-describedby="wiPulseV">
+          <output id="wiPulseV" for="wiPulse">±0 bpm</output>
+        </div>
+        <div class="wi-row">
+          <label for="wiHrv">HRV vs own</label>
+          <input type="range" id="wiHrv" min="40" max="140" step="1" value="100" aria-describedby="wiHrvV">
+          <output id="wiHrvV" for="wiHrv">100 %</output>
+        </div>
+        <div class="wi-row">
+          <label for="wiBreath">Breathing vs own</label>
+          <input type="range" id="wiBreath" min="-4" max="8" step="0.5" value="0" aria-describedby="wiBreathV">
+          <output id="wiBreathV" for="wiBreath">±0 /min</output>
+        </div>
+        <div class="wi-row">
+          <label for="wiSmile">Smiling vs own</label>
+          <input type="range" id="wiSmile" min="-15" max="60" step="5" value="0" aria-describedby="wiSmileV">
+          <output id="wiSmileV" for="wiSmile">±0 points</output>
+        </div>
+        <details class="wi-more">
+          <summary>More: face movement, eyes, night</summary>
+          <div class="wi-row">
+            <label for="wiMove">Face movement vs own</label>
+            <input type="range" id="wiMove" min="20" max="150" step="5" value="100" aria-describedby="wiMoveV">
+            <output id="wiMoveV" for="wiMove">100 %</output>
+          </div>
+          <div class="wi-row">
+            <label for="wiEyes">Eyes closed (PERCLOS)</label>
+            <input type="range" id="wiEyes" min="0" max="40" step="1" value="0" aria-describedby="wiEyesV">
+            <output id="wiEyesV" for="wiEyes">0 %</output>
+          </div>
+          <div class="wi-checks">
+            <label><input type="checkbox" id="wiNight"> Night session</label>
+            <label><input type="checkbox" id="wiNoPulse"> No pulse reading</label>
+            <label><input type="checkbox" id="wiNoFace" > Face camera off</label>
+          </div>
+        </details>
+        <div class="wi-actions">
+          <button type="button" id="wiLive" class="btn" disabled>Use the live reading</button>
+          <button type="button" id="wiReset" class="btn quiet">Reset</button>
+        </div>
+      </form>
+      <div class="wi-out" id="wiOut" aria-live="polite">
+        <p class="wi-loading" id="wiLoading">Loading the game's decision code…</p>
+        <div class="wi-result" id="wiResult" hidden>
+          <p class="wi-state"><span class="wi-dot" id="wiDot" aria-hidden="true"></span><span id="wiState">–</span><span class="wi-mode" id="wiMode"></span></p>
+          <p class="wi-why" id="wiWhy">–</p>
+          <dl class="facts wi-facts">
+            <div><dt>Games it draws from</dt><dd id="wiGames">–</dd></div>
+            <div><dt>Bedside light</dt><dd><span class="wi-swatch" id="wiSwatch" aria-hidden="true"></span><span id="wiLight">–</span></dd></div>
+            <div><dt>Music</dt><dd id="wiMusic">–</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="wrap foot">
+    <p>Read-only. No names, no recordings.</p>
+    <p class="links"><a href="https://github.com/wh1xdy/afferent-junction2026">Source code</a><a href="https://github.com/wh1xdy/afferent-junction2026/tree/main/videos">Videos</a></p>
+  </footer>
+</body>
+</html>
