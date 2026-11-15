@@ -835,7 +835,7 @@ const tests = {
     assert.deepStrictEqual(where(/AVCaptureSession\(|AVCaptureVideoDataOutput|VNDetectFaceLandmarksRequest/), [], 'no second camera capture next to it');
     const reg = swift.find(([f]) => f === 'AfferentEyes.swift')[1].match(/registerPluginInstance\((\w+)\(\)\)/g).map(x => x.slice(23, -3));
     assert.deepStrictEqual(reg, ['AfferentFingerPlugin', 'AfferentPresencePlugin', 'AfferentEyesPlugin', 'AfferentPulsePlugin', 'AfferentHapticsPlugin', 'AfferentSoundLevelPlugin'], 'main\'s plugins, no second camera plugin');
-    assert.deepStrictEqual(where(/CAPBridgedPlugin/).sort(), ['AfferentEyes.swift', 'AfferentFinger.swift', 'AfferentHaptics.swift', 'AfferentPresence.swift', 'AfferentPulse.swift']);
+    assert.deepStrictEqual(where(/CAPBridgedPlugin/).sort(), ['AfferentEyes.swift', 'AfferentFinger.swift', 'AfferentHaptics.swift', 'AfferentPresence.swift', 'AfferentPulse.swift', 'AfferentSoundLevel.swift']);
     assert.deepStrictEqual(where(/ARSessionDelegate|AVCaptureDevice\.(requestAccess|authorizationStatus)/).sort(), ['AfferentPulse.swift', 'FaceMeasures.swift', 'FaceSession.swift'], 'only the camera plugin and its face half touch the camera');
     const pulseSwift = swift.find(([f]) => f === 'AfferentPulse.swift')[1];
     const methods = [...pulseSwift.matchAll(/CAPPluginMethod\(name: "(\w+)"/g)].map(m => m[1]);
