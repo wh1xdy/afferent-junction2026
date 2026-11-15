@@ -7,6 +7,7 @@
   const sfx = (n, p) => A.J?.sfx?.(n, p);
   const PI = Math.PI;
   const DT = 1 / 240;
+  const FEET_DROP = 0.006, FEET_RISE = 0.05;
   const TILE = 560, AIR_TILT = 0.3, LOOK = 220, G = 900, GA = 820, JV = 300, CREST = 0.7, HOLD_G = 0.55, HOLD_T = 0.22, APEX_V = 55, APEX_G = 0.7, BUF = 0.15, LEAD = 0.25;
 
   const MODES = {
@@ -515,7 +516,13 @@
       }
       const c = st.cam;
       c.x = ema(c.x, tx, dt, 0.7); c.y = ema(c.y, ty, dt, 0.35); c.z = ema(c.z, tz, dt, 0.6);
-      st.camH = ema(st.camH, lerp(T.h(b.x), T.h(b.x + LOOK), st.state === 'ride' ? 0.5 : 0), dt, 0.3);
+      st.camH = ema(st.camH, lerp(T.h(b.x), T.h(b.x + LOOK), st.state === 'ride' && !rm() ? 0.5 : 0), dt, 0.3);
+      // The rider's feet never sink more than FEET_DROP of the screen under their resting line (layers.js gy, 0.82 H),
+      // whether the camera lags a landing or looks ahead up a slope from a hollow: under that line sits the Live
+      // vitals pill (Layers.lane), and the camera simply keeps up there instead of lagging. With reduced motion the
+      // camera stays still and the ground reference follows the rider instead (no look ahead, below).
+      const below = (T.h(b.x) - st.camH + air - dipAt(now) - 4) * u * Math.max(1, c.z);
+      if (!rm()) c.y = Math.min(c.y, Math.max(-FEET_RISE * H, FEET_DROP * H + below));
     }
 
     function pose(now, dt) {

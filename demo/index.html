@@ -112,19 +112,16 @@
       <aside id="liveVitals" class="live-vitals" aria-label="Live vitals">
         <p class="lv-title">Live vitals</p>
         <div class="lv-grid">
-          <span class="lv-k"><span class="ms fill lv-heart" aria-hidden="true">favorite</span>Pulse</span>
-          <span class="lv-k">HRV</span>
-          <span class="lv-k">Breathing</span>
-          <span class="lv-v" data-k="pulse"></span>
-          <span class="lv-v" data-k="hrv"></span>
-          <span class="lv-v" data-k="breathing"></span>
-          <span class="lv-sim">Simulated</span>
+          <span class="lv-m"><span class="lv-k"><span class="ms fill lv-heart" aria-hidden="true">favorite</span><span class="lv-sr">Pulse</span></span> <span class="lv-v" data-k="pulse"></span> <span class="lv-sim">Simulated</span></span>
+          <span class="lv-m"><span class="lv-k">HRV</span> <span class="lv-v" data-k="hrv"></span></span>
+          <span class="lv-m"><span class="lv-k">Breathing</span> <span class="lv-v" data-k="breathing"></span></span>
         </div>
-        <p class="lv-state"><span class="lv-dot" aria-hidden="true"></span><span class="lv-label"></span></p>
-        <p class="lv-why"></p>
-        <div class="lv-calm"><span class="lv-k">Calm response</span><span class="lv-bar"><span class="lv-fill"></span></span></div>
-        <p class="lv-music lv-extra"></p>
-        <p class="lv-room lv-extra"></p>
+        <p class="lv-state"><span class="lv-dot" aria-hidden="true"></span><span class="lv-label"></span> <span class="lv-why"></span></p>
+        <div class="lv-foot">
+          <div class="lv-calm"><span class="lv-k">Calm response</span><span class="lv-bar"><span class="lv-fill"></span></span></div>
+          <p class="lv-music lv-extra"></p>
+          <p class="lv-room lv-extra"></p>
+        </div>
       </aside>
       <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
 

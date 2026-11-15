@@ -238,7 +238,9 @@
   };
 
   const drawScene = (ctx, G, at, dip) => {
-    const { b, U, kx, ky, pw, wy } = G, top = ky - 0.11 * b.h, pb = wy + 10 * U;
+    // The posts rise to just above the rope's knots, but never into the row of the top controls: the left one stood
+    // right under the × (Layers.controls: it ends 56 px under the safe top).
+    const { b, U, kx, ky, pw, wy } = G, top = Math.min(ky - 0.04 * b.h, Math.max(ky - 0.11 * b.h, (A.World?.safeTop?.() ?? 0) + 62)), pb = wy + 10 * U;
     if (!A.Traverse) sprite(ctx, 'soft', C.night950, b.x + b.w / 2, b.y + 0.5 * b.h, 0.78 * b.h, 0.6, false, 1.05, 1);
     ctx.lineCap = 'round';
     for (let i = 0; i < 2; i++) post(ctx, G, i, top, pb);
