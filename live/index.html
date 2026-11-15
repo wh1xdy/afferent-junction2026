@@ -22,9 +22,15 @@
       <p class="brand"><span class="brand-mark" aria-hidden="true"></span>afferent</p>
       <p class="status" id="status" data-state="connecting"><span class="dot" aria-hidden="true"></span><span id="statusText">Connecting…</span></p>
     </div>
+    <div class="wrap">
+      <section class="card play play-top" aria-labelledby="h-play">
+        <h2 id="h-play">Play the morning game</h2>
+        <p class="play-actions"><a class="btn gold" href="play/">Play</a><a class="btn" href="clinic/">Doctor's view</a></p>
+      </section>
+    </div>
     <div class="wrap hero">
       <h1>Afferent, live</h1>
-      <p class="lede">Live from our demo table at Junction 2026 in Espoo: the real sensor box, finger clips and home hub, right now.</p>
+      <p class="lede">Our demo table in Espoo, right now.</p>
       <p class="offline" id="offline" hidden>The demo table is offline right now.</p>
     </div>
   </header>
@@ -45,7 +51,7 @@
           </div>
           <div class="pulse-read">
             <p class="bpm"><span class="num" id="bpm">–</span><span class="unit">bpm</span></p>
-            <p class="pulse-note" id="pulseNote">Put a finger in a clip at the table and its heartbeat shows here.</p>
+            <p class="pulse-note" id="pulseNote"></p>
           </div>
         </div>
         <ul class="clips" id="clips">
@@ -65,7 +71,6 @@
           <p class="big"><span class="num" id="temp">–</span><span class="unit">°C</span></p>
           <p class="big"><span class="num" id="hum">–</span><span class="unit">% humidity</span></p>
         </div>
-        <p class="fine">From the thermometer on the sensor box (Modulino Thermo), the same reading the patient's bedroom would give.</p>
       </section>
 
       <section class="card light" aria-labelledby="h-light">
@@ -74,21 +79,20 @@
           <span class="swatch" id="swatch" aria-hidden="true"><span class="swatch-core"></span></span>
           <div>
             <p class="light-what" id="lightWhat">–</p>
-            <p class="fine" id="lightWhy">The phone sets this light to follow the game's mode while a session runs.</p>
+            <p class="fine" id="lightWhy"></p>
           </div>
         </div>
       </section>
 
       <section class="card hub" aria-labelledby="h-hub">
         <div class="card-head"><h2 id="h-hub">Home hub</h2><p class="tag" id="hubTag">–</p></div>
-        <p class="hub-kind">Jetson Orin Nano, in the patient's home. Keeps the data; nothing goes to a cloud.</p>
+        <p class="hub-kind">Jetson Orin Nano</p>
         <dl class="facts">
           <div><dt>Session</dt><dd id="session">–</dd></div>
           <div><dt>Mornings recorded</dt><dd id="mornings">–</dd></div>
           <div><dt>Last morning</dt><dd id="lastMorning">–</dd></div>
           <div><dt>In bed</dt><dd id="inBed">–</dd></div>
         </dl>
-        <p class="fine">For the demo patient, whose real record this hub keeps.</p>
       </section>
     </div>
 
@@ -108,7 +112,6 @@
         <h2 id="h-whatif">What would it do?</h2>
         <p class="tag" id="wiTag">the app's own code</p>
       </div>
-      <p class="fine wi-intro">Move the readings and the game's real decision code (engine.js, the same file the phone runs) says what it reads and what it does. Each reading is against the player's own values from earlier in the session.</p>
       <form class="wi-form" id="wiForm" autocomplete="off">
         <div class="wi-row">
           <label for="wiPulse">Pulse vs rest</label>
@@ -167,17 +170,10 @@
       </div>
     </section>
 
-    <section class="card play" aria-labelledby="h-play">
-      <div>
-        <h2 id="h-play">Play it here</h2>
-        <p>The real game in your browser, the same code as the phone app. While someone at our table wears the clips, the game gets that pulse, marked as coming from the table. Otherwise it runs on its simulator, marked simulated.</p>
-      </div>
-      <a class="btn gold" href="play/">Play the morning game</a>
-    </section>
   </main>
 
   <footer class="wrap foot">
-    <p>Read-only. What leaves the table is this short list of readings, nothing else: no names, no ids, no recordings. Your visit sends nothing to the box or the hub.</p>
+    <p>Read-only. No names, no recordings.</p>
     <p class="links"><a href="https://github.com/wh1xdy/afferent-junction2026">Source code</a><a href="https://github.com/wh1xdy/afferent-junction2026/tree/main/videos">Videos</a></p>
   </footer>
 </body>

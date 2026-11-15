@@ -76,6 +76,25 @@ if dev:
 PY
 
 # endpoint.json: where the page finds the live server
+# The clinic (Afferent Clinic) runs static here: it seeds its demo patients in the browser from demo-exports.json.
+# Its absolute paths point at the hub's routes; on Pages they point at the game copy and a fixtures folder instead.
+copy_tracked "$STAGE" hub/afferent_hub/web/clinic contracts/fixtures/validation_example.json
+cp -R "$STAGE/hub/afferent_hub/web/clinic" "$OUT/clinic"
+mkdir -p "$OUT/clinic/fixtures"
+cp "$STAGE/contracts/fixtures/validation_example.json" "$OUT/clinic/fixtures/"
+python3 - "$OUT" <<'PY'
+import pathlib, sys
+c = pathlib.Path(sys.argv[1]) / "clinic"
+def swap(name, pairs):
+    f = c / name; t = f.read_text(encoding="utf-8")
+    for old, new in pairs:
+        assert old in t, f"{name}: {old!r} not found: update publish.sh"
+        t = t.replace(old, new)
+    f.write_text(t, encoding="utf-8")
+swap("index.html", [('src="/app/vendor/qr/', 'src="../play/vendor/qr/'), ('src="/app/js/qrpayload.js"', 'src="../play/js/qrpayload.js"')])
+swap("scan-worker.js", [("importScripts('/app/vendor/qr/jsQR.js')", "importScripts('../play/vendor/qr/jsQR.js')")])
+swap("clinic.js", [("const FX = '/contracts/fixtures/';", "const FX = 'fixtures/';")])
+PY
 if [ -n "$ENDPOINT" ]; then
   case "$ENDPOINT" in *trycloudflare.com*) SSE=false ;; *) SSE=true ;; esac
   printf '{"live":"%s","sse":%s,"updated_iso":"%s"}\n' "$ENDPOINT" "$SSE" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$OUT/endpoint.json"
