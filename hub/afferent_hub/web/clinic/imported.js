@@ -29,8 +29,12 @@
     home_only_days: ['Days home', 'd/wk', 1, '↑'],
     upright_frac: ['Upright', 'share', 2, '↓'],
     reward_bias: ['Reward bias', 'log b', 2, '↓'],
+    expressiveness: ['Expressiveness', '× usual', 2, '↓'],
   };
-  const EXPLORATORY = new Set(['upright_frac', 'reward_bias']);
+  const EXPLORATORY = new Set(['upright_frac', 'reward_bias', 'expressiveness']);
+  // Drivers that need hardware the patient may not have (expressiveness: the phone's TrueDepth camera). Without a
+  // value in the code they get no tile and no share, as they add nothing to the index.
+  const OPTIONAL = new Set(['expressiveness']);
   const SENSOR = { phone_camera: 'Phone camera', pulse_stone: 'Pulse stone', bedside_camera: 'Bedside camera', bedside_light: 'Bedside light', phone_presence: 'Phone presence', phone_motion: 'Phone motion' };
 
   const dayIso = (B, d) => { const t = new Date(B.period.tms_end_date + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + d); return t.toISOString().slice(0, 10); };
@@ -46,6 +50,8 @@
   const DIR = { '↑': 'up', '↓': 'down' };
   const reason = (k) => (FEAT[k] ? `${esc(FEAT[k][0])} <span role="img" aria-label="${DIR[FEAT[k][3]]}">${FEAT[k][3]}</span>` : esc(k));
   const fmtV = (k, v) => (v == null ? '-' : num(v, FEAT[k]?.[2] ?? 2));
+  const hasData = (B, k) => (B.weekly?.[k] || []).some((v) => v != null) || B.baseline?.[k] != null;
+  const carried = (B, k) => !!FEAT[k] && k in (B.weekly || {}) && (!OPTIONAL.has(k) || hasData(B, k));
 
   const received = (imp) => C.scanFmt.when(imp.scanned_iso);
   const range = (B) => `${dateTiny(dayIso(B, Math.max(0, B.period.from_day)))}–${dateTiny(dayIso(B, B.period.to_day))}`;
@@ -137,7 +143,7 @@
   }
 
   function drivers(B) {
-    const cs = [...(B.contrib || [])].sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution)).slice(0, 5);
+    const cs = [...(B.contrib || [])].filter((c) => c.contribution != null).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
     if (!cs.length) return '';
     const max = Math.max(0.3, ...cs.map((c) => Math.abs(c.contribution)));
     return `<section><div class="sect-h"><h2>Drivers</h2>${info('Share of index')}</div><div class="moved">${cs.map((c) => {
@@ -169,7 +175,7 @@
 
   const order = (B) => {
     const c = Object.fromEntries((B.contrib || []).map((x) => [x.key, Math.abs(x.contribution)]));
-    return C.qr.FEATURES.slice().sort((a, b) => (c[b] ?? -1) - (c[a] ?? -1));
+    return C.qr.FEATURES.filter((k) => carried(B, k)).sort((a, b) => (c[b] ?? -1) - (c[a] ?? -1));
   };
 
   function measures(B) {
@@ -193,7 +199,7 @@
     const m = B.mornings, c = B.complete, total = B.period.to_day - B.period.from_day + 1;
     const sensors = Object.entries(B.sensors || {}).filter(([k]) => k !== 'presence');
     const on = sensors.filter(([, v]) => v).map(([k]) => SENSOR[k] || k);
-    const byf = Object.entries(c.by_feature || {}).map(([k, v]) => `${FEAT[k]?.[0] || k} ${pct(v)}`).join(', ');
+    const byf = Object.entries(c.by_feature || {}).filter(([k]) => !OPTIONAL.has(k) || hasData(B, k)).map(([k, v]) => `${FEAT[k]?.[0] || k} ${pct(v)}`).join(', ');
     const pauses = (B.pauses || []).map((p) => `${dayStr(B, p.from_day)}–${dayStr(B, p.until_day)}, ${p.source === 'clinician' ? 'clinic' : 'patient'}`);
     const rows = [
       ['Mornings lit', `<span class="num">${m.lit ?? '-'}</span> <small>${m.lit_total ?? '-'} total</small>`],
@@ -248,7 +254,7 @@
     const cv = B.weekly.composite || [];
     const stateCol = B.state.shown === 'stable' || B.state.shown == null ? C.css('--c-outline') : C.stateColor(B.state.shown);
     if (el) C.seriesChart(el, { values: cv, connect: true, threshold: 0.5, thresholdColor: stateCol, thresholdLabel: '0.5', h: 196, xlabels: xl, aria: 'Early-warning index, 8 weekly medians', tip: wtip(cv, 'Index', (v) => signed(v)) });
-    for (const k of C.qr.FEATURES) {
+    for (const k of order(B)) {
       const e = document.getElementById('mm-' + k);
       if (!e) continue;
       const vals = B.weekly[k] || [], b = B.baseline[k];

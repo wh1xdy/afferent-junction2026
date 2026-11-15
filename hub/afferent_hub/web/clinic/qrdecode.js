@@ -19,5 +19,6 @@
     return Q ? new Q.Collector() : { add: (t) => ({ status: String(t).startsWith('AF1:') ? 'complete' : 'not_ours', text: t }) };
   };
 
-  C.qr = { decode, collector, clean, get FEATURES() { return (codec()?.FEATURES || []).map((f) => f[0]); } };
+  // FEATURES: every index driver the codec knows, the nine first ones and those added later (map key 20).
+  C.qr = { decode, collector, clean, get FEATURES() { const Q = codec(); return [...(Q?.FEATURES || []), ...(Q?.ADDED || [])].map((f) => f[0]); } };
 })();

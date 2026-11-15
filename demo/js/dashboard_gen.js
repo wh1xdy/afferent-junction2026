@@ -67,7 +67,12 @@
       rt_median: 'Reaction time', mood: 'Mood', sleep_regularity: 'Sleep regularity',
       missed_sessions: 'Missed sessions', effort_hard_prop: 'Hard effort share', morning_pulse: 'Morning pulse',
       home_only_days: 'Home-only days', upright_frac: 'Upright time', reward_bias: 'Reward bias',
+      expressiveness: 'Expressiveness',
     };
+    // Measures that need hardware the patient may not have (expressiveness: the phone's TrueDepth camera) are left
+    // out while they have no value in these weeks: they add nothing to the index, and an empty row is not a low one.
+    const OPTIONAL = ['expressiveness'];
+    const shown = (k, w) => !OPTIONAL.includes(k) || (w[k] || []).some(v => v != null);
     const STATE_LABELS = { stable: 'Stable', watch: 'Watch', check_in: 'Check in', booster: 'Booster' };
     const pct = v => (v == null ? '–' : `${Math.round(v * 100)}%`);
     const num = (v, d = 2) => (v == null ? '–' : Number(v.toFixed(d)));
@@ -137,7 +142,7 @@
     };
 
     const weekly = D.weekly || {};
-    const keys = ['composite', ...Object.keys(FEATURE_LABELS).filter(k => k in weekly)];
+    const keys = ['composite', ...Object.keys(FEATURE_LABELS).filter(k => k in weekly && shown(k, weekly))];
     if (keys.length) {
       const wc = card('Weekly trend (8 weeks)');
       keys.forEach(k => wc.append(featBlock(k === 'composite' ? 'Composite' : FEATURE_LABELS[k] || k, weekly[k] || [])));
@@ -179,7 +184,7 @@
       const cc = card('What moved the signal');
       const box = h('div', 'cbars');
       const max = Math.max(...contrib.map(c => Math.abs(c.contribution)), 0.0001);
-      contrib.slice(0, 8).forEach(c => {
+      contrib.forEach(c => {
         const r = h('div', 'crow');
         const track = h('div', 'track');
         const fill = h('div', `fill${c.contribution > 0 ? ' warn' : ''}`);
@@ -202,7 +207,7 @@
     ].forEach(([k, v]) => { const d = h('div'); d.append(h('b', null, v == null ? '–' : String(v)), h('span', null, k)); mk.append(d); });
     const mCard = card('Mornings & completeness', mk);
     const bf = cpl.by_feature || {};
-    const bfk = Object.keys(bf);
+    const bfk = Object.keys(bf).filter(k => shown(k, weekly));
     if (bfk.length) {
       const flags = h('div', 'flags');
       bfk.forEach(k => flags.append(h('span', null, `${FEATURE_LABELS[k] || k}: ${pct(bf[k])}`)));

@@ -127,7 +127,9 @@ These are in the code and its tests; please keep them.
   the encrypted link, a printed code or a file. On the home hub the real patient is left out of the clinic
   view entirely.
 - **Face images never leave the phone.** Camera frames, images, face meshes and raw blendshapes stay in the
-  native layer and are not stored; only per-second numbers reach the web layer.
+  native layer and are not stored; only per-second numbers reach the web layer. The session's face numbers
+  stay on the home hub; a doctor sees only the weekly Expressiveness driver made from them (smiling and facial
+  movement against the patient's own first weeks, [docs/handover.md](docs/handover.md#expressiveness-in-the-index)).
 - **Quality and freshness gates.** A finger reading counts for 3 s. Quality below 0.3, or no quality, is not
   a measurement. Missing stays missing, never 0. The box holds a settling or doubled pulse until it is
   steady for 6 s and leaves out a noisy clip next to a clean one. The camera pulse is its own number, needs

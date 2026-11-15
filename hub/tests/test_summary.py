@@ -91,6 +91,8 @@ def stable_variant(a):
     a["cusum"].update(state="stable", state_label="Stable", since_day=None)
     a["composite"].update(value=-0.214, trend_7d=-0.003)
     for c in a["composite"]["contributions"]:
+        if c["contribution"] is None:   # a driver without data (the fixture has no face numbers)
+            continue
         c["contribution"] = -abs(c["contribution"])
         c["signed_z"] = -abs(c["signed_z"])
     return a

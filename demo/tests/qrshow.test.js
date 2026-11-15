@@ -83,7 +83,7 @@ async function sheet(opts) {
   const env = load(opts);
   env.A.QRShow.open();
   await flush();
-  env.items = byClass(env.page, 'qs-list')[0].children.map(li => text(li).trim());
+  env.items = byClass(env.page, 'qs-list')[0].children.filter(li => !li.hidden).map(li => text(li).trim());
   env.note = find(env.page, 'qsNote');
   return env;
 }
@@ -102,6 +102,7 @@ const measured = () => ({
   simulated: { pulse_bpm: false, breathing_per_min: false, rmssd_ms: false },
 });
 const WORDS = /\b(stress\w*|strain\w*|normal|abnormal|elevated|worse|better|risk\w*|healthy|good|bad|high|low|diagnos\w*|should|recommend\w*|live)\b/i;
+const FEELING = /\b(sad|sadness|angry|anger|contempt|disgust|happy|happiness|fear|emotion\w*|mood|moods|expression|expressions|depress\w*|anxi\w*)\b/i;   // demo/tests/face.test.js
 
 (async () => {
   await test('sheet: lists what the dashboard behind the code holds', async () => {
@@ -110,12 +111,25 @@ const WORDS = /\b(stress\w*|strain\w*|normal|abnormal|elevated|worse|better|risk
     assert.deepStrictEqual(s.items, [
       '8 weeks of mornings: lanterns, play and the measures from play',
       'Weekly pulse, breathing rate and HRV (RMSSD) from the finger sensor',
+      'Smiling and facial movement during play, as one number a week',
       'Bedroom temperature and humidity at night, when measured',
       'Check-in totals, and safety answers as levels',
       'How complete the data is',
       'No name. No camera images. No pulse traces, only weekly numbers.',
     ]);
-    for (const t of [...s.items, s.note.textContent]) assert.ok(!WORDS.test(t), t);
+    for (const t of [...s.items, s.note.textContent]) assert.ok(!WORDS.test(t) && !FEELING.test(t), t);
+  });
+
+  await test('sheet: the face line only when the dashboard has a weekly expressiveness number', async () => {
+    const line = 'Smiling and facial movement during play, as one number a week';
+    assert.ok((await sheet()).items.includes(line), 'the fixture has face numbers');
+    const none = fixture();
+    none.weekly.expressiveness = Array(8).fill(null);
+    assert.ok(!(await sheet({ body: none })).items.includes(line), 'no TrueDepth camera or Phone camera off');
+    const old = fixture();
+    delete old.weekly.expressiveness;
+    assert.ok(!(await sheet({ body: old })).items.includes(line), 'a summary from a hub before it');
+    assert.strictEqual((await sheet({ body: none })).items.length, 6);
   });
 
   await test('sheet: the finger sensor line follows the weeks, and marks simulated numbers', async () => {

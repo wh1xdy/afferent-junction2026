@@ -22,6 +22,7 @@
     thermo: '<path d="M10 14.2V5.5a2 2 0 0 1 4 0v8.7a3.8 3.8 0 1 1-4 0z"/><path d="M12 9.5v6"/>',
     lock: '<rect x="5.5" y="10.5" width="13" height="10" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
     wifi: '<path d="M3.5 9.5a12 12 0 0 1 17 0M6.5 12.8a7.5 7.5 0 0 1 11 0M9.6 16a3 3 0 0 1 4.8 0"/><path d="M12 19.2v.01"/>',
+    face: '<circle cx="12" cy="12" r="8.5"/><path d="M8.6 14.2a4.4 4.4 0 0 0 6.8 0"/><path d="M9.2 9.8v.01M14.8 9.8v.01"/>',
   };
   const VITALS = [['pulse_bpm', 'pulse'], ['breathing_per_min', 'breathing rate'], ['rmssd_ms', 'HRV (RMSSD)']];
   const svg = (p, cls = '') => `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true">${p}</svg>`;
@@ -101,6 +102,10 @@
     const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
     return `Weekly ${list} from the finger sensor${rows.some(([k]) => v.simulated?.[k]) ? ' (simulated)' : ''}`;
   }
+
+  // Whether the dashboard has the weekly expressiveness number, made on the hub from the face numbers of play (the
+  // phone's TrueDepth camera). Told only when there is one: without the camera there is nothing to tell.
+  const faceShared = body => (body?.weekly?.expressiveness || []).some(x => Number.isFinite(x));
 
   // What the patient is told before the code is made, by the way it will most likely travel.
   function route() {
@@ -253,6 +258,7 @@
     const cancel = h('button', { type: 'button', class: 'qx-btn text', id: 'qsCancel', text: 'Cancel' });
     const item = (icon, text) => h('li', {}, [h('span', { class: 'qs-li', html: svg(icon) }), h('span', { text })]);
     const vitalsItem = item(ICON.pulse, '');
+    const faceItem = item(ICON.face, 'Smiling and facial movement during play, as one number a week');
     const way = route();
     const note = h('p', { class: 'qs-note', id: 'qsNote', 'data-way': way, text: NOTE[way] });
     const content = h('div', { class: 'qs-content' }, [
@@ -260,6 +266,7 @@
       h('ul', { class: 'qs-list' }, [
         item(ICON.twilight, '8 weeks of mornings: lanterns, play and the measures from play'),
         vitalsItem,
+        faceItem,
         item(ICON.thermo, 'Bedroom temperature and humidity at night, when measured'),
         item(ICON.checklist, 'Check-in totals, and safety answers as levels'),
         item(ICON.taskAlt, 'How complete the data is'),
@@ -296,6 +303,7 @@
       const p = period(r.body);
       periodLine.textContent = `Data from ${longDay(p.from)} to ${longDay(p.to)}`;
       vitalsItem.lastChild.textContent = vitalsLine(r.body);
+      faceItem.hidden = !faceShared(r.body);
       const t = Date.parse(r.saved_iso || r.body.generated_iso || '');
       const old = Number.isFinite(t) && Date.now() - t > 864e5;
       stale.hidden = !old;

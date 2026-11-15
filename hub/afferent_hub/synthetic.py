@@ -424,6 +424,42 @@ def make_session(rng, pid, day, date, p, sev, g, mood_latent, morning_pulse, rat
                     "bedside_light_level": int(rng.choice([5, 8, 15]))},
     }, adaptive
 
+FACE_REGIONS = ("brow", "eye", "cheek", "nose", "mouth", "jaw")
+FACE_REGION_P = (0.22, 0.18, 0.12, 0.04, 0.34, 0.10)
+
+def face_persona(rng) -> dict:
+    """The patient's usual face during play: smile share, facial movement, looking away, brief movements a minute."""
+    return {"smile": rng.uniform(0.1, 0.22), "movement": rng.uniform(0.025, 0.045), "smile_sd": rng.uniform(0.18, 0.26),
+            "gaze": rng.uniform(0.05, 0.12), "micro": rng.uniform(2.0, 4.5)}
+
+def face_block(rng, session: dict, fp: dict, p: dict, sev: float, g: float) -> dict | None:
+    """The session's vitals.face (session.v3) as the phone's TrueDepth camera would give it, from its own generator
+    so the rest of the patient stays as it was. Smiling and facial movement fall a little with severity (at full
+    severity about 30 % and 15 % below the patient's own level). None when the camera did not see the face."""
+    ratio = (session.get("signal") or {}).get("face_tracked_ratio") or 0.0
+    if ratio < 0.5:
+        return None
+    tracked = int(session["duration_ms"] / 1000 * ratio)
+    enough = tracked >= 30
+    smile = float(np.clip(fp["smile"] * (1 - 0.3 * sev - 0.08 * g) * math.exp(rng.normal(0, fp["smile_sd"])), 0, 1))
+    move = fp["movement"] * (1 - 0.15 * sev - 0.04 * g) * math.exp(rng.normal(0, 0.12))
+    ends = [move * math.exp(rng.normal(0, 0.3)) for _ in range(2)]
+    micros = int(rng.poisson(max(0.0, fp["micro"] * (1 - 0.2 * sev)) * tracked / 60))
+    regions = rng.multinomial(micros, FACE_REGION_P)
+    return {
+        "source": "arkit_truedepth", "seconds_tracked": tracked,
+        "smile_share": round(smile, 3) if enough else None,
+        "movement": {"mean": round(move, 4), "min": round(move * rng.uniform(0.2, 0.5), 4),
+                     "max": round(move * rng.uniform(2.0, 3.5), 4), "first": round(ends[0], 4),
+                     "last": round(ends[1], 4), "samples": tracked} if enough else None,
+        "blinks_per_min": r1(max(0.0, p["blink"] + 2 * sev + rng.normal(0, 3))) if enough else None,
+        "gaze_away_share": round(float(np.clip(fp["gaze"] + 0.05 * sev + rng.normal(0, 0.03), 0, 1)), 3) if enough else None,
+        "micro": {"count": micros, "per_min": r1(micros / tracked * 60) if enough else None,
+                  "median_duration_ms": int(rng.integers(120, 320)) if micros else None,
+                  "by_region": {k: int(v) for k, v in zip(FACE_REGIONS, regions)}},
+        "breathing_depth": None,
+    }
+
 def declined_session(pid, day, date, hour):
     return {"schema": "afferent.session/3", "session_id": f"sim-{pid}-d{day}", "patient_id": pid,
             "device_id": f"sim-{pid}", "started_iso": iso_at(date, hour), "local_hour": round(hour, 2),
@@ -501,6 +537,8 @@ def generate_patient(kind: Literal["relapse", "stable"], days: int = 56, seed: i
                      clock: str = "morning") -> dict:
     rng = np.random.default_rng(seed)
     extra_rng = np.random.default_rng([seed, 1])
+    face_rng = np.random.default_rng([seed, 2])
+    fp = face_persona(face_rng)
     pid = patient_id or f"{kind}-{seed}"
     name = display_name or pid.capitalize()
     onset = (onset_day if onset_day is not None else DEFAULT_ONSET) if kind == "relapse" else None
@@ -538,6 +576,9 @@ def generate_patient(kind: Literal["relapse", "stable"], days: int = 56, seed: i
             session, adaptive = make_session(rng, pid, d, date, p, s, float(g[d]), mood_latent, mp_true, rates,
                                              bandit_weights(counts), sessions)
             add_task_extra(extra_rng, session, p, s)
+            face = face_block(face_rng, session, fp, p, s, float(g[d]))
+            if face is not None:
+                session["vitals"]["face"] = face
             sessions.append(session)
             for t in adaptive:
                 if t["helped"] is not None and (t["mode"], t["id"]) in counts:

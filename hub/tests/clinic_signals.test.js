@@ -135,7 +135,7 @@ function loadPage(extra = []) {
   const imports = new Map();
   C.codes = { all: () => [...imports.values()], get: (cti) => imports.get(cti), label: () => 'Patient TEST', key: () => null };
   C.scanFmt = { day: () => '15 Nov', when: () => '15 Nov 10:12' };
-  C.qr = { FEATURES: QR.FEATURES.map((f) => f[0]) };
+  C.qr = { FEATURES: [...QR.FEATURES, ...QR.ADDED].map((f) => f[0]) };   // as qrdecode.js
   vm.runInContext(read(WEB, 'imported.js'), ctx);
   const V = C.views;
   const show = (imp) => { imports.set(imp.cti, imp); return V.exportDetail({}, imp.cti); };
@@ -156,8 +156,8 @@ function loadPage(extra = []) {
   assert.ok(iMeasures > 0 && iSig > iMeasures && iFacts > iSig, 'Signals sits between the measures and the facts');
   assert.ok(page.includes('Received via QR') && page.includes('15 Nov 10:12'));
   for (const gone of ['Not live data', 'Research prototype', 'The clinician decides', 'Ask the patient about the answers', 'Follow your clinic protocol', 'dp-foot']) assert.ok(!page.includes(gone), gone);
-  // the numbers are not a tenth feature: no tile among the measures and no usual range
-  assert.strictEqual(count(page, 'id="mm-'), 9);
+  // the numbers are not an index driver: no tile among the ten measures and no usual range
+  assert.strictEqual(count(page, 'id="mm-'), 10);
   assert.ok(!/id="mm-(pulse_bpm|breathing_per_min|rmssd_ms)"/.test(page));
 
   const charts = [];

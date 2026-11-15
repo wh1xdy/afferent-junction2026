@@ -337,3 +337,56 @@ def test_the_code_holds_the_vitals_at_their_largest_in_one_piece():
     assert out["chars"] <= out["cap"] and out["versions"][0] <= 22
     assert all(x is not None for row in out["body"]["vitals"]["weekly"].values() for x in row)
     assert len(out["body"]["safety"]) == len(body["safety"])
+
+# Expressiveness: from the stored sessions' vitals.face (kept on the hub) to the weekly numbers of the handover.
+
+E = "expressiveness"
+
+def test_expressiveness_weeks_reach_the_body_from_the_stored_face_blocks(client):
+    b = client.get("/api/patients/anna/qr-body").json()
+    weeks = b["weekly"][E]
+    assert len(weeks) == 8 and all(w is not None for w in weeks[1:])
+    assert weeks[1] == pytest.approx(1.0, abs=0.1) and weeks[-1] < 0.85, "Anna's falls a little with her relapse"
+    assert b["baseline"][E]["median"] == pytest.approx(1.0, abs=0.05) and b["baseline"][E]["scale"] >= 0.1
+    assert any(c["key"] == E and c["contribution"] > 0 for c in b["contrib"])
+    assert b["complete"]["by_feature"][E] > 0.5
+    stable = client.get("/api/patients/mikko/qr-body").json()
+    assert all(w == pytest.approx(1.0, abs=0.2) for w in stable["weekly"][E][1:]), "Mikko's stays near his own level"
+    assert_clean(b)
+    # the face blocks themselves stay on the hub
+    text = json.dumps(b)
+    for k in ("smile", "movement", "blinks", "gaze", "micro", "arkit", '"face"'):
+        assert k not in text, k
+
+def test_no_face_numbers_leave_expressiveness_empty_and_out_of_the_index(client):
+    hub = client.app.state.hub
+    sessions = hub.store.sessions("anna")
+    for s in sessions:
+        (s.get("vitals") or {}).pop("face", None)
+    p = hub.patient("anna")
+    hub.store.bulk(p, sessions, hub.store.daily("anna"), hub.privacy("anna"))
+    hub.recompute("anna")
+    b = client.get("/api/patients/anna/qr-body").json()
+    assert b["weekly"][E] == [None] * 8 and b["baseline"][E] is None
+    assert b["complete"]["by_feature"][E] == 0
+    assert not any(c["key"] == E for c in b["contrib"]), "no face numbers, no contribution"
+    assert b["composite"]["completeness"] == 1.0, "and not counted as missing"
+    out = through_the_codec(b)
+    assert out["status"] == "ok" and out["body"]["weekly"][E] == [None] * 8 and out["body"]["baseline"][E] is None
+
+def test_expressiveness_survives_the_phone_codec_and_an_older_body_still_does(client):
+    body = client.get("/api/patients/anna/qr-body").json()
+    out = through_the_codec(body)
+    assert out["status"] == "ok" and out["verified"] is True and out["parts"] == 1
+    got = out["body"]["weekly"][E]
+    assert [g is None for g in got] == [w is None for w in body["weekly"][E]]
+    assert all(g is None or abs(g - w) <= 0.005 + 1e-9 for g, w in zip(got, body["weekly"][E])), "in hundredths"
+    assert [c["key"] for c in out["body"]["contrib"]] == [c["key"] for c in body["contrib"]]
+    # a body from a hub before the driver: no key, and the code decodes without it
+    older = copy.deepcopy(body)
+    for part in (older["weekly"], older["baseline"], older["complete"]["by_feature"]):
+        del part[E]
+    older["contrib"] = [c for c in older["contrib"] if c["key"] != E]
+    old = through_the_codec(older)
+    assert old["status"] == "ok" and E not in old["body"]["weekly"] and E not in old["body"]["baseline"]
+    assert not any(c["key"] == E for c in old["body"]["contrib"])

@@ -37,7 +37,7 @@ def test_secondary_specs_stay_out_of_composite():
     assert all(f["evidence"] == "exploratory" and f["weight"] == 0 and f["in_composite"] is False
                for f in game_rt.SECONDARY)
     assert not {f["key"] for f in game_rt.SECONDARY} & {f["key"] for f in FEATURES}
-    assert sum(f["weight"] for f in FEATURES) == pytest.approx(8.5)
+    assert sum(f["weight"] for f in FEATURES) == pytest.approx(9.0)
 
 def test_cells_prefer_kinds_and_fall_back_to_task():
     t = task("fireflies", {"catch": {"n": 5, "median_ms": 420}, "tap_target": {"n": 2, "median_ms": 300}},

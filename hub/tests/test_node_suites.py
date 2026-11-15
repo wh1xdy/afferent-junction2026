@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SUITES = ["hub/tests/clinic_signals.test.js", "hub/tests/clinic_imported_state.test.js",
-          "demo/tests/qrpayload.test.js"]
+          "hub/tests/clinic_expressiveness.test.js", "demo/tests/qrpayload.test.js"]
 
 
 @pytest.mark.parametrize("suite", SUITES)
