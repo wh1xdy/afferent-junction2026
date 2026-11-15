@@ -57,6 +57,7 @@ As of Sunday 15 November. Everything below is on `main` unless it says otherwise
   Venue Wi-Fi like `Junction2026` drops Bonjour between devices, so Find may show nothing there: Paste works. The Mac bridge (`wendy net forward` + `socat` + `pair.sh <Mac IP>`) still works as before. Steps and fallbacks: `docs/home-hub.md`, "Reaching the hub".
 
 ## In progress
+- **Presence API open on the venue Wi-Fi**: `afferent-presence` runs with host networking, so its port 8090 (including `/ticks`, the raw Bluetooth scan log) answers anyone on the same Wi-Fi without a token. To lock with the hub token after the event.
 - **Finger clips that forgive pressure** (#91): a pressed, partly clipping sensor still gives a pulse, and the first pulse comes after about 6 s instead of 11.
 
 ## Rules our code follows (please keep them)
