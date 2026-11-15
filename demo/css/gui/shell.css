@@ -251,7 +251,7 @@
 .hub-state[data-state="on"]::before { background: var(--md-sys-color-stable); box-shadow: 0 0 8px color-mix(in srgb, var(--md-sys-color-stable) 60%, transparent); }
 .hub-state[data-state="warn"]::before { background: var(--md-sys-color-watch); }
 .hub-help { margin: 0 4px; }
-.hub-actions { display: flex; justify-content: flex-end; }
+.hub-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 /* The version line; 7 taps or a long press on it shows the Developer section (gui/shell.js). Reads as plain text. */
 .app-version { display: block; margin: 4px 24px 0; padding: 4px 8px; min-height: 32px; border: 0; background: none; text-align: left; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 

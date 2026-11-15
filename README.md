@@ -253,8 +253,20 @@ socat TCP-LISTEN:8000,bind=$IP,fork,reuseaddr TCP:127.0.0.1:18000
 jetson/home_hub/pair.sh $IP       # prints the Hub address; it must end in /k/<token>
 ```
 
-In the app: Settings › Home hub › Paste, then Connect. Everything else (USB hotspot instead of Wi-Fi, the
-environment variables, real versus simulated patients) is in [docs/home-hub.md](docs/home-hub.md).
+In the app: Settings › Home hub › Paste, then Connect.
+
+Without the Mac: the LAN door puts the hub on the Jetson's own Wi-Fi at port 8800 (the hub itself stays on
+the mesh). With the Jetson on the phone's Wi-Fi:
+
+```sh
+WENDY_DEVICE=<jetson> jetson/home_hub/deploy.sh          # the hub announces itself on the mesh
+WENDY_DEVICE=<jetson> jetson/home_hub/door/deploy.sh     # the door: port 8800, Bonjour _afferent-hub._tcp
+WENDY_DEVICE=<jetson> jetson/home_hub/pair.sh --jetson   # Hub address <jetson-ip>:8800/k/<token>
+```
+
+In the app: Settings › Home hub › Find on this Wi-Fi (keeps the key it has), or Paste, then Connect.
+Everything else (joining the Jetson to a Wi-Fi, networks that block Bonjour, USB hotspot instead of Wi-Fi,
+the environment variables, real versus simulated patients) is in [docs/home-hub.md](docs/home-hub.md).
 
 ### Voice relay
 

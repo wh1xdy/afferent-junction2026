@@ -1,0 +1,26 @@
+{
+  "appId": "afferent-home-hub-door",
+  "version": "0.1.0",
+  "platform": "linux",
+  "env": {
+    "AFFERENT_DOOR_UPSTREAM": "${AFFERENT_DOOR_UPSTREAM}",
+    "AFFERENT_DOOR_INTERFACES": "${AFFERENT_DOOR_INTERFACES}",
+    "AFFERENT_DOOR_ADVERTISE": "${AFFERENT_DOOR_ADVERTISE}"
+  },
+  "entitlements": [
+    {
+      "type": "network",
+      "mode": "host"
+    },
+    {
+      "type": "http",
+      "port": 8800
+    }
+  ],
+  "readiness": {
+    "tcpSocket": {
+      "port": 8800
+    },
+    "timeoutSeconds": 30
+  }
+}

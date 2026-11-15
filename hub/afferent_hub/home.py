@@ -20,6 +20,9 @@ AFFERENT_DATA_MANAGER_URL=auto finds the data manager over mDNS on the Wendy Net
 (role=data-manager); until one is found the sensor routes answer that the module is off. A data
 manager that answers is kept; another advert never replaces it. AFFERENT_DATA_MANAGER_DEVICE pins
 the device (the first label of the advert's host name, device-<id>).
+
+AFFERENT_HUB_ADVERTISE=1 announces the hub itself on the mesh (role=home-hub, advert.py), so the LAN
+door (jetson/home_hub/door) can find it; the advert carries no token.
 """
 import asyncio
 import datetime as dt
@@ -30,7 +33,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI
 
-from . import modules, views
+from . import advert, modules, views
 from .analytics.features import PLAYED
 from .db import TABLES, Store
 from .home_guard import HomeGuard
@@ -242,9 +245,11 @@ async def follow_data_manager(client, resolver, device: str = "", alive=answers)
         await resolver.stop()
 
 
-def create_home_app(settings: Settings | None = None, env=None, dm_resolver=None) -> FastAPI:
+def create_home_app(settings: Settings | None = None, env=None, dm_resolver=None, hub_advert=None) -> FastAPI:
     settings = settings or Settings.from_env()
     env = os.environ if env is None else env
+    if hub_advert is None and advert.enabled(env):
+        hub_advert = advert.HubAdvert()
     modules.fn["demo_roster"] = home_roster(settings, env)
     modules.fn["analyze_patient"] = honest_analytics(modules.fn["analyze_patient"])
     ensure_real_patient(settings, env)
@@ -268,9 +273,11 @@ def create_home_app(settings: Settings | None = None, env=None, dm_resolver=None
                 resolver = MdnsResolver(DM_ROLE)
             task = asyncio.create_task(follow_data_manager(client, resolver,
                                                            env.get("AFFERENT_DATA_MANAGER_DEVICE") or ""))
+        announced = await advert.start_advert(hub_advert) if hub_advert is not None else None
         try:
             yield
         finally:
+            await advert.stop_advert(announced)
             if task is not None:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
