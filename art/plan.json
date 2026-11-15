@@ -7,6 +7,7 @@
  "notes": [
   "Earlier plans (plan_v5.json and the task plans) live on branch art-v5; this file holds the assets made since.",
   "STYLE is the v5 RENDERING, LIGHT AND COLOUR and AVOID text unchanged; CONSTRAINTS is generate.py's isolated-element template.",
+  "art/refs/birches_ride.png is the v5 reference crop of this project's own ride concept plate (art/v5refs/ on branch art-v5).",
   "Draft (style lock, 2 x 2 medium): uv run art/generate.py --draft --n 2 --only tree_birch_a tree_spruce_b --sheet; the first draft put a laminated slab under the spruce, so the snow drift line now rules it out.",
   "Final: uv run art/generate.py --only <names> --sheet (xhigh, 3 variants each); finalise the picks with uv run art/finalize_trees.py (alpha cleaned, trimmed, scaled to final_max_edge, WebP).",
   "Fields pick, final_max_edge and why are documentation; generate.py ignores them. pick is the variant shipped in demo/assets."

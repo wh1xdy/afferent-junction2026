@@ -314,7 +314,7 @@ The reference iPhone app has its own tests (`ios/README.md`). `posture-analysis/
 | `voice-relay/` | Cloud Run relay for Talk and the locked dashboards, with the doctor's viewer |
 | `contracts/` | JSON schemas and fixtures shared by the app and the hub |
 | `design/` | design tokens, fonts, icon and the final concept art |
-| `art/` | the plans for the generated images and music (`generate.py`, `music_plan.json`) |
+| `art/` | the plans for the generated images and music (`generate.py`, `plan.json`, `music_plan.json`) |
 | `hardware/` | printable finger clip holders and the bill of materials |
 | `posture-analysis/` | posture, gait and expressivity markers from a camera, its controller and training |
 | `Transcription_analyzer/` | speech-drift scoring of Talk transcripts |
@@ -341,8 +341,9 @@ All repo content (code, comments, docs, commit messages) is in English.
 
 - Code: [MIT](LICENSE). Sounds in `demo/audio/`: CC0 and public-domain recordings, each with source,
   author and changes in [`demo/audio/CREDITS.md`](demo/audio/CREDITS.md).
-- Images and music tracks were generated for this project; the plans are in `art/`, and
-  `tools/music_import.py` cuts and normalises the tracks.
+- Images and music tracks were generated for this project; the plans are in `art/` (the walk's
+  birches and spruces in `art/plan.json`, finalised by `art/finalize_trees.py`; the earlier image plans on
+  branch `art-v5`), and `tools/music_import.py` cuts and normalises the tracks.
 - Fonts: Fraunces, Google Sans Flex, Jost and JetBrains Mono (SIL Open Font License; texts in
   `design/fonts/` and `demo/fonts/`), Material Symbols (Apache-2.0).
 - Vendored: qrcode-generator, jsQR, fflate, noble-curves/hashes
