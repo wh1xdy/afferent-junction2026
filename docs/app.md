@@ -74,6 +74,12 @@ Rules, the same on both paths:
   fused pulse and the finger frame stay out of the session.
 - The app first asks for Bluetooth when the patient opens Settings, Your signals or the clip check, or
   starts a session with the pulse stone switch on, not at launch.
+- Settings › Sensors › Sensor box (`A.config.sensors.sensor_box`, on by default, kept on the phone and never
+  sent to the hub) is the box as a whole. Off: no Bluetooth for the clips (a running link stops), no clip
+  check or its first-run offer, no Heart Duel, no room rows or night hint, no `light` messages to the hub
+  and knob messages ignored; the rows that need the box are hidden (`data-needs-box`). The pulse stone and
+  bedside light switches keep their state underneath (`A.sensorOn`). On again works without a restart.
+  Tests: `node demo/tests/sensorbox.test.js`.
 
 For a new screen (or a game scene) the whole sensor surface is `A.Finger` in `demo/js/finger.js` and
 `livePhysio()`, `pulse()` in `demo/js/sensors.js`; nothing else needs to know where the numbers come from.

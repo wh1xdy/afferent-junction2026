@@ -163,6 +163,9 @@ it). The voice companion's instructions always include the support button and 11
   light cannot leak in. OpenSCAD source, S/M/L STLs and print notes in [`hardware/`](hardware/README.md).
 - **Sensor box:** Arduino UNO Q with a Modulino Thermo (room temperature and humidity), a Modulino Buzzer
   and a KY-016 RGB LED (the "bedside light"). A Modulino Knob is supported but may be unplugged in the case.
+  Without the box, Settings › Sensors › Sensor box off turns off everything that comes from it (clips, clip
+  check, Heart Duel, room climate, bedside light and knob); sessions start at once and use what else there is
+  (the camera pulse, a watch or strap) or the labelled simulator.
 - **Jetson Orin Nano** with one camera (Logitech C920), running the home hub, the data manager and the
   presence, posture and camera apps.
 - **No bed sensor.** The app's bed-presence switch is always off and never offered.

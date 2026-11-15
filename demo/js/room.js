@@ -24,8 +24,10 @@
     };
   };
 
-  // The "Your room" rows of the signals sheet (vitals.js). A simulated reading is shown, labelled.
+  // The "Your room" rows of the signals sheet (vitals.js). A simulated reading is shown, labelled. None at all with the
+  // sensor box switched off: the thermometer is in it, so a missing reading is no news.
   const rows = now => {
+    if (!A.boxOn()) return [];
     const r = S.roomFrame(now);
     if (!r) return A.Hub?.connected ? [{ icon: 'home', label: 'Room', value: null, lines: ['No reading from the bedside unit right now'] }] : [];
     const lines = ['degrees Celsius', r.humidity == null ? null : `Humidity ${pct(r.humidity)}`, r.source === 'simulated' ? 'Simulated' : 'Bedside unit, via the hub'];

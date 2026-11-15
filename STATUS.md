@@ -30,6 +30,7 @@ As of Sunday 15 November. Everything below is on `main` unless it says otherwise
 - Room temperature and humidity come from the box through the home hub. "Your signals" shows them, and on a warm night there's one gentle line before the wind-down (#59).
 - Heart Duel (Settings → Sessions → Together): two people, one clip each, whoever calms down first wins. Nothing is saved or sent (#49, haptics #74).
 - Simulated sensors are off by default on phones and on in the browser demo (#67).
+- No box today? Settings → Sensors → Sensor box off: no Bluetooth for the clips, no clip check or its offer, no Heart Duel, no room rows, no bedside light or knob messages. Sessions start at once and use what else there is (camera pulse, a watch or strap) or the labelled simulator. On again without a restart (branch `box-off`).
 
 **Menus**
 - Settings is a short list of categories, each opening its own page; the hub address has a Paste button and a "Key missing" status (#76).

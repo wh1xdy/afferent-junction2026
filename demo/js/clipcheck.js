@@ -14,6 +14,7 @@
 //  - The only numbers shown are those readings.
 //  - While the camera step is up and its pulse is not OK yet, the face's distance from the phone may add one calm line
 //    ("Move a little closer", "A little further back"), after 2 s out of 20 to 45 cm (coach.js).
+//  - Never with the sensor box switched off (Settings, Sensors; A.boxOn): no offer, no question, kindling goes on.
 //  - Nothing is sent: no hub message, no network. This phone keeps only the outcome (OK or not, clips or camera,
 //    when) for the line in Settings. Camera frames stay in the native plugin; this file sees numbers only.
 //
@@ -186,9 +187,9 @@
     return `${!l.ok ? 'No pulse came through' : l.via === 'camera' ? 'Worked with the camera' : 'Worked'}, ${when(l.at_ms, nowMs)}`;
   };
 
-  // Whether kindling asks first: the patient uses the clips (switch on, clips on this phone or through the hub),
-  // has not switched the question off, and the clips give no pulse right now.
-  const wouldAsk = now => asks() && !!S.enabled.pulse_stone && (!!A.Finger?.available?.() || S.fingerAttached(now)) && !clipsOk(now);
+  // Whether kindling asks first: the patient uses the clips (the sensor box and the clips switched on, clips on this phone
+  // or through the hub), has not switched the question off, and the clips give no pulse right now.
+  const wouldAsk = now => A.boxOn() && asks() && !!S.enabled.pulse_stone && (!!A.Finger?.available?.() || S.fingerAttached(now)) && !clipsOk(now);
 
   A.ClipCheck = { T, KEY, MSG, clips, camera, clipsOk, model, fresh, line, when, wouldAsk, asks, store };
 
@@ -295,7 +296,7 @@
 
   const open = (mode = 'settings', go = null) => {
     const layer = $('clipcheck');
-    if (!layer) { go?.(); return; }
+    if (!layer || !A.boxOn()) { go?.(); return; }
     if (st) finish('close');
     hideOffer();
     st = fresh(mode, go, A.now());
@@ -355,12 +356,14 @@
   const hideOffer = () => $('clipOffer')?.remove();
   const offer = () => {
     const s = store.get(), q = new URLSearchParams(location.search);
-    if (s.offered_ms || s.last || !(A.Finger?.available?.() || q.get('clipcheck') === '1')) return false;
+    if (!A.boxOn() || s.offered_ms || s.last || !(A.Finger?.available?.() || q.get('clipcheck') === '1')) return false;
     const dock = document.querySelector('#start .dock');
     if (!dock || $('clipOffer') || A.session) return false;
     store.set({ offered_ms: Date.now() });
     const box = el('div', 'offer clip-offer');
     box.id = 'clipOffer';
+    // hidden again if the sensor box is switched off before it is answered (main.js boxShown)
+    box.setAttribute('data-needs-box', '');
     box.setAttribute('role', 'region'); box.setAttribute('aria-label', 'Try the finger clips');
     box.append(el('p', 't-title', 'Try the finger clips?'), el('p', 't-body-s muted', 'A quick check that your pulse comes through. Under a minute.'));
     const bs = el('div', 'offer-btns');

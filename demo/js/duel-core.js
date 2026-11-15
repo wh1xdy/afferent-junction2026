@@ -246,8 +246,8 @@
 
   const stop = m => { m.round = roundCreate(); return m; };
 
-  // A duel never runs inside a therapy session.
-  const allowed = () => !(A.session && !A.session.done);
+  // A duel never runs inside a therapy session, nor with the sensor box switched off: it is the two clips.
+  const allowed = () => A.boxOn?.() !== false && !(A.session && !A.session.done);
 
   // Lub-dub: two bumps per beat (the heart of game.js's page).
   const bump = (p, c, w) => Math.exp(-(((p - c) / w) ** 2));

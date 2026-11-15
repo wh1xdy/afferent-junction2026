@@ -157,7 +157,9 @@
 
   const model = now => {
     const ph = S.livePhysio(now), cam = S.cameraPulse(now), p = S.pulse(now), br = A.Breathing?.clearest?.(now) ?? null;
-    const rows = [pulseRow(ph, p, now), ...fingerRows(ph, br), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
+    // without the sensor box there is no finger sensor to report on: the pulse row reads the other sources
+    const clips = A.boxOn() ? [row('sensors', 'Sensor', null, sensorLines(ph))] : [];
+    const rows = [pulseRow(ph, p, now), ...fingerRows(ph, br), ...clips, ...cameraRow(cam, S.cameraState(now))];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
     const face = faceRows(S.faceLive(now), br, !ph?.source), room = [...(A.Room ? A.Room.rows(now) : []), ...(A.RoomSound ? A.RoomSound.rows(now) : [])].map(r => row(r.icon, r.label, r.value, r.lines));
     const watch = watchRows(now);
