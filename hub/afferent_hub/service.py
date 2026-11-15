@@ -389,7 +389,8 @@ class Hub:
         return e["html"]
 
     async def broadcast_analytics(self, pid: str, analytics: dict):
-        await self.to_clinic({"type": "analytics_updated", "patient_id": pid, "row": self.row(pid, analytics)})
+        await self.to_clinic({"type": "analytics_updated", "patient_id": pid,
+                              "row": views.clinic_row(self.row(pid, analytics))})
 
     def _today_daily(self, pid: str, day: int, session: dict) -> dict:
         rec = self.store.daily_day(pid, day)
@@ -490,10 +491,9 @@ class Hub:
             return
         flag = {"type": ftype, "t_iso": t_iso or views.now_iso(), "source": source, **(extra or {})}
         stored = {**flag, "_t": time.time(), **({"session_id": session_id} if session_id else {})}
+        # Kept on the patient's own hub for the handover they choose to show (qr.py: talk and safety). Nothing goes
+        # to a clinic socket: nobody is told live, so the phone's support and crisis screens never say anyone was.
         self.store.add_flag(pid, stored)
-        await self.to_clinic({"type": "crisis_flag", "patient_id": pid, "flag_type": ftype,
-                              **{k: v for k, v in flag.items() if k != "type"}})
-        await self.broadcast_analytics(pid, self.analytics(pid))
 
     async def ingest_checkin(self, doc: dict) -> dict:
         require_valid(self.checkin_v, doc)
@@ -513,8 +513,9 @@ class Hub:
         if flag:
             await self.add_flag(pid, flag["type"], flag["source"], t_iso=flag["t_iso"],
                                 extra={k: flag[k] for k in ("checkin_id", "label", "screen") if k in flag})
+        # which document was stored, as for a session (views.session_added); no answer and no score
         await self.to_clinic({"type": "checkin_added", "patient_id": pid, "checkin_id": doc["checkin_id"],
-                              "status": doc.get("status"), "phq9_total": (doc.get("phq9") or {}).get("total")})
+                              "status": doc.get("status")})
         return {"ok": True, "duplicate": False, "checkin_id": doc["checkin_id"], "patient_id": pid,
                 "safety_flag": flag["type"] if flag else None}
 

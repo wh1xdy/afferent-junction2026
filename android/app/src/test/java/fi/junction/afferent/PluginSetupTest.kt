@@ -17,7 +17,7 @@ import org.junit.Test
 class PluginSetupTest {
 
     // jsName of every in-app plugin in the Swift sources under ios/App/App.
-    private val iosJsNames = setOf("AfferentFinger", "AfferentPresence", "AfferentEyes", "AfferentHaptics", "AfferentSoundLevel")
+    private val iosJsNames = setOf("AfferentFinger", "AfferentPresence", "AfferentEyes", "AfferentHaptics", "AfferentWatch", "AfferentSoundLevel")
 
     @Test
     fun registeredPluginsUseTheIosJsNames() {
@@ -65,6 +65,30 @@ class PluginSetupTest {
         val callback = cls.declaredMethods.single { it.isAnnotationPresent(PermissionCallback::class.java) }
         assertEquals("permissionResult", callback.name)
         // one alias per Android generation, see AfferentFingerPlugin.permissionAlias
+        val permissions = annotation.permissions.associate { it.alias to it.strings.toSet() }
+        assertEquals(
+            mapOf(
+                "bluetooth" to setOf("android.permission.BLUETOOTH_SCAN", "android.permission.BLUETOOTH_CONNECT"),
+                "location" to setOf("android.permission.ACCESS_FINE_LOCATION"),
+            ),
+            permissions
+        )
+    }
+
+    /** demo/js/watch.js calls these, the methods of ios/App/App/AfferentWatch.swift. (AfferentHealth is iOS only.) */
+    @Test
+    fun watchPluginHasTheIosNameAndMethods() {
+        val cls = AfferentWatchPlugin::class.java
+        assertTrue(cls in AfferentPlugins.all)
+        val annotation = cls.getAnnotation(CapacitorPlugin::class.java)!!
+        assertEquals("AfferentWatch", annotation.name)
+        val methods = cls.declaredMethods.filter { it.isAnnotationPresent(PluginMethod::class.java) }
+        assertEquals(setOf("scan", "stopScan", "connect", "disconnect", "status"), methods.map { it.name }.toSet())
+        for (m in methods) {
+            assertEquals("${m.name} must return a promise", PluginMethod.RETURN_PROMISE, m.getAnnotation(PluginMethod::class.java)!!.returnType)
+            assertEquals(listOf(PluginCall::class.java), m.parameterTypes.toList())
+        }
+        assertEquals("permissionResult", cls.declaredMethods.single { it.isAnnotationPresent(PermissionCallback::class.java) }.name)
         val permissions = annotation.permissions.associate { it.alias to it.strings.toSet() }
         assertEquals(
             mapOf(

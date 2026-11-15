@@ -52,6 +52,8 @@
 		<string>_amzn-wplay._tcp</string>
 		<string>_androidtvremote2._tcp</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Afferent can show your Apple Watch heart rate, resting heart rate, heart rate variability, breathing rate and sleep next to your sessions, with how old each one is. It only reads them and never changes anything in Apple Health.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Afferent reads numbers from the front camera: eye openness, blinks, head tilt and how bright it is, a pulse estimate from tiny colour changes in your face, and how your face moves (smiling, where you look, breathing). Only these numbers are kept. Camera frames never leave the phone and are never stored.</string>
 	<key>NSMicrophoneUsageDescription</key>

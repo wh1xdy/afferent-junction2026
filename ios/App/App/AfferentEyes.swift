@@ -93,6 +93,8 @@ class AfferentViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(AfferentEyesPlugin())
         bridge?.registerPluginInstance(AfferentPulsePlugin())
         bridge?.registerPluginInstance(AfferentHapticsPlugin())
+        bridge?.registerPluginInstance(AfferentWatchPlugin())
+        bridge?.registerPluginInstance(AfferentHealthPlugin())
         bridge?.registerPluginInstance(AfferentSoundLevelPlugin())
     }
 }

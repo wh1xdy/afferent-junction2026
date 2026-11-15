@@ -266,11 +266,12 @@
       // HRV and breathing from the finger clips right now, as the breathing task reads them (breathing.js): never a
       // simulated frame or one of a session locked to the simulator, nothing older than 3 s, signal quality reported
       // and at least 0.3. null where there is no such reading.
+      // The clips come first; a watch or chest strap fills in when they give no pulse (A.Sensors.physioFrame).
       physioNow(now) {
-        const B = A.Breathing, f = B ? B.current(now) : null;
+        const B = A.Breathing, f = B ? (B.physio || B.current)(now) : null;
         if (!B || !B.real(f)) return null;
         const rmssd = pos(f.rmssd_ms), breathing = pos(f.breathing_per_min);
-        return rmssd == null && breathing == null ? null : { rmssd, breathing };
+        return rmssd == null && breathing == null ? null : { rmssd, breathing, source: f.source };
       },
 
       // Once a second: the current HRV and breathing, and, while the pulse is near this person's rest pulse and the
@@ -281,14 +282,21 @@
         const r = this.phys = this.physioNow(now);
         const near = plausible(p.bpm) && Math.abs(p.bpm - this.rest) / 10 < NEAR_A && this.fat < FAT_EXIT;
         if (!r || !near) return;
-        for (const k of ['rmssd', 'breathing']) if (r[k] != null && this.base[k].length < BASE_MAX) this.base[k].push(r[k]);
+        const base = this.baseOf(r.source);
+        for (const k of ['rmssd', 'breathing']) if (r[k] != null && base[k].length < BASE_MAX) base[k].push(r[k]);
+      },
+
+      // This session's own values per source: an RMSSD from a chest strap is compared with the strap's, never with the clips'.
+      baseOf(source) {
+        if (!source || source === 'finger_ppg') return this.base;
+        return (this.baseBy ||= {})[source] ||= { rmssd: [], breathing: [] };
       },
 
       // The numbers a reading is made from. Ratios and differences are against this person's own values; null where a
       // number or its own value is missing.
       signals() {
-        const own = xs => xs.length >= BASE_N ? median(xs) : null, r = this.phys;
-        const rmssd = r?.rmssd ?? null, breathing = r?.breathing ?? null, rb = own(this.base.rmssd), bb = own(this.base.breathing);
+        const own = xs => xs.length >= BASE_N ? median(xs) : null, r = this.phys, base = this.baseOf(r?.source);
+        const rmssd = r?.rmssd ?? null, breathing = r?.breathing ?? null, rb = own(base.rmssd), bb = own(base.breathing);
         return {
           pulse_bpm: this.pulseNow == null ? null : r1(this.pulseNow), pulse_rest_bpm: this.rest,
           rmssd_ms: r1(rmssd), rmssd_own_ms: r1(rb), rmssd_ratio: rmssd != null && rb ? r3(rmssd / rb) : null,
@@ -340,7 +348,9 @@
       setMode(now, mode, r = this.assess()) {
         const from = this.transitions.length ? this.mode : null, moved = from !== mode;
         const why = { state: r.state, basis: r.basis, reasons: [...r.reasons], signals: { ...r.signals } };
-        this.transitions.push({ t_ms: this.tm(now), from, to: mode, arousal: r3(this.a), fatigue: r3(this.fat), ...why });
+        // Where the RMSSD and breathing numbers came from: the finger clips, or a watch or strap when the clips gave no pulse.
+        const hrv = r.signals.rmssd_ms != null || r.signals.breathing_per_min != null ? this.phys?.source ?? null : null;
+        this.transitions.push({ t_ms: this.tm(now), from, to: mode, arousal: r3(this.a), fatigue: r3(this.fat), ...why, hrv_source: hrv });
         this.mode = mode; this.state = r.state; this.reading = mode; this.candidate = null;
         if (moved) {
           const [c, l] = this.modeLight(mode);
@@ -575,7 +585,7 @@
           while (this.playSamples.length && this.playSamples[0][0] < now - 6) this.playSamples.shift();
         }
         this.track?.frame(now, dt, f, p, Eyes.closed, this.restPitch);
-        if (now >= this.physio.next) this.physio.frame(now, A.Sensors.fingerFrame(now), A.Sensors.cameraPulse(now));
+        if (now >= this.physio.next) this.physio.frame(now, A.Sensors.fingerFrame(now), A.Sensors.cameraPulse(now), A.Sensors.watchFrame?.(now));
       },
 
       endWindow() {

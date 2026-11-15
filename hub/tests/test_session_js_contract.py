@@ -38,8 +38,9 @@ def emitted(*args):
 
 def validated(out):
     doc = json.loads((CONTRACTS / "fixtures" / "session_example.json").read_text())
-    for key in KEYS:
-        doc[key] = out[key]
+    for key in KEYS + ("context", "adaptive"):
+        if key in out:
+            doc[key] = out[key]
     schema = json.loads((CONTRACTS / "session.v3.schema.json").read_text())
     validator = Draft202012Validator(schema)
     assert [f"{e.json_path}: {e.message}" for e in validator.iter_errors(doc)] == []
@@ -85,6 +86,26 @@ def test_js_recorder_face_block_matches_schema():
     plain = validated(emitted())
     assert {k: v for k, v in doc["vitals"].items() if k != "face"} == plain["vitals"]
     assert doc["signal"] == plain["signal"] and doc["simulated_fields"] == plain["simulated_fields"]
+
+
+def test_js_recorder_watch_block_matches_schema():
+    """A chest strap over the Bluetooth Heart Rate Service and no finger sensor: the strap has its own vitals.watch block
+    labelled watch_ble, the finger blocks stay empty, and Apple Health goes into context.health as context only."""
+    doc = validated(emitted("watch"))
+    v = doc["vitals"]
+    assert doc["signal"]["pulse_source"] == v["pulse_source"] == "watch_ble"
+    assert v["finger"] is None and v["breathing"] is None and v["hrv"] is None and v["series"] is None
+    w = v["watch"]
+    assert (w["source"], w["transport"]) == ("watch_ble", "ble")
+    assert w["pulse_bpm"]["mean"] == 66 and w["quality"]["min"] >= 0.3
+    assert w["rmssd_ms"]["samples"] > 0 and abs(w["rmssd_ms"]["last"] - 40) < 1
+    assert w["contact_s"]["on"] == w["seconds"] and w["contact_s"]["off"] == 0
+    # A real strap pulse is never listed as simulated (the eyes are, in this test: no camera).
+    assert not any(n.startswith("vitals") or "pulse" in n.lower() for n in doc["simulated_fields"]), doc["simulated_fields"]
+    h = doc["context"]["health"]
+    assert (h["source"], h["device"], h["heart_rate_bpm"], h["resting_heart_rate_bpm"]) == ("healthkit", "apple_watch", 63, 54)
+    assert 240 <= h["heart_rate_age_s"] < 300 and h["hrv_sdnn_ms"] is None
+    assert {t["hrv_source"] for t in doc["adaptive"]["transitions"]} <= {"watch_ble", None}
 
 
 def test_js_breath_task_matches_schema():

@@ -339,11 +339,12 @@
           "enum": [
             "ky039",
             "finger_ppg",
+            "watch_ble",
             "rppg",
             "simulated",
             null
           ],
-          "description": "Source of the pulse the game used. finger_ppg is the bedside finger sensor (UNO Q, over Bluetooth to the phone or over the hub HTTP source); ky039 is kept for stored rows only (I11). One session's pulse is all real or all simulated (I53)."
+          "description": "Source of the pulse the game used, the one used most when it changed. finger_ppg is the bedside finger sensor (UNO Q, over Bluetooth to the phone or over the hub HTTP source); watch_ble is a watch or chest strap the patient chose, over the standard Bluetooth Heart Rate Service (used only while the finger sensor gives no pulse; see vitals.watch); ky039 is kept for stored rows only (I11). One session's pulse is all real or all simulated (I53)."
         },
         "pulse_from_ms": {
           "type": ["integer", "null"],
@@ -1072,7 +1073,15 @@
                   "pulse",
                   "none"
                 ],
-                "description": "what the state rests on: eyes (PERCLOS, long closures), hrv (finger clip RMSSD or breathing), pulse (the pulse alone), none (no pulse now, the last state held)"
+                "description": "what the state rests on: eyes (PERCLOS, long closures), hrv (RMSSD or breathing, see hrv_source), pulse (the pulse alone), none (no pulse now, the last state held)"
+              },
+              "hrv_source": {
+                "enum": [
+                  "finger_ppg",
+                  "watch_ble",
+                  null
+                ],
+                "description": "where signals.rmssd_ms and signals.breathing_per_min came from: the finger clips, or a watch or chest strap while the clips gave no pulse (its RMSSD is compared with its own values only); null when neither was there"
               },
               "reasons": {
                 "type": "array",
@@ -1097,7 +1106,7 @@
               },
               "signals": {
                 "type": "object",
-                "description": "the numbers the state was read from. pulse_bpm is the pulse the director used (the simulator's in a simulated session); the RMSSD and breathing numbers are real finger clip readings only (never simulated, signal quality 0.3 or more, at most 3 s old), null otherwise; own values are medians of readings taken while the pulse was within 5 bpm of rest",
+                "description": "the numbers the state was read from. pulse_bpm is the pulse the director used (the simulator's in a simulated session); the RMSSD and breathing numbers are real readings only, from the finger clips or from a watch or strap (hrv_source), never simulated, signal quality 0.3 or more, at most 3 s old, null otherwise; own values are medians of readings taken while the pulse was within 5 bpm of rest",
                 "additionalProperties": false,
                 "properties": {
                   "pulse_bpm": {
@@ -1241,6 +1250,7 @@
           "enum": [
             "ky039",
             "finger_ppg",
+            "watch_ble",
             "rppg",
             "simulated",
             null
@@ -1311,9 +1321,20 @@
             }
           ],
           "description": "What the face did during the session, from the phone camera, or null"
+        },
+        "watch": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/vitals_watch"
+            }
+          ],
+          "description": "A watch or chest strap over Bluetooth during the session, or absent when none was connected"
         }
       },
-      "description": "Session-level vitals. The four pulse_* keys describe the pulse the game used. finger, breathing, hrv, camera_pulse, series and face are optional sensor blocks (I53): absent or null when the sensor gave nothing; each names its own source. None of them enters the composite, daily.v1 or the patient view."
+      "description": "Session-level vitals. The four pulse_* keys describe the pulse the game used. finger, breathing, hrv, camera_pulse, series, face and watch are optional sensor blocks (I53): absent or null when the sensor gave nothing; each names its own source. finger, breathing, hrv and series are the finger sensor's only; a watch or strap has its own block. None of them enters the composite, daily.v1 or the patient view."
     },
     "stat": {
       "type": "object",
@@ -1658,6 +1679,82 @@
         }
       }
     },
+    "vitals_watch": {
+      "type": "object",
+      "description": "A watch or chest strap the patient chose in Settings, over the standard Bluetooth Heart Rate Service (180D / 2A37): a Garmin watch broadcasting its heart rate, a Polar or Wahoo strap. Measured numbers with their source, never mixed into the finger blocks. The phone works out the signal quality from the contact bits of 2A37 and the share of beat-to-beat intervals that pass its artifact filter (300 to 2000 ms and within 20% of the median around them), and the RMSSD from those intervals over a rolling 60 s window. A tick counts only with quality 0.3 or more.",
+      "required": [
+        "source",
+        "transport",
+        "seconds",
+        "pulse_bpm",
+        "quality",
+        "rmssd_ms",
+        "rr_s",
+        "contact_s"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "watch_ble"
+        },
+        "transport": {
+          "const": "ble"
+        },
+        "seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "1 Hz ticks in the session"
+        },
+        "pulse_bpm": {
+          "$ref": "#/$defs/stat",
+          "description": "The device's own pulse, beats per minute, over ticks with skin contact (or contact not reported) and quality 0.3 or more"
+        },
+        "quality": {
+          "$ref": "#/$defs/stat",
+          "description": "Signal quality 0 to 1 as the phone mapped it (contact bits times the share of clean intervals; 0.75 for the intervals part when the device sends none); below 0.3 is not used"
+        },
+        "rmssd_ms": {
+          "description": "RMSSD in ms from the device's beat-to-beat intervals, 60 s window, at least 20 successive differences over 30 s of clean beats; null when the device sent no intervals (most Garmin watches broadcasting)",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/stat"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rr_s": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Ticks with beat-to-beat intervals from the device in the last 30 s"
+        },
+        "contact_s": {
+          "type": "object",
+          "description": "Ticks with a current reading per skin-contact state the device reported (2A37 flags bits 1 and 2)",
+          "required": [
+            "on",
+            "off",
+            "not_reported"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "on": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "off": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_reported": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
     "vitals_face": {
       "type": "object",
       "description": "What the face did during the session, measured on the phone with the TrueDepth camera (ARKit face tracking) and kept as numbers only: no camera frame and no face mesh is stored or leaves the phone, and nothing here is sent while the session runs. Every measure is named by what the face does and says nothing about how the person feels. Built from one reading per second; a second counts as tracked when a face was tracked for at least half of it. Shares and rates are computed over tracked seconds only and are null when fewer than 30 tracked seconds carried the value.",
@@ -1881,6 +1978,76 @@
         },
         "bedside_light_level": {
           "$ref": "#/$defs/num_or_null"
+        },
+        "health": {
+          "$ref": "#/$defs/context_health"
+        }
+      }
+    },
+    "context_health": {
+      "type": "object",
+      "description": "Apple Health on the iPhone (an Apple Watch saves there; it sends nothing over Bluetooth): the latest sample of each kind when the patient allowed reading it, each with its age in seconds at the end of the session. Context only: saved every few minutes, without a signal quality, so it never drives the game's pulse. A kind with no sample young enough is null (heart rate 6 h, sleep 36 h, the others 7 days). Absent when reading Apple Health is off.",
+      "required": [
+        "source",
+        "device",
+        "heart_rate_bpm",
+        "heart_rate_age_s",
+        "resting_heart_rate_bpm",
+        "resting_heart_rate_age_s",
+        "hrv_sdnn_ms",
+        "hrv_sdnn_age_s",
+        "respiratory_rate_per_min",
+        "respiratory_rate_age_s",
+        "sleep_asleep_min",
+        "sleep_in_bed_min",
+        "sleep_end_age_s"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "healthkit"
+        },
+        "device": {
+          "enum": [
+            "apple_watch",
+            "other"
+          ],
+          "description": "apple_watch when a sample came from an Apple Watch, other when only other apps or devices wrote them"
+        },
+        "heart_rate_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "heart_rate_age_s": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "resting_heart_rate_bpm": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "resting_heart_rate_age_s": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "hrv_sdnn_ms": {
+          "$ref": "#/$defs/num_or_null",
+          "description": "Apple's heart rate variability, SDNN in ms: not the RMSSD of the finger clips or of a strap, and not comparable with it"
+        },
+        "hrv_sdnn_age_s": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "respiratory_rate_per_min": {
+          "$ref": "#/$defs/num_or_null"
+        },
+        "respiratory_rate_age_s": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "sleep_asleep_min": {
+          "$ref": "#/$defs/int_or_null",
+          "description": "Minutes asleep in the last night that ended within 36 h (overlapping samples from several sources counted once)"
+        },
+        "sleep_in_bed_min": {
+          "$ref": "#/$defs/int_or_null"
+        },
+        "sleep_end_age_s": {
+          "$ref": "#/$defs/int_or_null"
         }
       }
     }

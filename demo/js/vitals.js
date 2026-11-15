@@ -11,7 +11,8 @@
   };
   const NO_SENSOR = 'No finger sensor on this device', VIA_HUB = 'Connected through the home hub', PLACE = 'Connected. Place a finger in each of the two clips to start.';
   const NONE = 'No reading right now', SIM = 'Simulated', BPM = 'beats per minute';
-  const SOURCE = { finger_ppg: 'Finger sensor', simulated: SIM };
+  const WATCH = 'Watch or strap';
+  const SOURCE = { finger_ppg: 'Finger sensor', watch_ble: WATCH, simulated: SIM };
   const TRUST = { reliable: 'steady', uncertain: 'uncertain', unreliable: 'weak' };
   const CAMERA = 'Pulse, camera estimate', UNSTEADY = 'No steady reading right now';
   const CAM_LINK = {
@@ -20,7 +21,7 @@
   };
   const CAM_HINT = { 'head moving': 'Hold the phone still', 'face too dark': 'More light on your face helps', 'face overexposed': 'Too much light on your face' };
   const NO_QUALITY = 'This sensor version does not report signal quality, so its pulse is not shown or used.';
-  const CHIP = { finger_ppg: 'finger sensor' };
+  const CHIP = { finger_ppg: 'finger sensor', watch_ble: 'watch' };
   const BREATH_WAIT = 'Takes about half a minute of steady signal', BREATH_LAG = 'From your heart rhythm, about half a minute behind';
   const BREATH_SPAN = `Covers the task and the ${A.Breathing.WINDOW_S} seconds before it`;
   const CAM = 'Phone camera', LAST_MIN = 'in the last minute', OF_TIME = 'of the time, last minute';
@@ -92,6 +93,40 @@
     ];
   };
 
+  // A watch or chest strap the patient chose (watch.js): its pulse and, when it sends beat-to-beat times, the RMSSD the
+  // phone works out from them. Its own group, under its own name, so it is never read as the finger sensor.
+  const WATCH_LINK = { idle: 'Looking for it', connecting: 'Looking for it', off: 'Bluetooth is off', unauthorized: 'Bluetooth is off for Afferent in Settings', unsupported: 'No Bluetooth on this phone' };
+  const watchRows = now => {
+    if (!S.enabled.watch) return [];
+    const name = S.watchLink.name || WATCH, w = S.watchFrame(now), link = S.watchLink.state;
+    if (!w) return [row('devices', name, null, [link === 'connected' ? NONE : WATCH_LINK[link] || NONE, WATCH])];
+    const pulse = w.pulse_bpm != null ? row('devices', name, int(w.pulse_bpm), [BPM, WATCH])
+      : row('devices', name, null, [w.contact === false ? 'Not on the skin' : 'Waiting for a steady signal', WATCH]);
+    const beats = !w.rr ? (w.pulse_bpm != null ? [row('vital_signs', 'Beat-to-beat variation', null, ['This device sends no beat-to-beat times'])] : [])
+      : w.rmssd_ms == null ? [row('vital_signs', 'Beat-to-beat variation', null, ['Takes about a minute', name])]
+      : [row('vital_signs', 'Beat-to-beat variation', int(w.rmssd_ms), ['ms (RMSSD)', name])];
+    return [pulse, ...beats];
+  };
+
+  // Apple Watch through Apple Health (health.js): saved samples, never live, each with how old it is.
+  const hours = m => { const h = Math.floor(m / 60), r = Math.round(m % 60); return h ? `${h} h${r ? ` ${r} min` : ''}` : `${r} min`; };
+  const healthRows = () => {
+    const H = A.Health;
+    if (!H?.on) return null;
+    const when = x => `${H.label(x)}, ${H.ago(x.age_min)}`, rows = [], seen = [];
+    const add = (kind, icon, label, unit, fmt = int) => {
+      const x = H.latest(kind);
+      if (x) { rows.push(row(icon, label, fmt(x.value), [unit, when(x)])); seen.push(x); }
+    };
+    add('heart_rate', 'ecg_heart', 'Heart rate', BPM);
+    add('resting_hr', 'ecg_heart', 'Resting heart rate', BPM);
+    add('hrv_sdnn', 'vital_signs', 'Beat-to-beat variation', 'ms (SDNN)');
+    add('respiratory_rate', 'air', 'Breathing', 'breaths per minute');
+    add('sleep', 'bedtime', 'Sleep', 'asleep, the night before', hours);
+    if (!rows.length) return null;
+    return { title: `${seen.some(x => H.label(x) === 'Apple Watch') ? 'Apple Watch' : 'Apple Health'}, saved samples`, rows };
+  };
+
   const earlier = () => {
     const v = A.lastVitals, at = A.lastVitalsAt;
     if (!v || !at || new Date(at).toDateString() !== new Date().toDateString()) return null;
@@ -103,6 +138,9 @@
     const b = f ? A.lastBreath : null;
     if (b) rows.push(row('air', 'Breathing around the breathing task', int(b.rate_per_min.mean), [over('breaths per minute'), BREATH_SPAN, b.seconds >= A.Breathing.WINDOW_S && `Guide: ${int(b.guide_per_min)}`, pulseSpan(b)]));
     if (cam?.source === 'rppg' && cam.pulse_bpm?.mean != null) rows.push(row('videocam', CAMERA, int(cam.pulse_bpm.mean), [over(BPM), cam.trust_score?.mean == null ? null : `${signalQuality(cam.trust_score.mean)}, average`]));
+    const w = v.watch?.source === 'watch_ble' ? v.watch : null;
+    if (w?.pulse_bpm?.mean != null) rows.push(row('devices', 'Pulse', int(w.pulse_bpm.mean), [over(BPM), WATCH]));
+    if (w?.rmssd_ms?.mean != null) rows.push(row('vital_signs', 'Beat-to-beat variation', int(w.rmssd_ms.mean), [over('ms (RMSSD)'), WATCH]));
     return rows.length ? { title: new Date(at).getHours() < 12 ? 'This morning' : 'Earlier today', rows } : null;
   };
 
@@ -111,7 +149,11 @@
     const rows = [pulseRow(ph, p, now), ...fingerRows(ph), row('sensors', 'Sensor', null, sensorLines(ph)), ...cameraRow(cam, S.cameraState(now))];
     const note = ph?.source === 'finger_ppg' && !ph.quality_reported ? NO_QUALITY : null;
     const face = faceRows(S.faceLive(now)), room = [...(A.Room ? A.Room.rows(now) : []), ...(A.RoomSound ? A.RoomSound.rows(now) : [])].map(r => row(r.icon, r.label, r.value, r.lines));
-    return { rows, note, room: room.length ? { title: 'Your room', rows: room } : null, face: face.length ? { title: 'Face', rows: face } : null, earlier: earlier() };
+    const watch = watchRows(now);
+    return {
+      rows, note, watch: watch.length ? { title: WATCH, rows: watch } : null, health: healthRows(),
+      room: room.length ? { title: 'Your room', rows: room } : null, face: face.length ? { title: 'Face', rows: face } : null, earlier: earlier(),
+    };
   };
 
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -140,6 +182,8 @@
     drawn = key;
     const nodes = [groupEl(m.rows)];
     if (m.note) nodes.push(el('p', 't-body-s muted sig-note', m.note));
+    if (m.watch) nodes.push(groupEl(m.watch.rows, m.watch.title));
+    if (m.health) nodes.push(groupEl(m.health.rows, m.health.title));
     if (m.room) nodes.push(groupEl(m.room.rows, m.room.title));
     if (m.face) nodes.push(groupEl(m.face.rows, m.face.title));
     if (m.earlier) nodes.push(groupEl(m.earlier.rows, m.earlier.title));
