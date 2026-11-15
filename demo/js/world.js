@@ -95,12 +95,11 @@
     x.globalCompositeOperation = 'destination-out'; x.beginPath(); x.arc(64, 38, 36, 0, 6.283); x.fill(); SPR.moon = c;
   })();
 
-  const tints = new Map(), spare = new Map(), TINT_MAX = 192, tintStats = { misses: 0, made: 0 };
+  const tints = new Map(), spare = new Map(), TINT_MAX = 192;
   function tint(name, c, q = 3) {
     const r = c[0] >> q, g = c[1] >> q, b = c[2] >> q, k = name + r + ':' + g + ':' + b;
     let t = tints.get(k);
     if (t) { tints.delete(k); tints.set(k, t); return t; }
-    tintStats.misses++;
     const src = SPR[name], w = src.width, h = src.height;
     if (tints.size >= TINT_MAX) {
       const [ok, old] = tints.entries().next().value, pk = old.width + 'x' + old.height, pool = spare.get(pk) || [];
@@ -108,7 +107,7 @@
       if (pool.length < 8) { pool.push(old); spare.set(pk, pool); }
     }
     t = spare.get(w + 'x' + h)?.pop();
-    if (!t) { [t] = mk(w, h); tintStats.made++; }
+    if (!t) [t] = mk(w, h);
     const x = t.getContext('2d');
     x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, w, h); x.drawImage(src, 0, 0);
     x.globalCompositeOperation = 'source-in'; x.fillStyle = `rgb(${r << q},${g << q},${b << q})`; x.fillRect(0, 0, w, h);
@@ -1605,7 +1604,6 @@
     // The figure on the screen (CSS px), with its lantern, the touch dot on it and that dot's ring of light: the box
     // the Live vitals panel and every other overlay must keep clear of.
     figureBox,
-    tintStats: () => ({ ...tintStats, size: tints.size }),
     draw(ctx, w, h, state) {
       S = state; W = w; H = h; ctxRef = ctx;
       u = H / 844;
