@@ -7,16 +7,18 @@
 
   const lead = r => r.glyph ? `<span class="lead-glyph" aria-hidden="true">${r.glyph}</span>` : r.icon ? `<span class="ms" aria-hidden="true">${r.icon}</span>` : '';
   const text = r => `<span class="txt"><span class="hl">${r.label}</span>${r.sup != null ? `<span class="sup"${r.supId ? ` id="${r.supId}"` : ''}>${r.sup}</span>` : ''}${r.liveId ? `<span class="sup" id="${r.liveId}"></span>` : ''}</span>`;
+  // box: a row, group or category that only works with the sensor box, hidden while it is switched off (main.js boxShown).
+  const needs = x => x.box ? ' data-needs-box' : '';
   const row = r => {
     if (r.html) return r.html;
-    const two = r.sup != null ? ' two' : '';
-    if (r.sw) return `<label class="li state${two}">${lead(r)}${text(r)}${sw(r.sw)}</label>`;
-    if (r.href) return `<a class="li state${two}" href="${r.href}"${r.id ? ` id="${r.id}"` : ''}>${lead(r)}${text(r)}<span class="ms trail" aria-hidden="true">chevron_right</span></a>`;
-    if (r.static) return `<div class="li static${two}">${lead(r)}${text(r)}${r.val != null ? `<span class="val"${r.valId ? ` id="${r.valId}"` : ''}>${r.val}</span>` : ''}</div>`;
-    return `<button type="button" class="li state${two}" ${r.attrs || ''}>${lead(r)}${text(r)}${r.val != null ? `<span class="val">${r.val}</span>` : ''}${r.chevron ? '<span class="ms trail" aria-hidden="true">chevron_right</span>' : ''}</button>`;
+    const two = r.sup != null ? ' two' : '', nb = needs(r);
+    if (r.sw) return `<label class="li state${two}"${nb}>${lead(r)}${text(r)}${sw(r.sw)}</label>`;
+    if (r.href) return `<a class="li state${two}" href="${r.href}"${r.id ? ` id="${r.id}"` : ''}${nb}>${lead(r)}${text(r)}<span class="ms trail" aria-hidden="true">chevron_right</span></a>`;
+    if (r.static) return `<div class="li static${two}"${nb}>${lead(r)}${text(r)}${r.val != null ? `<span class="val"${r.valId ? ` id="${r.valId}"` : ''}>${r.val}</span>` : ''}</div>`;
+    return `<button type="button" class="li state${two}"${nb} ${r.attrs || ''}>${lead(r)}${text(r)}${r.val != null ? `<span class="val">${r.val}</span>` : ''}${r.chevron ? '<span class="ms trail" aria-hidden="true">chevron_right</span>' : ''}</button>`;
   };
   const head = g => `<h3 class="subhead t-label">${g.title}${g.hint ? `<button type="button" class="icon-btn state" aria-label="${g.hint}" title="${g.hint}" data-hint><span class="ms">info</span></button>` : ''}</h3>`;
-  const group = g => `<section class="set-group"${g.id ? ` id="${g.id}"` : ''}>
+  const group = g => `<section class="set-group"${g.id ? ` id="${g.id}"` : ''}${needs(g)}>
     ${g.bare ? '' : head(g)}
     <div class="group">${g.rows.map(row).join('')}</div>
   </section>`;
@@ -43,9 +45,10 @@
     { page: 'sensors', id: 'sensorsGroup', title: 'Sensors', hint: 'From the sensors, only numbers leave the phone, never camera images.', rows: [
       { icon: 'videocam', label: 'Phone camera', sw: 'data-sensor="phone_camera"' },
       { icon: 'light_mode', label: 'Screen light for the camera', sup: 'A brighter screen lights your face, only as much as it needs', sw: 'id="lightSw"' },
-      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"' },
+      { icon: 'sensors', label: 'Sensor box', sup: 'Finger clips, room, bedside light', sw: 'data-sensor="sensor_box"' },
+      { icon: 'ecg_heart', label: 'Pulse stone', sup: 'Two finger clips', liveId: 'fingerState', sw: 'data-sensor="pulse_stone"', box: true },
       { icon: 'air', label: 'Breathing pace', sup: 'Shown in the breathing task', sw: 'id="breathSw"' },
-      { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"' },
+      { icon: 'lightbulb', label: 'Bedside light', sup: 'One small LED on the bedside unit, set through the home hub', sw: 'data-sensor="bedside_light"', box: true },
       { icon: 'accessibility_new', label: 'Bedside camera', sw: 'data-sensor="bedside_camera"' },
       { icon: 'mobile_vibrate', label: 'Phone movement', sw: 'data-sensor="phone_motion"' },
       { icon: 'volume_up', label: 'Room sound level', sup: 'Measures how loud the room is, never records', sw: 'id="roomSoundSw"' },
@@ -53,11 +56,11 @@
     { page: 'sensors', title: 'While you play', rows: [
       { icon: 'vital_signs', label: 'Live vitals', sup: 'Your pulse and breathing in a corner, and why the games change', sw: 'id="vitalsSw"' },
     ] },
-    { page: 'session', title: 'Before a session', rows: [
+    { page: 'session', title: 'Before a session', box: true, rows: [
       { icon: 'back_hand', label: 'Check the finger clips', sup: 'Not checked yet', supId: 'clipState', attrs: 'id="clipCheckRow"', chevron: true },
       { icon: 'checklist', label: 'Ask before each session', sup: 'Only when the clips give no pulse yet', sw: 'id="clipAskSw"' },
     ] },
-    { page: 'session', title: 'Together', rows: [
+    { page: 'session', title: 'Together', box: true, rows: [
       { icon: 'favorite', label: 'Heart Duel', sup: 'Two people, one clip each. A game outside your sessions, nothing is saved', attrs: 'data-duel', chevron: true },
     ] },
     { page: 'mornings', id: 'morningsGroup', title: 'Mornings', rows: [] },
@@ -87,7 +90,8 @@
   const PAGES = [
     { id: 'sound', icon: 'volume_up', title: 'Sound and feel' },
     { id: 'sensors', icon: 'sensors', title: 'Sensors' },
-    { id: 'session', icon: 'back_hand', title: 'Sessions' },
+    // all of it is the finger clips: the clip check and Heart Duel
+    { id: 'session', icon: 'back_hand', title: 'Sessions', box: true },
     { id: 'mornings', icon: 'wb_twilight', title: 'Mornings and check-in' },
     { id: 'clinic', icon: 'ios_share', title: 'Share with your clinic' },
     { id: 'hub', icon: 'router', title: 'Home hub' },
@@ -127,7 +131,7 @@
   // The markup of Settings: the category list for #settingsBody and one page per category for #settings.
   const devGroup = () => group(DEV).replace('class="set-group"', `class="set-group dev${dev ? ' open' : ''}"${devShown ? '' : ' hidden'}`)
     .replace(/<h3 class="subhead t-label">Developer/, `<h3 class="subhead t-label"><button type="button" class="dev-toggle state" aria-expanded="${dev}"><span>Developer</span><span class="ms" aria-hidden="true">expand_more</span></button>`);
-  const catRow = p => `<button type="button" class="li state two set-cat" data-page="${p.id}"><span class="ms" aria-hidden="true">${p.icon}</span>`
+  const catRow = p => `<button type="button" class="li state two set-cat" data-page="${p.id}"${needs(p)}><span class="ms" aria-hidden="true">${p.icon}</span>`
     + `<span class="txt"><span class="hl">${p.title}</span><span class="sup" id="setSum-${p.id}"></span></span><span class="ms trail" aria-hidden="true">chevron_right</span></button>`;
   const pageHtml = p => `<section id="setPage-${p.id}" class="screen set-page hidden" data-page="${p.id}" aria-labelledby="setTitle-${p.id}">
     <header class="top-bar app-bar"><button class="icon-btn state" data-page-back type="button" aria-label="Back to Settings"><span class="ms">arrow_back</span></button><h2 id="setTitle-${p.id}" class="title" tabindex="-1">${p.title}</h2></header>
@@ -151,6 +155,8 @@
       return `${on('soundSw') ? 'Sound on' : 'Sound off'} · ${!on('hapticSw') ? 'Vibration off' : beat ? `Heartbeat: ${beat}` : 'Vibration on'}`;
     },
     sensors: () => {
+      const box = document.querySelector('#setPage-sensors [data-sensor="sensor_box"]');
+      if (box && !box.checked) return 'Sensor box off';
       const stone = document.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
       return !stone?.checked ? 'Finger clips off' : A.Sensors?.fingerLink?.state === 'connected' ? 'Finger clips connected' : 'Finger clips not connected';
     },

@@ -28,7 +28,7 @@
         console.warn('finger sensor: start failed', e);
       }
       this.starting = false;
-      if (this.listeners && !A.config?.sensors?.pulse_stone) await this.stop();
+      if (this.listeners && !A.sensorOn('pulse_stone')) await this.stop();
     },
 
     async stop() {
@@ -41,7 +41,8 @@
       S.setFingerLink(this.available() ? 'off' : 'unavailable');
     },
 
-    sync() { return this.armed && A.config?.sensors?.pulse_stone && this.available() ? this.start() : this.stop(); },
+    // Off with the pulse stone or the whole sensor box switched off: no scan, no connection, a running one stops.
+    sync() { return this.armed && A.sensorOn('pulse_stone') && this.available() ? this.start() : this.stop(); },
 
     arm() {
       if (!this.armed) { this.armed = true; try { localStorage.setItem(ASKED, '1'); } catch {} }

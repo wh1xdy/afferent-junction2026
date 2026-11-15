@@ -75,7 +75,7 @@ const shown = el => !!el && !el.classList.contains('hidden');
 // Every control Settings had before it was split into pages, by how main.js, clipcheck.js, duel.js, onboard.js and
 // presence.js find it.
 const CONTROLS = ['id="soundSw"', 'id="hapticSw"', 'id="beatSeg"', 'id="quietSw"', 'id="motionSw"',
-  'data-sensor="phone_camera"', 'data-sensor="pulse_stone"', 'id="fingerState"', 'id="breathSw"', 'data-sensor="bedside_light"', 'data-sensor="bedside_camera"', 'data-sensor="phone_motion"', 'id="roomSoundSw"',
+  'data-sensor="phone_camera"', 'data-sensor="sensor_box"', 'data-sensor="pulse_stone"', 'id="fingerState"', 'id="breathSw"', 'data-sensor="bedside_light"', 'data-sensor="bedside_camera"', 'data-sensor="phone_motion"', 'id="roomSoundSw"',
   'id="vitalsSw"', 'id="clipCheckRow"', 'id="clipState"', 'id="clipAskSw"', 'data-duel', 'id="morningsGroup"', 'id="checkinSw"',
   'id="qrBtn"', 'id="exportBtn"', 'id="sharingState"', 'id="hubForm"', 'id="hubAddr"', 'id="hubState"',
   'data-open="info"', 'data-open="signals"', 'data-anchor', 'id="weekBtn"', 'id="devGroup"', 'id="simSw"', 'id="sigSw"',
@@ -172,13 +172,15 @@ const tests = {
     assert.deepStrictEqual($('beatSeg').querySelectorAll('button').map(b => [b.dataset.v, b.getAttribute('role')]),
       [['off', 'radio'], ['soft', 'radio'], ['medium', 'radio'], ['strong', 'radio']], 'Off · Soft · Medium · Strong');
     assert.strictEqual($('beatSeg').getAttribute('role'), 'radiogroup');
-    const stone = p.doc.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
-    stone.checked = true; A.Sensors = { fingerLink: { state: 'scanning' } }; p.change(stone);
+    const box = p.doc.querySelector('#setPage-sensors [data-sensor="sensor_box"]'), stone = p.doc.querySelector('#setPage-sensors [data-sensor="pulse_stone"]');
+    box.checked = true; stone.checked = true; A.Sensors = { fingerLink: { state: 'scanning' } }; p.change(stone);
     assert.strictEqual($('setSum-sensors').textContent, 'Finger clips not connected');
     A.Sensors.fingerLink.state = 'connected'; A.Shell.settings.refresh();
     assert.strictEqual($('setSum-sensors').textContent, 'Finger clips connected');
     stone.checked = false; p.change(stone);
     assert.strictEqual($('setSum-sensors').textContent, 'Finger clips off');
+    box.checked = false; p.change(box);
+    assert.strictEqual($('setSum-sensors').textContent, 'Sensor box off', 'the whole box switched off says so first');
     $('hubState').textContent = 'Key missing'; A.Shell.settings.refresh();
     assert.strictEqual($('setSum-hub').textContent, 'Key missing', 'Home hub says what its page says');
     // a hook (main.js's hub line) runs before the lines are read

@@ -233,6 +233,8 @@
 /* Settings opens on a list of categories; each slides its own page in from the right over the list (gui/shell.js) and
    goes back the same way, by its arrow or a swipe from the left edge (gui/swipe.js). */
 .set-cats { margin-top: 8px; }
+/* The sensor box switched off (Settings, Sensors; main.js boxShown): whatever only works with it is not offered. */
+[data-sensor-box="off"] [data-needs-box] { display: none !important; }
 .set-cat .sup { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .set-page { z-index: 2; background: var(--af-grain), var(--md-sys-color-surface); background-size: var(--af-grain-size), auto; color: var(--md-sys-color-on-surface);
   box-shadow: -16px 0 32px rgba(3, 8, 20, 0.16); animation: pageIn var(--af-dur-enter) var(--af-ease-in); }

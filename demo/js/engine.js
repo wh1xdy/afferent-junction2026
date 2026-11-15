@@ -99,9 +99,11 @@
       setPhase(p) { this.phase = p; this.phaseAt = A.now(); A.bus.emit('segment', p); },
       light(rgbHex, level, fade_ms, reason) {
         if (this.night && A.config.quietNight !== false) level = Math.min(level, QUIET_CAP);
-        if (A.config.sensors.bedside_light && A.Hub?.connected) this.lastLightLevel = level;
+        // the bedside light is on the sensor box: with the box switched off nothing goes to the hub for it (A.sensorOn)
+        const lit = A.sensorOn('bedside_light');
+        if (lit && A.Hub?.connected) this.lastLightLevel = level;
         A.bus.emit('light', { rgb: rgbHex, level, fade_ms, reason });
-        if (A.config.sensors.bedside_light) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
+        if (lit) A.bus.emit('ws', { type: 'light', rgb: rgbHex, level, fade_ms, reason });
       },
       haptic(name = 'touch', k) { A.Haptics?.play(name, k); },
       kick(x) { this.flameKick = Math.max(this.flameKick, x); },

@@ -42,7 +42,7 @@
     forceRide: q.get('ride') || null,
   };
   const S = A.Sensors;
-  const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.config.sensors.pulse_stone, simulator: A.config.simulator });
+  const syncSensors = () => Object.assign(S.enabled, { phone_camera: A.config.sensors.phone_camera, pulse_stone: A.sensorOn('pulse_stone'), simulator: A.config.simulator });
   syncSensors();
 
   const PROFILES = ['live', 'good_day', 'bad_day'];
@@ -244,6 +244,9 @@
   const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, screenLight: A.config.screenLight, heartLevel: A.config.heartLevel, roomSound: A.config.roomSound, sound: ui.sound });
   const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Your clinic sees nothing unless you show them.' };
   const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
+  // Without the sensor box, whatever only works with it is not offered: its rows in Settings (the clips, the bedside
+  // light, the clip check, Heart Duel) and the first-run offer of the clip check carry data-needs-box (css/gui/shell.css).
+  const boxShown = () => { document.documentElement.dataset.sensorBox = A.boxOn() ? 'on' : 'off'; };
   const toggles = () => {
     document.querySelectorAll('[data-sensor]').forEach(el => { el.checked = !!A.config.sensors[el.dataset.sensor]; });
     sharingText();
@@ -260,6 +263,7 @@
     $('roomSoundSw').checked = A.config.roomSound;
     beatSeg();
     camGlyph();
+    boxShown();
   };
   const syncCamPulse = () => { Promise.resolve(A.CamPulse.sync()).then(camGlyph, camGlyph); camGlyph(); };
   document.querySelectorAll('[data-sensor]').forEach(el => el.onchange = () => {
@@ -267,8 +271,10 @@
     A.config.sensors[sensor] = el.checked;
     if (sensor === 'phone_camera' && !el.checked) { if (ui.input === 'camera') { ui.input = 'touch'; chips(); } if (S.camera()) S.stop(); }
     syncSensors(); saveSettings(); camGlyph();
-    if (sensor === 'pulse_stone') { if (el.checked) A.Finger.arm(); else { A.Finger.sync(); S.feedPulse({ bpm: null, source: 'finger_ppg' }); } }
+    if (sensor === 'pulse_stone' || sensor === 'sensor_box') { if (el.checked) A.Finger.arm(); else { A.Finger.sync(); S.feedPulse({ bpm: null, source: 'finger_ppg' }); } }
     if (sensor === 'phone_camera') { syncCamPulse(); A.Face.sync(); A.ScreenLight?.sync(); }
+    // the sensor box is this phone's own switch: the hub keeps no privacy setting for it
+    if (sensor === 'sensor_box') { boxShown(); return; }
     A.bus.emit('ws', { type: 'privacy', patient_id: A.config.patientId, sensor, on: el.checked });
   });
   $('simSw').onchange = e => { A.config.simulator = e.target.checked; A.config.simulatorChosen = true; syncSensors(); saveSettings(); camGlyph(); };
@@ -293,7 +299,7 @@
     if (pv.sharing) A.config.sharing = pv.sharing;
     syncSensors(); toggles(); saveSettings();
     A.Finger.sync(); A.Face.sync();
-    if (!A.config.sensors.pulse_stone) S.feedPulse({ bpm: null, source: 'finger_ppg' });
+    if (!A.sensorOn('pulse_stone')) S.feedPulse({ bpm: null, source: 'finger_ppg' });
     syncCamPulse();
   };
   morningText(); toggles();
@@ -465,7 +471,7 @@
   Hub.on('ack', d => log(`hub stored session${d.duplicate ? ' (duplicate)' : ''}${d.error ? ' error ' + d.error : ''}`));
   Hub.on('pulse', d => S.feedPulse(d));
   Hub.on('physio', d => S.feedFingerHub(d));
-  Hub.on('knob', d => { if (Number.isFinite(d.level)) setDawn(d.level); if (d.press) log('knob press'); });
+  Hub.on('knob', d => { if (!A.boxOn()) return; if (Number.isFinite(d.level)) setDawn(d.level); if (d.press) log('knob press'); });
   Hub.on('profile', d => setProfile(d.profile, 'hub'));
   Hub.on('privacy', d => applyPrivacy(d.privacy));
   Hub.on('demo_reset', () => log('hub demo reset'));

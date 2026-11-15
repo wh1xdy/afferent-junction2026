@@ -58,8 +58,14 @@
   };
 
   const plug = A.plug = n => window.Capacitor?.Plugins?.[n] ?? window.Capacitor?.registerPlugin?.(n);
-  const SWITCHES = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false };
+  const SWITCHES = { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false, sensor_box: true };
   A.switches = (...changes) => Object.assign({}, SWITCHES, ...changes, { presence: false });
+  // The sensor box (UNO Q): the finger clips, the room thermometer, the bedside light and its knob. Its switch (Settings,
+  // Sensors) turns off everything the phone does with the box, for a phone used without it; the clips' and the light's
+  // own switches keep their state underneath. A switch the phone never saved counts as on. Phone-only: the hub never hears it.
+  const BOX = ['pulse_stone', 'bedside_light'];
+  A.boxOn = () => A.config?.sensors?.sensor_box !== false;
+  A.sensorOn = name => !!A.config?.sensors?.[name] && (!BOX.includes(name) || A.boxOn());
   const PULSE_SOURCES = ['finger_ppg', 'simulated'], PRESENCE = ['idle', 'probing', 'active'];
   // A watch or chest strap the patient chose in Settings (watch.js, plugin AfferentWatch), over the standard Bluetooth
   // Heart Rate Service. Its own source label everywhere it is recorded; the finger clips always come first.
@@ -397,6 +403,7 @@
     // simulated, age_s }. The Bluetooth packet from the finger clips carries no room climate.
     feedRoom(d) {
       if (!d) return;
+      if (!A.boxOn()) { this.roomHub = null; return; }
       const source = d.simulated === true ? 'simulated' : d.source, c = num(d.temp_c), h = num(d.humidity_pct);
       if (c == null) { this.roomHub = null; return; }
       if (!ROOM.SOURCES.includes(source) || c < ROOM.CELSIUS[0] || c > ROOM.CELSIUS[1]) { this.roomHub = null; this.droppedRoom++; return; }
@@ -404,10 +411,11 @@
       this.roomHub = { celsius: c, humidity, source, at: A.now() - Math.max(0, num(d.age_s) ?? 0) };
     },
 
-    // The last room reading while it is fresh, simulated ones included (they are shown labelled), or null.
+    // The last room reading while it is fresh, simulated ones included (they are shown labelled), or null. None with
+    // the sensor box switched off, also a reading kept from before.
     roomFrame(now) {
       const r = this.roomHub;
-      return r && now - r.at < ROOM.FRESH_S ? { ...r } : null;
+      return r && A.boxOn() && now - r.at < ROOM.FRESH_S ? { ...r } : null;
     },
 
     // The room as measured: { celsius, humidity, source, at } from the bedside unit, fresh, never simulated; else null.

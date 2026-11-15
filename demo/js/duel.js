@@ -102,7 +102,7 @@
   };
 
   const open = () => {
-    if (!D.allowed()) { A.Shell?.toast?.('Heart Duel is not available during a session'); return; }
+    if (!D.allowed()) { A.Shell?.toast?.(A.boxOn?.() === false ? 'Heart Duel needs the sensor box, switched off in Settings' : 'Heart Duel is not available during a session'); return; }
     if (m) return;
     m = D.create(); cache.clear();
     const settings = $('settings');

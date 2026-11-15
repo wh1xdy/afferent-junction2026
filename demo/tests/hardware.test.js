@@ -53,10 +53,10 @@ const claims = text => {
 const tests = {
   'a: bed presence has no sensor: off by default, and nothing saved or sent by the hub turns it on'() {
     const { A } = load();
-    assert.deepStrictEqual(plain(A.switches()), { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false });
+    assert.deepStrictEqual(plain(A.switches()), { phone_camera: true, pulse_stone: true, bedside_camera: false, bedside_light: true, presence: false, phone_motion: false, sensor_box: true });
     assert.strictEqual(A.switches({ presence: true }).presence, false, 'a saved "on" does not come back');
     assert.deepStrictEqual(plain(A.switches({ presence: true, phone_camera: false }, { presence: true, bedside_light: false, phone_presence: false })),
-      { phone_camera: false, pulse_stone: true, bedside_camera: false, bedside_light: false, presence: false, phone_motion: false, phone_presence: false },
+      { phone_camera: false, pulse_stone: true, bedside_camera: false, bedside_light: false, presence: false, phone_motion: false, sensor_box: true, phone_presence: false },
       'the other switches and the hub\'s phone_presence veto pass through');
 
     const main = read(JS, 'main.js');
@@ -107,7 +107,7 @@ const tests = {
   'd: Settings has no bed presence row and says what the light and the pulse stone are'() {
     const { groups, row } = settings(), sensors = groups.find(g => g.title === 'Sensors');
     const id = r => /data-sensor="(\w+)"/.exec(r.sw)?.[1];
-    assert.deepStrictEqual(sensors.rows.map(r => id(r) ?? r.sw), ['phone_camera', 'id="lightSw"', 'pulse_stone', 'id="breathSw"', 'bedside_light', 'bedside_camera', 'phone_motion', 'id="roomSoundSw"']);
+    assert.deepStrictEqual(sensors.rows.map(r => id(r) ?? r.sw), ['phone_camera', 'id="lightSw"', 'sensor_box', 'pulse_stone', 'id="breathSw"', 'bedside_light', 'bedside_camera', 'phone_motion', 'id="roomSoundSw"']);
     const by = Object.fromEntries(sensors.rows.map(r => [id(r), r]));
     assert.strictEqual(by.pulse_stone.label, 'Pulse stone');
     assert.strictEqual(by.bedside_light.label, 'Bedside light');
