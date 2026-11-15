@@ -981,11 +981,13 @@
     }
   }
 
-  // Painted birches and spruces (art/plan.json) along the forest and sauna stretches: small ones back by the mid hills,
-  // drawn before the ground so its edge hides their feet, and one or two by the path behind the figure. Each chunk lays
-  // out its own trees from its seed, and each tree is planted on the ground line where it is drawn, so it never floats
-  // over a dip or sinks into a rise. Heights are fractions of H; the procedural birches stay until the art is in.
-  // The six trees are one image, the atlas 'trees' (art/finalize_trees.py); its manifest entry says where each one is.
+  // Painted birches and spruces (art/plan.json) along the forest and sauna stretches: small ones back by the mid hills
+  // and one or two by the path behind the figure. Each chunk lays out its own trees from its seed. Every painted tree
+  // stands in a snow drift that is flat in the art, so each is planted at the lowest point of the ground line under its
+  // drift and drawn before the ground: on a slope the drift's downhill end rests on the snow instead of hanging over it
+  // like a shelf, and the ground's edge hides what sinks into the rise. Heights are fractions of H; the procedural
+  // birches stay until the art is in. The six trees are one image, the atlas 'trees' (art/finalize_trees.py); its
+  // manifest entry says where each one is and where its drift is.
   const TREE = {
     tree_birch_a: { h: [0.31, 0.37], g: 'yellow', sway: 1 }, tree_birch_b: { h: [0.29, 0.34], g: 'yellow', sway: 1 },
     tree_birch_c: { h: [0.26, 0.31], g: 'yellow', sway: 1 }, tree_spruce_a: { h: [0.3, 0.35], g: 'green', sway: 0.3 },
@@ -993,7 +995,10 @@
   };
   // The small snow-laden spruce stays in the back row: by the path it is the figure's height and white, and competes with it.
   const BIRCHES = ['tree_birch_a', 'tree_birch_b', 'tree_birch_c'], SPRUCES = ['tree_spruce_a', 'tree_spruce_b', 'tree_spruce_b', 'tree_spruce_c'], NEAR_SPRUCES = SPRUCES.slice(0, 3);
-  const TREE_ROW = { back: { f: 0.82, k: 0.55, lt: 0.78, sink: 5 }, front: { f: 0.97, k: 1, lt: 0.95, sink: 2 } };
+  // f: parallax, k: height, lt: light, sink (px) and dip (of the height): how far the tree's foot goes under the ground
+  // line. The back row's drift goes all under it; the front row's top half shows.
+  const TREE_ROW = { back: { f: 0.82, k: 0.55, lt: 0.78, sink: 5, dip: 0.03 }, front: { f: 0.97, k: 1, lt: 0.95, sink: 0, dip: 0.02 } };
+  const DRIFT = [0.15, 0.85]; // a drift's span for a frame without one (an atlas from before finalize_trees.py measured it)
   // No tree reaches above this on the screen: 20 % of the height, and always 12 px under the line where a task's text
   // starts below the top controls (Layers.controls), at any zoom of a ride.
   const TREE_TOP = 0.2;
@@ -1026,21 +1031,30 @@
     for (const tr of treeLayout(c)) {
       const F = frames[tr.name];
       if (tr.back !== back || !F) continue;
-      // b: the tree's own box in the atlas, s: the slice drawn for it (to the middle of the gaps), both as fractions
-      const [u0, u1, v0, v1] = F.b, T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f), base = gyAt(S.worldX + xc - fx) + R.sink * u;
-      const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - ceil), w = h * (u1 - u0) * sz.w / ((v1 - v0) * sz.h);
+      // b: the tree's own box in the atlas, s: the slice drawn for it (to the middle of the gaps), both as fractions;
+      // f: its drift, as fractions of the box width
+      const [u0, u1, v0, v1] = F.b, [f0, f1] = F.f || DRIFT, T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f);
+      const g0 = gyAt(S.worldX + xc - fx), h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, g0 - ceil), w = h * (u1 - u0) * sz.w / ((v1 - v0) * sz.h);
       if (h <= 0 || xc + w / 2 < -20 || xc - w / 2 > W + 20) continue;
-      const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway * (rm ? 0.3 : 1), aw = w / (u1 - u0), ah = h / (v1 - v0);
+      let foot = g0;
+      for (let i = 0; i <= 4; i++) foot = Math.max(foot, gyAt(S.worldX + xc + w * (lerp(f0, f1, i / 4) - 0.5) - fx));
+      const base = foot + R.sink * u, lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway * (rm ? 0.3 : 1), aw = w / (u1 - u0), ah = h / (v1 - v0);
       ctxRef.save(); ctxRef.transform(1, 0, lean, 1, -lean * base, 0);
-      ART.slice(ctxRef, TREE_ART, F.s[0], F.s[1], xc - w / 2 - u0 * aw, base + h * 0.03 - h - v0 * ah, aw, ah, satOf(T.g), Math.min(1, lightOf(T.g) * R.lt), 1);
+      ART.slice(ctxRef, TREE_ART, F.s[0], F.s[1], xc - w / 2 - u0 * aw, base + h * R.dip - h - v0 * ah, aw, ah, satOf(T.g), Math.min(1, lightOf(T.g) * R.lt), 1);
       ctxRef.restore();
     }
+  }
+
+  const wooded = c => c.type === 'forest' || c.type === 'sauna';
+  // The painted front row, after the station props and before the ground (scene()); the back row is in props().
+  function nearTrees() {
+    if (treeArt()) for (const c of visible(W)) if (wooded(c)) trees(c, false);
   }
 
   function props(ctx, back) {
     const painted = treeArt();
     for (const c of visible(W)) {
-      if (painted && (c.type === 'forest' || c.type === 'sauna')) trees(c, back);
+      if (painted && wooded(c)) { if (back) trees(c, true); }
       else if (c.type === 'forest') birches(ctx, c, back);
       if (back) { if (c.type === 'lake') lakeShore(ctx, c); backProps(c); continue; }
       if (c.type === 'harbour' && every(c, 3)) pier(ctx, c);
@@ -1528,6 +1542,7 @@
     props(ctx, true);
     const env = travEnv(ctx);
     if (env) A.Traverse.cur?.drawBack?.(ctx, env);
+    nearTrees();
     ground(ctx);
     waymarks(ctx);
     footprints(ctx);

@@ -42,6 +42,7 @@ const world = (loaded, entry = ATLAS) => {
     draw: (c, n, x, y, w, h) => { if (!loaded.has(n)) return false; draws.push({ n, x, y, w, h }); return true; },
     slice: (c, n, s0, s1, x, y, w, h) => {
       if (!loaded.has(n)) return false;
+      if (n.startsWith('ground_')) draws.push({ n: 'ground' });
       if (n !== 'trees') return true;
       const name = Object.keys(entry.frames).find(k => Math.abs(entry.frames[k].s[0] - s0) < 1e-9 && Math.abs(entry.frames[k].s[1] - s1) < 1e-9);
       assert.ok(name, `slice ${s0}..${s1} is a tree's slice`);
@@ -59,11 +60,12 @@ const world = (loaded, entry = ATLAS) => {
     chunks.push({ type, x0: -700 + i * 560, x1: -140 + i * 560, seed: 40 + i * 9, n: prev && prev.type === type ? prev.n + 1 : 0, from: prev && prev.type !== type ? prev.type : null });
   });
   const V = { t: 30, worldX: 0, sat: { yellow: 0.3, blue: 0.3, green: 0.3, dawn: 0 }, chunks, night: true, fog: 0.3, aurora: 0.2, terrain: null, cam: { x: 0, y: 0, z: 1 } };
-  const frame = (worldX, W = 390, H = 844, terrain = null, cam = { x: 0, y: 0, z: 1 }) => {
+  // the trees drawn, or with all = true everything recorded in drawing order (the ground's art as { n: 'ground' })
+  const frame = (worldX, W = 390, H = 844, terrain = null, cam = { x: 0, y: 0, z: 1 }, all = false) => {
     draws.length = 0;
     Object.assign(V, { worldX, terrain, cam, t: 30 + worldX / 60 });
     ctx.A.World.draw(context(), W, H, V);
-    return draws.filter(d => d.n.startsWith('tree_')).map(d => ({ ...d }));
+    return draws.filter(d => all || d.n.startsWith('tree_')).map(d => ({ ...d }));
   };
   return { frame, chunks };
 };
@@ -92,8 +94,10 @@ test('the six trees ship as one small WebP atlas with alpha, no more pixels than
   assert.deepStrictEqual(Object.keys(ATLAS.frames).sort(), TREES, 'a frame for each tree');
   let last = 0;
   for (const n of TREES) {
-    const { s: [s0, s1], b: [u0, u1, v0, v1] } = ATLAS.frames[n];
+    const { s: [s0, s1], b: [u0, u1, v0, v1], f: [f0, f1] = [] } = ATLAS.frames[n];
     assert.ok(s0 >= last - 1e-9 && s0 <= u0 && u0 < u1 && u1 <= s1 && s1 <= 1 && v0 >= 0 && v0 < v1 && v1 === 1, `${n} frame ${JSON.stringify(ATLAS.frames[n])}`);
+    // f: the snow drift at the tree's foot (art/finalize_trees.py --feet), a good part of the box width
+    assert.ok(f0 >= 0 && f1 <= 1 && f1 - f0 >= 0.3, `${n} drift ${JSON.stringify(ATLAS.frames[n].f)}`);
     last = s1;
   }
   for (const n of ['birch_cluster', 'mid_birch_grove', ...TREES]) assert.ok(!ALL.has(n), `${n} is not an image of its own in the manifest`);
@@ -120,19 +124,28 @@ test('an atlas entry without frames draws no painted trees, the procedural birch
   assert.ok(w.chunks.filter(c => c.type === 'forest').every(c => Array.isArray(c._birch)), 'the forest chunks drew procedural birches');
 });
 
-test('trees stand on the ground line, stay below the top fifth of the screen and keep their place while scrolling', () => {
-  for (const [W, H] of [[390, 844], [430, 932]]) for (const terrain of [null, wx => 26 * Math.sin(wx * 0.004) + 12 * Math.sin(wx * 0.011 + 1)]) {
+// Each tree stands in a snow drift that is flat in the art. It is planted at the lowest point of the ground under its
+// drift, so on a slope the drift's downhill end never hangs over the falling ground like a shelf (it did: Alex's
+// screenshot of a ride at night, a spruce on a 0.35 descent), and what sinks into the rise is under the ground's edge.
+const SLOPES = [null, wx => 26 * Math.sin(wx * 0.004) + 12 * Math.sin(wx * 0.011 + 1), wx => 140 * Math.sin(wx * 0.0025)];
+
+test('trees stand in the snow on the ground line, even on a slope, stay below the top fifth of the screen and keep their place while scrolling', () => {
+  for (const [W, H] of [[390, 844], [430, 932], [1024, 768]]) for (const terrain of SLOPES) {
     const w = world(ALL), u = H / 844, gy = H * 0.82;
-    let prev = null, n = 0;
+    let prev = null, n = 0, steep = 0;
     for (let x = -400; x <= 4400; x += 6) {
       const ds = w.frame(x, W, H, terrain);
       for (const d of ds) {
         n++;
         assert.ok(d.y >= H * 0.2 - 0.5, `top ${d.y.toFixed(1)} of ${d.n} under ${(H * 0.2).toFixed(1)}`);
-        const foot = d.y + d.h, xc = d.x + d.w / 2, ground = gy - (terrain ? terrain(x + xc - W * 0.35) * u : 0);
-        // the ground line is gy minus the terrain, plus up to 3 px of noise and minus 2 px (world.js gyAt); the foot
-        // sinks a few px and 3 % of the height into it so the snow drift sits in the snow
-        assert.ok(foot >= ground - 2.5 * u && foot <= ground + 3 * u + 5 * u + 0.03 * d.h + 0.5, `${d.n} foot ${foot.toFixed(1)} vs ground ${ground.toFixed(1)}`);
+        // the ground line is gy minus the terrain, plus up to 1 px of noise and minus up to 2 px (world.js gyAt)
+        const foot = d.y + d.h, [f0, f1] = ATLAS.frames[d.n].f, ground = sx => gy - (terrain ? terrain(x + sx - W * 0.35) * u : 0);
+        const under = [0, 1, 2, 3, 4].map(i => ground(d.x + d.w * (f0 + (f1 - f0) * i / 4))), low = Math.max(...under, ground(d.x + d.w / 2));
+        // nowhere under the drift is the ground lower than the tree's foot: no end of it hangs in the air
+        for (const g of under) assert.ok(foot >= g - 2.5 * u, `${d.n} foot ${foot.toFixed(1)} over the ground at ${g.toFixed(1)}`);
+        // and the foot sinks no more than a few px and 3 % of the height under the lowest point
+        assert.ok(foot <= low + 1 * u + 5 * u + 0.03 * d.h + 0.5, `${d.n} foot ${foot.toFixed(1)} vs lowest ground ${low.toFixed(1)}`);
+        if (Math.max(...under) - Math.min(...under) > 0.15 * d.w * (f1 - f0)) steep++;
       }
       if (prev) for (const d of ds) {
         if (d.x + d.w < 0 || d.x > W) continue;
@@ -143,6 +156,22 @@ test('trees stand on the ground line, stay below the top fifth of the screen and
       prev = ds;
     }
     assert.ok(n > 500, `${n} tree draws`);
+    if (terrain === SLOPES[2]) assert.ok(steep > n / 4, `${steep} of ${n} trees on a slope`);
+  }
+});
+
+test('every painted tree is drawn before the ground, whose edge hides the foot sunk into the snow', () => {
+  for (const terrain of SLOPES) {
+    const w = world(ALL);
+    let n = 0;
+    for (let x = -400; x <= 4400; x += 40) {
+      const seq = w.frame(x, 390, 844, terrain, undefined, true).map(d => d.n), g = seq.indexOf('ground');
+      const last = seq.reduce((k, s, i) => (s.startsWith('tree_') ? i : k), -1);
+      if (last < 0) continue;
+      n++;
+      assert.ok(g > last, `at ${x}: a tree drawn after the ground (${seq.join(' ')})`);
+    }
+    assert.ok(n > 50, `${n} frames with trees`);
   }
 });
 
