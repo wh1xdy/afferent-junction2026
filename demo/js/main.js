@@ -162,6 +162,19 @@
     $('hubAddr').value = t;
     hubLine(); A.Shell.settings?.refresh();
   };
+  // Find on this Wi-Fi (hubfind.js): the hub's LAN door answers Bonjour; its address takes the key the phone has
+  $('hubFind').hidden = !A.HubFind?.available();
+  $('hubFind').onclick = async () => {
+    const btn = $('hubFind'), label = btn.textContent;
+    if (btn.disabled) return;
+    btn.disabled = true; btn.textContent = 'Looking…';
+    let r;
+    try { r = await A.HubFind.find($('hubAddr').value.trim() || savedHub); } catch { r = { address: null, say: A.HubFind.SAY.failed }; }
+    btn.disabled = false; btn.textContent = label;
+    if (r.address) { $('hubAddr').value = r.address; hubAsked = false; }
+    A.Shell.toast(r.say);
+    hubLine(); A.Shell.settings?.refresh();
+  };
   $('hubForm').onsubmit = e => {
     e.preventDefault();
     const v = normHub($('hubAddr').value);

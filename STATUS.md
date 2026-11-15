@@ -49,14 +49,15 @@ As of Sunday 15 November. Everything below is on `main` unless it says otherwise
 ## The Jetson
 - **Data manager** (Wameuh's), mesh port 8100, token required. Please don't deploy a second copy.
 - **Home hub** `afferent-home-hub` (`jetson/home_hub`, deploy with `deploy.sh`): sessions, analytics, the week view, the shared dashboard (with "Bedroom at night", #59), the real UNO Q as bedside. Every route except `/api/health` needs the hub token (`~/.afferent/home-hub.token` on Alex's Mac; never in the repo). It keeps Talk transcripts on `/data` (#73).
-- **Reaching the hub from a phone right now**: the Mac bridges it.
-  1. `wendy net forward 18000:18000 --device <jetson>`.
-  2. `socat TCP-LISTEN:8000,bind=<Mac Wi-Fi IP>,fork,reuseaddr TCP:127.0.0.1:18000`.
-  3. `jetson/home_hub/pair.sh <Mac Wi-Fi IP>` gives the address for the app's Settings → Home hub (Paste). It must end in `/k/<token>`.
+- **Reaching the hub from a phone**: straight to the Jetson once the LAN door runs (branch `hub-direct`, not deployed yet). The hub stays on the mesh; the door (`jetson/home_hub/door`, app `afferent-home-hub-door`, host networking) relays the Jetson's own Wi-Fi port 8800 to it and announces `_afferent-hub._tcp` with Bonjour. The token is still checked by the hub on every route but `/api/health`; the door holds none.
+  1. The Jetson on the phone's Wi-Fi (it is on `Junction2026` now, at 10.0.32.31).
+  2. `WENDY_DEVICE=<jetson> jetson/home_hub/deploy.sh`, then `WENDY_DEVICE=<jetson> jetson/home_hub/door/deploy.sh`.
+  3. In the app: Settings → Home hub → Find on this Wi-Fi (keeps the key it has; iPhone build with `AfferentHubFinder`), or Paste the address from `jetson/home_hub/pair.sh --jetson`. Then Connect.
 
-  The phone and the Mac must be on the same Wi-Fi.
+  Venue Wi-Fi like `Junction2026` drops Bonjour between devices, so Find may show nothing there: Paste works. The Mac bridge (`wendy net forward` + `socat` + `pair.sh <Mac IP>`) still works as before. Steps and fallbacks: `docs/home-hub.md`, "Reaching the hub".
 
 ## In progress
+- **Presence API open on the venue Wi-Fi**: `afferent-presence` runs with host networking, so its port 8090 (including `/ticks`, the raw Bluetooth scan log) answers anyone on the same Wi-Fi without a token. To lock with the hub token after the event.
 - **Finger clips that forgive pressure** (#91): a pressed, partly clipping sensor still gives a pulse, and the first pulse comes after about 6 s instead of 11.
 
 ## Rules our code follows (please keep them)

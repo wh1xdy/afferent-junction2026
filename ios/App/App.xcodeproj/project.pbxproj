@@ -17,6 +17,7 @@
 		5D0000000000000000000003 /* AfferentSoundLevelMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0000000000000000000004 /* AfferentSoundLevelMeter.swift */; };
 		F1A6E0000000000000000003 /* AfferentFingerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A6E0000000000000000004 /* AfferentFingerParser.swift */; };
 		A9E5E0000000000000000001 /* AfferentPresence.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E5E0000000000000000002 /* AfferentPresence.swift */; };
+		4B0B00000000000000000001 /* AfferentHubFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B0B00000000000000000002 /* AfferentHubFinder.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
@@ -47,6 +48,7 @@
 		5D0000000000000000000004 /* AfferentSoundLevelMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentSoundLevelMeter.swift; sourceTree = "<group>"; };
 		F1A6E0000000000000000004 /* AfferentFingerParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentFingerParser.swift; sourceTree = "<group>"; };
 		A9E5E0000000000000000002 /* AfferentPresence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentPresence.swift; sourceTree = "<group>"; };
+		4B0B00000000000000000002 /* AfferentHubFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentHubFinder.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 				5D0000000000000000000004 /* AfferentSoundLevelMeter.swift */,
 				F1A6E0000000000000000004 /* AfferentFingerParser.swift */,
 				A9E5E0000000000000000002 /* AfferentPresence.swift */,
+				4B0B00000000000000000002 /* AfferentHubFinder.swift */,
 				B7A700000000000000000080 /* AfferentHealth.swift */,
 				B7A700000000000000000060 /* HealthMath.swift */,
 				B7A700000000000000000040 /* AfferentWatch.swift */,
@@ -235,6 +238,7 @@
 				F1A6E0000000000000000003 /* AfferentFingerParser.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				A9E5E0000000000000000001 /* AfferentPresence.swift in Sources */,
+				4B0B00000000000000000001 /* AfferentHubFinder.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 				AE0000000000000000000001 /* AfferentEyes.swift in Sources */,
 				AE0000000000000000000200 /* AfferentPulse.swift in Sources */,

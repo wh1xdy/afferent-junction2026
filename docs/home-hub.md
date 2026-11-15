@@ -1,8 +1,9 @@
 # The home hub on the Jetson
 
 The hub in `hub/` runs on the Jetson as the Wendy app `afferent-home-hub` (`jetson/home_hub`): the hub, the
-real UNO Q as bedside and the data manager all run on the Wendy Net mesh. The Mac is needed only as the
-doorway for a browser or the phone. The short version is in the README ("Home hub on the Jetson").
+real UNO Q as bedside and the data manager all run on the Wendy Net mesh. A phone on the Jetson's Wi-Fi
+reaches it through the LAN door (`jetson/home_hub/door`, port 8800); the Mac bridge still works as before
+(see "Reaching the hub"). The short version is in the README ("Home hub on the Jetson").
 
 ## Deploy
 
@@ -13,6 +14,9 @@ doorway for a browser or the phone. The short version is in the README ("Home hu
   (`jetson/home_hub/constraints.txt`) and runs the hub as a non-root user.
 - The device comes from `WENDY_DEVICE` (the script's default is the Jetson on USB). The other settings are
   read from the shell and listed at the top of `deploy.sh`.
+- The LAN door is its own app: `jetson/home_hub/door/deploy.sh` (settings at its top). Its tests, and the
+  hub advert's contract with it, run without a device: `cd jetson/home_hub && python3 -m unittest discover tests`
+  (the Bonjour tests need zeroconf from `hub/requirements-dev.txt`).
 
 ## Pairing token
 
@@ -25,7 +29,71 @@ origins and DNS names are refused, and `/ws/bedside` is closed while the bedside
 
 ## Reaching the hub
 
-The hub's port is only on the mesh, so the Mac forwards it.
+The hub runs on the Wendy Net mesh (`network` mode `mesh` in `wendy.json`). Wendy publishes a mesh app's
+ports to mesh peers only, never on the Jetson's Wi-Fi or Ethernet: on 15 November the Jetson was on the
+venue Wi-Fi (`wlan0`, `Junction2026`, the Mac's subnet) and a host-network app there (`afferent-presence`,
+port 8090) answered the Mac, while the hub's 18000 and the data manager's 8100 did not. Moving the hub
+itself to host networking would cost it the mesh (the UNO Q, the data manager) and `wendy net forward`.
+So a second, tiny app does the relay on the Jetson, and the Mac bridge below stays as it was.
+
+### Phone straight to the Jetson (no Mac)
+
+`jetson/home_hub/door` is the Wendy app `afferent-home-hub-door`: host networking, port **8800** on every
+LAN interface, bytes copied unchanged to the hub's mesh port (HTTP, the pairing redirect, the app
+WebSocket). The hub's guard still wants the token on every route but `/api/health`; the door holds no
+token. It finds the hub at `127.0.0.1:18000` (the mesh port as Wendy publishes it on the host), else by
+the hub's own advert (`_http._tcp`, `role=home-hub`, sent when `AFFERENT_HUB_ADVERTISE=1`, which
+`wendy.json` sets), and only uses an address whose `/api/health` answers like the hub. It announces
+`_afferent-hub._tcp` on the LAN with Bonjour (TXT `role`, `v`: no token, no patient), which the iPhone app's
+**Settings › Home hub › Find on this Wi-Fi** browses (`ios/App/App/AfferentHubFinder.swift`,
+`demo/js/hubfind.js`). Find keeps the key the phone already has and only swaps the address.
+
+Steps, from the repo root on the Mac (the Mac only deploys; nothing runs on it afterwards):
+
+```sh
+JETSON=10.0.32.31:50052     # the Jetson's agent on the venue Wi-Fi (worked on 15 Nov); or its USB address
+                            # 169.254.246.159:50052, or the cloud selector from `wendy device list`
+
+# 1. The Jetson must be on the phone's Wi-Fi. Check:
+wendy --json device wifi status --device "$JETSON"            # {"connected": true, "ssid": "Junction2026"}
+#    Only if the phone is on another network (a home router, a phone hotspot):
+read -s WIFI_PW                                                  # not shown, not in the shell history
+wendy device wifi connect --ssid "<phone's Wi-Fi>" --password "$WIFI_PW" --device "$JETSON"
+#    then find the Jetson again (its address changes): `wendy discover --json --type all --timeout 5s`,
+#    or over USB, and set JETSON to it.
+
+# 2. Redeploy the hub, so it announces itself on the mesh (the database is on its volume and stays):
+WENDY_DEVICE="$JETSON" jetson/home_hub/deploy.sh
+
+# 3. Deploy the door (once; it keeps running across reboots):
+WENDY_DEVICE="$JETSON" jetson/home_hub/door/deploy.sh
+
+# 4. Check from the Mac, no token needed for health:
+DOOR=$(WENDY_DEVICE="$JETSON" jetson/home_hub/pair.sh --jetson-address)   # <jetson-ip>:8800, no token
+curl -s "http://$DOOR/api/health"                          # {"ok":true,...}; 503 hub_unreachable = see below
+wendy device logs --app afferent-home-hub-door --tail 20 --no-follow --device "$JETSON"  # "door: hub found at ..."
+```
+
+Pair the phone (it must be on the same Wi-Fi as the Jetson):
+
+- **Already paired through the Mac bridge:** Settings › Home hub › **Find on this Wi-Fi**, then Connect. The
+  address becomes `<jetson-ip>:8800/k/<the same key>`. Needs an app build with `AfferentHubFinder` (iPhone;
+  the button is hidden on Android and in the browser).
+- **Any app build, or Find shows nothing:** `WENDY_DEVICE="$JETSON" jetson/home_hub/pair.sh --jetson` prints the
+  phone app's Hub address (`<jetson-ip>:8800/k/<token>`). Copy it on the Mac (Universal Clipboard), then
+  Settings › Home hub › Paste, then Connect. `pair.sh <ip>:8800` does the same for an address you already know.
+
+Find needs Bonjour (multicast) to cross the Wi-Fi. Venue and office networks often drop it between
+clients: on `Junction2026` the Mac saw no other device's Bonjour adverts at all, while plain connections to
+the Jetson worked. There, use `pair.sh --jetson` and Paste; at home Find works on ordinary routers.
+
+If the door answers `503 hub_unreachable`, its log names the addresses it tried. The hub's own log has its
+mesh address (`hub advert: ... on <address>:8000`); pin it with
+`AFFERENT_DOOR_UPSTREAM=<address>:8000 WENDY_DEVICE="$JETSON" jetson/home_hub/door/deploy.sh` (that address can
+change when the hub is redeployed). To go back to the Mac bridge only:
+`wendy device apps stop afferent-home-hub-door --device "$JETSON"`.
+
+### Through the Mac
 
 - **Browser on the Mac:** `wendy net forward 18000:18000 --device <jetson>` (keep it running), then open the
   link from `jetson/home_hub/pair.sh`. It lands on the patient view (`/app/patient.html`); the game is
