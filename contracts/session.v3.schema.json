@@ -962,7 +962,8 @@
           "const": "amber"
         },
         "size_diff": {
-          "type": "number"
+          "type": "number",
+          "description": "How much bigger the bigger lantern was during its 0.4 s cue, as a fraction: 0.13 (the classic task's 13 %) since 2026-11-15, 0.08 before."
         },
         "trials": {
           "type": "array",

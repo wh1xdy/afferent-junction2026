@@ -121,12 +121,33 @@
   const RIPPLES = Array.from({ length: 46 }, () => ({ x: r0(), y: r0(), w: 6 + r0() * 26, p: r0() * 6.28 }));
   const GLINTS = Array.from({ length: 70 }, () => ({ x: r0() * 1400, y: Math.pow(r0(), 0.8), p: r0() * 6.28, f: 0.8 + r0() * 2 }));
 
-  let S = null, W = 0, H = 0, gy = 0, hy = 0, my = 0, fx = 0, u = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
+  let S = null, W = 0, H = 0, gy = 0, hy = 0, my = 0, fx = 0, u = 1, zoom = 1, ctxRef = null, rm = false, pm = 1, st = null, I = {};
   const states = new WeakMap();
   const MQ = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : null;
   let sized = { W: 0, H: 0 }, vign = null, darkC = null, darkX = null, grainPat = null, borderC = null, auroraC = null, auroraX = null;
   const n0 = (v, d) => (typeof v === 'number' && isFinite(v) ? v : d);
   const { layout } = A.Layers;
+
+  // The safe-area inset at the top of the canvas (the status bar and the Dynamic Island), in CSS px: read from a
+  // probe styled with env(), once a second and on every resize (it changes with rotation).
+  let probe = null, insetT = 0, insetFrame = -1;
+  const insetTop = () => {
+    if (st && insetFrame >= 0 && st.frame - insetFrame < 60 && sized.W === W && sized.H === H) return insetT;
+    if (st) insetFrame = st.frame;
+    try {
+      if (!probe) {
+        probe = document.createElement('div');
+        probe.setAttribute('aria-hidden', 'true');
+        probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
+        document.body.appendChild(probe);
+      }
+      const c = ctxRef?.canvas?.getBoundingClientRect?.();
+      insetT = Math.max(0, probe.getBoundingClientRect().height - Math.max(0, c?.top || 0));
+    } catch { insetT = 0; }
+    return insetT;
+  };
+  // Screen to scene: the scene is drawn zoomed about (fx, gy) (draw below); things placed on the screen go through this.
+  const unzoom = (x, y) => [fx + (x - fx) / zoom, gy + (y - gy) / zoom];
 
   function newState() {
     const N = 120;
@@ -401,14 +422,20 @@
   }
 
   const nightLeft = k => 1 - st.ds.dawn * (I.night ? k : 1);
-  // The moon keeps to the upper right, between the SIMULATED badge (centre top) and the crisis button (top right),
-  // so no top control ever sits on it; it drifts left a little while walking.
-  const moonX = () => Math.max(W * 0.72, W * 0.76 - off(LAYER.stars) * 0.25);
+  // The moon keeps to the upper right, between the SIMULATED badge (centre top) and the wake button (top right), in
+  // the row of the top controls: never up in the status bar, never on a task's line, at any zoom (Layers.moon).
+  // It drifts left a little while walking.
+  const moonAt = () => {
+    const m = A.Layers.moon(W, H, insetTop(), off(LAYER.stars) * 0.25);
+    const [x, y] = unzoom(m.x, m.y);
+    return { x, y, r: m.r / zoom, screen: m };
+  };
+  const moonX = () => moonAt().x;
 
   function moon(ctx) {
     const a = nightLeft(0.3) * (1 - n0(S.daylight, 0)) * (1 - st.sun) * (1 - 0.4 * st.heavy);
     if (a < 0.02) return;
-    const x = moonX(), y = H * 0.09, r = H * 0.022;
+    const { x, y, r } = moonAt();
     glow(ctx, x, y, r * 16, grade(P.silver300, 'blue'), 0.16 * a, 'soft'); glow(ctx, x, y, r * 5, grade(P.silver100, 'blue'), 0.22 * a, 'soft');
     sprite(ctx, 'moon', grade(P.silver050, 'blue'), x - r * 1.2, y - r * 1.2, r * 2.4, r * 2.4, 0.9 * a, false);
   }
@@ -1158,6 +1185,21 @@
     const qx = (sp.x0 + sp.fw * L[0] - F.ox) * F.sxk / F.k, qy = (sp.y0 + sp.fh * L[1] - F.oy) * F.syk / F.k, ca = Math.cos(F.a), sa = Math.sin(F.a);
     return [F.ox + ca * qx - sa * qy, F.oy + sa * qx + ca * qy];
   };
+  const figureBox = () => {
+    const F = st?.fig;
+    if (!F) return null;
+    const pts = [];
+    const sp = F.sp, ca = Math.cos(F.a), sa = Math.sin(F.a);
+    if (sp) for (const [px, py] of [[sp.x0, sp.y0], [sp.x0 + sp.fw, sp.y0], [sp.x0, sp.y0 + sp.fh], [sp.x0 + sp.fw, sp.y0 + sp.fh]]) {
+      const qx = (px - F.ox) * F.sxk / F.k, qy = (py - F.oy) * F.syk / F.k;
+      pts.push([F.ox + ca * qx - sa * qy, F.oy + sa * qx + ca * qy]);
+    } else for (const [px, py] of [[-17, -56], [16, -56], [-17, 2], [16, 2]]) pts.push(F.map(px, py));
+    const [bx, by] = lanternBody(), d = 26 * u;
+    pts.push([bx - d, by - d], [bx + d, by + d], [st.lx - d, st.ly - d], [st.lx + d, st.ly + d]);
+    const sc = pts.map(([x, y]) => [fx + (x - fx) * zoom, gy + (y - gy) * zoom]);
+    const xs = sc.map(p => p[0]), ys = sc.map(p => p[1]);
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  };
   const figSprite = () => { const p = S.ride?.pose, s = p && FIGS[p] && ART.has(FIGS[p][0]) ? FIGS[p] : st.walk > 0.5 ? FIGS.walk : FIGS.stand; return ART.has(s[0]) ? s : null; };
 
   function figure(ctx) {
@@ -1307,8 +1349,13 @@
       if (rm) { glow(ctx, x, y, H * 0.4, r.c, 0.18 * r.a * Math.sin(p * Math.PI), 'soft'); continue; }
       const fade = Math.pow(1 - p, 1.2) * Math.min(1, p * 8), Rb = Math.max(R, H * 0.4);
       sprite(ctx, 'halo', r.c, x - Rb, y - Rb, 2 * Rb, 2 * Rb, 0.1 * r.a * fade, true);
-      // The first heartbeat the clips give (heartbeat.js): one warm ring of light leaves the lantern.
-      if (r.g === 'heart') { ctx.strokeStyle = rgb(P.glow, 0.5 * r.a * fade); ctx.lineWidth = 3 * u; ctx.beginPath(); ctx.arc(x, y, R * 0.6, 0, 6.283); ctx.stroke(); glow(ctx, x, y, R * 0.7, P.glow, 0.25 * r.a * fade, 'soft'); }
+      // The first heartbeat the clips give (heartbeat.js): one warm ring of light leaves the lantern. It stays close
+      // to it, at most 3 times the touch dot's ring (juice.js touch), and is gone in a second.
+      if (r.g === 'heart') {
+        const q = clamp((n0(S.t, 0) - r.t) / 1.1, 0, 1), e = 1 - Math.pow(1 - q, 2.2);
+        if (q < 1) { ctx.strokeStyle = rgb(P.glow, 0.6 * r.a * (1 - q)); ctx.lineWidth = 2.4 * u; ctx.beginPath(); ctx.arc(x, y, (10 + 23 * e) * u, 0, 6.283); ctx.stroke(); }
+        glow(ctx, x, y, 34 * u, P.glow, 0.3 * r.a * fade, 'soft');
+      }
     }
   }
   function wave() {
@@ -1329,15 +1376,42 @@
       if (x > W || x + w < 0) continue;
       art(n, x + (n === 'fg_reeds' ? Math.sin(t * 0.6 + px) * 2 * u * sw : 0), H - h * (1 - sink), w, h, g, 1, 0.42);
     }
-    if (ART.has('fg_branch')) for (const c of visible()) {
-      if (c.type !== 'forest' && c.type !== 'sauna') continue;
-      const w = 150 * u, h = w / ART.aspect('fg_branch'), x = at(c.x0 + 140, LAYER.fore);
-      if (x > W + w || x < -w) continue;
-      ctxRef.save(); ctxRef.translate(x, -14 * u); ctxRef.rotate(Math.sin(t * 0.45 + c.seed) * 0.025 * sw);
-      art('fg_branch', -w * 0.1, 0, w, h, 'green', 0.9, 0.5);
-      ctxRef.restore();
+    if (ART.has('fg_branch')) {
+      // In the forest a bough reaches in from a tree just off the right edge, under the row of the top controls and
+      // the moon: never in the status bar, never near the × (it used to hang from the top edge across both). It comes
+      // and goes with the forest, sways a little, and steps aside while a task or the check-in is on the screen.
+      const wx = S.worldX, forest = chunks().find(c => (c.type === 'forest' || c.type === 'sauna') && wx > c.x0 + 60 * u && wx < c.x1 - 60 * u);
+      const want = forest && I.phase !== 'game' && I.phase !== 'checkin' ? 1 : 0;
+      st.bough = st.bough == null ? want : st.bough + (want - st.bough) * (1 - Math.exp(-st.dt / 0.6));
+      if (forest) st.boughSeed = forest.seed;
+      if (st.bough > 0.01) {
+        const C = A.Layers.controls(W, insetTop()), w = 132 * u, h = w / ART.aspect('fg_branch');
+        const [x, y] = unzoom(W + 0.1 * w, C.line + 4 * u);
+        bough(x, y, w / zoom, h / zoom, 0.12 + Math.sin(t * 0.45 + (st.boughSeed || 0)) * 0.025 * sw, st.bough);
+      }
     }
     return true;
+  }
+
+  // The bough, mirrored so its stem is at the top right, drawn through a small canvas so the cut top of the art
+  // fades to nothing; (x, y) is the stem end, off the right edge, and it slides in from there as it fades in.
+  let boughC = null, boughX = null;
+  function bough(x, y, w, h, rot, a) {
+    const ctx = ctxRef, k = Math.min(3, Math.abs(ctx.getTransform().a) || 1), cw = Math.ceil(w * k), ch = Math.ceil(h * k);
+    if (!boughC || boughC.width !== cw || boughC.height !== ch) [boughC, boughX] = mk(cw, ch);
+    const o = boughX;
+    o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1; o.clearRect(0, 0, cw, ch);
+    o.save(); o.translate(cw, 0); o.scale(-1, 1);
+    ART.draw(o, 'fg_branch', 0, 0, cw, ch, satOf('green'), Math.min(1, lightOf('green') * 0.5), 0.9);
+    o.restore();
+    o.globalCompositeOperation = 'destination-out';
+    const g = o.createLinearGradient(0, 0, 0, ch * 0.16);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    o.fillStyle = g; o.fillRect(0, 0, cw, Math.ceil(ch * 0.16));
+    o.globalCompositeOperation = 'source-over';
+    ctx.save(); ctx.translate(x + (1 - ease(a)) * 0.35 * w, y); ctx.rotate(rot); ctx.globalAlpha *= a;
+    ctx.drawImage(boughC, -w, 0, w, h);
+    ctx.restore();
   }
 
   function foreground(ctx) {
@@ -1514,8 +1588,23 @@
     // Where the carried lantern is drawn, for a touch hint that should sit on it (lanternPos is its light).
     lanternBody,
     lanternRod: () => (st?.fig ? [st.hand[0], st.hand[1], st.tip[0], st.tip[1], st.fig.pole] : null),
+    // The top of the figure's head, [x, y] in canvas px: the start screen's talk bubble points at it (talkbubble.js).
+    figureTop: () => {
+      const F = st?.fig, sp = F?.sp;
+      if (!F) return null;
+      if (!sp) return F.map(1, -54);
+      const qy = (sp.y0 - F.oy) * F.syk / F.k;
+      return [F.ox - Math.sin(F.a) * qy, F.oy + Math.cos(F.a) * qy];
+    },
     wave,
     size: () => ({ W, H, gy, fx }),
+    // Where the moon is on the screen (CSS px): its sprite centre and radius, and the safe inset it keeps under.
+    moonPos: () => (st ? { ...moonAt().screen, top: insetTop() } : null),
+    // The safe-area inset at the top of the canvas (CSS px), for a task that must keep its art out of the top controls.
+    safeTop: () => insetTop(),
+    // The figure on the screen (CSS px), with its lantern, the touch dot on it and that dot's ring of light: the box
+    // the Live vitals panel and every other overlay must keep clear of.
+    figureBox,
     tintStats: () => ({ ...tintStats, size: tints.size }),
     draw(ctx, w, h, state) {
       S = state; W = w; H = h; ctxRef = ctx;
@@ -1536,6 +1625,7 @@
       if (sized.W !== W || sized.H !== H || !vign) resize();
       step(); rig();
       const z = Math.max(1, n0(cam?.z, 1));
+      zoom = z > 1.0005 ? z : 1;
       ctx.save();
       if (z > 1.0005) { ctx.save(); ctx.translate(fx, gy); ctx.scale(z, z); ctx.translate(-fx, -gy); scene(ctx); ctx.restore(); } else scene(ctx);
       overlays(ctx);

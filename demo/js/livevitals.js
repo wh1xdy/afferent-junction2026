@@ -1,7 +1,8 @@
-// Live vitals: a small corner panel during play with the pulse, HRV and breathing as the sensors give them right now,
-// the state the game reads from them and what it does because of it, and a short chip at the top each time that
-// changes the games. It reads A.Sensors and the session (state, transitions); it never draws on the game canvas
-// and takes no taps. Settings, "Live vitals", turns it off.
+// Live vitals: a slim pill at the bottom of the screen during play, under the figure's lane (css/livevitals.css),
+// with the pulse, HRV and breathing as the sensors give them right now, the state the game reads from them and what
+// it does because of it, and a short chip at the top each time that changes the games. With no reading at all it is
+// one line ("quiet"). It reads A.Sensors and the session (state, transitions); it never draws on the game canvas and
+// takes no taps. Settings, "Live vitals", turns it off.
 // Only real readings show as numbers. A missing one, or one below the quality gate, says "no reading". A simulated
 // pulse shows labelled "simulated"; HRV and breathing count only from the finger clips, so a simulated frame of
 // those is no reading, as it is for the game (engine.js, breathing.js).
@@ -102,6 +103,9 @@
     return c.text;
   };
 
+  // No reading at all yet: the pill shrinks to one line, the state and the room.
+  const quiet = m => ['pulse', 'hrv', 'breathing'].every(k => m[k].value == null);
+
   // DOM: the panel #liveVitals and the chip #lvChip in index.html. Only changed text is written.
   const $ = id => typeof document === 'undefined' ? null : document.getElementById(id);
   const put = (el, text) => { if (el && el.textContent !== text) el.textContent = text; };
@@ -115,6 +119,7 @@
     if (chipEl) { if (c) put(chipEl, c); chipEl.classList.toggle('on', !!c); }
     Lv.chipOn = !!c;
     if (!m) return;
+    box.classList.toggle('quiet', quiet(m));
     const q = sel => box.querySelector(sel);
     for (const k of ['pulse', 'hrv', 'breathing']) {
       const el = q(`[data-k="${k}"]`);
@@ -142,5 +147,5 @@
     }
   };
 
-  const Lv = A.LiveVitals = { model, chip, reason, render, chipOn: false, NONE, SIM, CHIP_S };
+  const Lv = A.LiveVitals = { model, chip, reason, render, quiet, chipOn: false, NONE, SIM, CHIP_S };
 })();

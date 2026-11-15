@@ -203,7 +203,14 @@ const tests = {
     assert.strictEqual(A.LiveVitals.model(s, A.now()).sound, null);
     assert.strictEqual(A.Vitals.model(A.now()).room, null);
     const page = read(JS, '..', 'index.html');
-    assert.ok(page.indexOf('class="lv-sound lv-extra"') > page.indexOf('class="lv-room lv-extra"'), 'next to the room climate row');
+    // the pill (#98): one of the extras on its last line, after the room climate, and the last of them, so it is the
+    // first to drop past the four lines; in the one-line pill (no reading yet) it stays, as the room does
+    const foot = page.slice(page.indexOf('<div class="lv-foot">'), page.indexOf('</div>', page.indexOf('<p class="lv-health')));
+    assert.ok(foot.includes('class="lv-sound lv-extra"') && foot.indexOf('lv-sound') > foot.indexOf('lv-room'), 'with the room climate, in the pill\'s last line');
+    assert.strictEqual([...foot.matchAll(/class="(lv-\w+)/g)].map(m => m[1]).at(-1), 'lv-sound', 'the first extra to drop');
+    const css = read(JS, '..', 'css', 'livevitals.css');
+    assert.ok(/\.lv-extra \{[^}]*white-space: nowrap/.test(css) && /--lv-max-h: 70px/.test(css), 'one nowrap line inside the four-line pill');
+    assert.ok(!/\.quiet [^{]*\.lv-(foot|extra|sound)/.test(css), 'not hidden in the one-line pill');
     assert.ok(page.indexOf('js/sound.js') < page.indexOf('js/livevitals.js'));
   },
 

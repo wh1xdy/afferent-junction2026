@@ -95,12 +95,13 @@
   const finger = (ctx, x, y, s, a) => touch(ctx, x, y, s / 32, a, 0.5);
 
 
+  // A tap to make: the dot presses and a ripple leaves it, out to 3 times the dot's ring and no further.
   const tapCue = (ctx, x, y, U, now, a = 1) => {
     if (a <= 0.01) return;
     const p = (now / 1.3) % 1;
     const press = rm() ? 1 : ease((p - 0.2) / 0.15) * (1 - ease((p - 0.55) / 0.2));
     const rp = clamp((p - 0.35) / 0.65, 0, 1);
-    if (rp > 0 && !rm()) ring(ctx, x, y, (8 + 30 * ease(rp)) * U, C.flame, 0.75 * a * (1 - rp), 2.4 * U);
+    if (rp > 0 && !rm()) ring(ctx, x, y, (8 + 25 * ease(rp)) * U, C.flame, 0.75 * a * (1 - rp), 2.4 * U);
     glow(ctx, x, y, 22 * U, C.flame, 0.45 * a * press);
     touch(ctx, x, y, U, a, press);
   };
