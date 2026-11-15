@@ -28,7 +28,7 @@
   const BANDS = [[40, 'quiet'], [55, 'normal'], [65, 'lively'], [Infinity, 'loud']];
   const LOUD_DB = 55, VERY_LOUD_DB = 65;
   const WINDOW_S = 4, BLOCK_S = 0.1, MIN_BLOCKS = 20, SILENT_DBFS = -100, FLOOR_DBFS = -120;
-  const HOME_EVERY_S = 300, PLAY_EVERY_S = 240, RETRY_S = 60, FRESH_S = 600, LEQ_S = 60, PRE_S = 120, KEEP = 60, CHECK_MS = 5000;
+  const HOME_EVERY_S = 300, PLAY_EVERY_S = 240, RETRY_S = 120, FRESH_S = 600, LEQ_S = 60, PRE_S = 120, KEEP = 60, CHECK_MS = 5000;
   const OFFSET = { ios: 95, android: 112.4, web: 100 };
   const OFFSET_KEY = 'afferent.sound.offset_db';
   const PLUGIN = 'AfferentSoundLevel';
