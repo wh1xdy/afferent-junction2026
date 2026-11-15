@@ -126,6 +126,19 @@ const voiceStandIns = (ctx, voice) => {
   return els;
 };
 
+// The room sound plugin as ios/App/App/AfferentSoundLevel.swift answers it: it never touches the web view's audio session
+// (it uses the app's own), so all it does here is log its calls and hold a window open until finish().
+const roomSoundPlugin = () => {
+  const p = {
+    log: [], route: 'headphones', pending: null, measures: 0,
+    async status() { return { permission: 'granted', route: p.route }; },
+    measure(opts) { p.measures++; p.log.push('measure'); return new Promise(res => { p.pending = { res, opts }; }); },
+    async stop() { p.log.push('stop'); const x = p.pending; p.pending = null; x?.res({ aborted: true }); },
+    finish() { const x = p.pending; p.pending = null; x.res({ blocks: Array(40).fill(-58), route: p.route, echo_cancelled: false, permission: 'granted' }); },
+  };
+  return p;
+};
+
 // A seeded Math.random, so two runs of the same session can be compared source by source.
 const seeded = seed => {
   let a = seed >>> 0;
@@ -135,7 +148,7 @@ const seeded = seed => {
 
 // sensors: also load sensors.js on the same clock, so a pulse can be fed as the finger sensor gives it.
 // seed: a seeded Math.random. reducedMotion: the setting of that name.
-const app = ({ music = MUSIC, suspended = false, voice = false, sensors = false, seed = null, reducedMotion = false } = {}) => {
+const app = ({ music = MUSIC, suspended = false, voice = false, sensors = false, seed = null, reducedMotion = false, sound = false } = {}) => {
   const wa = webAudio();
   wa.live.suspended = suspended;
   let now = 0, timers = [], seq = 0, feeder = null, fedAt = -99;
@@ -167,7 +180,10 @@ const app = ({ music = MUSIC, suspended = false, voice = false, sensors = false,
     vm.runInContext(`A.now = () => __now(); A.config = { baselinePulse: 68, reducedMotion: ${!!reducedMotion}, sensors: { pulse_stone: true, phone_camera: true } };`, Object.assign(ctx, { __now: () => now }));
     run('sensors.js');
   }
-  for (const f of ['audio.js', 'music.js', 'biomusic.js', 'ambience.js', ...(voice ? ['voice.js'] : [])]) run(f);
+  // sound: the room sound level (sound.js) on a phone, its native plugin (AfferentSoundLevel.swift) faked as soundPlugin
+  const soundPlugin = sound ? roomSoundPlugin() : null;
+  if (sound) ctx.Capacitor = { isNativePlatform: () => true, getPlatform: () => 'ios', Plugins: { AfferentSoundLevel: soundPlugin } };
+  for (const f of ['audio.js', 'music.js', 'biomusic.js', 'ambience.js', ...(voice ? ['voice.js'] : []), ...(sound ? ['sound.js'] : [])]) run(f);
   const A = ctx.A, M = A.Music, Au = A.Audio;
   const phrase = Au.dawnPhrase;
   Au.dawnPhrase = (...a) => { calls.dawnPhrase++; return phrase.apply(Au, a); };
@@ -231,7 +247,7 @@ const app = ({ music = MUSIC, suspended = false, voice = false, sensors = false,
     S.feedFingerBle({ kind: 'hrm', bpm });
     S.feedFingerBle({ kind: 'aff1', quality, presence, payload_len: 5, finger_bpm: [bpm, bpm], breathing_per_min: 14, rmssd_ms: 32, ...(twoHearts ? { two_hearts: true } : {}) });
   };
-  return { A, M, Au, wa, ctx, calls, talk, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, isLive, feed, finger, now: () => now };
+  return { A, M, Au, wa, ctx, calls, talk, soundPlugin, advance, watch, emit, fire, tap, begin, core, game, check, liveBeds, unstoppedBeds, bedsOf, drones, isLive, feed, finger, now: () => now };
 };
 
 const tests = [];
@@ -681,6 +697,47 @@ test('two Talk conversations in a row load the capture worklet once and leave th
   for (let i = 0; i < 2; i++) { await conversation(a); a.talk.els.voiceEnd.onclick(); }
   assert.deepStrictEqual(a.M.ctx.audioWorklet.modules, ['js/voice-worklet.js']);
   await gameAudible(a, 'two conversations');
+});
+
+test('room sound windows leave the web view\'s audio session and the music alone, and stop before Talk takes the microphone', async () => {
+  const a = app({ voice: true, sensors: true, sound: true }), P = a.soundPlugin, R = a.A.RoomSound, b = () => a.M.bus;
+  const sess = a.ctx.navigator.audioSession, d = Object.getOwnPropertyDescriptor(sess, 'type');
+  Object.defineProperty(sess, 'type', { get: d.get, set(v) { P.log.push('session ' + v); d.set.call(sess, v); } });
+  a.emit('home');
+  await a.watch(4);
+  a.tap();
+  await a.watch(1);
+  const level = () => [b().curve.gain.value, b().out.gain.value, b().music.gain.value, b().ambience.gain.value];
+  const before = level(), writes = P.log.length;
+  a.A.config.roomSound = true; R.sync();
+  await a.watch(6);
+  assert.ok(P.pending, 'a window is open');
+  assert.strictEqual(sess.type, 'ambient', 'the music\'s session stays ambient while the microphone is open');
+  assert.ok(a.wa.live.contexts.every(c => c.state === 'running'), 'no context interrupted');
+  assert.deepStrictEqual(level(), before, 'nothing ducked or muted');
+  assert.ok(a.liveBeds().length >= 1, 'the start bed plays on');
+  P.finish();
+  await a.watch(1);
+  assert.ok(R.reading(a.now()), 'a reading');
+  assert.deepStrictEqual(P.log.slice(writes), ['measure'], 'not one write to the web view\'s audio session');
+  // the next window is open when Talk starts: it is stopped before Talk switches the session to play and record
+  R.nextAt = 0;
+  await a.watch(6);
+  assert.ok(P.pending);
+  await conversation(a);
+  const log = P.log.slice(writes);
+  assert.ok(log.indexOf('stop') > 0 && log.indexOf('stop') < log.indexOf('session play-and-record'), log.join(', '));
+  const n = P.measures;
+  await a.watch(30);
+  assert.strictEqual(P.measures, n, 'no window while Talk is open');
+  a.talk.els.voiceEnd.onclick();
+  await gameAudible(a, 'room sound, then Talk');
+  assert.strictEqual(sess.type, 'ambient');
+  await a.watch(12);
+  assert.strictEqual(P.measures, n + 1, 'measuring again after Talk');
+  P.finish();
+  await a.watch(1);
+  assert.ok(a.wa.live.contexts.every(c => c.state === 'running'));
 });
 
 // The music that follows the heart (biomusic.js, music.js follow). Its oscillators are the only ones that reach the beds' bus.

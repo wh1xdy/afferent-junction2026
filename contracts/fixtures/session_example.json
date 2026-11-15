@@ -164,5 +164,5 @@
     "time_to_start_s": 667
   },
   "vitals": { "pulse_mean_bpm": 73.8, "pulse_min_bpm": 69.5, "pulse_max_bpm": 80.2, "pulse_source": "simulated" },
-  "context": { "room_temp_c": 20.5, "home": true, "visitors_present": 0, "bedside_light_level": 8 }
+  "context": { "room_temp_c": 20.5, "room_sound": null, "home": true, "visitors_present": 0, "bedside_light_level": 8 }
 }

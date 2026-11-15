@@ -1099,10 +1099,11 @@
                     "rmssd_steady",
                     "breathing_calm",
                     "hrv_partial",
-                    "hrv_between"
+                    "hrv_between",
+                    "room_loud"
                   ]
                 },
-                "description": "the signs behind the state, in the order they were read"
+                "description": "the signs behind the state, in the order they were read. room_loud: the phone measured a very loud room (65 dB or more, approximate), which leans a steady or unread state to calm games"
               },
               "signals": {
                 "type": "object",
@@ -1930,6 +1931,42 @@
         "room_temp_c": {
           "$ref": "#/$defs/num_or_null",
           "description": "Room temperature at the end of the session from the bedside unit's thermometer, through the home hub (A.Sensors.room). null without a fresh measured reading; a simulated one is never recorded"
+        },
+        "room_sound": {
+          "description": "How loud the room was, from the phone's microphone (demo/js/sound.js), when the patient turned on Room sound level. Numbers only: the phone measures a few seconds now and then and keeps one A-weighted level per 100 ms; no audio is recorded, kept or sent. Levels are approximate dB (uncalibrated phone microphone plus a fixed offset): quiet below 40, normal 40 to 55, lively 55 to 65, loud above. Only windows the phone's own sound could not reach count (headphones, echo-cancelled input, or the app quiet). null when switched off or without a window from 2 minutes before the start to the end",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "median_db",
+                "share_loud",
+                "windows"
+              ],
+              "properties": {
+                "median_db": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 140,
+                  "description": "median of the 100 ms levels (L50), approximate dB(A)"
+                },
+                "share_loud": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "share of the 100 ms levels at 55 dB or more"
+                },
+                "windows": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "measuring windows (about 4 s each) the numbers come from"
+                }
+              }
+            }
+          ]
         },
         "home": {
           "type": [

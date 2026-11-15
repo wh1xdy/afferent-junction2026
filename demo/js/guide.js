@@ -9,9 +9,12 @@
     rest: 'Rest a moment with the lantern',
     dot: 'Tap the light to go on',
     lanternsRest: 'Let’s leave the lanterns for today.',
+    loud: 'It’s a bit loud around you. Headphones or a quieter spot can help.',
   };
   // the autoplay story nobody touches shows a task's line for AUTO_S, as before
-  const DOT_AFTER_S = 1.2, IDLE_AGAIN_S = 6, NOTE_S = 5, AUTO_S = 3.5;
+  const DOT_AFTER_S = 1.2, IDLE_AGAIN_S = 6, NOTE_S = 5, AUTO_S = 3.5, LOUD_S = 6;
+  // Calm and wind-down games, where a loud room gets one soft line (sound.js measures the room, when switched on).
+  const QUIET_MODES = ['calm', 'rest'];
 
   const partOfDay = (d = new Date()) => {
     const h = d.getHours();
@@ -39,6 +42,9 @@
     }
     if (s.phase === 'walk') {
       if (mem.noteFor && now < mem.noteUntil) return { text: LINE.lanternsRest, kind: 'line' };
+      // once a session, as the calm or wind-down games begin in a loud room: a soft line, then the walk goes on as ever
+      if (mem.loudFor !== s && QUIET_MODES.includes(s.mode) && A.RoomSound?.loud?.(now) === true) { mem.loudFor = s; mem.loudUntil = now + LOUD_S; }
+      if (mem.loudFor === s && now < mem.loudUntil) return { text: LINE.loud, kind: 'line' };
       const w = s.T?.waiting?.(now);
       if (w != null && w >= DOT_AFTER_S) return { text: LINE.dot, kind: 'line' };
     }
