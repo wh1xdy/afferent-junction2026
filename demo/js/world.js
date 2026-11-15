@@ -1025,7 +1025,7 @@
       const T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f), base = gyAt(S.worldX + xc - fx) + R.sink * u;
       const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - ceil), w = h * ART.aspect(tr.name);
       if (h <= 0 || xc + w / 2 < -20 || xc - w / 2 > W + 20) continue;
-      const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway;
+      const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway * (rm ? 0.3 : 1);
       ctxRef.save(); ctxRef.transform(1, 0, lean, 1, -lean * base, 0);
       art(tr.name, xc - w / 2, base + h * 0.03 - h, w, h, T.g, 1, R.lt);
       ctxRef.restore();
