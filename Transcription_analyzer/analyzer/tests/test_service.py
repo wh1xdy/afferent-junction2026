@@ -1,4 +1,5 @@
 import json
+import threading
 
 from fastapi.testclient import TestClient
 
@@ -63,3 +64,17 @@ def test_transcripts_endpoint_accepts_and_rejects_rows(tmp_path, monkeypatch):
     assert len(written) == 1
     assert "Bonjour" in written[0].read_text(encoding="utf-8")
     assert len(written[0].read_text(encoding="utf-8").splitlines()) == 2
+
+
+def test_startup_starts_hub_inbox_thread(tmp_path, monkeypatch):
+    cfg = Config()
+    cfg.hub_transcripts_dir = str(tmp_path / "hub")
+    cfg.model.backend = "mock"
+    app = _app(monkeypatch, tmp_path, cfg)
+    started = threading.Event()
+    monkeypatch.setattr(service.Runner, "consume_inbox",
+                        lambda _runner: started.set())
+
+    with TestClient(app):
+        assert started.wait(1)
+        assert app.state.inbox_thread.daemon

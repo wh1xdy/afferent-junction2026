@@ -16,6 +16,11 @@
       "path": "/data"
     },
     {
+      "type": "persist",
+      "name": "afferent-home-hub",
+      "path": "/hub-data"
+    },
+    {
       "type": "network",
       "mode": "mesh",
       "serviceCIDR": "10.99.0.0/16",

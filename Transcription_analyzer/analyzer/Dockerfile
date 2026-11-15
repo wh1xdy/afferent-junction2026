@@ -37,6 +37,13 @@ RUN server="$(command -v llama-server || \
       ln -sf "$server" /usr/local/bin/llama-server; } \
  && command -v llama-server
 
+# Models are Jetson-only (mesh apps have no internet egress, so nothing can be
+# fetched at runtime). The 5 GB base GGUF gets its own early layer: code and
+# adapter changes never re-send it. See README "Jetson image model prerequisite".
+COPY models/Qwen3-8B-Q4_K_M.gguf /app/models/
+COPY models/student-lora-*.gguf /app/models/
+RUN test -f /app/models/Qwen3-8B-Q4_K_M.gguf
+
 
 # ── Generic CPU base (dev laptop, cloud instance, RPi) ──────────────────────
 FROM python:3.11-slim-bookworm AS base-generic
@@ -63,8 +70,6 @@ ENV WENDY_PLATFORM=${WENDY_PLATFORM} \
 COPY analyzer/ ./analyzer/
 COPY configs/ ./configs/
 COPY web/ ./web/
-COPY models/ ./models/
-RUN test -f /app/models/student-lora-f16.gguf
 
 ENV PYTHONUNBUFFERED=1
 # Runtime config via ANALYZER_CONFIG or ANALYZER_* env vars; /data is the

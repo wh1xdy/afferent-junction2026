@@ -5,7 +5,7 @@ the model off the GPU until an analysis run. Same code runs both deployments;
 only config differs:
 
 - **Jetson** (`configs/jetson.yaml`): `llama-server` starts on demand with the
-  Qwen3 Q4_K_M model and the fine-tuned LoRA adapter.
+  Qwen3 Q4_K_M model baked into the image and the fine-tuned LoRA adapter.
 - **Cloud** (`configs/cloud.yaml`): OpenAI-compatible backend (vLLM, NIM,
   llama-server) serving the merged fine-tuned model.
 
@@ -21,6 +21,7 @@ analyzer/
   scoring.py     JSON contract, prompt, validation + retry
   backend.py     LlamaCppBackend | LlamaServerBackend | OpenAIBackend | MockBackend
   models.py      model readiness + optional Hugging Face fetch
+  inbox.py       claim and settle transcript files from the shared hub volume
   store.py       SQLite aggregates + baseline-deviation index
   pipeline.py    batch runner: load -> score -> unload
   scheduler.py   nightly window + vision-idle probe
@@ -35,21 +36,55 @@ configs/         jetson.yaml | cloud.yaml
 The service itself holds **no model** at rest. `POST /analyze` acquires the run
 lock, starts `llama-server`, waits for its health endpoint, scores pending
 windows, writes aggregates, then terminates the server. `POST /models/fetch`
-starts a background download when using the `llamaserver` backend; on the
-Jetson `auto_fetch` starts that download at service startup.
+starts a background download when using the `llamaserver` backend if the
+container has network egress. The Jetson uses Wendy mesh networking, which has
+no internet egress, so its base GGUF is bundled in the image and
+`auto_fetch` is disabled there.
 
 The Qwen3-8B Q4_K_M weights are about 5.0 GB. At a 4096-token context, the
 Q8 key/value cache is about 0.30 GB; runtime buffers and the OS need additional
 headroom. Windows are capped at 120 turns and 9000 rendered characters to fit
 the training/inference context. This is why the Jetson config keeps a 5.8 GB
-preflight requirement, and why `posture_controller` stops posture before starting transcription:
-the Orin Nano's 8 GB unified memory cannot hold the camera posture app and the
-8B model together. The Jetson's nightly schedule and vision probes are disabled;
-app swaps are explicitly driven from the laptop controller.
+preflight requirement. The Jetson's nightly schedule and vision probes are
+disabled; app swaps are explicitly driven from the laptop controller.
+
+### Mutual exclusion with posture
+
+The posture controller is the switch between posture and transcription. As a
+second guard, the analyzer probes the configured posture status URL before
+model loading; any HTTP response below 500 blocks the batch. It also checks
+the posture endpoint at most every 10 seconds during a batch. If posture
+becomes reachable, the analyzer aborts the batch and unloads `llama-server`.
+An inbox claim stays `.analyzing` while the inbox waits for the controller to
+switch modes, then reruns; stored windows are deduplicated. The memory
+preflight remains an independent second check.
 
 `/analyze` checks model readiness and available memory synchronously and returns
 HTTP 409 with a reason when preflight fails. The batch runner applies the same
 preflight for non-HTTP/scheduler callers.
+
+### Jetson image model prerequisite
+
+The Jetson image must contain
+`models/Qwen3-8B-Q4_K_M.gguf` before `wendy run`; the build copies this 5 GB
+file into its own early image layer so code-only changes do not invalidate the
+model layer. Download the public file on a development machine from
+`Qwen/Qwen3-8B-GGUF` and copy it into the analyzer project. It also needs at least one `models/student-lora-*.gguf` adapter
+(see `scripts/build_lora_gguf.sh`). The generic image (`docker compose`, mock or
+OpenAI-compatible backends) copies no model and builds without these files:
+
+```sh
+cd Transcription_analyzer/analyzer
+uv run --with huggingface_hub python -c \
+  'from pathlib import Path; from huggingface_hub import hf_hub_download; print(hf_hub_download(repo_id="Qwen/Qwen3-8B-GGUF", filename="Qwen3-8B-Q4_K_M.gguf", local_dir=Path.home()/".cache/afferent-models"))'
+cp ~/.cache/afferent-models/Qwen3-8B-Q4_K_M.gguf models/
+wendy json validate
+wendy --json run --device jetson --build-type docker --detach --yes
+```
+
+The image build expects the model at
+`/app/models/Qwen3-8B-Q4_K_M.gguf`; the Jetson config sets `model.path` to
+that path and does not attempt a runtime Hugging Face download.
 
 ## API
 
@@ -91,6 +126,25 @@ with their input index and reason. Alternatively, mount or copy the hub's
 
 A malformed line is skipped and logged, never fatal — rotating hub logs
 can end in a partial row after a crash mid-append.
+
+### Jetson hub inbox
+
+On WendyOS, the analyzer mounts the hub app's shared `afferent-home-hub`
+persistent volume at `/hub-data`; `configs/jetson.yaml` watches
+`/hub-data/transcripts` at startup. This is a shared-volume handoff, not an
+HTTP delivery API. A startup inbox run waits for model/memory preflight, then
+renames each `transcript-*.jsonl` to a unique `.analyzing` claim before
+scoring. A successful file is deleted from the hub volume. A file with parse
+or scoring errors is kept as `.failed` for inspection; a claim left by a
+crash remains `.analyzing` and is retried on the next analyzer start. The
+`inbox` object in `/status` reports its state and file counts. `inbox_settle_s`
+allows an in-progress hub append to close before scoring, while
+`inbox_retry_s` controls preflight and batch-lock retries.
+
+`ANALYZER_HUB_TRANSCRIPTS_DIR` enables the inbox; it defaults to empty/off.
+`ANALYZER_INBOX_SETTLE_S` and `ANALYZER_INBOX_RETRY_S` override the 2-second
+settle and 30-second retry defaults. The regular `transcripts_dir` scan and
+`POST /analyze` remain separate from the startup inbox.
 
 ## Run locally (no GPU, no model)
 

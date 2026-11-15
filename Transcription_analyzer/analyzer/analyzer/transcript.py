@@ -136,7 +136,8 @@ def parse_record(rec: dict, index: int = 0) -> Window:
     return _window(rec, Path("ingest.jsonl"), index)
 
 
-def load_jsonl(path: str | Path, target: str = DEFAULT_TARGET) -> list[Window]:
+def load_jsonl(path: str | Path, target: str = DEFAULT_TARGET,
+               strict: bool = False) -> list[Window]:
     """One record per line -> one un-sliced Window per record.
 
     A bad line is skipped (logged) rather than poisoning the whole file —
@@ -152,6 +153,9 @@ def load_jsonl(path: str | Path, target: str = DEFAULT_TARGET) -> list[Window]:
             rec = json.loads(line)
             windows.append(_window(rec, path, i))
         except Exception as e:
+            if strict:
+                raise ValueError(
+                    f"invalid transcript record in {path.name}:{i}: {e}") from e
             logger.warning("skipping bad record %s:%d: %s", path.name, i, e)
     return windows
 

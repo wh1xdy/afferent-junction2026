@@ -69,10 +69,14 @@ class DataManagerCfg:
 @dataclass
 class Config:
     transcripts_dir: Path = Path("/data/transcripts")
+    hub_transcripts_dir: str = ""
+    inbox_settle_s: float = 2.0
+    inbox_retry_s: float = 30.0
     db_path: Path = Path("/data/analyzer.db")
     host: str = "127.0.0.1"
     port: int = 3080
     target_speaker: str = "target"     # speaker label of the tracked person
+    exclusive_probe_urls: list[str] = field(default_factory=list)
     max_window_turns: int = 120
     window_overlap: int = 20
     window_max_chars: int = 9000
@@ -85,10 +89,14 @@ class Config:
 
 _ENV_MAP: dict[str, tuple[str, str]] = {
     "ANALYZER_TRANSCRIPTS_DIR": ("", "transcripts_dir"),
+    "ANALYZER_HUB_TRANSCRIPTS_DIR": ("", "hub_transcripts_dir"),
+    "ANALYZER_INBOX_SETTLE_S": ("", "inbox_settle_s"),
+    "ANALYZER_INBOX_RETRY_S": ("", "inbox_retry_s"),
     "ANALYZER_DB_PATH": ("", "db_path"),
     "ANALYZER_HOST": ("", "host"),
     "ANALYZER_PORT": ("", "port"),
     "ANALYZER_TARGET_SPEAKER": ("", "target_speaker"),
+    "ANALYZER_EXCLUSIVE_PROBES": ("", "exclusive_probe_urls"),
     "ANALYZER_WINDOW_MAX_CHARS": ("", "window_max_chars"),
     "ANALYZER_MODEL_BACKEND": ("model", "backend"),
     "ANALYZER_MODEL_PATH": ("model", "path"),
