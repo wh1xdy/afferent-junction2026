@@ -69,7 +69,9 @@ The Jetson image must contain
 `models/Qwen3-8B-Q4_K_M.gguf` before `wendy run`; the build copies this 5 GB
 file into its own early image layer so code-only changes do not invalidate the
 model layer. Download the public file on a development machine from
-`Qwen/Qwen3-8B-GGUF` and copy it into the analyzer project:
+`Qwen/Qwen3-8B-GGUF` and copy it into the analyzer project. It also needs at least one `models/student-lora-*.gguf` adapter
+(see `scripts/build_lora_gguf.sh`). The generic image (`docker compose`, mock or
+OpenAI-compatible backends) copies no model and builds without these files:
 
 ```sh
 cd Transcription_analyzer/analyzer
