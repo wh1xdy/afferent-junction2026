@@ -21,7 +21,7 @@
 .tb-glass, .tb-art { position: absolute; left: 0; top: 0; pointer-events: none; }
 .tb-glass {
   right: 0; bottom: 0;
-  background-color: var(--af-glass); background-image: var(--af-sheen); background-repeat: no-repeat; background-size: 100% var(--tb-body, 44px);
+  background-color: var(--af-glass-strong); background-image: var(--af-sheen); background-repeat: no-repeat; background-size: 100% var(--tb-body, 44px);
   -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
   transition: background-color var(--af-dur-press) var(--af-ease-std);
 }
@@ -30,10 +30,10 @@
 .tb-art .tb-edge { fill: none; stroke: rgba(242, 238, 230, 0.16); stroke-width: 1; }
 .talk-bubble-text { position: relative; display: block; }
 .talk-bubble:active { transform: scale(0.97); }
-.talk-bubble:active .tb-glass { background-color: color-mix(in srgb, var(--af-glass) 86%, var(--af-birch)); }
+.talk-bubble:active .tb-glass { background-color: color-mix(in srgb, var(--af-glass-strong) 86%, var(--af-birch)); }
 .talk-bubble:focus-visible { outline: none; }
 .talk-bubble:focus-visible .tb-art .tb-edge { stroke: var(--md-sys-color-secondary); stroke-width: 3; }
-@media (hover: hover) { .talk-bubble:hover .tb-glass { background-color: color-mix(in srgb, var(--af-glass) 90%, var(--af-birch)); } }
+@media (hover: hover) { .talk-bubble:hover .tb-glass { background-color: color-mix(in srgb, var(--af-glass-strong) 90%, var(--af-birch)); } }
 
 /* Now and then a soft breath: still for most of the cycle, a slow swell from the tail. */
 @keyframes tbBreathe { 0%, 76%, 100% { scale: 1; } 86% { scale: 1.025; } }

@@ -201,7 +201,7 @@ const tests = {
     const glass = p.bubble.querySelector('.tb-glass');
     assert.ok(glass, 'the glass layer');
     assert.ok(!/\.talk-bubble::(before|after)/.test(css), 'no tail drawn on its own');
-    assert.match(css, /\.tb-glass \{[^}]*background-color: var\(--af-glass\); background-image: var\(--af-sheen\)/);
+    assert.match(css, /\.tb-glass \{[^}]*background-color: var\(--af-glass-strong\); background-image: var\(--af-sheen\)/);
     assert.match(css, /\.tb-glass \{[^}]*backdrop-filter: var\(--af-glass-blur\)/);
     assert.match(read('js/talkbubble.js'), /glass\.style\.clipPath = glass\.style\.webkitClipPath = `path\("\$\{d\}"\)`/);
     assert.match(read('js/talkbubble.js'), /<path class="tb-edge" d="\$\{d\}"\/>/, 'the edge is the same path');
