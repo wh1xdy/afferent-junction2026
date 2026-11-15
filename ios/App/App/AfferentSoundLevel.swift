@@ -53,6 +53,8 @@ public class AfferentSoundLevelPlugin: CAPPlugin, CAPBridgedPlugin {
     private static let options: AVAudioSession.CategoryOptions = [.mixWithOthers, .defaultToSpeaker, .allowBluetoothA2DP, .allowAirPlay]
     private let queue = DispatchQueue(label: "fi.junction.afferent.soundlevel")
     private var window: Window?
+    // stop() raises it: a measure asked for before that, still waiting for the permission prompt, does not start
+    private var generation = 0
 
     private func permission() -> String {
         switch AVAudioApplication.shared.recordPermission {
@@ -80,6 +82,7 @@ public class AfferentSoundLevelPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func stop(_ call: CAPPluginCall) {
         queue.async {
+            self.generation += 1
             if let w = self.window { self.finish(w, aborted: true) }
             call.resolve()
         }
@@ -91,6 +94,7 @@ public class AfferentSoundLevelPlugin: CAPPlugin, CAPBridgedPlugin {
         let quiet = call.getBool("quiet") ?? false
         queue.async {
             if let w = self.window { self.finish(w, aborted: true) }
+            let gen = self.generation
             switch AVAudioApplication.shared.recordPermission {
             case .granted:
                 self.begin(call, seconds: seconds, blockSeconds: blockSeconds, quiet: quiet)
@@ -99,8 +103,9 @@ public class AfferentSoundLevelPlugin: CAPPlugin, CAPBridgedPlugin {
             default:
                 AVAudioApplication.requestRecordPermission { ok in
                     self.queue.async {
-                        if ok { self.begin(call, seconds: seconds, blockSeconds: blockSeconds, quiet: quiet) }
-                        else { call.resolve(["permission": "denied"]) }
+                        if !ok { call.resolve(["permission": "denied"]) }
+                        else if gen != self.generation { call.resolve(["aborted": true, "permission": "granted"]) }
+                        else { self.begin(call, seconds: seconds, blockSeconds: blockSeconds, quiet: quiet) }
                     }
                 }
             }
@@ -116,8 +121,8 @@ public class AfferentSoundLevelPlugin: CAPPlugin, CAPBridgedPlugin {
         let saved = Saved(category: session.category, mode: session.mode, options: session.categoryOptions,
                           policy: session.routeSharingPolicy, echo: echoBefore)
         let w = Window(call: call, saved: saved)
-        let skip = { (route: String) in
-            self.restore(w, wasActive: false)
+        let skip = { (route: String, active: Bool) in
+            self.restore(w, wasActive: active)
             call.resolve(["skipped": true, "route": route, "echo_cancelled": false, "permission": "granted"])
         }
         do {
@@ -131,12 +136,12 @@ public class AfferentSoundLevelPlugin: CAPPlugin, CAPBridgedPlugin {
         var wantEcho = false
         if !quiet && w.route != "headphones" {
             if w.route == "speaker", #available(iOS 18.2, *), session.isEchoCancelledInputAvailable { wantEcho = true }
-            else { skip(w.route); return }
+            else { skip(w.route, false); return }
         }
         if #available(iOS 18.2, *), wantEcho != echoBefore { try? session.setPrefersEchoCancelledInput(wantEcho) }
         do { try session.setActive(true) } catch { restore(w, wasActive: false); call.resolve(["error": "active", "permission": "granted"]); return }
         if #available(iOS 18.2, *) { w.echo = wantEcho && session.isEchoCancelledInputEnabled }
-        if wantEcho && !w.echo { skip(w.route); return }
+        if wantEcho && !w.echo { skip(w.route, true); return }
 
         let input = w.engine.inputNode
         let format = input.outputFormat(forBus: 0)

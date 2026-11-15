@@ -289,9 +289,9 @@
     if (LIVE.includes(state)) R.abort('talk');
     else if (R.status === 'paused') { R.status = 'waiting'; R.nextAt = Math.max(R.nextAt, clock() + 10); }
   });
-  A.bus?.on('segment', id => { if (id === 'rest') R.soon(); });
+  A.bus?.on('segment', id => { if (id === 'rest') { R.soon(); R.tick(); } });
   if (typeof document !== 'undefined' && document.addEventListener) {
-    document.addEventListener('visibilitychange', () => { if (document.hidden) R.abort(); else if (enabled()) R.nextAt = Math.min(R.nextAt, clock() + 3); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) R.abort(); else R.soon(); });
     if (typeof setInterval === 'function') setInterval(() => { if (typeof A.now === 'function') R.tick(); }, CHECK_MS);
     if (typeof addEventListener === 'function') addEventListener('load', () => { if (typeof A.now === 'function') R.sync(); });
   }
