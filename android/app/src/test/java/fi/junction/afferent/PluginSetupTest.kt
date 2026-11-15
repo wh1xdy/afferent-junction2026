@@ -17,7 +17,7 @@ import org.junit.Test
 class PluginSetupTest {
 
     // jsName of every in-app plugin in the Swift sources under ios/App/App.
-    private val iosJsNames = setOf("AfferentFinger", "AfferentPresence", "AfferentEyes", "AfferentHaptics")
+    private val iosJsNames = setOf("AfferentFinger", "AfferentPresence", "AfferentEyes", "AfferentHaptics", "AfferentSoundLevel")
 
     @Test
     fun registeredPluginsUseTheIosJsNames() {
@@ -32,6 +32,20 @@ class PluginSetupTest {
             name
         }
         assertEquals("a plugin name is registered twice: $names", names.size, names.toSet().size)
+    }
+
+    /** The web layer (demo/js/sound.js) calls exactly these, as on iOS, and the microphone is the only permission. */
+    @Test
+    fun soundLevelPluginHasTheIosNameAndMethods() {
+        val cls = AfferentSoundLevelPlugin::class.java
+        assertTrue(cls in AfferentPlugins.all)
+        val annotation = cls.getAnnotation(CapacitorPlugin::class.java)!!
+        assertEquals("AfferentSoundLevel", annotation.name)
+        val methods = cls.declaredMethods.filter { it.isAnnotationPresent(PluginMethod::class.java) }
+        assertEquals(setOf("status", "measure", "stop"), methods.map { it.name }.toSet())
+        for (m in methods) assertEquals(listOf(PluginCall::class.java), m.parameterTypes.toList())
+        assertEquals("micResult", cls.declaredMethods.single { it.isAnnotationPresent(PermissionCallback::class.java) }.name)
+        assertEquals(mapOf("microphone" to setOf("android.permission.RECORD_AUDIO")), annotation.permissions.associate { it.alias to it.strings.toSet() })
     }
 
     /** The web layer (demo/js/finger.js) calls exactly these, as on iOS. */

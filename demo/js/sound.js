@@ -33,6 +33,7 @@
   const OFFSET_KEY = 'afferent.sound.offset_db';
   const PLUGIN = 'AfferentSoundLevel';
   const r1 = x => Math.round(x * 10) / 10, r2 = x => Math.round(x * 100) / 100;
+  const clock = () => typeof A.now === 'function' ? A.now() : 0;
 
   // A-weighting, near enough: the IEC 61672 poles (20.6 Hz twice, 107.7 Hz, 737.9 Hz, 12194 Hz twice) as first-order
   // sections, each prewarped through the bilinear transform so its corner lands where it should, and the whole made
@@ -105,8 +106,6 @@
     const ctx = A.Music?.ctx || A.Audio?.ctx;
     return !ctx || ctx.state !== 'running';
   };
-  // The microphone cannot hear Afferent's own sound: headphones, echo-cancelled speaker input, or Afferent quiet.
-  const clean = r => r?.route === 'headphones' || (r?.route === 'speaker' && r.echo === true) || quiet();
 
   const R = {
     BANDS, LOUD_DB, VERY_LOUD_DB, WINDOW_S, BLOCK_S, FRESH_S, LEQ_S, OFFSET, OFFSET_KEY,
@@ -116,7 +115,7 @@
 
     // A finished window of A-weighted dBFS blocks, as the meters give them, into a kept reading in dB (approx.).
     // Digitally silent blocks (a muted or interrupted input) are no measurement; too few real blocks, no window.
-    accept(dbfsBlocks, now = A.now()) {
+    accept(dbfsBlocks, now = clock()) {
       const off = offset();
       const dbs = (Array.isArray(dbfsBlocks) ? dbfsBlocks : []).filter(d => Number.isFinite(d) && d > SILENT_DBFS && d <= 0).map(d => r1(d + off));
       if (dbs.length < MIN_BLOCKS) return null;
@@ -127,7 +126,7 @@
 
     // The reading now: the equivalent level over the measured blocks of the last minute before the newest window,
     // while that window is at most FRESH_S old. null without one.
-    reading(now = A.now()) {
+    reading(now = clock()) {
       if (!enabled()) return null;
       const last = this.windows[this.windows.length - 1];
       if (!last || now - last.at > FRESH_S || last.at > now + 1) return null;
@@ -144,7 +143,7 @@
     },
 
     // The row under "Your room" in the signals sheet (vitals.js). None while switched off.
-    rows(now = A.now()) {
+    rows(now = clock()) {
       if (!enabled()) return [];
       const r = this.reading(now);
       if (r) return [{ icon: 'volume_up', label: 'Room sound', value: String(r.db), lines: [`approx. dB · ${r.band}`, 'Phone microphone, nothing recorded'] }];
@@ -157,7 +156,7 @@
 
     // For the session record (record.js, context.room_sound): the windows from shortly before the start to now, as
     // numbers only. median_db is the median of the 100 ms block levels (L50), share_loud the share of them at 55 dB or more.
-    session(t0, now = A.now()) {
+    session(t0, now = clock()) {
       if (!enabled()) return null;
       const ws = this.windows.filter(w => w.at >= t0 - PRE_S && w.at <= now + 1), dbs = ws.flatMap(w => w.dbs);
       if (!dbs.length) return null;
@@ -166,20 +165,20 @@
 
     // Switched on or off (main.js), or the app opened: on, a first window soon; off, the microphone closes and every
     // reading is forgotten.
-    sync(now = A.now()) {
+    sync(now = clock()) {
       if (!enabled()) { this.abort(); this.windows = []; this.status = 'off'; return; }
       if (this.status === 'off' || this.status === 'denied' || this.status === 'unsupported') this.status = 'waiting';
       this.nextAt = Math.min(this.nextAt || Infinity, now + 1);
     },
 
     // Asked every few seconds: one window when it is due and nothing stands in the way.
-    tick(now = A.now()) {
+    tick(now = clock()) {
       if (!enabled() || this.run || hidden() || talking() || now < this.nextAt) return null;
       return this.measure(now);
     },
 
     // Shortly before a session's rest moment: a fresh window if the last one is older than a minute.
-    soon(now = A.now()) {
+    soon(now = clock()) {
       const last = this.windows[this.windows.length - 1];
       if (enabled() && (!last || now - last.at > LEQ_S) && !['denied', 'unsupported'].includes(this.status)) this.nextAt = Math.min(this.nextAt, now);
     },
@@ -194,10 +193,10 @@
       try { run.cancel?.(); } catch {}
       if (run.native) { try { plugin()?.stop?.()?.catch?.(() => {}); } catch {} }
       if (this.status === 'measuring') this.status = 'waiting';
-      this.nextAt = Math.max(this.nextAt, A.now() + 10);
+      this.nextAt = Math.max(this.nextAt, clock() + 10);
     },
 
-    async measure(now = A.now()) {
+    async measure(now = clock()) {
       const run = this.run = { aborted: false, native: false };
       this.status = 'measuring';
       this.attempts++;
@@ -206,7 +205,7 @@
       catch (e) { out = { status: e?.code === 'UNIMPLEMENTED' ? 'unsupported' : 'error' }; }
       if (run.aborted || this.run !== run) return null;
       this.run = null;
-      const t = A.now(), every = A.session && !A.session.done ? PLAY_EVERY_S : HOME_EVERY_S;
+      const t = clock(), every = A.session && !A.session.done ? PLAY_EVERY_S : HOME_EVERY_S;
       if (out?.blocks) {
         const w = this.accept(out.blocks, t);
         this.status = w ? 'waiting' : 'error';
@@ -218,25 +217,29 @@
       return null;
     },
 
-    // A window on the phone: the plugin says first, without the microphone, where the sound goes; only when the
-    // microphone cannot hear Afferent does it open, for WINDOW_S.
+    // A window on the phone. The plugin opens the microphone only when it cannot hear Afferent: headphones, Afferent quiet,
+    // or the speaker with echo-cancelled input; otherwise it answers `skipped` with the microphone left closed.
     async nativeWindow(run) {
       const P = plugin();
       const st = await P.status();
       if (run.aborted) return null;
       if (st?.permission === 'denied') return { status: 'denied' };
-      if (!clean(st)) return { status: 'own_sound' };
-      const wasQuiet = quiet(), ctx = A.Music?.ctx || A.Audio?.ctx, woke = () => { if (ctx?.state === 'running') run.loudened = true; };
+      const wasQuiet = quiet();
+      if (st?.route === 'external' && !wasQuiet) return { status: 'own_sound' };
+      const ctx = A.Music?.ctx || A.Audio?.ctx, woke = () => { if (ctx?.state === 'running') run.loudened = true; };
       ctx?.addEventListener?.('statechange', woke);
       run.native = true;
       let r;
-      try { r = await P.measure({ seconds: WINDOW_S, blockMs: BLOCK_S * 1000 }); }
+      try { r = await P.measure({ seconds: WINDOW_S, blockMs: BLOCK_S * 1000, quiet: wasQuiet }); }
       finally { ctx?.removeEventListener?.('statechange', woke); }
       if (run.aborted || r?.aborted) return null;
       if (r?.permission === 'denied') return { status: 'denied' };
-      const heard = { route: r?.route, echo: r?.echo_cancelled === true };
-      if (!(heard.route === 'headphones' || (heard.route === 'speaker' && heard.echo)) && (!wasQuiet || !quiet() || run.loudened)) return { status: 'own_sound' };
-      return { blocks: r?.blocks };
+      if (r?.skipped) return { status: 'own_sound' };
+      if (r?.error || !Array.isArray(r?.blocks)) return { status: 'error' };
+      // Afferent began to sound during the window (a tap starts the audio) and only its quiet kept the reading clean
+      const shielded = r.route === 'headphones' || (r.route === 'speaker' && r.echo_cancelled === true);
+      if (!shielded && (!wasQuiet || !quiet() || run.loudened)) return { status: 'own_sound' };
+      return { blocks: r.blocks };
     },
 
     // A window in a browser: getUserMedia with no noise suppression or gain control, an analyser read every 100 ms.
@@ -284,12 +287,12 @@
   // Talk owns the microphone: a window that runs stops, and none starts until the conversation is over.
   A.bus?.on('voice', ({ state } = {}) => {
     if (LIVE.includes(state)) R.abort('talk');
-    else if (R.status === 'paused') { R.status = 'waiting'; R.nextAt = Math.max(R.nextAt, A.now() + 10); }
+    else if (R.status === 'paused') { R.status = 'waiting'; R.nextAt = Math.max(R.nextAt, clock() + 10); }
   });
   A.bus?.on('segment', id => { if (id === 'rest') R.soon(); });
   if (typeof document !== 'undefined' && document.addEventListener) {
-    document.addEventListener('visibilitychange', () => { if (document.hidden) R.abort(); else if (enabled()) R.nextAt = Math.min(R.nextAt, A.now() + 3); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) R.abort(); else if (enabled()) R.nextAt = Math.min(R.nextAt, clock() + 3); });
     if (typeof setInterval === 'function') setInterval(() => { if (typeof A.now === 'function') R.tick(); }, CHECK_MS);
-    addEventListener('load', () => { if (typeof A.now === 'function') R.sync(); });
+    if (typeof addEventListener === 'function') addEventListener('load', () => { if (typeof A.now === 'function') R.sync(); });
   }
 })();
