@@ -1,5 +1,6 @@
-// The painted trees of the walk (world.js trees(), art in demo/assets/tree_*.webp, plan in art/plan.json): world.js
-// draws them in a vm with a canvas that only records, and an A.Art stub whose loaded set the test chooses.
+// The painted trees of the walk (world.js trees(); the six trees are one atlas, demo/assets/trees.webp, made by
+// art/finalize_trees.py from art/plan.json): world.js draws them in a vm with a canvas that only records, and an A.Art
+// stub whose loaded set the test chooses. Each slice of the atlas world.js draws is turned back into the tree's box.
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -8,6 +9,9 @@ const vm = require('vm');
 const DEMO = path.join(__dirname, '..');
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(DEMO, 'assets', 'manifest.json'), 'utf8')).map(e => (typeof e === 'string' ? { name: e } : e));
 const TREES = ['tree_birch_a', 'tree_birch_b', 'tree_birch_c', 'tree_spruce_a', 'tree_spruce_b', 'tree_spruce_c'];
+const ATLAS = MANIFEST.find(e => e.name === 'trees') || {};
+const WEBP = fs.existsSync(path.join(DEMO, 'assets', 'trees.webp')) ? fs.readFileSync(path.join(DEMO, 'assets', 'trees.webp')) : Buffer.alloc(32);
+const ATLAS_SIZE = { w: 1 + WEBP.readUIntLE(24, 3), h: 1 + WEBP.readUIntLE(27, 3) };
 
 // A 2D context that draws nothing; the few calls whose result world.js reads give something of the right shape.
 const context = () => new Proxy({ globalAlpha: 1, globalCompositeOperation: 'source-over', canvas: { width: 780, height: 1688 } }, {
@@ -22,7 +26,7 @@ const context = () => new Proxy({ globalAlpha: 1, globalCompositeOperation: 'sou
 });
 
 // Loads util.js, layers.js and world.js with `loaded` as the art that has arrived, and returns a scroll renderer.
-const world = loaded => {
+const world = (loaded, entry = ATLAS) => {
   const draws = [];
   const ctx = { console, Math, Date, JSON, Set, Map, WeakMap, Object, Array, Number, String, Uint8ClampedArray, Float32Array, URLSearchParams, Proxy, Promise };
   ctx.window = ctx;
@@ -32,11 +36,20 @@ const world = loaded => {
   vm.createContext(ctx);
   const run = f => vm.runInContext(fs.readFileSync(path.join(DEMO, 'js', f), 'utf8'), ctx, { filename: f });
   run('util.js');
-  const size = n => (n.startsWith('tree_spruce_c') ? { w: 402, h: 520 } : n.startsWith('tree_') ? { w: 360, h: 760 } : { w: 300, h: 300 });
+  const size = n => (n === 'trees' ? ATLAS_SIZE : { w: 300, h: 300 });
   ctx.A.Art = {
-    has: n => loaded.has(n), aspect: n => size(n).w / size(n).h, size: n => (loaded.has(n) ? size(n) : null), meta: () => ({}),
+    has: n => loaded.has(n), aspect: n => size(n).w / size(n).h, size: n => (loaded.has(n) ? size(n) : null), meta: n => (n === 'trees' ? entry : {}),
     draw: (c, n, x, y, w, h) => { if (!loaded.has(n)) return false; draws.push({ n, x, y, w, h }); return true; },
-    slice: () => false, bake: () => false, drop() {}, feather() {},
+    slice: (c, n, s0, s1, x, y, w, h) => {
+      if (!loaded.has(n)) return false;
+      if (n !== 'trees') return true;
+      const name = Object.keys(entry.frames).find(k => Math.abs(entry.frames[k].s[0] - s0) < 1e-9 && Math.abs(entry.frames[k].s[1] - s1) < 1e-9);
+      assert.ok(name, `slice ${s0}..${s1} is a tree's slice`);
+      const [u0, u1, v0, v1] = entry.frames[name].b;
+      draws.push({ n: name, x: x + u0 * w, y: y + v0 * h, w: (u1 - u0) * w, h: (v1 - v0) * h });
+      return true;
+    },
+    bake: () => false, drop() {}, feather() {},
   };
   run('layers.js');
   run('world.js');
@@ -63,19 +76,27 @@ test('every image in the art manifest is a file in demo/assets', () => {
   for (const e of MANIFEST) assert.ok(fs.existsSync(path.join(DEMO, 'assets', `${e.name}.${e.ext || 'png'}`)), `${e.name}.${e.ext || 'png'} is missing`);
 });
 
-test('the six trees ship as small WebP files with alpha, and the old flat birch art is gone', () => {
+// art.js prepares every image's pixels at startup (alpha scan, grey and shade copies), so the six trees together stay
+// under the pixels of the two images they replaced: birch_cluster 289x578 and mid_birch_grove 1341x533.
+const OLD_PIXELS = 289 * 578 + 1341 * 533;
+
+test('the six trees ship as one small WebP atlas with alpha, no more pixels than the old birch art, which is gone', () => {
+  assert.strictEqual(ATLAS.ext, 'webp');
+  const b = WEBP;
+  assert.strictEqual(b.toString('ascii', 0, 4) + b.toString('ascii', 8, 12), 'RIFFWEBP');
+  assert.strictEqual(b.toString('ascii', 12, 16), 'VP8X', 'an extended WebP');
+  assert.ok(b[20] & 0x10, 'with an alpha channel');
+  assert.ok(ATLAS_SIZE.h <= 560, `${ATLAS_SIZE.w}x${ATLAS_SIZE.h}`);
+  assert.ok(ATLAS_SIZE.w * ATLAS_SIZE.h <= OLD_PIXELS, `${ATLAS_SIZE.w * ATLAS_SIZE.h} px against ${OLD_PIXELS} before`);
+  assert.ok(b.length < 200 * 1024, `${Math.round(b.length / 1024)} KB`);
+  assert.deepStrictEqual(Object.keys(ATLAS.frames).sort(), TREES, 'a frame for each tree');
+  let last = 0;
   for (const n of TREES) {
-    const e = MANIFEST.find(m => m.name === n);
-    assert.ok(e && e.ext === 'webp', `${n} is a webp entry of the manifest`);
-    const b = fs.readFileSync(path.join(DEMO, 'assets', `${n}.webp`));
-    assert.strictEqual(b.toString('ascii', 0, 4) + b.toString('ascii', 8, 12), 'RIFFWEBP');
-    assert.strictEqual(b.toString('ascii', 12, 16), 'VP8X', `${n} is an extended WebP`);
-    assert.ok(b[20] & 0x10, `${n} has an alpha channel`);
-    const w = 1 + b.readUIntLE(24, 3), h = 1 + b.readUIntLE(27, 3);
-    assert.ok(Math.max(w, h) <= 760, `${n} is ${w}x${h}`);
-    assert.ok(b.length < 120 * 1024, `${n} is ${Math.round(b.length / 1024)} KB`);
+    const { s: [s0, s1], b: [u0, u1, v0, v1] } = ATLAS.frames[n];
+    assert.ok(s0 >= last - 1e-9 && s0 <= u0 && u0 < u1 && u1 <= s1 && s1 <= 1 && v0 >= 0 && v0 < v1 && v1 === 1, `${n} frame ${JSON.stringify(ATLAS.frames[n])}`);
+    last = s1;
   }
-  for (const n of ['birch_cluster', 'mid_birch_grove']) assert.ok(!ALL.has(n), `${n} left the manifest`);
+  for (const n of ['birch_cluster', 'mid_birch_grove', ...TREES]) assert.ok(!ALL.has(n), `${n} is not an image of its own in the manifest`);
 });
 
 test('with the art in, the forest and sauna stretches draw painted trees and not the procedural birches', () => {
@@ -93,9 +114,10 @@ test('before the art arrives the procedural birches draw', () => {
   assert.ok(w.chunks.filter(c => c.type === 'forest').every(c => Array.isArray(c._birch)), 'the forest chunks drew procedural birches');
 });
 
-test('with part of the art in, only the loaded trees draw', () => {
-  const w = world(new Set([...ALL].filter(n => n !== 'tree_spruce_a' && n !== 'tree_birch_b')));
-  for (let x = -400; x <= 4400; x += 50) for (const d of w.frame(x)) assert.ok(d.n !== 'tree_spruce_a' && d.n !== 'tree_birch_b');
+test('an atlas entry without frames draws no painted trees, the procedural birches instead', () => {
+  const w = world(ALL, { name: 'trees', ext: 'webp' });
+  for (let x = -400; x <= 4400; x += 200) assert.deepStrictEqual(w.frame(x), []);
+  assert.ok(w.chunks.filter(c => c.type === 'forest').every(c => Array.isArray(c._birch)), 'the forest chunks drew procedural birches');
 });
 
 test('trees stand on the ground line, stay below the top fifth of the screen and keep their place while scrolling', () => {

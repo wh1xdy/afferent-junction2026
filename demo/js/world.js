@@ -986,6 +986,7 @@
   // drawn before the ground so its edge hides their feet, and one or two by the path behind the figure. Each chunk lays
   // out its own trees from its seed, and each tree is planted on the ground line where it is drawn, so it never floats
   // over a dip or sinks into a rise. Heights are fractions of H; the procedural birches stay until the art is in.
+  // The six trees are one image, the atlas 'trees' (art/finalize_trees.py); its manifest entry says where each one is.
   const TREE = {
     tree_birch_a: { h: [0.31, 0.37], g: 'yellow', sway: 1 }, tree_birch_b: { h: [0.29, 0.34], g: 'yellow', sway: 1 },
     tree_birch_c: { h: [0.26, 0.31], g: 'yellow', sway: 1 }, tree_spruce_a: { h: [0.3, 0.35], g: 'green', sway: 0.3 },
@@ -998,7 +999,9 @@
   // starts below the top controls (Layers.controls), at any zoom of a ride.
   const TREE_TOP = 0.2;
   const treeCeil = () => unzoom(0, Math.max(H * TREE_TOP, A.Layers.controls(W, insetTop()).line + 12 * u))[1];
-  const treeArt = () => Object.keys(TREE).some(n => ART.has(n));
+  const TREE_ART = 'trees';
+  const treeFrames = () => (ART.has(TREE_ART) ? A.Art.meta?.(TREE_ART)?.frames || null : null);
+  const treeArt = () => !!treeFrames();
   function treeLayout(c) {
     if (c._trees) return c._trees;
     const rr = rng((c.seed | 0) + 211), out = [];
@@ -1020,14 +1023,17 @@
   }
   function trees(c, back) {
     const R = back ? TREE_ROW.back : TREE_ROW.front, t = n0(S.t, 0) * (rm ? 0.3 : 1), ceil = treeCeil();
+    const frames = treeFrames(), sz = A.Art.size(TREE_ART);
     for (const tr of treeLayout(c)) {
-      if (tr.back !== back || !ART.has(tr.name)) continue;
-      const T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f), base = gyAt(S.worldX + xc - fx) + R.sink * u;
-      const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - ceil), w = h * ART.aspect(tr.name);
+      const F = frames[tr.name];
+      if (tr.back !== back || !F) continue;
+      // b: the tree's own box in the atlas, s: the slice drawn for it (to the middle of the gaps), both as fractions
+      const [u0, u1, v0, v1] = F.b, T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f), base = gyAt(S.worldX + xc - fx) + R.sink * u;
+      const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - ceil), w = h * (u1 - u0) * sz.w / ((v1 - v0) * sz.h);
       if (h <= 0 || xc + w / 2 < -20 || xc - w / 2 > W + 20) continue;
-      const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway * (rm ? 0.3 : 1);
+      const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway * (rm ? 0.3 : 1), aw = w / (u1 - u0), ah = h / (v1 - v0);
       ctxRef.save(); ctxRef.transform(1, 0, lean, 1, -lean * base, 0);
-      art(tr.name, xc - w / 2, base + h * 0.03 - h, w, h, T.g, 1, R.lt);
+      ART.slice(ctxRef, TREE_ART, F.s[0], F.s[1], xc - w / 2 - u0 * aw, base + h * 0.03 - h - v0 * ah, aw, ah, satOf(T.g), Math.min(1, lightOf(T.g) * R.lt), 1);
       ctxRef.restore();
     }
   }
