@@ -113,21 +113,18 @@
       <aside id="liveVitals" class="live-vitals" aria-label="Live vitals">
         <p class="lv-title">Live vitals</p>
         <div class="lv-grid">
-          <span class="lv-k"><span class="ms fill lv-heart" aria-hidden="true">favorite</span>Pulse</span>
-          <span class="lv-k">HRV</span>
-          <span class="lv-k">Breathing</span>
-          <span class="lv-v" data-k="pulse"></span>
-          <span class="lv-v" data-k="hrv"></span>
-          <span class="lv-v" data-k="breathing"></span>
-          <span class="lv-sim">Simulated</span>
+          <span class="lv-m"><span class="lv-k"><span class="ms fill lv-heart" aria-hidden="true">favorite</span><span class="lv-sr">Pulse</span></span> <span class="lv-v" data-k="pulse"></span> <span class="lv-sim">Simulated</span></span>
+          <span class="lv-m"><span class="lv-k">HRV</span> <span class="lv-v" data-k="hrv"></span></span>
+          <span class="lv-m"><span class="lv-k">Breathing</span> <span class="lv-v" data-k="breathing"></span></span>
         </div>
-        <p class="lv-state"><span class="lv-dot" aria-hidden="true"></span><span class="lv-label"></span></p>
-        <p class="lv-why"></p>
-        <div class="lv-calm"><span class="lv-k">Calm response</span><span class="lv-bar"><span class="lv-fill"></span></span></div>
-        <p class="lv-music lv-extra"></p>
-        <p class="lv-room lv-extra"></p>
-        <p class="lv-source lv-extra"></p>
-        <p class="lv-health lv-extra"></p>
+        <p class="lv-state"><span class="lv-dot" aria-hidden="true"></span><span class="lv-label"></span> <span class="lv-why"></span></p>
+        <div class="lv-foot">
+          <p class="lv-source lv-extra"></p>
+          <div class="lv-calm"><span class="lv-k">Calm response</span><span class="lv-bar"><span class="lv-fill"></span></span></div>
+          <p class="lv-music lv-extra"></p>
+          <p class="lv-room lv-extra"></p>
+          <p class="lv-health lv-extra"></p>
+        </div>
       </aside>
       <button id="wakeBtn" class="wake-btn hidden" type="button" aria-label="Fell asleep. Tap to wake"><span class="ms">close</span></button>
 
@@ -141,7 +138,7 @@
           <span class="sp"></span>
           <button class="icon-btn tonal state" data-open="crisis" type="button" aria-label="Talk to someone"><span class="ms">support</span></button>
         </header>
-        <button id="talkBubble" class="talk-bubble" data-open="voice" type="button"><span class="talk-bubble-text">Hey, how are you feeling?</span></button>
+        <button id="talkBubble" class="talk-bubble away" data-open="voice" type="button"><span class="talk-bubble-text">Hey, how are you feeling?</span></button>
         <div class="dock">
           <p id="roomHint" class="room-hint" aria-live="polite" hidden><span class="ms" aria-hidden="true">bedtime</span><span class="rh-txt"><span class="rh-title"></span> <span class="rh-text"></span></span></p>
           <button id="checkinBtn" class="checkin-chip state hidden" type="button"><span class="dot" aria-hidden="true"></span>Check-in</button>
@@ -390,5 +387,6 @@
   <script src="js/duel.js"></script>
   <script src="js/guide.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/talkbubble.js"></script>
 </body>
 </html>
