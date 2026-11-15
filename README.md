@@ -107,7 +107,8 @@ and on a warm night (above 19.5 °C) one quiet line suggests a cooler room befor
 patient's week and the shared dashboard show the nights.
 
 **Talk.** A voice companion ("Hey, how are you feeling?" on the start screen) that listens more than it
-asks. On a day the hub reads as bad, it gently suggests, once, talking to the doctor.
+asks. On a day the hub reads as bad, it gently suggests, once, talking to the doctor. Tap the lantern to turn the
+microphone off (the phone's mic stops and nothing more is sent); tap it again to keep talking.
 
 **Settings** opens on seven categories, each with its own page: Sound and feel, Sensors, Sessions,
 Mornings and check-in (morning reminder, the PHQ-9 check-in every 14 days), Share with your clinic, Home

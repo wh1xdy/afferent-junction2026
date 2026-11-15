@@ -25,6 +25,7 @@
     for (let i = 0; i < n; i++) f[i] = dv.getInt16(i * 2, true) / 32768;
     return f;
   };
+  const MIC = { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } };
   const wsUrl = url => url.trim().replace(/\/+$/, '').replace(/^http/, 'ws').replace(/^(?!wss?:\/\/)/, 'wss://') + '/live';
 
   // Transcript chunks arrive per role and can interleave (the user's words may land after the
@@ -77,7 +78,7 @@
   };
 
   const V = A.Voice = {
-    state: 'idle', log: null, level: 0,
+    state: 'idle', log: null, level: 0, muted: false,
     _: { b64, unb64, pcmToFloat, wsUrl, transcript },
 
     set(state, detail) { this.state = state; A.bus.emit('voice', { state, detail }); },
@@ -85,7 +86,8 @@
     async start() {
       if (this.state !== 'idle' && this.state !== 'error') return;
       this.set('connecting');
-      const s = this.s = { playing: new Set(), nextT: 0, ready: false };
+      const s = this.s = { playing: new Set(), nextT: 0, ready: false, muted: false };
+      this.muted = false;
       this.log = transcript();
       A.Music?.session();
       try {
@@ -96,7 +98,7 @@
 
         const r = relay();
         try {
-          s.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+          s.stream = await navigator.mediaDevices.getUserMedia(MIC);
         } catch (e) { throw fail('mic', [e?.name, e?.message].filter(Boolean).join(': ')); }
         if (this.s !== s) { s.stream.getTracks().forEach(t => t.stop()); return; }
         await (ctx.voiceWorklet ||= ctx.audioWorklet.addModule('js/voice-worklet.js').catch(e => { ctx.voiceWorklet = null; throw e; }));
@@ -106,10 +108,7 @@
         s.node = new AudioWorkletNode(ctx, 'voice-capture');
         s.mute.gain.value = 0;
         s.src.connect(s.node); s.node.connect(s.mute); s.mute.connect(ctx.destination);
-        s.node.port.onmessage = e => {
-          this.level = e.data.level;
-          if (s.ready && s.ws.readyState === 1) s.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(new Uint8Array(e.data.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } }));
-        };
+        s.node.port.onmessage = e => this.frame(s, e.data);
 
         const ws = s.ws = new WebSocket(wsUrl(r.url));
         ws.binaryType = 'arraybuffer';
@@ -125,6 +124,42 @@
         if (this.s === s) this.stop(e.code || 'failed', e.message);
       }
     },
+
+    // A block of microphone audio from the worklet: its level lights the lantern, and it goes to the relay once the
+    // conversation is set up. Nothing is sent while the microphone is off.
+    frame(s, d) {
+      if (this.s !== s || s.muted) return;
+      this.level = d.level;
+      if (s.ready && s.ws?.readyState === 1) s.ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(new Uint8Array(d.pcm)), mimeType: 'audio/pcm;rate=' + IN_RATE } } }));
+    },
+
+    // The lantern turns the microphone off and on during a conversation. Off stops the microphone itself (the phone's
+    // own mic indicator goes out) and tells Gemini the audio has ended, so it answers what it has heard instead of
+    // waiting; Gemini can still finish speaking. On opens the microphone again into the same conversation.
+    async setMuted(on) {
+      const s = this.s;
+      on = !!on;
+      if (!s || !s.ready || s.muted === on) return this.muted;
+      s.muted = this.muted = on; this.level = 0;
+      A.bus.emit('voiceMute', on);
+      if (on) {
+        if (s.ws?.readyState === 1) s.ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } }));
+        s.stream?.getTracks().forEach(t => t.stop());
+        try { s.src?.disconnect(); } catch {}
+        s.stream = s.src = null;
+        return true;
+      }
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia(MIC); } catch (e) {
+        if (this.s === s && !s.muted) this.stop('mic', [e?.name, e?.message].filter(Boolean).join(': '));
+        return this.muted;
+      }
+      // Ended, or off again, while the microphone was opening.
+      if (this.s !== s || s.muted) { stream.getTracks().forEach(t => t.stop()); return this.muted; }
+      s.stream = stream; s.src = s.ctx.createMediaStreamSource(stream); s.src.connect(s.node);
+      return false;
+    },
+    toggleMute() { return this.setMuted(!this.s?.muted); },
 
     onServer(m) {
       const s = this.s;
@@ -162,7 +197,7 @@
     stop(reason, detail) {
       const s = this.s;
       if (!s) return;
-      this.s = null; this.level = 0;
+      this.s = null; this.level = 0; this.muted = false;
       try { s.ws && (s.ws.onclose = null, s.ws.close()); } catch {}
       s.stream?.getTracks().forEach(t => t.stop());
       if (s.node) s.node.port.onmessage = null;
@@ -193,6 +228,7 @@
   if (!el) return;
 
   const STATUS = { idle: '', connecting: 'Connecting', listening: 'Listening', speaking: 'Speaking' };
+  const MUTED = 'Mic off. Tap the lantern to talk.';
   const ERRORS = {
     no_relay: 'Voice is not set up on this phone yet.',
     code: 'The access code was not accepted. Check it and try again.',
@@ -226,6 +262,17 @@
     $('voiceSetupBtn').ariaExpanded = String(!!open);
     $('voiceKeyForm').classList.toggle('hidden', !open);
   };
+  // The lantern is the microphone switch while a conversation is open (not while it connects).
+  const orb = $('voiceOrb');
+  const showMute = () => {
+    const on = !!V.s?.muted;
+    el.classList.toggle('muted', on);
+    orb.ariaPressed = String(on);
+    if (V.s && V.state !== 'connecting') $('voiceStatus').textContent = on ? MUTED : STATUS[V.state];
+  };
+  orb.onclick = () => { V.toggleMute(); };
+  A.bus.on('voiceMute', showMute);
+
   $('voiceSetupBtn').onclick = () => { setup(true, true); $('voiceUrl').focus({ preventScroll: true }); };
 
   A.bus.on('voiceText', render);
@@ -246,6 +293,8 @@
     setup(state === 'error' && ['no_relay', 'code', 'refused'].includes(detail?.code), false);
     if (state === 'connecting') { rows.clear(); $('voiceLog').textContent = ''; }
     el.classList.toggle('talked', live || rows.size > 0);
+    orb.disabled = state !== 'listening' && state !== 'speaking';
+    showMute();
     if (live && !raf) raf = requestAnimationFrame(pulse);
   });
 
