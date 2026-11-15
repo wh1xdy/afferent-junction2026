@@ -30,6 +30,12 @@
     ['morning_pulse', 10], ['home_only_days', 10], ['upright_frac', 100], ['reward_bias', 100],
   ];
   const FKEYS = FEATURES.map(f => f[0]);
+  // Map key 20: the index drivers that came after the first nine, which stay in FEATURES because older readers check
+  // the lengths of keys 7, 9, 10 and 14. Append only. Per driver one row: its contribution (thousandths), its usual
+  // median and scale, the share of days with a value (hundredths) and its 8 weekly medians. Map key 19 is retired:
+  // it held the bedroom at night for a day (2026-11-14) and a printed code from then may still carry it.
+  const ADDED = [['expressiveness', 100]];
+  const ADDED_ROW = 12;
   const VITALS = [['pulse_bpm', 10], ['breathing_per_min', 10], ['rmssd_ms', 10]];
   const VITAL_MAX = 65535;
   const STATES = ['stable', 'watch', 'check_in', 'booster'];
@@ -267,6 +273,14 @@
         ...rows,
       ]);
     }
+    const byf = cmp.by_feature || {}, contrib = j.contrib || [];
+    if (ADDED.some(([k]) => k in weekly || k in base || k in byf || contrib.some(x => x.key === k))) {
+      body.set(20, ADDED.map(([k, q]) => {
+        const c = contrib.find(x => x.key === k && isNum(x.contribution));
+        return [c ? qz(c.contribution, 1000) : null, base[k] ? qz(base[k].median, q) : null, base[k] ? qz(base[k].scale, q) : null,
+          qz(byf[k], 100), ...week(weekly[k], q)];
+      }));
+    }
     return body;
   }
 
@@ -313,6 +327,19 @@
         days: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && Number.isInteger(days[i]) ? Math.min(56, Math.max(0, days[i])) : 0])),
         simulated: Object.fromEntries(VITALS.map(([k], i) => [k, has[i] && !!(v[0] & (1 << i))])),
       };
+    }
+    if (b.has(20)) {
+      // Rows past the drivers this reader knows come from a newer encoder and are left out.
+      const rows = arr(b.get(20)), int = x => (x === null || Number.isSafeInteger(x) ? x : fail('body_shape'));
+      ADDED.slice(0, rows.length).forEach(([k, q], i) => {
+        const [c, med, scale, share, ...weeks] = arr(rows[i], ADDED_ROW).map(int);
+        out.weekly[k] = weeks.map(x => dq(x, q));
+        out.baseline[k] = med === null && scale === null ? null : { median: dq(med, q), scale: dq(scale, q) };
+        out.complete.by_feature[k] = dq(share, 100);
+        if (c === null) return;
+        const at = out.contrib.findIndex(x => Math.abs(x.contribution) < Math.abs(c / 1000));
+        out.contrib.splice(at < 0 ? out.contrib.length : at, 0, { key: k, contribution: dq(c, 1000) });
+      });
     }
     if (out.safety.some(e => !e.tier)) fail('body_enum');
     return out;
@@ -494,7 +521,7 @@
   const cachedBody = () => idbDo('afferent-qr', 'body', 'readonly', s => s.get('body')).then(x => x || null);
 
   const QR = {
-    PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, VITALS, STATES, TIERS, SENSORS, FORBIDDEN,
+    PREFIX, VERSION, SCREEN_TTL, PAPER_TTL, MAX_VERSION, CAP_CHARS, CAPS, FEATURES, ADDED, VITALS, STATES, TIERS, SENSORS, FORBIDDEN,
     encode, decode, pack, unpack, parse, chunk, Collector, matrix, fingerprint, newKey, deviceKey, cacheBody, cachedBody,
     cbor: { encode: cborEncode, decode: cborDecode, Tag }, base45: { encode: b45encode, decode: b45decode },
     sign, isoDay, epochDay, cleanInitial,

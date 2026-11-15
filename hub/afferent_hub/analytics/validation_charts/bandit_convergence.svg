@@ -71,7 +71,7 @@
 <circle cx="800.5" cy="100.0" r="7" fill="transparent"><title>session 38: median P(best) 0.98</title></circle>
 <circle cx="820.3" cy="100.0" r="7" fill="transparent"><title>session 39: median P(best) 0.98</title></circle>
 <circle cx="840.0" cy="100.0" r="7" fill="transparent"><title>session 40: median P(best) 0.98</title></circle>
-<path d="M70.0,162.0 L89.7,106.0 L109.5,102.0 L129.2,98.0 L149.0,98.0 L168.7,98.0 L188.5,98.0 L208.2,98.0 L227.9,98.0 L247.7,98.0 L267.4,100.0 L287.2,100.0 L306.9,104.0 L326.7,104.0 L346.4,102.0 L366.2,110.0 L385.9,106.0 L405.6,106.0 L425.4,100.0 L445.1,102.0 L464.9,102.0 L484.6,102.0 L504.4,100.0 L524.1,100.0 L543.8,98.0 L563.6,98.0 L583.3,98.0 L603.1,98.0 L622.8,98.0 L642.6,100.0 L662.3,100.0 L682.1,98.0 L701.8,100.0 L721.5,102.0 L741.3,100.0 L761.0,100.0 L780.8,100.0 L800.5,100.0 L820.3,100.0 L840.0,102.0" fill="none" stroke="#2FA3BE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M70.0,162.0 L89.7,106.0 L109.5,102.0 L129.2,98.0 L149.0,98.0 L168.7,98.0 L188.5,98.0 L208.2,98.0 L227.9,98.0 L247.7,98.0 L267.4,98.0 L287.2,96.0 L306.9,98.0 L326.7,98.0 L346.4,100.0 L366.2,98.0 L385.9,98.0 L405.6,108.0 L425.4,110.0 L445.1,110.0 L464.9,110.0 L484.6,110.0 L504.4,110.0 L524.1,108.0 L543.8,108.0 L563.6,106.0 L583.3,106.0 L603.1,100.0 L622.8,100.0 L642.6,102.0 L662.3,104.0 L682.1,104.0 L701.8,98.0 L721.5,96.0 L741.3,96.0 L761.0,96.0 L780.8,96.0 L800.5,96.0 L820.3,96.0 L840.0,96.0" fill="none" stroke="#2FA3BE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="70.0" cy="162.0" r="7" fill="transparent"><title>Anna session 1: P(best) 0.67</title></circle>
 <circle cx="89.7" cy="106.0" r="7" fill="transparent"><title>Anna session 2: P(best) 0.95</title></circle>
 <circle cx="109.5" cy="102.0" r="7" fill="transparent"><title>Anna session 3: P(best) 0.97</title></circle>
@@ -82,36 +82,36 @@
 <circle cx="208.2" cy="98.0" r="7" fill="transparent"><title>Anna session 8: P(best) 0.99</title></circle>
 <circle cx="227.9" cy="98.0" r="7" fill="transparent"><title>Anna session 9: P(best) 0.99</title></circle>
 <circle cx="247.7" cy="98.0" r="7" fill="transparent"><title>Anna session 10: P(best) 0.99</title></circle>
-<circle cx="267.4" cy="100.0" r="7" fill="transparent"><title>Anna session 11: P(best) 0.98</title></circle>
-<circle cx="287.2" cy="100.0" r="7" fill="transparent"><title>Anna session 12: P(best) 0.98</title></circle>
-<circle cx="306.9" cy="104.0" r="7" fill="transparent"><title>Anna session 13: P(best) 0.96</title></circle>
-<circle cx="326.7" cy="104.0" r="7" fill="transparent"><title>Anna session 14: P(best) 0.96</title></circle>
-<circle cx="346.4" cy="102.0" r="7" fill="transparent"><title>Anna session 15: P(best) 0.97</title></circle>
-<circle cx="366.2" cy="110.0" r="7" fill="transparent"><title>Anna session 16: P(best) 0.93</title></circle>
-<circle cx="385.9" cy="106.0" r="7" fill="transparent"><title>Anna session 17: P(best) 0.95</title></circle>
-<circle cx="405.6" cy="106.0" r="7" fill="transparent"><title>Anna session 18: P(best) 0.95</title></circle>
-<circle cx="425.4" cy="100.0" r="7" fill="transparent"><title>Anna session 19: P(best) 0.98</title></circle>
-<circle cx="445.1" cy="102.0" r="7" fill="transparent"><title>Anna session 20: P(best) 0.97</title></circle>
-<circle cx="464.9" cy="102.0" r="7" fill="transparent"><title>Anna session 21: P(best) 0.97</title></circle>
-<circle cx="484.6" cy="102.0" r="7" fill="transparent"><title>Anna session 22: P(best) 0.97</title></circle>
-<circle cx="504.4" cy="100.0" r="7" fill="transparent"><title>Anna session 23: P(best) 0.98</title></circle>
-<circle cx="524.1" cy="100.0" r="7" fill="transparent"><title>Anna session 24: P(best) 0.98</title></circle>
-<circle cx="543.8" cy="98.0" r="7" fill="transparent"><title>Anna session 25: P(best) 0.99</title></circle>
-<circle cx="563.6" cy="98.0" r="7" fill="transparent"><title>Anna session 26: P(best) 0.99</title></circle>
-<circle cx="583.3" cy="98.0" r="7" fill="transparent"><title>Anna session 27: P(best) 0.99</title></circle>
-<circle cx="603.1" cy="98.0" r="7" fill="transparent"><title>Anna session 28: P(best) 0.99</title></circle>
-<circle cx="622.8" cy="98.0" r="7" fill="transparent"><title>Anna session 29: P(best) 0.99</title></circle>
-<circle cx="642.6" cy="100.0" r="7" fill="transparent"><title>Anna session 30: P(best) 0.98</title></circle>
-<circle cx="662.3" cy="100.0" r="7" fill="transparent"><title>Anna session 31: P(best) 0.98</title></circle>
-<circle cx="682.1" cy="98.0" r="7" fill="transparent"><title>Anna session 32: P(best) 0.99</title></circle>
-<circle cx="701.8" cy="100.0" r="7" fill="transparent"><title>Anna session 33: P(best) 0.98</title></circle>
-<circle cx="721.5" cy="102.0" r="7" fill="transparent"><title>Anna session 34: P(best) 0.97</title></circle>
-<circle cx="741.3" cy="100.0" r="7" fill="transparent"><title>Anna session 35: P(best) 0.98</title></circle>
-<circle cx="761.0" cy="100.0" r="7" fill="transparent"><title>Anna session 36: P(best) 0.98</title></circle>
-<circle cx="780.8" cy="100.0" r="7" fill="transparent"><title>Anna session 37: P(best) 0.98</title></circle>
-<circle cx="800.5" cy="100.0" r="7" fill="transparent"><title>Anna session 38: P(best) 0.98</title></circle>
-<circle cx="820.3" cy="100.0" r="7" fill="transparent"><title>Anna session 39: P(best) 0.98</title></circle>
-<circle cx="840.0" cy="102.0" r="7" fill="transparent"><title>Anna session 40: P(best) 0.97</title></circle>
+<circle cx="267.4" cy="98.0" r="7" fill="transparent"><title>Anna session 11: P(best) 0.99</title></circle>
+<circle cx="287.2" cy="96.0" r="7" fill="transparent"><title>Anna session 12: P(best) 1.00</title></circle>
+<circle cx="306.9" cy="98.0" r="7" fill="transparent"><title>Anna session 13: P(best) 0.99</title></circle>
+<circle cx="326.7" cy="98.0" r="7" fill="transparent"><title>Anna session 14: P(best) 0.99</title></circle>
+<circle cx="346.4" cy="100.0" r="7" fill="transparent"><title>Anna session 15: P(best) 0.98</title></circle>
+<circle cx="366.2" cy="98.0" r="7" fill="transparent"><title>Anna session 16: P(best) 0.99</title></circle>
+<circle cx="385.9" cy="98.0" r="7" fill="transparent"><title>Anna session 17: P(best) 0.99</title></circle>
+<circle cx="405.6" cy="108.0" r="7" fill="transparent"><title>Anna session 18: P(best) 0.94</title></circle>
+<circle cx="425.4" cy="110.0" r="7" fill="transparent"><title>Anna session 19: P(best) 0.93</title></circle>
+<circle cx="445.1" cy="110.0" r="7" fill="transparent"><title>Anna session 20: P(best) 0.93</title></circle>
+<circle cx="464.9" cy="110.0" r="7" fill="transparent"><title>Anna session 21: P(best) 0.93</title></circle>
+<circle cx="484.6" cy="110.0" r="7" fill="transparent"><title>Anna session 22: P(best) 0.93</title></circle>
+<circle cx="504.4" cy="110.0" r="7" fill="transparent"><title>Anna session 23: P(best) 0.93</title></circle>
+<circle cx="524.1" cy="108.0" r="7" fill="transparent"><title>Anna session 24: P(best) 0.94</title></circle>
+<circle cx="543.8" cy="108.0" r="7" fill="transparent"><title>Anna session 25: P(best) 0.94</title></circle>
+<circle cx="563.6" cy="106.0" r="7" fill="transparent"><title>Anna session 26: P(best) 0.95</title></circle>
+<circle cx="583.3" cy="106.0" r="7" fill="transparent"><title>Anna session 27: P(best) 0.95</title></circle>
+<circle cx="603.1" cy="100.0" r="7" fill="transparent"><title>Anna session 28: P(best) 0.98</title></circle>
+<circle cx="622.8" cy="100.0" r="7" fill="transparent"><title>Anna session 29: P(best) 0.98</title></circle>
+<circle cx="642.6" cy="102.0" r="7" fill="transparent"><title>Anna session 30: P(best) 0.97</title></circle>
+<circle cx="662.3" cy="104.0" r="7" fill="transparent"><title>Anna session 31: P(best) 0.96</title></circle>
+<circle cx="682.1" cy="104.0" r="7" fill="transparent"><title>Anna session 32: P(best) 0.96</title></circle>
+<circle cx="701.8" cy="98.0" r="7" fill="transparent"><title>Anna session 33: P(best) 0.99</title></circle>
+<circle cx="721.5" cy="96.0" r="7" fill="transparent"><title>Anna session 34: P(best) 1.00</title></circle>
+<circle cx="741.3" cy="96.0" r="7" fill="transparent"><title>Anna session 35: P(best) 1.00</title></circle>
+<circle cx="761.0" cy="96.0" r="7" fill="transparent"><title>Anna session 36: P(best) 1.00</title></circle>
+<circle cx="780.8" cy="96.0" r="7" fill="transparent"><title>Anna session 37: P(best) 1.00</title></circle>
+<circle cx="800.5" cy="96.0" r="7" fill="transparent"><title>Anna session 38: P(best) 1.00</title></circle>
+<circle cx="820.3" cy="96.0" r="7" fill="transparent"><title>Anna session 39: P(best) 1.00</title></circle>
+<circle cx="840.0" cy="96.0" r="7" fill="transparent"><title>Anna session 40: P(best) 1.00</title></circle>
 <rect x="70" y="331" width="14" height="4" rx="2" fill="#C27E22"/>
 <text x="90.0" y="337.0" font-size="12" fill="#93A3B8" text-anchor="start" font-weight="400" >100 simulated patients, median and IQR</text>
 <rect x="364" y="331" width="14" height="4" rx="2" fill="#2FA3BE"/>

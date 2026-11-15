@@ -385,7 +385,116 @@ test('nothing raw travels: forbidden keys and names never reach the code', () =>
   assert.ok(!text.includes('Anna') && !text.includes('anna') && !text.includes('yes'));
   const bin = Buffer.from(QR.cbor.encode(d.packed)).toString('latin1');
   assert.ok(!bin.includes('Anna') && !bin.includes('anna') && !bin.includes('phq9'));
-  assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 18));
+  assert.ok([...d.packed.keys()].every(k => Number.isInteger(k) && k >= 0 && k <= 20 && k !== 19), 'map key 19 is retired');
+});
+
+// Expressiveness, the tenth index driver, travels in map key 20 (QR.ADDED); the nine in FEATURES keep their keys.
+const EKEY = 'expressiveness';
+const withoutAdded = b => {
+  const o = JSON.parse(JSON.stringify(b));
+  for (const part of [o.weekly, o.baseline, o.complete.by_feature]) delete part[EKEY];
+  o.contrib = o.contrib.filter(c => c.key !== EKEY);
+  return o;
+};
+const frozenAdded = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'contracts', 'fixtures', 'qr_code_before_expressiveness.json'), 'utf8'));
+
+test('expressiveness: round trip in map key 20, its contribution in place among the drivers', () => {
+  assert.deepStrictEqual(QR.ADDED, [[EKEY, 100]]);
+  assert.strictEqual(QR.FEATURES.length, 9, 'the nine first drivers stay where older readers look for them');
+  const j = fixture();
+  assert.ok(j.weekly[EKEY].some(x => x !== null) && j.baseline[EKEY] && j.contrib.some(c => c.key === EKEY), 'the fixture carries expressiveness');
+  const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
+  assert.strictEqual(d.status, 'ok');
+  const row = d.packed.get(20);
+  assert.ok(Array.isArray(row) && row.length === 1 && row[0].length === 12);
+  assert.ok(!d.packed.get(7).some((x, i) => i % 2 === 0 && x >= QR.FEATURES.length), 'key 7 names only the first nine');
+  j.weekly[EKEY].forEach((v, i) => near(d.body.weekly[EKEY][i], v, 100, `weekly.${EKEY}[${i}]`));
+  near(d.body.baseline[EKEY].median, j.baseline[EKEY].median, 100, 'median');
+  near(d.body.baseline[EKEY].scale, j.baseline[EKEY].scale, 100, 'scale');
+  near(d.body.complete.by_feature[EKEY], j.complete.by_feature[EKEY], 100, 'share of days');
+  assert.deepStrictEqual(d.body.contrib.map(c => c.key), j.contrib.map(c => c.key), 'sorted by size as the hub sent them');
+  const mine = d.body.contrib.find(c => c.key === EKEY), sent = j.contrib.find(c => c.key === EKEY);
+  near(mine.contribution, sent.contribution, 1000, 'contribution');
+  // the largest it can be: every week, a contribution that leads the list
+  const big = fixture();
+  big.weekly[EKEY] = [1.01, 0.98, 1.05, 0.97, 0.88, 0.8, 0.72, 0.64];
+  big.baseline[EKEY] = { median: 1.003, scale: 0.104 };
+  big.contrib = [{ key: EKEY, contribution: -0.999 }, ...big.contrib.filter(c => c.key !== EKEY)];
+  const b = QR.decode(QR.encode(big, { key, now: NOW }).text, { now: NOW }).body;
+  assert.deepStrictEqual(b.weekly[EKEY], big.weekly[EKEY]);
+  assert.deepStrictEqual(b.contrib[0], { key: EKEY, contribution: -0.999 });
+});
+
+test('expressiveness: missing stays missing, never a low value', () => {
+  // A patient without face numbers (no TrueDepth camera, Phone camera off): the hub sends empty weeks, no usual
+  // level, no contribution. The code keeps them empty; it never makes them 0.
+  const j = fixture();
+  j.weekly[EKEY] = Array(8).fill(null);
+  j.baseline[EKEY] = null;
+  j.complete.by_feature[EKEY] = 0;
+  j.contrib = j.contrib.filter(c => c.key !== EKEY);
+  const d = QR.decode(QR.encode(j, { key, now: NOW }).text, { now: NOW });
+  assert.deepStrictEqual(d.packed.get(20), [[null, null, null, 0, ...Array(8).fill(null)]]);
+  assert.deepStrictEqual(d.body.weekly[EKEY], Array(8).fill(null));
+  assert.strictEqual(d.body.baseline[EKEY], null);
+  assert.ok(!d.body.contrib.some(c => c.key === EKEY));
+  // a body that does not name it at all (a hub from before it): no key 20, and the decoded body does not invent it
+  const old = withoutAdded(fixture());
+  const o = QR.decode(QR.encode(old, { key, now: NOW }).text, { now: NOW });
+  assert.strictEqual(o.packed.has(20), false);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(o.body.weekly)), JSON.parse(JSON.stringify(QR.unpack(QR.pack(old)).weekly)));
+  for (const part of [o.body.weekly, o.body.baseline, o.body.complete.by_feature]) assert.strictEqual(EKEY in part, false);
+});
+
+test('codes made before expressiveness still decode, the same as before', () => {
+  const f = frozenAdded();
+  assert.ok(f.packed_keys.includes(18) && !f.packed_keys.includes(20));
+  const d = QR.decode(f.text, { now: f.now_ms });
+  assert.strictEqual(d.status, 'ok');
+  assert.strictEqual(d.verified, true);
+  assert.strictEqual(d.fingerprint, f.fingerprint);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(d.body)), f.body);
+  for (const part of [d.body.weekly, d.body.baseline, d.body.complete.by_feature]) assert.strictEqual(EKEY in part, false);
+  assert.ok(!d.body.contrib.some(c => c.key === EKEY));
+  const parts = QR.decode([...f.parts].reverse(), { now: f.now_ms });
+  assert.strictEqual(parts.status, 'ok');
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(parts.body)), f.body);
+});
+
+test('a code with expressiveness decodes in a reader from before it', () => {
+  // An older reader reads keys 0 to 18 and checks the lengths of 7, 9, 10 and 14; it never looks at key 20.
+  const d = QR.decode(QR.encode(fixture(), { key, now: NOW }).text, { now: NOW });
+  const p = d.packed;
+  assert.ok(p.has(20));
+  for (const [k, n] of Object.entries(OLD_LENGTHS)) assert.strictEqual(p.get(+k).length, n, `key ${k}`);
+  assert.strictEqual(p.get(14).length, 14);
+  const old = new Map([...p].filter(([k]) => k !== 20));
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(QR.unpack(old))), withoutAdded(d.body));
+  assert.deepStrictEqual(QR.cbor.encode(old), QR.cbor.encode(QR.pack(withoutAdded(fixture()))));
+});
+
+function forged20(rows) {
+  const { zlibSync } = require('../vendor/qr/fflate.js');
+  const body = QR.pack(fixture());
+  body.set(20, rows);
+  const iat = Math.floor(NOW / 1000);
+  const cose = QR.sign(body, key, iat, iat + 600, new Uint8Array(8));
+  return QR.decode('AF1:' + QR.base45.encode(zlibSync(cose, { level: 9 })), { now: NOW });
+}
+
+test('map key 20 from another encoder: rows of a newer one are left out, a wrong shape is damaged', () => {
+  const row = [-120, 100, 10, 66, 101, 99, 97, 95, 90, 85, 80, 75];
+  const newer = forged20([row, [1, 2, 3], [4, 5]]);
+  assert.strictEqual(newer.status, 'ok');
+  assert.deepStrictEqual(newer.body.weekly[EKEY], [1.01, 0.99, 0.97, 0.95, 0.9, 0.85, 0.8, 0.75]);
+  assert.deepStrictEqual(newer.body.baseline[EKEY], { median: 1, scale: 0.1 });
+  assert.strictEqual(newer.body.complete.by_feature[EKEY], 0.66);
+  assert.deepStrictEqual(newer.body.contrib.find(c => c.key === EKEY), { key: EKEY, contribution: -0.12 });
+  assert.strictEqual(forged20([]).status, 'ok');
+  for (const bad of [[row.slice(0, 11)], [[...row, 1]], [[...row.slice(0, 11), 'x']], [[...row.slice(0, 11), true]], 7, [7]]) {
+    const r = forged20(bad);
+    assert.deepStrictEqual([r.status, r.reason, 'body' in r], ['damaged', 'body_shape', false], JSON.stringify(bad));
+  }
 });
 
 test('matrix: a link or a wi-fi join string with lowercase and non-ascii letters still draws and scans back', () => {

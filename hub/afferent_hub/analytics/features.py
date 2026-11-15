@@ -1,3 +1,5 @@
+import math
+
 from . import stats
 
 PLAYED = {"completed", "partial", "fell_asleep"}
@@ -21,12 +23,24 @@ FEATURES = [
      "weight": 0.5, "floor": 0.05, "evidence": "exploratory"},
     {"key": "reward_bias", "label": "Reward bias log b (7 sessions)", "unit": "log b", "source": "session",
      "worse": "low", "weight": 0.5, "floor": 0.15, "evidence": "exploratory"},
+    # Smiling and facial movement during play against the patient's own first weeks (expressiveness() below).
+    # It says what the face did, never how the person feels. Optional: it needs the phone's TrueDepth camera and
+    # the Phone camera setting, so until a patient's first face value it counts neither in the index nor against
+    # completeness.
+    {"key": "expressiveness", "label": "Expressiveness", "unit": "ratio to own wk 1-2", "source": "session",
+     "worse": "low", "weight": 0.5, "floor": 0.1, "evidence": "exploratory", "optional": True},
 ]
 
 WINDOW = 7
 MIN_WINDOW_DAYS = 4
 MIN_POOLED_SESSIONS = 3
 MIN_PULSE_QUALITY = 0.5
+FACE_SOURCE = "arkit_truedepth"
+MIN_FACE_SECONDS = 30
+# The two parts of expressiveness, each with the lowest own level it is divided by (a patient who hardly smiles
+# in the first weeks does not make every later smile a jump).
+FACE_PARTS = (("smile_share", 0.02), ("movement", 0.005))
+MIN_FACE_LEVEL_OBS = 3
 
 def get(doc, *path):
     for p in path:
@@ -106,12 +120,53 @@ def hourly(rec: dict | None):
     h = get(rec, "sleep", "presence_hourly") if rec else None
     return h if isinstance(h, list) and len(h) == 24 else None
 
-def extract(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
+def _share(x, hi: float | None = None) -> float | None:
+    if isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x) or x < 0 or (hi is not None and x > hi):
+        return None
+    return float(x)
+
+def face_parts(s: dict | None) -> tuple | None:
+    """(smile share, facial movement) of a session's vitals.face block (session.v3, the phone's TrueDepth camera),
+    or None: no block, another source, under 30 tracked seconds, or neither number usable."""
+    f = get(s, "vitals", "face")
+    if not isinstance(f, dict) or f.get("source") != FACE_SOURCE:
+        return None
+    tracked = _share(f.get("seconds_tracked"))
+    if tracked is None or tracked < MIN_FACE_SECONDS:
+        return None
+    smile, movement = _share(f.get("smile_share"), 1.0), _share(get(f, "movement", "mean"))
+    return None if smile is None and movement is None else (smile, movement)
+
+def face_valid(s: dict) -> bool:
+    return face_parts(s) is not None
+
+def expressiveness(parts: list, now_day: int, days: int = 14, min_obs: int = 7) -> list[float | None]:
+    """Per day: the mean of the smile share and the facial movement, each divided by the patient's own level, so
+    1.0 is as in the first weeks and 0.8 is a fifth less. The own level of a part is its median over the index's
+    baseline window (days 0 to 13, longer until `min_obs` values, never past now_day), at least the part's floor,
+    and needs 3 values. A day without face numbers, or whose parts have no own level yet, is None."""
+    n = len(parts)
+    levels = []
+    for i, (_, floor) in enumerate(FACE_PARTS):
+        base = stats.baseline([None if p is None else p[i] for p in parts], floor, days=days, min_obs=min_obs,
+                              now_day=now_day)
+        levels.append(max(base["median"], floor) if base["n"] >= MIN_FACE_LEVEL_OBS else None)
+    out: list[float | None] = [None] * n
+    for d, p in enumerate(parts):
+        if p is None:
+            continue
+        ratios = [p[i] / levels[i] for i in range(len(FACE_PARTS)) if p[i] is not None and levels[i] is not None]
+        out[d] = sum(ratios) / len(ratios) if ratios else None
+    return out
+
+def extract(sessions: list[dict], daily: list[dict], now_day: int, baseline_days: int = 14,
+            min_baseline_obs: int = 7) -> dict:
     n = now_day + 1
     by_day = index_sessions(sessions, now_day)
     recs = index_daily(daily, now_day)
     main = [day_session(by_day.get(d, [])) for d in range(n)]
     rt_s = [day_session(by_day.get(d, []), rt_valid) for d in range(n)]
+    face = [face_parts(day_session(by_day.get(d, []), face_valid)) for d in range(n)]
 
     values: dict[str, list] = {f["key"]: [None] * n for f in FEATURES}
     missed = [missed_flag(recs.get(d)) for d in range(n)]
@@ -148,6 +203,7 @@ def extract(sessions: list[dict], daily: list[dict], now_day: int) -> dict:
         window = [h for h in hours[max(0, d - WINDOW + 1): d + 1] if h is not None]
         if len(window) >= MIN_WINDOW_DAYS:
             values["sleep_regularity"][d] = stats.inter_daily_stability(window)
+    values["expressiveness"] = expressiveness(face, now_day, baseline_days, min_baseline_obs)
 
     fresh = [d in recs or main[d] is not None for d in range(n)]
     return {"values": values, "main": main, "rt_sessions": rt_s, "by_day": by_day, "daily": recs,

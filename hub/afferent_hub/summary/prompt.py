@@ -19,6 +19,7 @@ GLOSSARY = """Field meanings:
 - composite: early-warning index (weighted mean of z-scores against the personal baseline), composite_trend_7d its change over the week.
 - completeness and confidence: how much data was available.
 - top_contributors: features furthest above the personal baseline, with signed_z (positive is worse than usual).
+  Expressiveness is how much the face smiled and moved during play compared with the person's first weeks; it describes the face, not a feeling.
 - sessions_7d and missed_7d: game sessions played and missed in the week.
 - pre_post_*: start versus end of the recent sessions (pulse in bpm, mood on the lantern scale, settled_share is the share of sessions whose pulse fell by at least 2 bpm).
 - best_calm_task, best_calm_helped of best_calm_n, best_calm_p_best: the calm task most often followed by a settling pulse.

@@ -30,7 +30,7 @@ DEFAULT_PULSE = 68.0
 def score(sessions: list[dict], daily: list[dict], now_day: int, params: dict = PARAMS) -> dict:
     now_day = max(int(now_day), 0)
     n = now_day + 1
-    ex = extract(sessions, daily, now_day)
+    ex = extract(sessions, daily, now_day, params["baseline_days"], params["min_baseline_obs"])
     feats = []
     for spec in FEATURES:
         values = ex["values"][spec["key"]]
@@ -43,12 +43,16 @@ def score(sessions: list[dict], daily: list[dict], now_day: int, params: dict = 
         e = stats.ewma(signed, params["ewma_lambda"], params["stale_days"])
         feats.append({"spec": spec, "values": values, "baseline": base, "z": z, "signed": signed, "ewma": e})
 
-    total_w = sum(f["weight"] for f in FEATURES)
+    # An optional feature (one that needs hardware the patient may not have) counts in the completeness only from its
+    # first value on: a patient without it is not shown as incomplete for ever.
+    first = [next((d for d, v in enumerate(f["values"]) if v is not None), None) for f in feats]
     clip = params["z_clip"]
     composite: list[float | None] = [None] * n
     completeness = [0.0] * n
     contrib = [[None] * n for _ in feats]
     for d in range(n):
+        total_w = sum(f["spec"]["weight"] for i, f in enumerate(feats)
+                      if not f["spec"].get("optional") or (first[i] is not None and first[i] <= d))
         avail = [(i, f) for i, f in enumerate(feats) if f["ewma"][d] is not None]
         w_av = sum(f["spec"]["weight"] for _, f in avail)
         completeness[d] = w_av / total_w

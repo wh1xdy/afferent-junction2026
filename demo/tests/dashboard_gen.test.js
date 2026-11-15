@@ -86,6 +86,38 @@ test('the bedroom at night: no card without a reading, and never from the QR bod
   assert.ok(dry.text.includes('Temperature at night') && !dry.text.includes('Humidity at night'));
 });
 
+// Expressiveness: the index driver from the phone camera (smiling and facial movement against the patient's own weeks).
+const E = 'expressiveness';
+const card = (D, title) => cards(D).find(x => x.title === title);
+const noFace = () => {
+  const j = fixture();
+  j.weekly[E] = Array(8).fill(null);
+  j.baseline[E] = null;
+  j.complete.by_feature[E] = 0;
+  j.contrib = j.contrib.filter(c => c.key !== E);
+  return j;
+};
+
+test('expressiveness: a weekly row, a driver row and its share of days', () => {
+  const j = fixture();
+  assert.ok(j.weekly[E].some(v => v != null) && j.contrib.some(c => c.key === E), 'the fixture carries expressiveness');
+  const last = j.weekly[E].filter(v => v != null).pop();
+  assert.ok(card(j, 'Weekly trend (8 weeks)').text.includes(`Expressiveness ${Number(last.toFixed(2))}`));
+  const moved = card(j, 'What moved the signal');
+  assert.ok(j.contrib.length > 8 && moved.text.includes('Expressiveness'), 'every driver with a contribution is listed, not only the first 8');
+  for (const label of ['Reaction time', 'Home-only days', 'Reward bias']) assert.ok(moved.text.includes(label), label);
+  assert.ok(card(j, 'Mornings & completeness').text.includes(`Expressiveness: ${Math.round(j.complete.by_feature[E] * 100)}%`));
+});
+
+test('expressiveness: without face numbers, or from a hub before it, no row and no share', () => {
+  for (const D of [noFace(), (() => { const j = noFace(); delete j.weekly[E]; delete j.baseline[E]; delete j.complete.by_feature[E]; return j; })()]) {
+    for (const title of ['Weekly trend (8 weeks)', 'What moved the signal', 'Mornings & completeness']) {
+      assert.ok(!card(D, title).text.includes('Expressiveness'), title);
+    }
+    assert.ok(card(D, 'Weekly trend (8 weeks)').text.includes('Reaction time'), 'the other measures stay');
+  }
+});
+
 let fail = 0;
 for (const [st, name, err] of results) {
   if (st === 'FAIL') { fail++; console.log('FAIL', name, '-', err); }

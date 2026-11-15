@@ -59,8 +59,35 @@ weeks: pulse (bpm), breathing rate (per minute) and HRV as RMSSD (ms). The signe
   are used only when there is no measured one, and the number is then marked simulated.
 - In the signed code they are map key 18, and the version stays 1. A code made before this still decodes
   (no key 18: "carries no finger sensor numbers"). New numbers go into a new key, never into `FEATURES`,
-  whose fixed lengths older readers check.
-- Size: at their largest the three rows add about 135 characters; the worst case is one code of about 1055
-  of 1134 characters, version 22 (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse
+  whose fixed lengths older readers check. Map key 19 is retired (it held the bedroom at night for a day);
+  index drivers added after the first nine are map key 20 (`QR.ADDED`, below).
+- Size: at their largest the three rows add about 135 characters; the worst case (with expressiveness, map key
+  20) is one code of about 1085 of 1134 characters, version 22 (`node demo/tests/qrpayload.test.js` prints the numbers). Per-finger pulse
   is not in the code; it is in the session documents and the export file.
 - The room climate is a card on the same dashboard, not in the code ([app.md](app.md#room-climate)).
+
+## Expressiveness in the index
+
+The early-warning index is the weighted mean of ten drivers, each a robust z-score against the patient's own
+first two weeks after TMS (`hub/afferent_hub/analytics/features.py`, `FEATURES`): reaction time and mood
+(weight 1.5), sleep regularity, missed sessions and effort (1.0), morning pulse and home-only days (0.75), upright
+time, reward bias and expressiveness (0.5, exploratory). Expressiveness comes from the face numbers of play
+(`vitals.face`, the phone's TrueDepth camera, [app.md](app.md#face-measures-from-the-phone-camera)) and says what
+the face did, never how the person feels.
+
+- Per day, from that day's last played session with face numbers (30 tracked seconds or more): the mean of the
+  smile share and the facial movement, each divided by the patient's own level. The own level is the median over
+  the index's baseline window (days 0 to 13, longer until 7 values), at least 0.02 for the smile share and 0.005
+  for the movement, and needs 3 values. 1.0 is as in the first weeks; 0.8 is a fifth less.
+- Then as for the other drivers: robust z against its own baseline (scale at least 0.1), lower is worse, EWMA,
+  clipped at 3, weight 0.5 of 9.
+- No face numbers (no TrueDepth camera, Phone camera off, under 30 s tracked) is no value, never a low one: it
+  adds nothing to the index, and until the patient's first face value it does not count against completeness
+  either. After that, days without it are missing data, as for any driver.
+- The doctor gets that weekly number: on the dashboard (Weekly trend, What moved the signal, its share of days),
+  and in the signed code as map key 20 (contribution, usual level and scale, share of days, 8 weekly medians,
+  about 30 characters). A code from before decodes without it. The hub's own analytics and its export file
+  (`features.csv`) carry the daily value like every driver's; the face block itself stays on the hub.
+- In the synthetic validation (`python -m afferent_hub.analytics.validate`) it leaves the false check-ins as they
+  were and moves the median from onset to a check-in suggestion from 13 to 13.5 days: with the simulated decline
+  (about a fifth at full severity) it is not an earlier signal, only one more driver the clinic can see.

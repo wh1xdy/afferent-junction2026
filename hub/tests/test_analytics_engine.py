@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from afferent_hub.analytics import engine
+from afferent_hub.analytics import engine, stats
 from afferent_hub.synthetic import demo_roster
 
 FIX = Path(__file__).resolve().parents[2] / "contracts" / "fixtures"
@@ -167,3 +167,79 @@ def test_cusum_does_not_move_without_data(roster):
         b = engine.score(p["sessions"], p["daily"], last + 3)
         assert b["cusum"][last + 3] == a["cusum"][last]
         assert b["states"][last + 3] == a["states"][last]
+
+# Expressiveness: lower than the patient's own first weeks raises the index, a little; no face numbers add nothing.
+
+def face_sessions(days, smile, movement=0.03, face_from=0, face_until=None):
+    """One plain session a day (reaction time about 400 ms, mood 3), with vitals.face from face_from on."""
+    out = []
+    for d in range(days):
+        s = {"day_index": d, "status": "completed", "started_iso": f"2026-10-{1 + d:02d}T08:00:00+02:00",
+             "core": {"mood_start": 3, "rt": {"valid": True, "median_ms": 400 + (d % 3) * 10}}, "tasks": [],
+             "vitals": {"pulse_source": "simulated"}}
+        if face_from <= d < (face_until if face_until is not None else days):
+            sm = smile(d) if callable(smile) else smile
+            s["vitals"]["face"] = {"source": "arkit_truedepth", "seconds_tracked": 90, "smile_share": sm,
+                                   "movement": {"mean": movement * (1 + 0.05 * (d % 2)), "min": 0.01, "max": 0.09,
+                                                "first": 0.02, "last": 0.02, "samples": 90},
+                                   "blinks_per_min": 14.0, "gaze_away_share": 0.1, "micro": None, "breathing_depth": None}
+        out.append(s)
+    return out
+
+def expr(a):
+    return next(f for f in a["features"] if f["key"] == "expressiveness")
+
+def contribution(a, key="expressiveness"):
+    return next(c for c in a["composite"]["contributions"] if c["key"] == key)
+
+def test_expressiveness_below_own_baseline_raises_the_index():
+    usual = lambda d: 0.2 + 0.01 * (d % 3)
+    flat = engine.analyze_patient(face_sessions(30, usual), [], 29)
+    fewer = engine.analyze_patient(face_sessions(30, lambda d: usual(d) if d < 20 else 0.08), [], 29)
+    more = engine.analyze_patient(face_sessions(30, lambda d: usual(d) if d < 20 else 0.35), [], 29)
+    e = expr(fewer)
+    assert e["baseline"]["ready"] and e["baseline"]["median"] == pytest.approx(1.0, abs=0.05)
+    assert e["latest"]["value"] < 0.8 and e["latest"]["z"] < 0 and e["latest"]["ewma_z"] > 0, "low is worse: signed z up"
+    assert contribution(fewer)["contribution"] > 0 > contribution(more)["contribution"]
+    assert fewer["composite"]["value"] > flat["composite"]["value"] > more["composite"]["value"]
+    # modest: at most its weight 0.5 times the clipped z, over the weight with data (reaction time, mood, itself)
+    assert contribution(fewer)["contribution"] <= 0.5 * engine.PARAMS["z_clip"] / (1.5 + 1.5 + 0.5) + 1e-9
+    assert contribution(fewer)["weight"] == 0.5 and fewer["composite"]["weights"]["expressiveness"] == 0.5
+
+def test_no_face_numbers_add_nothing_and_do_not_count_as_low():
+    a = engine.analyze_patient(face_sessions(30, 0.2, face_from=99), [], 29)
+    e = expr(a)
+    assert all(v is None for v in e["series"]["value"]) and e["latest"]["contribution"] is None
+    assert contribution(a)["contribution"] is None and contribution(a)["share"] is None
+    assert "Expressiveness" not in a["suggestion"]["reasons"]
+    # the index is exactly what the other drivers make of it
+    others = [c for c in a["composite"]["contributions"] if c["contribution"] is not None]
+    assert {c["key"] for c in others} == {"rt_median", "mood"}
+    assert a["composite"]["value"] == pytest.approx(sum(c["contribution"] for c in others), abs=1e-3)
+    # completeness (here reaction time and mood of the 8.5 weight of the other drivers): a patient without the TrueDepth
+    # camera is not counted as missing it
+    assert a["completeness"]["overall"] == pytest.approx(3.0 / 8.5, abs=0.005)
+    assert engine.analyze_patient(face_sessions(30, 0.2), [], 29)["completeness"]["overall"] == \
+        pytest.approx(3.5 / 9.0, abs=0.005)
+
+def test_face_numbers_that_stop_drop_out_and_then_count_as_missing():
+    a = engine.analyze_patient(face_sessions(30, 0.2, face_until=20), [], 29)
+    e = expr(a)
+    assert e["latest"]["day"] == 19 and e["latest"]["stale"] is True and e["latest"]["ewma_z"] is None
+    assert contribution(a)["contribution"] is None
+    # once a patient has had face numbers, days without them are missing data, and completeness says so
+    assert a["completeness"]["overall"] == pytest.approx(3.0 / 9.0, abs=0.005)
+    # the camera switched on later: it counts from its first value on, not before
+    late = engine.score(face_sessions(30, 0.2, face_from=10), [], 29)
+    assert late["completeness"][9] == pytest.approx(3.0 / 8.5) and late["completeness"][29] == pytest.approx(3.5 / 9.0)
+
+def test_roster_expressiveness_story(roster):
+    # Anna's smiling and facial movement fall a little with her relapse; the stable patients' stay near their own level
+    weekly = {}
+    for pid, p in roster.items():
+        v = expr(engine.analyze_patient(p["sessions"], p["daily"], 56))["series"]["value"]
+        weekly[pid] = (stats.median(v[0:7]), stats.median(v[49:56]))
+    first, last = weekly["anna"]
+    assert first == pytest.approx(1.0, abs=0.08) and 0.6 < last < 0.85
+    for pid in ("mikko", "leena", "sofia", "eero"):
+        assert weekly[pid][1] == pytest.approx(1.0, abs=0.15), pid

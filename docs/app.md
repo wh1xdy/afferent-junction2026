@@ -131,6 +131,9 @@ camera setting is on and the app is visible. They need a TrueDepth camera; witho
   own smiling is `still` (wake by day, flow at night; it holds up to 75%). A raised pulse, HRV and tired
   eyes come first, and without the face measures the games follow the body exactly as before
   (`demo/js/engine.js` `byFace`, `node demo/tests/faceplay.test.js`).
+- On the hub the smile share and the facial movement make one index driver, Expressiveness: both against the
+  patient's own first weeks, weight 0.5, lower is worse, and no value without face numbers
+  ([handover.md](handover.md#expressiveness-in-the-index)). Its weekly number is what the dashboard shows.
 - Gaze calibration: `calibrationStart`, `calibrationPoint({ x, y, hold_ms })` once per dot,
   `calibrationFinish`, `calibrationStatus`, `calibrationClear`, documented at the top of
   `ios/App/App/FaceMeasures.swift`. A fit that is not good enough is reported and not stored.

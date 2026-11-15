@@ -21,7 +21,7 @@ ctx.getComputedStyle = () => ({ getPropertyValue: () => '#123456' });
 vm.createContext(ctx);
 for (const f of ['charts.js', 'signals.js', 'views.js', 'imported.js']) vm.runInContext(fs.readFileSync(path.join(WEB, f), 'utf8'), ctx);
 const C = ctx.C, V = C.views;
-C.qr = { FEATURES: QR.FEATURES.map((f) => f[0]) };
+C.qr = { FEATURES: [...QR.FEATURES, ...QR.ADDED].map((f) => f[0]) };   // as qrdecode.js
 C.scanFmt = { day: () => '15 Nov', when: () => '15 Nov 10:13' };
 
 function scan(body) {
