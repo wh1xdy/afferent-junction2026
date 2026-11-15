@@ -49,7 +49,7 @@ class Config:
     insightface_model: str = "buffalo_l"   # buffalo_l | buffalo_s
     face_detect_every: int = 3      # run face detection every N processed frames
     face_every: int = 1             # MediaPipe landmarker every N processed frames
-    emotion_enabled: bool = True
+    emotion_enabled: bool = False   # named-emotion classifier: off unless EMOTION_ENABLED=1
     emotion_every: int = 10         # HSEmotion cadence on target crop
 
     # Identity
@@ -115,7 +115,7 @@ class Config:
             insightface_model=_env("INSIGHTFACE_MODEL", "buffalo_l"),
             face_detect_every=_env_int("FACE_DETECT_EVERY", 3),
             face_every=_env_int("FACE_EVERY", 1),
-            emotion_enabled=_env_bool("EMOTION_ENABLED", True),
+            emotion_enabled=_env_bool("EMOTION_ENABLED", False),
             emotion_every=_env_int("EMOTION_EVERY", 10),
             face_match_threshold=_env_float("FACE_MATCH_THRESHOLD", 0.45),
             lost_after_s=_env_float("LOST_AFTER_S", 3.0),

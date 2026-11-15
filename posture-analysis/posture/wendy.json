@@ -13,7 +13,7 @@
     "DEVICE": "cpu",
     "POSE_MODEL_PATH": "/opt/posture_models/rtmpose-m_halpe26_ft.onnx",
     "SITE": "jetson",
-    "EMOTION_ENABLED": "1",
+    "EMOTION_ENABLED": "0",
     "RECORDING_ENABLED": "1",
     "RECORD_ANNOTATED": "1",
     "DATA_MANAGER_URL": "http://10.99.0.2:8100",

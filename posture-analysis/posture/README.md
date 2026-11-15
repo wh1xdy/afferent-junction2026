@@ -43,6 +43,10 @@ into the container, so inside it the camera is always index `0` unless you point
   found. `DET_EVERY=1` disables skipping.
 - `FACE_EVERY` / `EMOTION_EVERY` — MediaPipe landmarker cadence (blendshapes +
   head pose) vs the heavier HSEmotion pass on the target crop.
+- `EMOTION_ENABLED` — the HSEmotion pass, off by default (`0`). It labels faces
+  with named emotions, and Afferent describes what a face does without naming a
+  feeling; nothing in the hub, app or dashboard reads it. `1` turns it back on
+  for research.
 
 ### Custom fine-tuned pose model
 
