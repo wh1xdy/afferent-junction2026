@@ -48,9 +48,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 
-    <!-- Bluetooth LE, shared by two in-app plugins. One element per permission.
+    <!-- Bluetooth LE, shared by three in-app plugins. One element per permission.
          AfferentFinger (AfferentFingerPlugin.kt): the finger sensor; scans for our own sensor and
          connects to it (BLUETOOTH_CONNECT).
+         AfferentWatch (AfferentWatchPlugin.kt): a watch or chest strap the patient chose in Settings
+         (Heart Rate Service); scans for 180D and connects to that one device (BLUETOOTH_CONNECT).
          AfferentPresence (Settings > Home and visitors): unfiltered scan while the app is open;
          needs no BLUETOOTH_CONNECT and no BLUETOOTH_ADVERTISE.
          Wi-Fi state uses ACCESS_NETWORK_STATE and Bonjour (NsdManager) uses INTERNET, both above. -->
@@ -71,5 +73,5 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
     <uses-feature android:name="android.hardware.location" android:required="false" />
-    <!-- end Bluetooth LE (AfferentFinger, AfferentPresence) -->
+    <!-- end Bluetooth LE (AfferentFinger, AfferentWatch, AfferentPresence) -->
 </manifest>

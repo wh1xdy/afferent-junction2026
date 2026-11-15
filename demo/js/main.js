@@ -225,7 +225,7 @@
   A.bus.on('talk', () => crisis('talk_button'));
 
   const saveSettings = () => store.set('afferent.settings', { sensors: A.config.sensors, sharing: A.config.sharing, simulator: A.config.simulator, simulatorChosen: A.config.simulatorChosen, reducedMotion: A.config.reducedMotion, quietNight: A.config.quietNight, checkin: A.config.checkin, signalsOverlay: A.config.signalsOverlay, liveVitals: A.config.liveVitals, breathFeedback: A.config.breathFeedback, heartLevel: A.config.heartLevel, sound: ui.sound });
-  const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Answers about your safety are still shared.' };
+  const SHARING = { summary: 'A summary: lanterns, play times, sensor numbers', paused: 'Sharing is paused. Your clinic sees nothing unless you show them.' };
   const sharingText = () => { $('sharingState').textContent = SHARING[A.config.sharing] || SHARING.summary; };
   const toggles = () => {
     document.querySelectorAll('[data-sensor]').forEach(el => { el.checked = !!A.config.sensors[el.dataset.sensor]; });
@@ -389,7 +389,7 @@
     $('json').textContent = JSON.stringify(r, null, 2);
     log(`session ${r.status}, ${((r.duration_ms || 0) / 1000).toFixed(1)} s`);
     show('closeBtn', false); show('simBadge', false); show('liveChip', false); $('breathLine').classList.remove('on'); cue('');
-    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse) {
+    if (r.vitals?.finger?.source === 'finger_ppg' || r.vitals?.camera_pulse || r.vitals?.watch) {
       A.lastVitals = r.vitals; A.lastVitalsAt = Date.now();
       A.lastBreath = [...(r.tasks || [])].reverse().find(t => t.extra?.breathing)?.extra.breathing ?? null;
     }
@@ -484,7 +484,7 @@
   function panel(s, now) {
     const p = S.pulse(now);
     $('pulseVal').textContent = s && p.bpm != null ? p.bpm.toFixed(0) : '--';
-    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', simulated: 'SIMULATED' }[p.source] || 'none';
+    $('pulseSrc').textContent = { finger_ppg: 'finger sensor', watch_ble: 'watch or strap', simulated: 'SIMULATED' }[p.source] || 'none';
     for (const [id, key] of Object.entries(sliders)) { const el = $(id); if (!el.dataset.active) el.value = A.Sim[key]; }
     $('pulseSliderVal').textContent = (A.Sim.offset >= 0 ? '+' : '') + A.Sim.offset.toFixed(0) + ' bpm';
     $('drowsySliderVal').textContent = A.Sim.drowsy.toFixed(2);

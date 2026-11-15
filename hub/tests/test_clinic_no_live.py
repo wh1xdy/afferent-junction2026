@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FIX = ROOT / "contracts" / "fixtures"
 
 CLINIC_TYPES = {"hello", "session_started", "session_interrupted", "session_added", "daily_added", "checkin_added",
-                "analytics_updated", "crisis_flag", "privacy", "demo_reset", "pong", "error"}
+                "analytics_updated", "privacy", "demo_reset", "pong", "error"}
 LIVE_KEYS = {"physio", "camera_pulse", "live_metrics", "finger_bpm", "finger_sources", "breathing_snr_db",
              "rmssd_baseline_ms", "quality_reported", "pulse_quality", "trust_score"}
 LIVE_VALUES = ("137.7", "138.3", "139.9", "23.7", "87.7", "91.3", "141.7", "0.1377", "-33.7", "0.6177")
@@ -30,7 +30,7 @@ STORED_VALUES = ("79.4", "72.4", "73.9", "74.3", "73.2", "10.9", "41.4", "46.2",
 ROW_KEYS = {"id", "display_name", "kind", "simulated", "day_index", "weeks_since_tms", "state", "state_label",
             "state_since_day", "composite", "composite_trend_7d", "cusum", "top_contributors", "last_session_day",
             "last_session_iso", "live_now", "missed_7d", "sessions_7d", "completeness", "confidence", "sparkline",
-            "flags", "need_rank"}
+            "need_rank"}
 
 PHYSIO = {"type": "physio", "source": "finger_ppg", "transport": "hub_http", "simulated": False, "pulse_bpm": 137.7,
           "quality": 0.6177, "quality_reported": True, "contact": True, "finger_bpm": [138.3, 139.9],
@@ -137,6 +137,49 @@ def test_a_clinic_socket_sees_no_sensor_value_while_the_devices_stream(client):
         if m["type"] != "hello":
             text = json.dumps(m)
             assert not [v for v in STORED_VALUES if v in text], (m["type"], [v for v in STORED_VALUES if v in text])
+
+
+def drain(ws):
+    ws.send_json({"type": "ping"})
+    seen = []
+    while not seen or seen[-1].get("type") != "pong":
+        seen.append(ws.receive_json())
+    return seen
+
+
+def test_talk_requests_and_safety_answers_stay_on_the_patients_hub(client):
+    """Talk to someone, and a check-in with a safety answer: nothing of either reaches a clinic socket, live or in the
+    rows it is sent. Both are kept on the patient's hub and are in the handover the patient chooses to show."""
+    items = {f"phq9_{i}": 1 for i in range(1, 9)} | {"phq9_9": 2}
+    doc = {"schema": "afferent.checkin/1", "checkin_id": str(uuid.uuid4()), "patient_id": "anna",
+           "device_id": "inst-1", "app_version": "0.3.0", "started_iso": "2026-11-15T12:00:00+02:00",
+           "completed_iso": "2026-11-15T12:02:00+02:00", "status": "completed", "trigger": "schedule", "early": False,
+           "language": "en", "phq9": {"items": items, "total": 10, "phq8_total": 8, "band": "moderate"},
+           "cssrs": {"asked": False, "reason": "not_licensed", "items": {}, "tier": None, "c6_repeat": False},
+           "safety": {"tier": "moderate", "item9": 2, "source": "item9_fallback", "screen": "crisis", "shared": True}}
+    with client.websocket_connect("/ws/clinic") as clinic, client.websocket_connect("/ws/app?patient=anna") as app:
+        seen = [clinic.receive_json()]
+        app.send_json({"type": "hello", "patient_id": "anna"})
+        app.send_json({"type": "crisis", "patient_id": "anna", "source": "talk_button", "talk_id": "talk-7",
+                       "t_iso": "2026-11-15T07:50:00+02:00"})
+        assert recv_until(app, "ack")[-1]["talk_id"] == "talk-7", "the phone's outbox is cleared as before"
+        app.send_json({"type": "checkin", "patient_id": "anna", "checkin": doc})
+        assert recv_until(app, "ack")[-1]["checkin_id"] == doc["checkin_id"]
+        seen += drain(clinic)
+        with client.websocket_connect("/ws/clinic") as later:
+            seen.append(later.receive_json())
+
+    assert {m["type"] for m in seen} <= CLINIC_TYPES - {"crisis_flag"}, [m["type"] for m in seen]
+    text = json.dumps(seen)
+    for word in ("talk_request", "safety_", "talk_button", '"flags"', "phq9", '"total"'):
+        assert word not in text, (word, [m["type"] for m in seen])
+    assert [m for m in seen if m["type"] == "checkin_added"] == [
+        {"type": "checkin_added", "patient_id": "anna", "checkin_id": doc["checkin_id"], "status": "completed"}]
+
+    # kept for the handover
+    body = client.get("/api/patients/anna/qr-body").json()
+    assert body["talk"], body.get("talk")
+    assert [s["tier"] for s in body["safety"]] == ["moderate"], body.get("safety")
 
 
 def test_the_two_session_end_messages_are_built_without_session_content():

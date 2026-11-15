@@ -40,9 +40,10 @@
   const calmMoment = s => !!s && !s.done && (s.phase === 'walk' || s.phase === 'game')
     && (s.game?.id === 'breath' || s.gameMode === 'calm' || (s.phase === 'walk' && s.mode === 'calm'));
 
-  // The finger frame through the gate of breathing.js. Display only, so it is read whatever the session's pulse lock.
+  // The finger frame through the gate of breathing.js (or, when the clips give no pulse, a watch or strap the patient
+  // chose: A.Sensors.physioFrame). Display only, so it is read whatever the session's pulse lock.
   const finger = now => {
-    const B = A.Breathing, f = B ? A.Sensors.fingerFrame(now) : null, r = f ? B.reading(f) : null;
+    const S = A.Sensors, B = A.Breathing, f = B ? (S.physioFrame || S.fingerFrame).call(S, now) : null, r = f ? B.reading(f) : null;
     return r ? { rate: r.rate, pulse: plausible(r.pulse) ? r.pulse : null, rmssd: pos(f.rmssd_ms) } : null;
   };
   const camera = now => {

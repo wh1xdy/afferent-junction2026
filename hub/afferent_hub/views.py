@@ -172,6 +172,11 @@ def patient_row(patient: dict, analytics: dict, sessions: list[dict], flags: lis
         "need_rank": None,
     }
 
+def clinic_row(row: dict) -> dict:
+    """A list row as a clinic socket gets it: without its flags. A talk request or a check-in safety answer is the
+    patient's to hand over (the QR code and its dashboard carry them), never news on a clinic socket."""
+    return {k: v for k, v in row.items() if k != "flags"}
+
 def sort_rows(rows: list[dict]) -> list[dict]:
     rows = sorted(rows, key=lambda r: (STATE_ORDER.get(r["state"], 9), -(r["composite"] or -99), r["id"]))
     for i, r in enumerate(rows, 1):

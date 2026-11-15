@@ -157,4 +157,6 @@ RELAY_CODE=dev GOOGLE_CLOUD_PROJECT=your-project-id uvicorn main:app --port 8080
 
 Then use `http://<your-computer-ip>:8080` as the relay address (the phone must be on the same network).
 
-Tests (a fake Vertex, no Google account needed): `pip install pytest httpx && pytest test_main.py`.
+Tests (a fake Vertex, no Google account needed): `pip install -r requirements-dev.txt && pytest test_main.py`.
+The versions in `requirements.txt` are pinned to a set the tests pass with (anyio below 4.6, see the file);
+change a pin only with the tests passing.

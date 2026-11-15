@@ -246,6 +246,27 @@ const tests = {
       assert.strictEqual(kind(p), 'ci-info ci-crisis', `item 9 = ${v}`);
     }
   },
+
+  'k: nothing reaches the clinic by itself, so no screen says it does: the intro, the support and the crisis screens'() {
+    const told = /clinic (will see|sees your|gets|is told|can understand)|still (reach|shared)|next working day/i;
+    const p = page({ storage: seen() });
+    p.A.config.sharing = 'paused';
+    p.A.Checkin.open();
+    assert.strictEqual(kind(p), 'ci-info ci-intro');
+    assert.ok(!told.test(p.sheet().textContent), p.sheet().textContent);
+    assert.ok(/stay with you/.test(p.sheet().textContent) && /only if you show them/.test(p.sheet().textContent), p.sheet().textContent);
+    for (const v of [1, 2]) {
+      const s = page({ storage: seen() });
+      s.begin();
+      for (let i = 1; i <= 8; i++) s.answer(0);
+      s.answer(v);
+      assert.strictEqual(kind(s), v >= 2 ? 'ci-info ci-crisis' : 'ci-info ci-support');
+      const text = s.sheet().textContent, calls = s.sheet().querySelectorAll('.ci-contact').map(c => c.href);
+      assert.ok(!told.test(text), text);
+      assert.ok(/does not see these answers unless you show them/.test(text), text);
+      assert.ok(['tel:112', 'tel:0925250111', 'tel:116117'].every(t => calls.includes(t)), calls.join());
+    }
+  },
 };
 
 let failed = 0;

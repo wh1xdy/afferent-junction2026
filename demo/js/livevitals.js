@@ -34,9 +34,10 @@
   // "Pulse up, HRV down, breathing fast → calmer breathing game" for a transition of the session.
   const reason = tr => tr ? `${cap((tr.reasons || []).map(r => WORDS[r]).filter(Boolean).join(', ')) || STATE[tr.state] || 'New reading'} → ${action(tr.state, tr.to)}` : null;
 
-  // HRV and breathing as the game would take them: real clips, quality 0.3 or more, at most 3 s old.
+  // HRV and breathing as the game would take them: real clips (or a watch or strap when the clips give no pulse),
+  // quality 0.3 or more, at most 3 s old.
   const physio = now => {
-    const f = S.fingerFrame(now), ok = !!A.Breathing?.real(f);
+    const f = (S.physioFrame || S.fingerFrame).call(S, now), ok = !!A.Breathing?.real(f);
     return { rmssd: ok ? pos(f.rmssd_ms) : null, breathing: ok ? pos(f.breathing_per_min) : null };
   };
   const value = (x, unit) => x == null ? { value: null, text: NONE } : { value: Math.round(x), text: `${int(x)} ${unit}` };
@@ -54,6 +55,13 @@
     return c == null ? null : `Room ${c.toFixed(1)} °C${h == null ? '' : ` · ${Math.round(h)} %`}`;
   };
 
+  // Apple Watch through Apple Health (health.js): its last saved pulse, with its age. Context, never the live pulse.
+  const health = () => {
+    let x = null;
+    try { x = A.Health?.latest?.('heart_rate') ?? null; } catch { x = null; }
+    return x ? `${A.Health.label(x)} ${int(x.value)} bpm, ${A.Health.ago(x.age_min)}` : null;
+  };
+
   // What the panel shows, or null when it is hidden (no session in play, or switched off).
   const model = (s, now) => {
     if (!s || s.done || !SHOWN.includes(s.phase) || A.config?.liveVitals === false) return null;
@@ -69,6 +77,8 @@
       calm: Number.isFinite(level) ? clamp(level, 0, 1) : null,
       music: music(),
       room: room(now),
+      source: p.bpm != null && p.source === 'watch_ble' ? `Pulse from ${S.watchLink?.name || 'your watch or strap'}` : null,
+      health: health(),
     };
   };
 
@@ -123,7 +133,7 @@
     const calm = q('.lv-calm');
     calm?.classList.toggle('on', m.calm != null);
     if (m.calm != null) { const fill = q('.lv-fill'); if (fill) fill.style.transform = `scaleX(${m.calm.toFixed(2)})`; }
-    for (const k of ['music', 'room']) {
+    for (const k of ['music', 'room', 'source', 'health']) {
       const el = q(`.lv-${k}`);
       el?.classList.toggle('on', !!m[k]);
       if (m[k]) put(el, m[k]);

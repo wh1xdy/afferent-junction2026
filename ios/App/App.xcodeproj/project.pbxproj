@@ -28,6 +28,10 @@
 		AE000000000000000000020A /* FaceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010A /* FaceSession.swift */; };
 		AE000000000000000000020B /* FaceMeasures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE000000000000000000010B /* FaceMeasures.swift */; };
 		AE0000000000000000000400 /* FaceCore in Frameworks */ = {isa = PBXBuildFile; productRef = AE0000000000000000000401 /* FaceCore */; };
+		B7A700000000000000000010 /* HeartRateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A700000000000000000020 /* HeartRateParser.swift */; };
+		B7A700000000000000000030 /* AfferentWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A700000000000000000040 /* AfferentWatch.swift */; };
+		B7A700000000000000000050 /* HealthMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A700000000000000000060 /* HealthMath.swift */; };
+		B7A700000000000000000070 /* AfferentHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7A700000000000000000080 /* AfferentHealth.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,6 +57,11 @@
 		AE0000000000000000000109 /* FacePulse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = FacePulse.swift; path = ../Afferent/FacePulse.swift; sourceTree = SOURCE_ROOT; };
 		AE000000000000000000010A /* FaceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceSession.swift; sourceTree = "<group>"; };
 		AE000000000000000000010B /* FaceMeasures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceMeasures.swift; sourceTree = "<group>"; };
+		B7A700000000000000000020 /* HeartRateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeartRateParser.swift; sourceTree = "<group>"; };
+		B7A700000000000000000040 /* AfferentWatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentWatch.swift; sourceTree = "<group>"; };
+		B7A700000000000000000060 /* HealthMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthMath.swift; sourceTree = "<group>"; };
+		B7A700000000000000000080 /* AfferentHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AfferentHealth.swift; sourceTree = "<group>"; };
+		B7A700000000000000000090 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,10 +110,15 @@
 				F1A6E0000000000000000102 /* AfferentHaptics.swift */,
 				F1A6E0000000000000000004 /* AfferentFingerParser.swift */,
 				A9E5E0000000000000000002 /* AfferentPresence.swift */,
+				B7A700000000000000000080 /* AfferentHealth.swift */,
+				B7A700000000000000000060 /* HealthMath.swift */,
+				B7A700000000000000000040 /* AfferentWatch.swift */,
+				B7A700000000000000000020 /* HeartRateParser.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
+				B7A700000000000000000090 /* App.entitlements */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
@@ -157,6 +171,11 @@
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
 						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.HealthKit = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
@@ -216,6 +235,10 @@
 				AE0000000000000000000209 /* FacePulse.swift in Sources */,
 				AE000000000000000000020A /* FaceSession.swift in Sources */,
 				AE000000000000000000020B /* FaceMeasures.swift in Sources */,
+				B7A700000000000000000070 /* AfferentHealth.swift in Sources */,
+				B7A700000000000000000050 /* HealthMath.swift in Sources */,
+				B7A700000000000000000030 /* AfferentWatch.swift in Sources */,
+				B7A700000000000000000010 /* HeartRateParser.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -355,6 +378,7 @@
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;
@@ -377,6 +401,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/App.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = App/Info.plist;

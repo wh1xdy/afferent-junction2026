@@ -293,3 +293,48 @@ host that advertises `role=data-manager`. The address is in the data manager's s
 - No token or a wrong one: the same, `last_error` says `HTTP 401`.
 - Client file missing from the image or failing to start: one log line
   (`data manager: … (the hub goes on without it)`), nothing is sent, everything else works.
+
+## Watches and chest straps (phone app, not the UNO Q)
+
+The phone app can also take a pulse from a watch or chest strap. The finger box always comes first:
+the watch is used only while the box gives no measured pulse. Its source label is `watch_ble`
+everywhere (session `signal.pulse_source`, `vitals.watch`, `adaptive.transitions[].hrv_source`), and
+it is never written into the finger blocks.
+
+**Any device that broadcasts the standard Bluetooth Heart Rate Service (`180D` / `2A37`)**: Garmin
+watches with broadcast switched on, Polar (H9, H10, Verity Sense), Wahoo TICKR, Garmin HRM chest
+straps and most other straps. In the app: Settings › Sensors › *Heart rate from a watch or strap* ›
+*Choose a device*. The list shows nearby heart-rate devices by name (never the Afferent box); the one
+you tap is remembered, and the app reconnects to that device, and only that one, whenever it is in
+range. Plugins: `ios/App/App/AfferentWatch.swift`, Android `AfferentWatchPlugin.kt` (rules in
+`AfferentWatchLink.kt`); 2A37 is parsed in full in `HeartRateParser.swift` / `.kt` (8- and 16-bit
+pulse, contact bits, energy, RR intervals in 1/1024 s).
+
+**Garmin: switch broadcasting on first.** On most current watches (Forerunner, fēnix, epix, Venu,
+vívoactive, Instinct): hold the light button for the controls menu and add or tap *Broadcast Heart
+Rate*, or go to Settings › Sensors & Accessories › Wrist Heart Rate › *Broadcast Heart Rate* (older
+models: Settings › Heart Rate › *Broadcast*). The watch shows a heart icon while it broadcasts; it
+costs battery and some models stop when you leave the screen or start an activity. Some older
+models broadcast only over ANT+, which a phone cannot hear.
+
+What the phone does with it (`demo/js/hrv.js`):
+- **RR intervals**, when the device sends them (straps do; most Garmin watches broadcasting do not):
+  dropped outside 300–2000 ms or more than 20 % from the median of the beats around them (up to five
+  each side); RMSSD over the last 60 s, from at least 20 successive differences over 30 s of clean
+  beats, never across a gap of more than 3 s between notifications. No intervals: no RMSSD, never a
+  made-up one.
+- **Quality**, 0–1 with the same 0.3 limit as the box: 0 when the contact bits say no skin contact;
+  otherwise (1 with contact reported, 0.8 when the device does not report contact) × (the share of
+  clean intervals over the last 30 s, or 0.75 when it sends none). A strap with clean RR is 1, a
+  Garmin watch with contact 0.75.
+- Freshness as for the box: a reading older than 3 s is gone, a missing value stays missing.
+- Breathing from RR (respiratory sinus arrhythmia) is not computed from a watch; the breathing task
+  keeps using the box only.
+
+**Apple Watch** sends no heart rate over Bluetooth. On the iPhone the app can read Apple Health
+instead (Settings › Sensors › *Apple Watch*, read only, `ios/App/App/AfferentHealth.swift`): latest
+heart rate, resting heart rate, heart rate variability (SDNN, Apple's measure, not comparable with
+RMSSD), respiratory rate and last night's sleep. These are saved samples, minutes to hours old, with
+no signal quality, so they are context only: shown with their age ("Apple Watch, 12 min ago"),
+recorded as `context.health`, and never the game's pulse, the heartbeat or the flame. Not on Android
+(Health Connect is not read).
