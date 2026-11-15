@@ -46,9 +46,9 @@ const world = loaded => {
     chunks.push({ type, x0: -700 + i * 560, x1: -140 + i * 560, seed: 40 + i * 9, n: prev && prev.type === type ? prev.n + 1 : 0, from: prev && prev.type !== type ? prev.type : null });
   });
   const V = { t: 30, worldX: 0, sat: { yellow: 0.3, blue: 0.3, green: 0.3, dawn: 0 }, chunks, night: true, fog: 0.3, aurora: 0.2, terrain: null, cam: { x: 0, y: 0, z: 1 } };
-  const frame = (worldX, W = 390, H = 844, terrain = null) => {
+  const frame = (worldX, W = 390, H = 844, terrain = null, cam = { x: 0, y: 0, z: 1 }) => {
     draws.length = 0;
-    Object.assign(V, { worldX, terrain, t: 30 + worldX / 60 });
+    Object.assign(V, { worldX, terrain, cam, t: 30 + worldX / 60 });
     ctx.A.World.draw(context(), W, H, V);
     return draws.filter(d => d.n.startsWith('tree_')).map(d => ({ ...d }));
   };
@@ -121,6 +121,21 @@ test('trees stand on the ground line, stay below the top fifth of the screen and
       prev = ds;
     }
     assert.ok(n > 500, `${n} tree draws`);
+  }
+});
+
+test('at a ride\'s zoom and camera height, on a steep rise, tree tops stay under the top controls on the screen', () => {
+  const steep = wx => 280 * Math.sin(wx * 0.003);
+  for (const [W, H] of [[390, 844], [430, 932]]) for (const cam of [{ x: -60, y: -0.05 * H, z: 1.08 }, { x: 0, y: 0.18 * H, z: 1 }]) {
+    const w = world(ALL), gy = H * 0.82 + cam.y, line = Math.max(H * 0.2, 56 + 12 * H / 844);
+    let n = 0, clamped = 0;
+    for (let x = -400; x <= 4400; x += 25) for (const d of w.frame(x, W, H, steep, cam)) {
+      n++;
+      const top = gy + (d.y - gy) * cam.z;
+      if (top < line + 0.012 * H) clamped++;
+      assert.ok(top >= line - 0.5, `${d.n} top ${top.toFixed(1)} above ${line.toFixed(1)} at zoom ${cam.z}`);
+    }
+    assert.ok(n > 100 && (cam.z > 1 ? clamped > 0 : true), `${n} draws, ${clamped} held under the line`);
   }
 });
 

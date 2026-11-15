@@ -994,7 +994,10 @@
   // The small snow-laden spruce stays in the back row: by the path it is the figure's height and white, and competes with it.
   const BIRCHES = ['tree_birch_a', 'tree_birch_b', 'tree_birch_c'], SPRUCES = ['tree_spruce_a', 'tree_spruce_b', 'tree_spruce_b', 'tree_spruce_c'], NEAR_SPRUCES = SPRUCES.slice(0, 3);
   const TREE_ROW = { back: { f: 0.82, k: 0.55, lt: 0.78, sink: 5 }, front: { f: 0.97, k: 1, lt: 0.95, sink: 2 } };
+  // No tree reaches above this on the screen: 20 % of the height, and always 12 px under the line where a task's text
+  // starts below the top controls (Layers.controls), at any zoom of a ride.
   const TREE_TOP = 0.2;
+  const treeCeil = () => unzoom(0, Math.max(H * TREE_TOP, A.Layers.controls(W, insetTop()).line + 12 * u))[1];
   const treeArt = () => Object.keys(TREE).some(n => ART.has(n));
   function treeLayout(c) {
     if (c._trees) return c._trees;
@@ -1016,11 +1019,11 @@
     return (c._trees = out);
   }
   function trees(c, back) {
-    const R = back ? TREE_ROW.back : TREE_ROW.front, t = n0(S.t, 0) * (rm ? 0.3 : 1);
+    const R = back ? TREE_ROW.back : TREE_ROW.front, t = n0(S.t, 0) * (rm ? 0.3 : 1), ceil = treeCeil();
     for (const tr of treeLayout(c)) {
       if (tr.back !== back || !ART.has(tr.name)) continue;
       const T = TREE[tr.name], xc = at(c.x0 + tr.q * (c.x1 - c.x0), R.f), base = gyAt(S.worldX + xc - fx) + R.sink * u;
-      const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - H * TREE_TOP), w = h * ART.aspect(tr.name);
+      const h = Math.min(H * lerp(T.h[0], T.h[1], tr.s) * R.k, base - ceil), w = h * ART.aspect(tr.name);
       if (h <= 0 || xc + w / 2 < -20 || xc - w / 2 > W + 20) continue;
       const lean = Math.sin(t * 0.5 + tr.p) * 0.006 * T.sway;
       ctxRef.save(); ctxRef.transform(1, 0, lean, 1, -lean * base, 0);
