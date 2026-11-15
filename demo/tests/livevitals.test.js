@@ -153,6 +153,32 @@ const tests = {
     L.render(s, A.now());
     assert.deepStrictEqual([p.box.has('on'), p.chip.has('on')], [false, false]);
   },
+
+  'the pill never reaches up into the figure\'s lane, on any phone, at its tallest'() {
+    // The pill's place and its largest height, as css/livevitals.css sets them, against the band the rider, the
+    // walker, their lantern and its touch dot can reach (js/layers.js, measured over whole sessions in Chrome).
+    const css = fs.readFileSync(path.join(JS, '..', 'css', 'livevitals.css'), 'utf8');
+    const rule = css.slice(css.indexOf('.live-vitals {'), css.indexOf('}', css.indexOf('.live-vitals {')));
+    const maxH = Number(/--lv-max-h:\s*(\d+)px/.exec(rule)?.[1]), gap = Number(/bottom:\s*calc\(var\(--af-safe-b\)\s*\+\s*(\d+)px\)/.exec(rule)?.[1]);
+    assert.ok(maxH > 0 && gap >= 0, `read --lv-max-h ${maxH} and the bottom gap ${gap} from the CSS`);
+    assert.ok(/max-height:\s*var\(--lv-max-h\)/.test(rule) && /overflow:\s*hidden/.test(rule), 'the pill cannot grow past --lv-max-h');
+    assert.ok(/pointer-events:\s*none/.test(rule), 'and takes no taps, so it never eats one meant for the game');
+    const Layers = require(path.join(JS, 'layers.js'));
+    for (const [W, H, bottom] of [[375, 667, 0], [375, 812, 34], [390, 844, 34], [393, 852, 34], [402, 874, 34], [414, 896, 34], [430, 932, 34], [440, 956, 34]]) {
+      const top = H - bottom - gap - maxH, lane = Layers.lane(W, H);
+      assert.ok(top >= lane.y1 + 2, `${W}x${H}: the pill's top ${top} is not under the lane (${lane.y1.toFixed(1)})`);
+    }
+  },
+
+  'no reading at all: the pill is one line (quiet); any reading brings the full rows back'() {
+    const t = setup({ doc: true }), { A, s, L, p } = t;
+    t.play(4);
+    L.render(s, A.now());
+    assert.deepStrictEqual([p.box.has('on'), p.box.has('quiet'), p.part('.lv-label').textContent], [true, true, 'Waiting for a pulse']);
+    t.play(4, 72);
+    L.render(s, A.now());
+    assert.deepStrictEqual([p.box.has('quiet'), p.part('[data-k="pulse"]').textContent], [false, '72 bpm']);
+  },
 };
 
 let failed = 0;

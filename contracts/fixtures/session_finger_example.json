@@ -109,7 +109,7 @@
   },
   "two_lanterns": {
     "rich_lantern": "amber",
-    "size_diff": 0.08,
+    "size_diff": 0.13,
     "trials": [
       { "trial": 1, "larger": "rich", "rich_side": "left", "response": "rich", "correct": true, "rewarded": true, "rt_ms": 812 },
       { "trial": 2, "larger": "lean", "rich_side": "right", "response": "lean", "correct": true, "rewarded": false, "rt_ms": 944 },

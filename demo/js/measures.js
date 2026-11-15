@@ -53,6 +53,7 @@
     },
   });
 
+  const LANTERN_SIZE = 1.13;
   const FORK_EASY = { lights: 3, gap: 0.55, life: 2.6, hit: 0.12 }, FORK_HARD = { lights: 8, gap: 0.12, life: 1.7, hit: 0.1 };
   const pathPts = (side, hard) => {
     const X = u => 0.5 + side * u;
@@ -140,6 +141,9 @@
     },
 
     lanterns: {
+      // The bigger lantern of a measured trial is this many times the other's size, for 0.4 s from the cue (tasks/
+      // lanterns.js). 1.13 is the classic task's ratio (mouths of 11.5 and 13 mm, Pizzagalli et al. 2005); sessions
+      // before 2026-11-15 used 1.08, which read as no difference on a phone. The record keeps it (size_diff).
       make() {
         const larger = [...Array(6).fill('rich'), ...Array(6).fill('lean')].sort(() => R() - 0.5);
         const pick = (type, n) => { const idx = larger.map((x, i) => x === type ? i : -1).filter(i => i >= 0).sort(() => R() - 0.5); return new Set(idx.slice(0, n)); };
@@ -147,7 +151,7 @@
         const bias = { good_day: 0.15, live: 0.08, bad_day: -0.15 }[profile()] ?? 0.08;
         const richSide = R() < 0.5 ? 'left' : 'right';
         const g = base('lanterns', 60, {
-          kind: 'measurement', larger, sched, richSide, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
+          kind: 'measurement', larger, sched, richSide, sizeRatio: LANTERN_SIZE, pending: { rich: 0, lean: 0 }, trials: [], i: -1, tr: null, rewards: { rich: 0, lean: 0 }, sparks: [], bar: () => null, missedRun: 0,
           next(now) {
             this.i++;
             if (this.i >= 12 || this.missedRun >= 3) { finish(this, now); this.tr = null; this.i = 12; return; }
