@@ -33,8 +33,30 @@
   "tile": true,
   "fill": true
  },
- "mid_birch_grove",
- "birch_cluster",
+ {
+  "name": "tree_birch_a",
+  "ext": "webp"
+ },
+ {
+  "name": "tree_birch_b",
+  "ext": "webp"
+ },
+ {
+  "name": "tree_birch_c",
+  "ext": "webp"
+ },
+ {
+  "name": "tree_spruce_a",
+  "ext": "webp"
+ },
+ {
+  "name": "tree_spruce_b",
+  "ext": "webp"
+ },
+ {
+  "name": "tree_spruce_c",
+  "ext": "webp"
+ },
  "sauna_hut",
  "lighthouse",
  "pier_boat",
