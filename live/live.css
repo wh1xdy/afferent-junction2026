@@ -202,3 +202,11 @@ h1 { font-size: clamp(2.3rem, 7vw, 3.6rem); line-height: 1.04; font-weight: 400;
   .heart.beat, .ring.beat { animation: none; }
   .swatch-core, .heart { transition: none; }
 }
+
+/* Play first: the game is the first thing on the page. */
+.play-top { margin-top: 22px; padding: 24px; }
+.play-top h2 { font-size: clamp(1.45rem, 4.6vw, 2rem); }
+.play-top .btn { font-size: 1.08rem; padding-inline: 34px; }
+.fine:empty, .pulse-note:empty { display: none; }
+.play-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; }
+.play-top .play-actions .btn { align-self: auto; }

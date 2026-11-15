@@ -89,17 +89,17 @@
     rest: ['Rest', 'winding down for sleep: the harbour'],
   };
   const lightText = l => {
-    if (!l) return ['–', 'The hub is offline, so the light is not known.'];
+    if (!l) return ['–', ''];
     const m = MODE[l.mode];
     switch (l.reason) {
-      case 'mode': return [m ? `Game mode: ${m[0]}` : 'Game mode', m ? `A session is running and the game is in ${m[0].toLowerCase()} mode, ${m[1]}. The phone set this colour.` : 'A session is running; the phone set this colour.'];
-      case 'dawn': return ['Dawn', 'The end of a session: the warm dawn light comes up.'];
-      case 'asleep': return ['Off: fell asleep', 'The player fell asleep in the session; the light stays off until morning.'];
-      case 'knob': return ['Knob turned', 'Someone turned the knob on the box: the light shows the new dawn level.'];
-      case 'camera': return ['Camera switched', 'A press on the knob switched the bedside camera; the light blinks twice.'];
+      case 'mode': return [m ? `Game mode: ${m[0]}` : 'Game mode', m ? m[1] : ''];
+      case 'dawn': return ['Dawn', ''];
+      case 'asleep': return ['Off: asleep', ''];
+      case 'knob': return ['Knob turned', ''];
+      case 'camera': return ['Camera switched', ''];
       case 'idle': return [l.level > 0 ? 'No session: time of day' : 'No session: off',
-        l.level > 0 ? 'Between sessions the light follows the time of day while someone is in bed.' : 'Off between sessions. A session sets it to the game’s mode.'];
-      default: return ['Set by the hub', 'The hub set this colour.'];
+        ''];
+      default: return ['Set by the hub', ''];
     }
   };
 
@@ -127,12 +127,11 @@
     attr(tag, 'data-state', live ? 'live' : '');
     put(tag, !box ? 'offline' : live ? 'live' : p.two_people ? 'two hearts' : anyOn ? 'settling' : 'waiting');
     const from = (s.clips || []).map((c, i) => c.bpm != null ? i + 1 : null).filter(Boolean);
-    put($('pulseNote'), !box ? 'The sensor box is offline.'
-      : p.two_people ? 'Two people on the clips (Heart Duel): each clip shows its own heart.'
-      : live ? `A real heartbeat from ${from.length === 2 ? 'both clips' : from.length ? `clip ${from[0]}` : 'the clips'} at the table. The heart beats with it.`
-      : anyOn ? 'A finger is on a clip. The box holds the number back until the rhythm is steady.'
-      : s.box?.sensors === 'checking' ? 'Put a finger in a clip: the box is checking for one right now.'
-      : 'Put a finger in a clip at the table and its heartbeat shows here.');
+    put($('pulseNote'), !box ? 'Box offline'
+      : p.two_people ? 'Two hearts'
+      : live ? `Live, ${from.length === 2 ? 'both clips' : from.length ? `clip ${from[0]}` : 'the clips'}`
+      : anyOn ? 'Settling…'
+      : '');
     const lis = $('clips').children;
     (s.clips || []).forEach((c, i) => {
       const li = lis[i];
