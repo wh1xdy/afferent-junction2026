@@ -121,11 +121,31 @@ def _get(d, *path, default=None):
         d = d.get(k)
     return default if d is None else d
 
+# The face numbers a mode change can rest on (demo/js/engine.js signals); like the face block, they stay on the hub.
+FACE_SIGNALS = ("smile_share_now", "smile_share_own", "movement_now", "movement_own")
+
+def _face_free(t):
+    sig = t.get("signals") if isinstance(t, dict) else None
+    if not isinstance(sig, dict) or not any(k in sig for k in FACE_SIGNALS):
+        return t
+    return {**t, "signals": {k: x for k, x in sig.items() if k not in FACE_SIGNALS}}
+
+def _face_read(t) -> bool:
+    return isinstance(t, dict) and t.get("basis") == "face"
+
 def without_face(s: dict | None) -> dict | None:
-    v = (s or {}).get("vitals")
-    if not isinstance(v, dict) or "face" not in v:
+    """The session as the clinic routes give it: no face block, no mode change that rested on what the face did
+    (the doctor learns about the face only through the patient's handover), and no face numbers behind the others.
+    The stored document is not changed."""
+    if not isinstance(s, dict):
         return s
-    return {**s, "vitals": {k: x for k, x in v.items() if k != "face"}}
+    v, ad = s.get("vitals"), s.get("adaptive")
+    if isinstance(v, dict) and "face" in v:
+        s = {**s, "vitals": {k: x for k, x in v.items() if k != "face"}}
+    tr = ad.get("transitions") if isinstance(ad, dict) else None
+    if isinstance(tr, list) and any(_face_read(t) or _face_free(t) is not t for t in tr):
+        s = {**s, "adaptive": {**ad, "transitions": [_face_free(t) for t in tr if not _face_read(t)]}}
+    return s
 
 def compact_session(s: dict) -> dict:
     s = without_face(s)

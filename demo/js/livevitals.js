@@ -1,7 +1,7 @@
 // Live vitals: a slim pill at the bottom of the screen during play, under the figure's lane (css/livevitals.css),
-// with the pulse, HRV and breathing as the sensors give them right now, the state the game reads from them and what
-// it does because of it, and a short chip at the top each time that changes the games. With no reading at all it is
-// one line ("quiet"). It reads A.Sensors and the session (state, transitions); it never draws on the game canvas and
+// with the pulse, HRV and breathing as the sensors give them right now, the state the game reads from them (or from
+// what the face did, in words; no face number is shown) and what it does because of it, and a short chip at the top
+// each time that changes the games. With no reading at all it is one line ("quiet"). It reads A.Sensors and the session (state, transitions); it never draws on the game canvas and
 // takes no taps. Settings, "Live vitals", turns it off.
 // Only real readings show as numbers. A missing one, or one below the quality gate, says "no reading". A simulated
 // pulse shows labelled "simulated"; HRV and breathing count only from the finger clips, so a simulated frame of
@@ -14,13 +14,13 @@
 
   const STATE = {
     stressed: 'Stressed', energised: 'Energised', tired: 'Tired', steady: 'Steady',
-    pulse_up: 'Pulse up', low: 'Pulse low', unknown: 'Waiting for a pulse',
+    pulse_up: 'Pulse up', low: 'Pulse low', unknown: 'Waiting for a pulse', bright: 'Smiling', still: 'Face still',
   };
   const WORDS = {
     eyes_tired: 'eyes heavy', no_pulse: 'no pulse reading', pulse_low: 'pulse low', pulse_steady: 'pulse near rest',
     pulse_up: 'pulse up', no_hrv: 'no HRV to compare', rmssd_down: 'HRV down', breathing_fast: 'breathing fast',
     rmssd_steady: 'steady HRV', breathing_calm: 'calm breathing', hrv_partial: 'HRV or breathing missing', hrv_between: 'HRV in between',
-    room_loud: 'loud room',
+    room_loud: 'loud room', smiling: 'smiling more than usual', face_still: 'face stiller than usual',
   };
   // What the game does for a state in a mode (engine.js assess and prefer).
   const action = (state, mode) => ({
@@ -29,6 +29,8 @@
     tired: mode === 'rest' ? 'wind-down for sleep' : 'gentle wake-up games, brighter light',
     pulse_up: 'calmer games',
     low: mode === 'wake' ? 'livelier games, brighter light' : 'the usual mix of games',
+    bright: 'puzzles',
+    still: mode === 'wake' ? 'livelier games, brighter light' : 'the usual mix of games',
   })[state] || (mode === 'calm' ? 'calmer games' : 'the usual mix of games');
   const cap = t => t ? t[0].toUpperCase() + t.slice(1) : t;
 

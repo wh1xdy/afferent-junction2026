@@ -1,6 +1,6 @@
 (() => {
   const { clamp, lerp, ema, median, hex, uuid } = A;
-  const { r1, r3, isoLocal } = A.Record;
+  const { r1, r3, isoLocal, mean } = A.Record;
   const Au = A.Audio, Eyes = A.Eyes, Sim = A.Sim, R = Math.random;
 
   const MODES = A.MODES = {
@@ -25,6 +25,14 @@
   // as it did before HRV was read. The own values need 5 one-second readings near rest; at most 60 are kept.
   const UP_A = 0.8, LOW_A = -0.3, NEAR_A = 0.5, BASE_N = 5, BASE_MAX = 60;
   const RMSSD_STRESS = 0.8, RMSSD_STEADY = 0.9, BREATH_STRESS = 3, BREATH_STEADY = 1.5;
+  // What the face did (the phone's TrueDepth camera, sensors.js faceNow) steers the games only where the body has not
+  // decided: a pulse near rest or low, or no pulse, never tired eyes or a raised pulse. It is read against this
+  // person's own face in this session, taken like the HRV's (20 one-second readings near rest). Bright: smiling in at
+  // least 25% of the last 20 s and 15 points more than the own share; it holds while 5 points over. Still: facial
+  // movement at 60% of the own median or less, smiling at most half the own share (none when that is 0); it holds
+  // while at 75% or less. A measure says what the face did; it names no feeling.
+  const FACE_N = BASE_N * 4, BRIGHT_MIN = 0.25, BRIGHT_RISE = 0.15, BRIGHT_HOLD = 0.05, STILL_MOVE = 0.6, STILL_SMILE = 0.5, STILL_HOLD = 0.75;
+  const FACE_SIG = ['smile_share_now', 'smile_share_own', 'movement_now', 'movement_own'], BODY = ['stressed', 'energised', 'pulse_up'];
   const CALMING = ['breath'];
   const pos = x => Number.isFinite(x) && x > 0 ? x : null;
   const RP = () => A.PRESENT?.reaction || {};
@@ -70,7 +78,7 @@
     const s = {
       t0, night, auto, stage: !!opts.stage, profile, V, fromIdle, phase: 'fadein', phaseAt: t0, done: false, pw: 1,
       targetX: 0, rest: baseline, a: 0, fat: 0, reading: 'flow', mode: 'flow', state: null, candidate: null, candidateAt: 0,
-      pulseNow: null, phys: null, physAt: 0, base: { rmssd: [], breathing: [] },
+      pulseNow: null, phys: null, physAt: 0, base: { rmssd: [], breathing: [] }, faceBase: { smile: [], movement: [] }, faceRow: null,
       game: null, gameMode: null, panel: null, lastGame: null, tasks: [], slot: 0, bloomIdx: 0, flameKick: 0, beatPhase: 0, orb: null, daylightBoost: 0,
       slots: { fork: cfg?.measurement_slots?.fork ?? 1, lanterns: cfg?.measurement_slots?.lanterns ?? 3 },
       weights: cfg?.task_weights ?? null, configReceived: !!cfg, eyesSource: A.Sensors.eyesSource(),
@@ -279,11 +287,23 @@
       sense(now, p) {
         if (now < this.physAt) return;
         this.physAt = now + 1;
-        const r = this.phys = this.physioNow(now);
-        const near = plausible(p.bpm) && Math.abs(p.bpm - this.rest) / 10 < NEAR_A && this.fat < FAT_EXIT;
+        const r = this.phys = this.physioNow(now), live = plausible(p.bpm);
+        const near = live && Math.abs(p.bpm - this.rest) / 10 < NEAR_A && this.fat < FAT_EXIT;
+        this.senseFace(now, near || (!live && this.fat < FAT_EXIT));
         if (!r || !near) return;
         const base = this.baseOf(r.source);
         for (const k of ['rmssd', 'breathing']) if (r[k] != null && base[k].length < BASE_MAX) base[k].push(r[k]);
+      },
+
+      // The face's own values, one tracked second at a time, taken while the pulse is near rest (or there is none) and
+      // the eyes show no tiredness: a smile over SMILE_RISE counts 1, else 0, and the facial movement as it is.
+      senseFace(now, calm) {
+        const S = A.Sensors, f = S.faceSecond(now), b = this.faceBase;
+        if (!f || f === this.faceRow) return;
+        this.faceRow = f;
+        if (!calm) return;
+        if (f.smile != null && b.smile.length < BASE_MAX) b.smile.push(f.smile > S.FACE.SMILE_RISE ? 1 : 0);
+        if (f.movement != null && b.movement.length < BASE_MAX) b.movement.push(f.movement);
       },
 
       // This session's own values per source: an RMSSD from a chest strap is compared with the strap's, never with the clips'.
@@ -293,30 +313,41 @@
       },
 
       // The numbers a reading is made from. Ratios and differences are against this person's own values; null where a
-      // number or its own value is missing.
+      // number or its own value is missing. The face numbers are there only while the face measures run, so a phone
+      // without them reads and records exactly as before.
       signals() {
         const own = xs => xs.length >= BASE_N ? median(xs) : null, r = this.phys, base = this.baseOf(r?.source);
         const rmssd = r?.rmssd ?? null, breathing = r?.breathing ?? null, rb = own(base.rmssd), bb = own(base.breathing);
-        return {
+        const sig = {
           pulse_bpm: this.pulseNow == null ? null : r1(this.pulseNow), pulse_rest_bpm: this.rest,
           rmssd_ms: r1(rmssd), rmssd_own_ms: r1(rb), rmssd_ratio: rmssd != null && rb ? r3(rmssd / rb) : null,
           breathing_per_min: r1(breathing), breathing_own_per_min: r1(bb), breathing_delta: breathing != null && bb != null ? r1(breathing - bb) : null,
         };
+        if (!A.Sensors.faceOn()) return sig;
+        const f = A.Sensors.faceNow(A.now()), fb = this.faceBase, enough = xs => xs.length >= FACE_N;
+        return Object.assign(sig, {
+          smile_share_now: r3(f?.smile), smile_share_own: enough(fb.smile) ? r3(mean(fb.smile)) : null,
+          movement_now: r3(f?.movement), movement_own: enough(fb.movement) ? r3(median(fb.movement)) : null,
+        });
       },
 
-      // What the signals say: a state, the mode it asks for, what it rests on (eyes, hrv, pulse, none) and why.
+      // What the signals say: a state, the mode it asks for, what it rests on (eyes, hrv, pulse, face, none) and why.
       // A very loud room (65 dB or more, the phone's microphone, sound.js) leans a steady or unread state to calm games;
-      // it never overrides what the body says.
+      // it never overrides what the body says, nor what the face did.
       assess() {
         const sig = this.signals(), a = this.a, n = this.night, why = [];
         const out = (state, mode, basis) => ({ state, mode, basis, reasons: why, signals: sig });
         const byPulse = () => a >= UP_A ? 'calm' : a <= LOW_A ? (n ? 'flow' : 'wake') : 'flow';
         const lean = mode => { if (mode === 'flow' && A.RoomSound?.veryLoud?.(A.now()) === true) { why.push('room_loud'); return 'calm'; } return mode; };
         if (this.fat >= (this.mode === 'rest' || this.mode === 'fatigue' ? FAT_EXIT : FAT_ENTER)) { why.push('eyes_tired'); return out('tired', n ? 'rest' : 'fatigue', 'eyes'); }
+        // The face only where the body has not decided: not over a raised pulse, nor over its reading held without a pulse.
+        const f = (sig.pulse_bpm != null ? a < UP_A : !BODY.includes(this.state)) ? this.byFace(sig) : null;
+        if (f) { why.push(f.reason); return out(f.state, f.mode, 'face'); }
         if (sig.pulse_bpm == null) {
           why.push('no_pulse');
-          // No pulse now: nothing new to go on, so the last reading holds, as the arousal does.
-          if (this.state && this.state !== 'tired' && this.state !== 'unknown') return out(this.state, this.mode, 'none');
+          // No pulse now: nothing new to go on, so the last reading holds, as the arousal does. One of the face holds
+          // only while the face does (above).
+          if (this.state && !['tired', 'unknown', 'bright', 'still'].includes(this.state)) return out(this.state, this.mode, 'none');
           return out('unknown', lean(byPulse()), 'none');
         }
         if (a <= LOW_A) { why.push('pulse_low'); return out('low', byPulse(), 'pulse'); }
@@ -332,6 +363,19 @@
         if (r != null && d != null && (held || (r >= RMSSD_STEADY && d <= BREATH_STEADY))) { why.push('rmssd_steady', 'breathing_calm'); return out('energised', 'flow', 'hrv'); }
         why.push(r == null || d == null ? 'hrv_partial' : 'hrv_between');
         return out('pulse_up', 'calm', 'hrv');
+      },
+
+      // What the face did against this session's own face: smiling clearly more than usual (bright), or much less
+      // facial movement than usual with less smiling (still). Once in, each holds on a looser bound, so a reading at
+      // the threshold does not flip the games back and forth. null without the face numbers or their own values.
+      byFace(sig) {
+        const sn = sig.smile_share_now, so = sig.smile_share_own, mn = sig.movement_now, mo = sig.movement_own;
+        if (sn == null || so == null) return null;
+        if (this.state === 'bright' ? sn >= so + BRIGHT_HOLD : sn >= Math.max(BRIGHT_MIN, so + BRIGHT_RISE)) return { state: 'bright', mode: 'flow', reason: 'smiling' };
+        if (mn == null || !(mo > 0)) return null;
+        const less = so > 0 ? sn <= STILL_SMILE * so : sn === 0;
+        if (this.state === 'still' ? mn <= STILL_HOLD * mo : mn <= STILL_MOVE * mo && less) return { state: 'still', mode: this.night ? 'flow' : 'wake', reason: 'face_still' };
+        return null;
       },
 
       classify() { return this.assess().mode; },
@@ -357,7 +401,9 @@
           this.light(c, l, 2000, 'mode');
           A.bus.emit('mode', mode);
         }
-        this.ws({ type: 'mode', mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now), ...why });
+        // Face numbers travel only inside the session document (docs/app.md): the live message has the reading without them.
+        const signals = Object.fromEntries(Object.entries(why.signals).filter(([k]) => !FACE_SIG.includes(k)));
+        this.ws({ type: 'mode', mode, arousal: r3(this.a), fatigue: r3(this.fat), t_ms: this.tm(now), ...why, signals });
       },
 
       intensity(mode) {
@@ -367,10 +413,11 @@
 
       measuresPending(slot) { return [this.slots.fork, this.slots.lanterns].filter(x => x > slot).length; },
 
-      // Stressed: the breathing game first. Energised: puzzles (A.PUZZLES, minigames.js). Otherwise any game of the mode.
+      // Stressed: the breathing game first. Energised, or smiling more than usual (bright): puzzles (A.PUZZLES,
+      // minigames.js). Otherwise any game of the mode.
       prefer(mode) {
         if (mode === 'calm' && this.state === 'stressed') return CALMING;
-        if (mode === 'flow' && this.state === 'energised') return A.PUZZLES || null;
+        if (mode === 'flow' && (this.state === 'energised' || this.state === 'bright')) return A.PUZZLES || null;
         return null;
       },
 

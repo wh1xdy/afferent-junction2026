@@ -82,6 +82,10 @@ own values:
 - **Games by state:** stressed (pulse up, HRV down or faster breathing) → calm breathing games; energised
   (pulse up, HRV steady, calm breathing) → puzzles; tired eyes by day → gentle wake-up games; tired at
   night → wind-down. A new state must hold for 3 s before the games change.
+- **Games by what the face did** (TrueDepth camera, only where the pulse is near rest, low or missing and
+  the eyes are not tired): smiling clearly more than the session's own share ("Smiling") → puzzles; much
+  less facial movement than its own, with less smiling ("Face still") → livelier games and brighter light
+  by day, the usual mix at night. The face numbers stay in the session document, never in a live message.
 - **Live vitals overlay** (on by default, Settings › Sensors): pulse, HRV, breathing, the state and why
   ("Pulse up, HRV down → calmer breathing game"), plus the music and room rows. A missing reading says "no
   reading"; a simulated one is labelled.

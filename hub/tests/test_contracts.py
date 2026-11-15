@@ -493,6 +493,16 @@ STRESSED = {"t_ms": 41000, "from": "flow", "to": "calm", "arousal": 2.1, "fatigu
                         "breathing_per_min": 17, "breathing_own_per_min": 12, "breathing_delta": 5}}
 
 
+# What the face did, read against the person's own face where the pulse is steady (engine.js byFace). Test inputs.
+BRIGHT = {"t_ms": 52000, "from": "flow", "to": "flow", "arousal": 0.1, "fatigue": 0.03, "state": "bright", "basis": "face",
+          "reasons": ["smiling"], "hrv_source": None,
+          "signals": {"pulse_bpm": 69, "pulse_rest_bpm": 68, "rmssd_ms": None, "rmssd_own_ms": None, "rmssd_ratio": None,
+                      "breathing_per_min": None, "breathing_own_per_min": None, "breathing_delta": None,
+                      "smile_share_now": 0.45, "smile_share_own": 0.1, "movement_now": 0.031, "movement_own": 0.03}}
+STILL = {**BRIGHT, "to": "wake", "state": "still", "reasons": ["face_still"],
+         "signals": {**BRIGHT["signals"], "smile_share_now": 0, "movement_now": 0.012}}
+
+
 def test_transitions_carry_the_reason_for_the_mode(session_schema):
     doc = finger_doc()
     assert all({"state", "basis", "reasons", "signals"} <= set(t) for t in doc["adaptive"]["transitions"])
@@ -502,12 +512,23 @@ def test_transitions_carry_the_reason_for_the_mode(session_schema):
     assert errors(session_schema, doc) == []
 
 
+def test_transitions_may_rest_on_the_face(session_schema):
+    doc = finger_doc()
+    doc["adaptive"]["transitions"] += [BRIGHT, STILL]
+    assert errors(session_schema, doc) == []
+    # the face numbers are optional: a phone without the face measures records the eight of before
+    assert all("smile_share_now" not in t["signals"] for t in finger_doc()["adaptive"]["transitions"])
+
+
 @pytest.mark.parametrize("change", [
     lambda t: t.update(state="anxious"),
-    lambda t: t.update(basis="face"),
+    lambda t: t.update(basis="camera"),
+    lambda t: t.update(state="happy"),
     lambda t: t["reasons"].append("frowning"),
     lambda t: t["signals"].update(rmssd_ms="24"),
     lambda t: t["signals"].update(eye_openness=0.4),
+    lambda t: t["signals"].update(smile_share_now="0.4"),
+    lambda t: t["signals"].update(blendshapes=[0.1] * 52),
 ])
 def test_transition_reasons_reject_unknown_values(session_schema, change):
     t = json.loads(json.dumps(STRESSED))

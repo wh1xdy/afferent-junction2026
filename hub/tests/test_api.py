@@ -259,6 +259,37 @@ def test_face_numbers_stay_on_the_hub_and_leave_it_only_in_the_qr_body(client):
         assert not any(k in text for k in FACE_NUMBERS)
     assert client.app.state.hub.store.session(sid)["vitals"]["face"] == doc["vitals"]["face"], "the stored document is not changed"
 
+def test_face_numbers_behind_a_mode_change_stay_on_the_hub(client):
+    # A mode change that rested on what the face did (demo/js/engine.js byFace) stays whole in the store; the session
+    # route and the clinic export leave it out, and leave the face numbers out of any other change. The numbers are test inputs.
+    import io, zipfile
+    from afferent_hub.views import FACE_SIGNALS
+    sid = str(uuid.uuid4())
+    doc = face_session(sid)
+    bright = {"t_ms": 90000, "from": "flow", "to": "flow", "arousal": 0.1, "fatigue": 0.03, "state": "bright", "basis": "face",
+              "reasons": ["smiling"], "hrv_source": None,
+              "signals": {"pulse_bpm": 69, "pulse_rest_bpm": 68, "rmssd_ms": None, "rmssd_own_ms": None, "rmssd_ratio": None,
+                          "breathing_per_min": None, "breathing_own_per_min": None, "breathing_delta": None,
+                          "smile_share_now": 0.45, "smile_share_own": 0.1, "movement_now": 0.031, "movement_own": 0.03}}
+    doc["adaptive"]["transitions"].append(bright)
+    assert client.post("/api/sessions", json=doc).status_code == 200
+    assert client.app.state.hub.store.session(sid)["adaptive"]["transitions"][-1] == bright
+    steady = {**bright, "t_ms": 120000, "state": "steady", "basis": "pulse", "reasons": ["pulse_steady"]}
+    doc2 = face_session(str(uuid.uuid4()))
+    doc2["adaptive"]["transitions"].append(steady)
+    assert client.post("/api/sessions", json=doc2).status_code == 200
+    one = client.get(f"/api/sessions/{sid}").json()
+    assert one["adaptive"]["transitions"] == doc["adaptive"]["transitions"][:-1], "the face-based change is left out, the rest as sent"
+    assert not any(t.get("basis") == "face" or t.get("state") == "bright" for t in one["adaptive"]["transitions"])
+    other = client.get(f"/api/sessions/{doc2['session_id']}").json()["adaptive"]["transitions"][-1]
+    assert [other["state"], other["basis"], other["signals"]["pulse_bpm"]] == ["steady", "pulse", 69]
+    assert not any(k in other["signals"] for k in FACE_SIGNALS), "face numbers behind a body-based change are dropped"
+    z = zipfile.ZipFile(io.BytesIO(client.get("/api/patients/anna/export").content))
+    for text in (json.dumps(one), json.dumps(client.get("/api/patients/anna").json()), z.read("sessions.ndjson").decode()):
+        assert not any(k in text for k in FACE_SIGNALS)
+        assert '"basis": "face"' not in text and '"smiling"' not in text
+    assert client.app.state.hub.store.session(sid)["adaptive"]["transitions"][-1] == bright, "the stored document is not changed"
+
 def checkin_doc(item9, tier, source, total, **over):
     items = {f"phq9_{i}": 1 for i in range(1, 9)} | {"phq9_9": item9}
     doc = {"schema": "afferent.checkin/1", "checkin_id": str(uuid.uuid4()), "patient_id": "anna",
