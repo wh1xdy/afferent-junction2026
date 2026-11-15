@@ -121,8 +121,15 @@ camera setting is on and the app is visible. They need a TrueDepth camera; witho
 - Camera frames, images, face meshes and the raw blendshape stream stay in the native layer; the web layer
   only gets the per-second numbers. The face numbers reach the patient's own home hub in the session
   document, and a doctor only through the QR handover: the hub's clinic routes (`/api/patients/{id}`,
-  `/api/sessions/{id}`, the clinic export) leave the face block out. No face number is in a live message,
-  and none drives the game.
+  `/api/sessions/{id}`, the clinic export) leave the face block out, and the face numbers of a mode change
+  (`adaptive.transitions[].signals`). No face number is in a live message.
+- Smiling and facial movement steer the games where the body has not decided (pulse near rest, low or
+  missing; eyes not tired), against the session's own face (20 tracked seconds near rest): over the last
+  20 s (12 tracked seconds needed), smiling in 25% or more and 15 points over the own share is `bright`
+  (puzzles; it holds while 5 points over), movement at 60% of the own median or less with at most half the
+  own smiling is `still` (wake by day, flow at night; it holds up to 75%). A raised pulse, HRV and tired
+  eyes come first, and without the face measures the games follow the body exactly as before
+  (`demo/js/engine.js` `byFace`, `node demo/tests/faceplay.test.js`).
 - Gaze calibration: `calibrationStart`, `calibrationPoint({ x, y, hold_ms })` once per dot,
   `calibrationFinish`, `calibrationStatus`, `calibrationClear`, documented at the top of
   `ios/App/App/FaceMeasures.swift`. A fit that is not good enough is reported and not stored.

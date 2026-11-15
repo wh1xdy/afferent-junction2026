@@ -69,7 +69,8 @@
   const CAM_WHY = ['no_face', 'exposure_not_locked', 'too_dark', 'too_bright', 'moving', 'warming_up', 'weak_signal'];
   const FACE_STATES = ['off', 'starting', 'tracking', 'no_face', 'unavailable', 'denied'], FACE_LIVE = ['starting', 'tracking', 'no_face'];
   const FACE_REGIONS = ['brow', 'eye', 'cheek', 'nose', 'mouth', 'jaw'];
-  const FACE = { MIN_TRACKED_S: 30, SMILE_RISE: 0.04, WINDOW_S: 60, MICRO_MS: [40, 500], BREATHS: [4, 36], REGIONS: FACE_REGIONS };
+  // NOW_S, NOW_MIN: the face right now for the game (faceNow) is the last 20 s, and needs 12 tracked seconds of them.
+  const FACE = { MIN_TRACKED_S: 30, SMILE_RISE: 0.04, WINDOW_S: 60, MICRO_MS: [40, 500], BREATHS: [4, 36], REGIONS: FACE_REGIONS, NOW_S: 20, NOW_MIN: 12 };
   // Room climate: the bedside unit's thermometer through the home hub, about one reading a minute. Older than
   // 150 s (two readings missed) it is not shown. Outside these ranges a number is a fault, not a room.
   const ROOM = { SOURCES: ['modulino_thermo', 'simulated'], FRESH_S: 150, CELSIUS: [-10, 50], HUMIDITY: [0, 100] };
@@ -478,6 +479,22 @@
         movement: st.movement ? sum(st.movement) / st.movement.length : null, blinks_per_min: st.blinks_per_min, gaze_away_share: st.gaze_away_share,
         micro: st.micro, breathing_per_min: fresh ? last.breathing_per_min : null, distance_cm: fresh ? last.distance_cm : null,
       };
+    },
+
+    // The newest tracked second while it is fresh, or null: the session takes its own face values from these (engine.js).
+    faceSecond(now) {
+      const f = this.faceOn() ? this.faceLog[this.faceLog.length - 1] : null;
+      return f && f.tracked && now - f.at < FRESH_S ? f : null;
+    },
+
+    // What the face did in the last 20 s, for the game (engine.js): the share of tracked seconds with a smile over
+    // SMILE_RISE and the median facial movement, each null below 12 tracked seconds; null with the camera off.
+    faceNow(now) {
+      if (!this.faceOn()) return null;
+      const seen = this.faceLog.filter(x => x.tracked && now - x.at < FACE.NOW_S), col = k => seen.map(r => r[k]).filter(x => x != null);
+      const smile = col('smile'), move = col('movement'), enough = xs => xs.length >= FACE.NOW_MIN;
+      if (!enough(smile) && !enough(move)) return null;
+      return { smile: enough(smile) ? smile.filter(x => x > FACE.SMILE_RISE).length / smile.length : null, movement: enough(move) ? A.median(move) : null };
     },
   };
 })();

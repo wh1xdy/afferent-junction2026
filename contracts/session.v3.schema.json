@@ -1063,18 +1063,21 @@
                   "pulse_up",
                   "steady",
                   "low",
-                  "unknown"
+                  "unknown",
+                  "bright",
+                  "still"
                 ],
-                "description": "what the director read: stressed and energised need HRV or breathing against the person's own values (stress: RMSSD at 80% or less, or breathing 3 a minute faster; energised: RMSSD at 90% or more and breathing at most 1.5 faster, both measured); pulse_up is a raised pulse without them; unknown before any pulse. A new state in the same mode is a transition too (from equals to)"
+                "description": "what the director read: stressed and energised need HRV or breathing against the person's own values (stress: RMSSD at 80% or less, or breathing 3 a minute faster; energised: RMSSD at 90% or more and breathing at most 1.5 faster, both measured); pulse_up is a raised pulse without them; unknown before any pulse. bright and still say what the face did, against the person's own face in this session, and are read only where the pulse is near rest, low or missing and the eyes are not tired: bright is smiling clearly more than usual (in 25% or more of the last 20 s and 15 points over the own share), still is much less facial movement than usual (60% of the own median or less) with less smiling. They name no feeling. A new state in the same mode is a transition too (from equals to)"
               },
               "basis": {
                 "enum": [
                   "eyes",
                   "hrv",
                   "pulse",
+                  "face",
                   "none"
                 ],
-                "description": "what the state rests on: eyes (PERCLOS, long closures), hrv (RMSSD or breathing, see hrv_source), pulse (the pulse alone), none (no pulse now, the last state held)"
+                "description": "what the state rests on: eyes (PERCLOS, long closures), hrv (RMSSD or breathing, see hrv_source), pulse (the pulse alone), face (smiling or facial movement from the phone's TrueDepth camera, against the person's own), none (no pulse now, the last state held)"
               },
               "hrv_source": {
                 "enum": [
@@ -1100,14 +1103,16 @@
                     "breathing_calm",
                     "hrv_partial",
                     "hrv_between",
-                    "room_loud"
+                    "room_loud",
+                    "smiling",
+                    "face_still"
                   ]
                 },
-                "description": "the signs behind the state, in the order they were read. room_loud: the phone measured a very loud room (65 dB or more, approximate), which leans a steady or unread state to calm games"
+                "description": "the signs behind the state, in the order they were read. smiling: smiling more than usual (state bright); face_still: the face stiller than usual (state still). room_loud: the phone measured a very loud room (65 dB or more, approximate), which leans a steady or unread state to calm games"
               },
               "signals": {
                 "type": "object",
-                "description": "the numbers the state was read from. pulse_bpm is the pulse the director used (the simulator's in a simulated session); the RMSSD and breathing numbers are real readings only, from the finger clips or from a watch or strap (hrv_source), never simulated, signal quality 0.3 or more, at most 3 s old, null otherwise; own values are medians of readings taken while the pulse was within 5 bpm of rest",
+                "description": "the numbers the state was read from. pulse_bpm is the pulse the director used (the simulator's in a simulated session); the RMSSD and breathing numbers are real readings only, from the finger clips or from a watch or strap (hrv_source), never simulated, signal quality 0.3 or more, at most 3 s old, null otherwise; own values are medians of readings taken while the pulse was within 5 bpm of rest. The four face numbers (smile_share_*, movement_*) are there only while the phone's face measures ran; the hub's clinic routes leave them out",
                 "additionalProperties": false,
                 "properties": {
                   "pulse_bpm": {
@@ -1133,6 +1138,22 @@
                   },
                   "breathing_delta": {
                     "$ref": "#/$defs/num_or_null"
+                  },
+                  "smile_share_now": {
+                    "$ref": "#/$defs/num_or_null",
+                    "description": "share of the tracked seconds of the last 20 s with a smile over 0.04 (null below 12 tracked seconds)"
+                  },
+                  "smile_share_own": {
+                    "$ref": "#/$defs/num_or_null",
+                    "description": "the same share over this session's own face seconds (null below 20)"
+                  },
+                  "movement_now": {
+                    "$ref": "#/$defs/num_or_null",
+                    "description": "median facial movement of the tracked seconds of the last 20 s (null below 12)"
+                  },
+                  "movement_own": {
+                    "$ref": "#/$defs/num_or_null",
+                    "description": "median facial movement over this session's own face seconds (null below 20)"
                   }
                 }
               }
