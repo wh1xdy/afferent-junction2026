@@ -1,0 +1,16 @@
+Dataset build output (make dataset TRANSCRIPTS=../data/transcripts):
+
+examples: 921
+records_without_labels: 0
+personas: 2
+split_by: persona
+split_units: test=[p002_marcus]  val=[]  train=[p001_maggie]
+splits: train=882  val=0  test=39
+per_state: normal=427 joyful=365 sad=81 depressed=48
+per_state_per_split:
+  train: normal=417 joyful=345 sad=75 depressed=45
+  test:  normal=10 joyful=20 sad=6 depressed=3
+token_stats (train): min=1623 median=2916 max=3792
+token_stats (test):  min=1725 median=2917 max=3818
+max_window_chars=9000  max_len=4096
+tokenizer: ../models/qwen3-8b-lora-run1

@@ -1,0 +1,14 @@
+{
+  "n": 39,
+  "pearson": {
+    "responsiveness": 0.55,
+    "engagement": 0.909,
+    "fluency": 0.472,
+    "coherence": 0.715
+  },
+  "drift_flag": {
+    "auroc": 0.954,
+    "accuracy": 0.769,
+    "gold_positive_rate": 0.231
+  }
+}
