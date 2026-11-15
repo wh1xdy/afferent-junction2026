@@ -4,10 +4,10 @@
    (.quiet); with readings at most four lines, never taller than --lv-max-h, 8 px over the home indicator's inset
    (livevitals.test.js holds that to the lane on every phone size). */
 .live-vitals {
-  --lv-max-h: 72px;
+  --lv-max-h: 70px; /* four 15 px lines and the padding: a fifth line is never shown half */
   position: absolute; z-index: 3; left: calc(var(--af-safe-l) + 16px); right: calc(var(--af-safe-r) + 16px); bottom: calc(var(--af-safe-b) + 8px);
   box-sizing: border-box; width: fit-content; max-width: min(400px, calc(100% - 32px - var(--af-safe-l) - var(--af-safe-r))); max-height: var(--lv-max-h); overflow: hidden;
-  margin: 0 auto; padding: 5px 12px; border-radius: 14px; pointer-events: none;
+  margin: 0 auto; padding: 5px 10px; border-radius: 14px; pointer-events: none;
   background: var(--af-glass-strong); color: var(--af-birch);
   box-shadow: var(--af-glass-edge), var(--af-lift-1);
   -webkit-backdrop-filter: var(--af-glass-blur); backdrop-filter: var(--af-glass-blur);
@@ -21,15 +21,15 @@
 .lv-title, .lv-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* Line 1: the three readings, label then value (two lines on a narrow phone while some say "no reading"). */
-.lv-grid { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 12px; }
+.lv-grid { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 9px; }
 .lv-m { white-space: nowrap; }
 .lv-k { display: inline-flex; align-items: center; gap: 3px; color: var(--af-frost); font-size: 11px; line-height: 15px; }
-.lv-v { font-size: 12.5px; line-height: 15px; font-weight: 500; white-space: nowrap; }
+.lv-v { font-size: 12px; line-height: 15px; font-weight: 500; white-space: nowrap; }
 .lv-v.none { color: color-mix(in srgb, var(--af-frost) 80%, transparent); font-size: 11px; font-weight: 400; }
 .lv-sim {
-  display: none; margin-left: 2px; padding: 0 6px; border-radius: 8px; vertical-align: 1px;
+  display: none; margin-left: 2px; padding: 0 5px; border-radius: 7px; vertical-align: 1px;
   background: var(--md-sys-color-simulated-container); color: var(--md-sys-color-on-simulated-container);
-  font: 600 9px/15px var(--af-font-ui); letter-spacing: 0.08em; text-transform: uppercase;
+  font: 600 8.5px/14px var(--af-font-ui); letter-spacing: 0.05em; text-transform: uppercase;
 }
 .lv-sim.on { display: inline-block; }
 
@@ -45,7 +45,7 @@
 .lv-why { color: var(--af-frost); }
 
 /* The last line, only when something has a value: the calm response, the music that follows the heart, the room. */
-.lv-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; }
+.lv-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: 9px; }
 .lv-calm { display: none; align-items: center; gap: 6px; }
 .lv-calm.on { display: inline-flex; }
 .lv-bar { width: 48px; height: 4px; border-radius: 2px; background: color-mix(in srgb, var(--af-frost) 25%, transparent); overflow: hidden; }
